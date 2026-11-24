@@ -191,7 +191,7 @@ targets are at least 44 pt.
 ### Structure: merge, split, reassign
 
 - `segment-editor.merge-lines` — **[OK]** (→ #4941; app + engine; builds on `source.editor.join-is-easy`, #6182) two or
-  more selected lines and ⌥⌘J become one line: the first picked keeps its id; the outlines are
+  more selected lines and ⌘J become one line: the first picked keeps its id; the outlines are
   joined into one polygon (their union, hulled across the gap when they do not touch); the
   baselines are joined end to end in the page's reading order; the readings join with the
   script's separator; the result sits where the first line sat in every order; the others
