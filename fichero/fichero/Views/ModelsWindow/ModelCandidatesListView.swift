@@ -11,13 +11,14 @@ struct ModelCandidatesListView: View {
 
     var body: some View {
         let cards = store.cards(list, matching: search)
-        List(cards, id: \.id) { card in
+        List(cards) { entry in
+            let card = entry.card
             HStack {
                 Text(card.name).frame(maxWidth: .infinity, alignment: .leading)
                 Text(ModelFinderStore.sourceWords(card.source.rawValue)).foregroundStyle(.secondary).frame(width: 160, alignment: .leading)
                 Text(card.size).frame(width: 90, alignment: .leading)
-                Text(ModelCandidateRules.usableWords(store.facts(card))).frame(width: 190, alignment: .leading)
-                if let verb = ModelCandidateRules.verb(store.facts(card)) {
+                Text(ModelCandidateRules.usableWords(entry.facts)).frame(width: 190, alignment: .leading)
+                if let verb = ModelCandidateRules.verb(entry.facts) {
                     Button(verb) { Task { await store.press(card) } }
                         .frame(width: 130)
                         .accessibilityIdentifier("models.row.\(card.id).button")

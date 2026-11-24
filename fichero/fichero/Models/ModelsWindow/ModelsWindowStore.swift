@@ -42,10 +42,19 @@ final class ModelsWindowStore {
         return Self.facts(candidate, downloading: downloading)
     }
 
-    /// The cards of a list, the engine's order kept.
-    func cards(_ list: ModelCandidateRules.List, matching text: String) -> [Components.Schemas.ModelCandidate] {
-        finder.candidates.filter {
-            ModelCandidateRules.rows(list, in: [facts($0)]).count == 1 && ModelCandidateRules.matches($0.name, text)
+    /// A card with its facts, worked out once.
+    struct Entry: Identifiable {
+        let card: Components.Schemas.ModelCandidate
+        let facts: ModelCandidateRules.Facts
+        var id: String { card.id }
+    }
+
+    /// The cards of a list with their facts, the engine's order kept; each card's facts are worked out once.
+    func cards(_ list: ModelCandidateRules.List, matching text: String) -> [Entry] {
+        finder.candidates.compactMap { card in
+            let facts = facts(card)
+            return ModelCandidateRules.rows(list, in: [facts]).count == 1 && ModelCandidateRules.matches(card.name, text)
+                ? Entry(card: card, facts: facts) : nil
         }
     }
 
