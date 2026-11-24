@@ -75,12 +75,13 @@ def main() -> int:
     verdict = perf_rung.judge(figs, baseline, model, thermal(), idle=os.getloadavg()[0] < 2.0, root=ROOT)
     if notes:
         verdict = {**verdict, "ok": False, "reds": [*notes, *verdict["reds"]]}
+    verdict["figures"] = {"benchmarks": figs["benchmarks"], "peak_rss_mb": figs["peak_rss_mb"], "disk_kib": figs["disk_kib"], "written_kib": figs["written_kib"]}
     if verdict.get("recorded") and not notes:
         # a baseline with no figure for these keys: WRITE them (report-only; a first measurement is recorded, never a fail)
         baseline["figures"] = {**(baseline.get("figures") or {}), **verdict["recorded"]}
         (ROOT / a.baseline).write_text(json.dumps(baseline, indent=2) + "\n")
     print(f"pytest exit {r.returncode}", file=sys.stderr)
-    print(perf_rung.result_line(verdict))
+    print("PERF-RESULT " + json.dumps(verdict, separators=(",", ":")))
     return 0
 
 
