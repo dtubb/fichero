@@ -182,6 +182,8 @@ extension ZoomableImagePreview {
             convertToBox: { convertSelectedToBox() },
             convertToLine: { convertSelected(to: "line") },
             convertToRegion: { convertSelected(to: "region") },
+            addVerb: documentId.flatMap { SegmentShapes.addLevel(for: selectedSegments($0)) },
+            addDrawn: { addDrawnInSelection() },
             makeRegion: { makeRegionFromSelectedLines() },
             ungroupRegion: { ungroupSelectedRegions() },
             cutWords: { cutWordsOnSelectedLines() },

@@ -371,6 +371,10 @@ extension SegmentInspectorView {
             }
             Spacer(minLength: 0)
             addMenu
+            InspectorDrawVerbs(
+                selected: segments.filter { selectedIds.contains($0.id) }, documentId: documentId,
+                onNote: { deleteNote = $0 }
+            )
             // Verbs on the SELECTION (ruled: the Inspector offers verbs, never typing a reading).
             SegmentAttributeMenu(apply: { setAttribute($0) }, askForCode: { askingFor = $0; code = "" })
                 .menuStyle(.button)

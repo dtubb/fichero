@@ -106,6 +106,13 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// ADD LINE on a selected region, ADD WORD on a selected line (#7083): the polygon tool armed at that level; the shape
+    /// drawn inside the selection goes into it (`SegmentShapes.containingParent`).
+    func addDrawnInSelection() {
+        guard let documentId, let level = SegmentShapes.addLevel(for: selectedSegments(documentId)) else { return }
+        windowState?.armDraw(level)
+    }
+
     /// JOIN BROKEN WORDS: each word the last Cut Words found broken at a line's end becomes one word with both pieces'
     /// shapes (`segment-editor.edge.word-across-lines`), one merge (and one ⌘Z) per word.
     func joinBrokenWords() {

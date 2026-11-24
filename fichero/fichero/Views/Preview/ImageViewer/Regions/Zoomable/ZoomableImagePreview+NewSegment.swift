@@ -14,11 +14,11 @@ extension ZoomableImagePreview {
         }
     }
 
-    func selectNewSegment(_ id: String?, documentId: String) {
+    func selectNewSegment(_ id: String?, documentId: String, openForText: Bool = true) {
         guard let id, let scope = ocrGeometrySelectionScope, let boxes = ocrGeometry?.boxes,
               let index = boxes.firstIndex(where: { $0.segmentId == id }) else { return }
         regionSelection.select(index, artifactId: scope, documentId: documentId, in: boxes)
-        windowState?.openForTextSegmentId = id
+        if openForText { windowState?.openForTextSegmentId = id }
     }
 
     /// After each re-read of a Join (it, its undo, its redo): the kept line is selected, or the joined lines once undone.

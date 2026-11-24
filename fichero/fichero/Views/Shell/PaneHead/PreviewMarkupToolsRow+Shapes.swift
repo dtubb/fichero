@@ -13,12 +13,50 @@ extension PreviewMarkupToolsRow {
                         help: "Polygon — click points; the first point or a double-click closes it")
             shapeButton(.baseline, label: "Line", icon: "line.diagonal", key: nil,
                         help: "Line — click points along the text, double-click to finish")
+            lineShapeButton
+            levelPicker
             knifeButton
             markerButton
             orderButton
             brushButton
             paintButton
             labeled("Simplify") { SimplifySliderButton(windowState: windowState) }
+        }
+    }
+
+    /// The Line tool (#7083, ⌘⌥⇧L): draws a line as a polygon (click points) in the region that holds it; with a drag it is the
+    /// rectangle tool at the Line level.
+    private var lineShapeButton: some View {
+        let armed = windowState?.activeMarkupTool == .drawRegion && windowState?.drawnLevel == .line
+        return labeled("New Line") {
+            Button {
+                if armed { windowState?.activeMarkupTool = nil; return }
+                windowState?.armDraw(.line)
+            } label: {
+                Image(systemName: "text.alignleft")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .keyboardShortcut("l", modifiers: [.command, .option, .shift])
+            .help("New Line — click the corners of a line of writing; it goes into the region that holds it (⌘⌥⇧L)")
+            .accessibilityLabel("New Line")
+            .accessibilityIdentifier("segmentEditor.tool.newLine")
+        }
+    }
+
+    /// What the polygon and rectangle tools make (#7083): Region, Line or Word, kept; Follow Selection draws a line in a
+    /// selected region and a word in a selected line.
+    private var levelPicker: some View {
+        labeled("Makes") {
+            Picker("Makes", selection: Binding(get: { windowState?.drawnLevel }, set: { windowState?.drawnLevel = $0 })) {
+                Text("Follow Selection").tag(SegmentShapes.DrawnLevel?.none)
+                ForEach(SegmentShapes.DrawnLevel.allCases) { level in Text(level.title).tag(SegmentShapes.DrawnLevel?.some(level)) }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
+            .help("What the polygon and rectangle tools make: a region, a line or a word; or follow the selection")
+            .accessibilityIdentifier("segmentEditor.tool.drawLevel")
         }
     }
 

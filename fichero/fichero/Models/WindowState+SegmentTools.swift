@@ -31,6 +31,14 @@ extension WindowState {
         paintArmed = tool == .paint
     }
 
+    /// Add Line / Add Word (#7083): the polygon tool armed to draw `level`, which goes into the region or line it is drawn in.
+    func armDraw(_ level: SegmentShapes.DrawnLevel) {
+        drawnLevel = level
+        shapeKind = .polygon
+        activeMarkupTool = .drawRegion  // its didSet puts every other tool down
+        NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)
+    }
+
     /// K pressed in Edit Segments: the Knife held, for a stroke or for a tap.
     func pressKnifeKey() {
         knifeHeld = true

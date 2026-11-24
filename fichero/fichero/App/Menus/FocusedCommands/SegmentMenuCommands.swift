@@ -27,6 +27,9 @@ struct SegmentMenuTarget {
     /// Convert to Line / Convert to Region: the selection changes level (`segment-editor.convert-level`).
     var convertToLine: () -> Void = {}
     var convertToRegion: () -> Void = {}
+    /// Add Line (one selected region) or Add Word (one selected line): the polygon tool armed at that level (#7083).
+    var addVerb: SegmentShapes.DrawnLevel?
+    var addDrawn: () -> Void = {}
     /// Make Region from Lines (⌘G) and Ungroup Region (no chord: ⇧⌘G shows or hides Items).
     var makeRegion: () -> Void = {}
     var ungroupRegion: () -> Void = {}
@@ -90,6 +93,13 @@ struct SegmentMenuContent: View {
         Button("Convert to Box") { target?.convertToBox() }
             .keyboardShortcut("b", modifiers: [.command, .option])
             .disabled(count == 0)
+        Button(target?.addVerb == .word ? "Add Word" : "Add Line") { target?.addDrawn() }
+            .disabled(target?.addVerb == nil)
+        Menu("Change Kind") {
+            Button("Region") { target?.convertToRegion() }
+            Button("Line") { target?.convertToLine() }
+        }
+        .disabled(count == 0)
         Button("Convert to Line") { target?.convertToLine() }
             .disabled(count == 0)
         Button("Convert to Region") { target?.convertToRegion() }

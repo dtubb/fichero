@@ -140,6 +140,7 @@ class WindowState {
     /// What the one Shape tool draws in Edit Segments (`source.editor.draw-shapes`): a dragged box, or a
     /// polygon or baseline clicked point by point. Outside Edit Segments the tool always drags a box.
     var shapeKind: SegmentShapes.DrawKind = .box
+    var drawnLevel: SegmentShapes.DrawnLevel?  // the kind picker's choice, kept; nil follows the selection (#7083)
 
     /// The shape point last pressed in Edit Segments: the arrow keys nudge it (1 px, ⇧ 10) instead of
     /// paging. A press anywhere else lets it go.
