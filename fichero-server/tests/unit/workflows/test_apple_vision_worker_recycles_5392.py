@@ -49,6 +49,13 @@ def _read(path: str) -> str:
     return asyncio.run(vb._apple_vision_call(read_page, path, "en"))
 
 
+def test_a_fork_start_is_refused(monkeypatch):
+    monkeypatch.setenv("FICHERO_APPLE_VISION_START", "fork")
+    worker.WORKER.close()
+    with pytest.raises(RuntimeError, match="forked"):
+        _read("page")
+
+
 def test_a_call_that_never_returns_kills_the_child_and_fails_its_page_in_words():
     began = time.monotonic()
     with pytest.raises(vb.AppleVisionTimeout) as raised:
