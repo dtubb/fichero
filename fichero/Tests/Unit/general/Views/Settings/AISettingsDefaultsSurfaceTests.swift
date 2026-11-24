@@ -17,10 +17,10 @@ final class AISettingsDefaultsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("@State var visionLargeModels: [ModelInfo] = []"))
     }
 
-    func testModelManagementTabsMovedToTheModelsWindowAndSettingsLinksThere() throws {
+    func testModelManagementTabsMovedToTheModelsWindowStillRespectTierGateAndSettingsLinksThere() throws {
         let source = try Self.appSource("Views/Settings/AI/AISettingsView.swift")
-        XCTAssertFalse(source.contains("featureManager.isSettingsModelsTabEnabled"))
-        XCTAssertTrue(source.contains("case .window: [.defaults, .providers, .downloads]"))
+        XCTAssertTrue(source.contains("featureManager.isSettingsModelsTabEnabled"))
+        XCTAssertTrue(source.contains("case .window: modelsTabEnabled ? [.defaults, .providers, .downloads] : [.defaults]"))
         XCTAssertTrue(source.contains("case .settings: [.advanced]"))
         // #4503: the "Local LLM" tab is GONE; the case survives and resolves to the providers tab.
         XCTAssertFalse(source.contains("Text(\"Local LLM\")"))

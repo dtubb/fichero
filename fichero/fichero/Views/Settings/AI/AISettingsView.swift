@@ -29,7 +29,7 @@ struct AISettingsView: View {
 
     init(placement: AISettingsPlacement = .settings) {
         self.placement = placement
-        _selectedTab = State(initialValue: placement.tabs[0])
+        _selectedTab = State(initialValue: placement.tabs(modelsTabEnabled: true)[0])
     }
 
     // Model lists per category
@@ -48,8 +48,11 @@ struct AISettingsView: View {
 
     private var effectiveSelectedTab: AISettingsTab {
         let resolved = selectedTab.resolved
-        return placement.tabs.contains(resolved) ? resolved : placement.tabs[0]
+        return tabs.contains(resolved) ? resolved : tabs[0]
     }
+
+    /// The tabs drawn here; Models & Providers and Downloads stay behind the build tier's `isSettingsModelsTabEnabled`.
+    private var tabs: [AISettingsTab] { placement.tabs(modelsTabEnabled: featureManager.isSettingsModelsTabEnabled) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -70,9 +73,9 @@ struct AISettingsView: View {
                 .formStyle(.grouped)
             } else {
                 if placement == .settings { modelsMovedLink }
-                if placement.tabs.count > 1 {
+                if tabs.count > 1 {
                     Picker("", selection: $selectedTab) {
-                        ForEach(placement.tabs, id: \.self) { Text($0.title).tag($0) }
+                        ForEach(tabs, id: \.self) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
@@ -144,10 +147,12 @@ enum AISettingsTab: Hashable, CaseIterable {
 enum AISettingsPlacement: Equatable {
     case settings, window
 
-    var tabs: [AISettingsTab] {
+    /// `modelsTabEnabled` is the build tier's gate (`FeatureManager.isSettingsModelsTabEnabled`): when off, the window draws
+    /// Defaults only, as Settings did.
+    func tabs(modelsTabEnabled: Bool) -> [AISettingsTab] {
         switch self {
         case .settings: [.advanced]
-        case .window: [.defaults, .providers, .downloads]
+        case .window: modelsTabEnabled ? [.defaults, .providers, .downloads] : [.defaults]
         }
     }
 }
