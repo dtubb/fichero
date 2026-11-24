@@ -676,6 +676,33 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `fichero-builder/tests/test_lane_role.py::test_a_workers_command_starts_in_a_directory_it_made_with_tmpdir_and_pytest_basetemp_inside_it`,
   `fichero-builder/tests/test_adapters.py::test_the_workers_tmpdir_and_pytest_basetemp_reach_the_session_command_not_the_tmux_servers_environment`.
   Serves: reliable.
+- `local.queue.batch.one-step-many-parts` [GAP] (#6589; owner 2026-11-24: one landing costs about 10 minutes of checks, a review and a rebase) — `[queue].batch_max`
+  (default 4). `builder queue add` with a brief that names one issue, on a lane whose next queued step has fewer than `batch_max` issues,
+  appends the brief to that step as a new part instead of making a step: the step's one brief file gains a `## PART <n> (#<issue>)`
+  heading and the new text (the first append adds `## PART 1 (...)` above the old text), the step's `issues` list gains the
+  issue, one `part-added` row is journaled, and the verb prints `joined <lane> <step> as part <n>`. `--alone` keeps a step of its own (an
+  urgent hang or crash). A step that is not `queued`, or has a resume brief, a round or a head, is never changed; an issue the step already
+  has, a brief that names several issues, and a milestone's `--enqueue` make steps as before. The fix brief and the review read the whole
+  batch, because they read the one brief file and the step's `issues`. Acceptance: test
+  `fichero-builder/tests/test_queue_batch.py::test_a_one_issue_brief_joins_the_next_unstarted_step_as_a_part` and its neighbours there.
+- `local.queue.batch.parts-left` [GAP] (#6589) — a batch's worker ends with `PART <n> left: <why>` lines for the parts it did not do. The
+  step's `step` row carries them; the step lands with only the parts done in its `issues`, and the loop queues `<step>-left` as the lane's
+  next step with a brief of only the parts left (and each reason). A part number the brief does not have blocks the step with the question.
+  Acceptance: `fichero-builder/tests/test_queue_batch.py::test_parts_the_worker_left_are_requeued_alone_as_the_lanes_next_step`,
+  `fichero-builder/tests/test_dry_run.py::test_a_done_step_row_carries_the_sessions_context_model_window_and_the_parts_left`.
+- `local.queue.session.keep-across-steps` [GAP] (#6589; owner 2026-11-24: a worker does more when it keeps what it learned) — `[queue].session`
+  = `"lane"` (default) or `"step"`. With `lane`, when a step lands and the lane has a next step, the loop sends the next brief into the
+  same live session, as it sends a fix brief. A fresh session starts instead when: the session is gone, the lane's model (its `[models]`
+  role) is not the one the session runs, the session's context use (the step row's `context` over its `window`) is over
+  `[queue].session_max_context` (default 0.70), or `[queue].session_max_steps` (default 5) steps have landed in it. `step` ends the
+  session at every landing. A bad value is refused by `queue add` and `queue run`, and ignored with a `queue-cfg-refused` row by a running
+  loop. One `session-kept` or `session-fresh` row per landing with a next step names the reason; each step carries `session` = `kept` or
+  `fresh` for how it was started. Acceptance: `fichero-builder/tests/test_queue_batch.py::test_the_next_brief_goes_into_the_same_session_and_one_row_says_why`,
+  `::test_a_fresh_session_starts_when_the_reason_holds`, `::test_a_gone_session_is_a_fresh_one_with_its_own_row`,
+  `::test_batch_max_and_session_come_from_the_queue_table`.
+- `local.queue.session.console-shows-parts-and-session` [GAP] (#6589) — the console's lane rows list each step with its issues, "<n> parts" when it
+  has more than one, and "session kept" or "session fresh". Acceptance:
+  `fichero-builder/tests/test_queue_batch.py::test_the_lanes_steps_on_the_console_carry_their_parts_and_session`.
 - `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
