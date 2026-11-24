@@ -130,6 +130,17 @@ def test_a_dense_outline_at_a_big_tolerance_keeps_at_least_three_points_and_stil
     assert result.result["removed"] > 0
 
 
+def test_the_tolerance_is_in_pixels_not_fractions(db, client):
+    doc, pass_id = _page(db, client)
+    line = _dense_line(client, doc, pass_id)
+    points = len(db.get(Segment, line).anchor.polygon)
+
+    # A tenth of a pixel is less than the half-pixel wobble, so no point can go (read as a fraction of the page it
+    # would have flattened the whole line). The action answers that nothing went.
+    assert _simplify(db, [line], 0.1).result["removed"] == 0
+    assert len(db.get(Segment, line).anchor.polygon) == points
+
+
 def test_an_outline_that_would_fall_under_the_floor_is_held_not_discarded():
     """A thin sliver traced densely: at a tolerance wider than it is, Douglas-Peucker leaves two points. The floor
     is held (three), the outline is not left as it was."""
