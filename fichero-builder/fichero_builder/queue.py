@@ -332,6 +332,10 @@ def end_session(lane: dict, s: dict, handles: dict, procs: Procs) -> None:
     it) unless a reason ends it; one `session-kept` or `session-fresh` row says which. The first reason that holds is the row's detail."""
     lane["session_steps"] = lane.get("session_steps", 0) + 1
     if lane["cursor"] >= len(lane["steps"]):
+        if lane.get("fresh") and lane["id"] in handles:  # a managed lane's worker ends with its batch, so a step added later starts a fresh one
+            procs.stop(lane)
+            del handles[lane["id"]]
+            lane["feed"] = ""
         return  # no next step: the lane's session ends with the lane
     h, ctx, win = handles.get(lane["id"]), s.get("context") or 0, s.get("window") or 0
     pct = f"{ctx * 100 / win:.0f}%" if ctx and win else ""
@@ -554,6 +558,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if not row.get("moved") and not procs.ahead_of_origin(lane):  # #6507: a retried batch's commits predate this session; the tree past origin counts
             return block(s, "the worker said DONE with no commit on this step")
         s["context"], s["window"], s["model"], s["left"] = row.get("context") or 0, row.get("window") or 0, row.get("model") or "", row.get("left") or []
+        if bad := [x["part"] for x in s["left"] if x["part"] not in parts_of(Path(s["brief"]).read_text())]:  # before any check or push
+            s["left"] = []
+            return block(s, f"the worker left part(s) {bad} that the brief does not have (its parts: {sorted(parts_of(Path(s['brief']).read_text()))}); "
+                            "send it back to name the parts it did not do, or retry")
         move(s, "done", "")
         if moved := tree_check(lane, s, handles, procs):  # an alert to read; the step goes on: the stray write was not in its tree
             alert(lane["id"], s["step"], "a tree outside the step's own moved: " + "; ".join(moved), str(journal.STATE / "journal.jsonl"), [])
@@ -642,8 +650,6 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         left_parts = {}
         if s.get("left"):  # the worker's "PART x left: why" lines: the parts it did not do are the lane's next step, the rest landed
             have = parts_of(Path(s["brief"]).read_text())
-            if bad := [x["part"] for x in s["left"] if x["part"] not in have]:
-                return block(s, f"the worker left part(s) {bad} that the brief does not have (its parts: {sorted(have)})")
             left_parts = {x["part"]: x["why"] for x in s["left"]}
             gone = {n for p in left_parts for n in have[p][0]}
             s["issues"] = [n for n in s["issues"] if n not in gone]

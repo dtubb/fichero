@@ -167,3 +167,29 @@ def test_the_lanes_steps_on_the_console_carry_their_parts_and_session(state):
     lanes[0]["steps"][0]["session"] = "kept"
     got = console.steps_on_origin(lanes[0], "f" * 40)
     assert got[0]["parts"] == [7, 9] and got[0]["session"] == "kept"
+
+
+def test_a_part_number_the_brief_lacks_blocks_the_step_before_anything_is_checked_or_landed(state):
+    add(state, "s1", "a", 7)
+    fake = Fake()
+    row = fake.row
+    fake.row = lambda lane: ({**r, "left": [{"part": 1, "why": "x"}]} if (r := row(lane)) else r)
+    fake.procs.row = fake.row
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    assert steps()[0]["state"] == "blocked" and "does not have" in steps()[0]["why"]
+    assert fake.landed_calls == [], "nothing was landed or pushed"
+
+
+def test_a_managed_lanes_worker_is_stopped_when_its_last_step_lands(state):
+    add(state, "s1", "a", 7)
+    lanes = queue.load()
+    lanes[0]["fresh"] = True
+    queue.save(lanes)
+    fake = Fake()
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    assert steps()[0]["state"] == "landed"
+    handles = {"m1": "h"}
+    lane = queue.load()[0]
+    lane["cursor"] = len(lane["steps"])
+    queue.end_session(lane, lane["steps"][0], handles, fake.procs)
+    assert handles == {} and fake.stops.count("m1") >= 1 and lane["feed"] == ""
