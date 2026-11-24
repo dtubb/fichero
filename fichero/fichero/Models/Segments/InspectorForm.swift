@@ -99,6 +99,22 @@ struct InspectorForm: Equatable {
         )
     }
 
+    /// The most segments one `GET /api/segments/inspect` takes; a larger selection gets no form and says so.
+    static let maxSegments = 500
+
+    /// Why the form is not shown: said under the Inspector's head, never a silent blank.
+    enum Unavailable: Equatable {
+        case tooMany(Int), unknown, failed
+    }
+
+    static func unavailableNote(_ reason: Unavailable) -> String {
+        switch reason {
+        case .tooMany(let count): "\(count) segments selected; the form shows up to \(maxSegments). Select fewer."
+        case .unknown: "The engine knows none of the selected segments."
+        case .failed: "The form could not be read. Select again to retry."
+        }
+    }
+
     /// The attribute a row's control sets; nil for a key the form does not know or a typed code that is empty.
     static func attribute(rowKey: String, value: String) -> SegmentEdit.Attribute? {
         let value = value.trimmingCharacters(in: .whitespaces)

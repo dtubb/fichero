@@ -22,6 +22,8 @@ struct SegmentInspectorView: View {
     @State private var text: InspectorText?
     /// The form the engine words for the inspected segment, or for the whole selection (`GET /api/segments/inspect`).
     @State private var form: InspectorForm?
+    /// Why there is no form for a selection that has segments (too many, unknown to the engine, a failed read).
+    @State private var formNote: String?
     /// Bumped after a form edit so the form is read again.
     @State private var formRevision = 0
     /// Edit… (#5201): the words being edited, with the reading they correct; nil when not editing.
@@ -106,6 +108,10 @@ struct SegmentInspectorView: View {
                     }
                     if let form {
                         InspectorFormView(form: form) { key, value in setFormValue(key, value) }
+                    } else if let formNote {
+                        Text(formNote).font(.caption).foregroundStyle(.secondary)
+                    } else if !formIds.isEmpty {
+                        Text("Reading the form…").font(.caption).foregroundStyle(.secondary)
                     }
                     if isMulti {
                         InspectorBulkSection(selectedIds: selectedIds)
@@ -201,10 +207,24 @@ struct SegmentInspectorView: View {
 
     private func reloadForm() async {
         let ids = formIds
-        guard let segmentService, !ids.isEmpty else { form = nil; return }
-        let answer = try? await segmentService.inspectForm(segmentIds: ids)
+        guard let segmentService, !ids.isEmpty else { form = nil; formNote = nil; return }
+        guard ids.count <= InspectorForm.maxSegments else {
+            form = nil
+            formNote = InspectorForm.unavailableNote(.tooMany(ids.count))
+            return
+        }
+        let answer: InspectorForm?
+        let reason: InspectorForm.Unavailable
+        do {
+            answer = try await segmentService.inspectForm(segmentIds: ids)
+            reason = .unknown
+        } catch {
+            answer = nil
+            reason = .failed
+        }
         guard !Task.isCancelled, ids == formIds else { return }
         form = answer
+        formNote = answer == nil ? InspectorForm.unavailableNote(reason) : nil
     }
 
     /// A form control changed: one audited `segment.update_many` over the form's segments, ⌘Z.

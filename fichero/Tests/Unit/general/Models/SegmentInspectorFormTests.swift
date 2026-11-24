@@ -136,4 +136,12 @@ struct SegmentInspectorFormTests {
         #expect(form.rows[1].isToggle && !form.rows[1].isOn)
         #expect(form.rows[2].state == .inherited && form.rows[2].inheritedFrom == "document" && form.rows[2].freeText)
     }
+
+    @Test("a form that cannot be shown says why: too many segments, none known, or a failed read")
+    func unavailableNotes() {
+        #expect(InspectorForm.maxSegments == 500)
+        #expect(InspectorForm.unavailableNote(.tooMany(501)) == "501 segments selected; the form shows up to 500. Select fewer.")
+        #expect(InspectorForm.unavailableNote(.unknown) == "The engine knows none of the selected segments.")
+        #expect(InspectorForm.unavailableNote(.failed) == "The form could not be read. Select again to retry.")
+    }
 }

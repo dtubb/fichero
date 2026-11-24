@@ -559,6 +559,14 @@ targets are at least 44 pt.
   and the identifiers in `InspectorFormView`. *Not built:* the chords ⌥⇧⌘J (row join) and ⌥ArrowKeys / ⌃⌥ArrowKeys (edges),
   which no menu uses and no step builds yet; a window never seen. *Tests:* `SegmentInspectorFormTests.swift`.
 
+#### What the person sees: the Inspector form
+
+- **Opener:** the Inspector pane (View menu, Show Inspector) with one or more segments selected; the form sits under the pane's head.
+- **Loading:** while the engine's answer is on its way the form area says "Reading the form…"; a newer selection replaces the older read.
+- **Empty:** nothing selected (page level) shows no form and no note.
+- **Error:** a failed read says "The form could not be read. Select again to retry."; ids the engine knows none of say "The engine knows none of the selected segments."; a selection over 500 segments says "N segments selected; the form shows up to 500. Select fewer." The form never goes blank without a word.
+- **Acceptance:** select two lines whose languages differ; the Language row reads "Mixed", VoiceOver reads "Mixed: a, b", and choosing a language sends one `segment.update_many` that one ⌘Z undoes. *Tests:* `fichero/Tests/Unit/general/Models/SegmentInspectorFormTests.swift` (the model and the notes; not run).
+
 ### Words and characters
 
 See section 7.2 below for what exists. The design:
