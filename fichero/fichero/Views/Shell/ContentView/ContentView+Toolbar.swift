@@ -247,6 +247,23 @@ extension ContentView {
             }
         }
 
+        // The Activity indicator at the far right of the content section, after Workspaces and beside the Inspector
+        // toggle (#7090), where macOS apps keep status and activity (Xcode, Safari downloads). Declared whenever the
+        // island is, with only its content varying (#3163).
+        if horizontalSizeClass != .compact {
+            ToolbarItem(id: ContentToolbarID.activityStatus, placement: .automatic) {
+                ActivityStatusToolbarItem(
+                    isImporting: isImporting,
+                    importProgress: importProgress,
+                    libraryId: windowState.libraryId,
+                    libraryName: searchChromeLibraryName,
+                    importError: $importError,
+                    revealActivityPane: revealActivityPane
+                )
+                .padding(.horizontal, 5)
+            }
+        }
+
         // Sort and filter used to sit here, outside the split-pane block, with
         // a comment explaining that "sorting and filtering a list is not a
         // split-pane concept". That special case is GONE rather than ported
@@ -402,22 +419,10 @@ extension ContentView {
             #if !os(iOS)
             ToolbarSpacer(.fixed, placement: .principal)
             #endif
-            // Server + Activity share ONE capsule (Daniel, 2026-08-30:
-            // "maybe combine server and network") — both are "how is the
-            // machinery", one glass section. The 2026-08-23 separation was
-            // from the ISLAND, which stays its own item.
+            // The engine's status is its own item here; the Activity indicator left it for the far right, beside
+            // the Inspector toggle (`contentPaneToolbarContent`, #7090).
             ToolbarItem(id: ContentToolbarID.engineStatus, placement: Self.islandNeighbourPlacement) {
-                HStack(spacing: 5) {
-                    EngineStatusToolbarItem()
-                    ActivityStatusToolbarItem(
-                        isImporting: isImporting,
-                        importProgress: importProgress,
-                        libraryId: windowState.libraryId,
-                        libraryName: searchChromeLibraryName,
-                        importError: $importError,
-                        revealActivityPane: revealActivityPane
-                    )
-                }
+                EngineStatusToolbarItem()
                 .padding(.horizontal, 5)
             }
         }

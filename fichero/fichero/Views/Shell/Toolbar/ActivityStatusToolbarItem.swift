@@ -73,7 +73,7 @@ struct ActivityStatusToolbarItem: View {
         Group {
             if hasError {
                 Button {
-                    showPopover = true
+                    showPopover.toggle()
                 } label: {
                     Image(systemName: ToolbarSymbols.activityError)
                         .foregroundStyle(.red)
@@ -83,7 +83,7 @@ struct ActivityStatusToolbarItem: View {
                 .help("A background task reported an error — click for details")
             } else if activeCount > 0 {
                 Button {
-                    showPopover = true
+                    showPopover.toggle()
                 } label: {
                     HStack(spacing: 4) {
                         ProgressView()
@@ -106,7 +106,7 @@ struct ActivityStatusToolbarItem: View {
                 // filter control's three-lines-in-a-circle at toolbar size
                 // (#4360).
                 Button {
-                    showPopover = true
+                    showPopover.toggle()
                 } label: {
                     // Lit while its popover is open, same rule as the server
                     // button beside it (Daniel, 2026-09-02).
