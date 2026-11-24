@@ -17,7 +17,7 @@ review missed once.
    that changes a derived id (uuid5) needs a migration.
 8. **No model reruns.** A model call must reuse an existing result for the same input and model first.
 9. **Boundary.** No private manuscripts, no absolute home paths, no tokens, no `user_manual` private directories.
-10. **Trailers.** Exactly one trailer on every commit: `Written-By: <MODEL> using <HARNESS> using Fichero Builder`, MODEL the display name of the model that wrote it (owner 2026-11-16); no `Co-Authored-By:`, no `Directed-By:`, no second line. Older commits are not rewritten. Author `Claude <noreply@anthropic.com>`, whatever model wrote it (the authorship checks accept no other).
+10. **Trailers.** Exactly one trailer on every commit: `Written-By: <MODEL> using <HARNESS> using Fichero Builder`, MODEL the display name of the model that wrote it (owner 2026-11-16); no `Co-Authored-By:`, no `Directed-By:`. The one other line allowed is `Spec-change: <what and why>, ruled by the owner|manager`, directly above `Written-By:`, on a commit that changes a behaviour's acceptance text (scripts/check_spec_acceptance.py demands it there); never refuse it. Older commits are not rewritten. Author `Claude <noreply@anthropic.com>`, whatever model wrote it (the authorship checks accept no other).
 11. **Ladder output is untrusted.** Tests run the worker's own code, so a green ladder is never evidence against a hostile
     diff (a test file can always exit 0). Read every new module for exits and for names that shadow the stdlib or an
     installed package, and every conftest.py change. Name each such file on the last line: `READY: allow-shadow <path>`.
