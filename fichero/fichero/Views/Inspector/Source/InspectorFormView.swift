@@ -61,3 +61,24 @@ private struct FormRow: View {
         }
     }
 }
+
+#Preview("Inspector form: two lines, one mixed row") {
+    InspectorFormView(
+        form: InspectorForm(
+            level: "line", count: 2, withheld: 0,
+            rows: [
+                .init(
+                    key: "language", label: "Language", isToggle: false, state: .mixed, value: nil, values: ["en", "fr"],
+                    inheritedFrom: nil, choices: [.init(value: "en", label: "English"), .init(value: "fr", label: "French")],
+                    freeText: true
+                ),
+                .init(
+                    key: "furniture", label: "Furniture", isToggle: true, state: .set, value: "false", values: [],
+                    inheritedFrom: nil, choices: [], freeText: false
+                ),
+            ]
+        ),
+        onChange: { _, _ in }
+    )
+    .frame(width: 320, height: 240)
+}

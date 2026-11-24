@@ -546,7 +546,7 @@ targets are at least 44 pt.
   (with the level it came from), `mixed` (with every distinct value) or `none`, and carries its choices; ids the person may
   not read are counted as withheld. The app keeps no table of rows. *Built:* `segment_inspect_rows.py`, the route in
   `segments.py`, `SegmentService.inspectForm`. *Tests:* `fichero-server/tests/unit/api/test_segment_inspect.py`,
-  `SegmentInspectorFormTests.swift`.
+  `fichero/Tests/Unit/general/Models/SegmentInspectorFormTests.swift`.
 - `source.editor.inspector-form-edits-the-selection-at-once` — **[PARTIAL]** (→ #7074; app + engine) a change in the form
   is ONE `segment.update_many` over every selected segment (type, furniture, language, script, direction; a region's
   line_progression), so one ⌘Z undoes it, and the form is read again after it. *Built:* `InspectorForm.edit`,
