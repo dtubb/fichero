@@ -687,7 +687,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `fichero-builder/tests/test_queue_batch.py::test_a_one_issue_brief_joins_the_next_unstarted_step_as_a_part` and its neighbours there.
 - `local.queue.batch.parts-left` [GAP] (#6589) — a batch's worker ends with `PART <n> left: <why>` lines for the parts it did not do. The
   step's `step` row carries them; the step lands with only the parts done in its `issues`, and the loop queues `<step>-left` as the lane's
-  next step with a brief of only the parts left (and each reason). A part number the brief does not have blocks the step with the question.
+  next step with a brief of only the parts left, the owner's part text as written; the worker's reasons are never in a brief (it is inlined with the owner's allowlist) and are in the `queued` row's detail. A part number the brief does not have blocks the step with the question.
   Acceptance: `fichero-builder/tests/test_queue_batch.py::test_parts_the_worker_left_are_requeued_alone_as_the_lanes_next_step`,
   `fichero-builder/tests/test_dry_run.py::test_a_done_step_row_carries_the_sessions_context_model_window_and_the_parts_left`.
 - `local.queue.session.keep-across-steps` [GAP] (#6589; owner 2026-11-24: a worker does more when it keeps what it learned) — `[queue].session`
