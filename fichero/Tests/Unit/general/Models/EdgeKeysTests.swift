@@ -16,7 +16,7 @@ final class EdgeKeysTests: XCTestCase {
     }
 
     func testControlOptionMovesTheSameEdgeBack() {
-        let shrunk = EdgeKeys.plan([box], side: .down, outward: false, pixels: 10, imagePixels: page)
+        let shrunk = EdgeKeys.plan([box], side: .bottom, outward: false, pixels: 10, imagePixels: page)
         XCTAssertEqual(shrunk[0][3], 0.08, accuracy: 1e-9)
         XCTAssertEqual(shrunk[0][1], 0.3, accuracy: 1e-9)
     }
@@ -25,7 +25,7 @@ final class EdgeKeysTests: XCTestCase {
         let left = EdgeKeys.plan([box], side: .left, outward: true, pixels: 10, imagePixels: page)
         XCTAssertEqual(left[0][0], 0.19, accuracy: 1e-9)
         XCTAssertEqual(left[0][2], 0.41, accuracy: 1e-9)
-        let top = EdgeKeys.plan([box], side: .up, outward: true, pixels: 10, imagePixels: page)
+        let top = EdgeKeys.plan([box], side: .top, outward: true, pixels: 10, imagePixels: page)
         XCTAssertEqual(top[0][1], 0.28, accuracy: 1e-9)
         XCTAssertEqual(top[0][3], 0.12, accuracy: 1e-9)
     }

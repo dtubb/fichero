@@ -4,7 +4,7 @@ import Foundation
 /// edit that sends it. ⌥ moves the edge on the arrow's side in the arrow's direction (the box grows); ⌃⌥ moves that edge
 /// the other way (the box shrinks). Boxes are `[x, y, w, h]` in page fractions.
 nonisolated enum EdgeKeys {
-    enum Side { case left, right, up, down }
+    enum Side { case left, right, top, bottom }
 
     /// Every box with `side`'s edge moved `pixels` image pixels, outward or back, held to the page and to `minimum`. A box
     /// the move would leave thinner than `minimum` is returned as it was; one that meets the page stops there.
@@ -19,8 +19,8 @@ nonisolated enum EdgeKeys {
             switch side {
             case .left: minX = min(max(minX - sign * pixels / imagePixels[0], 0), 1)
             case .right: maxX = min(max(maxX + sign * pixels / imagePixels[0], 0), 1)
-            case .up: minY = min(max(minY - sign * pixels / imagePixels[1], 0), 1)
-            case .down: maxY = min(max(maxY + sign * pixels / imagePixels[1], 0), 1)
+            case .top: minY = min(max(minY - sign * pixels / imagePixels[1], 0), 1)
+            case .bottom: maxY = min(max(maxY + sign * pixels / imagePixels[1], 0), 1)
             }
             guard maxX - minX >= minimum, maxY - minY >= minimum else { return box }
             return [minX, minY, maxX - minX, maxY - minY]

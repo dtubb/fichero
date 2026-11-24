@@ -552,7 +552,7 @@ extension ZoomableImagePreview {
             .onKeyPress(.upArrow, phases: .down) { press in
                 // ⌥ grows the selected boxes' up edge, ⌃⌥ shrinks it (`segment-editor.edges-move-by-key`).
                 if press.modifiers.contains(.option), resizeSelectedByKey(
-                    side: .up, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
+                    side: .top, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
                 ) { return .handled }
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, -1, fast: press.modifiers.contains(.shift)) { return .handled }
@@ -565,7 +565,7 @@ extension ZoomableImagePreview {
             .onKeyPress(.downArrow, phases: .down) { press in
                 // ⌥ grows the selected boxes' down edge, ⌃⌥ shrinks it (`segment-editor.edges-move-by-key`).
                 if press.modifiers.contains(.option), resizeSelectedByKey(
-                    side: .down, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
+                    side: .bottom, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
                 ) { return .handled }
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, 1, fast: press.modifiers.contains(.shift)) { return .handled }
