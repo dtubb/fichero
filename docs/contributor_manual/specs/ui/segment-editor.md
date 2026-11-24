@@ -697,7 +697,7 @@ See section 7.2 below for what exists. The design:
 - `segment-editor.expand-one-axis` — **[PARTIAL]** (#6735; app) owner ruling 2026-11-21: dragging a handle with ⇧ held changes
   one axis, chosen by the way the drag first moves; the other edges stay; without ⇧ the drag is as before; one undoable move; lines
   and regions both. *Built note (needs an on-screen check):* `BoxResize.axis`, `resized(axis:)` and `handleResize`;
-  `fichero/Tests/Unit/general/Views/Segments/ShiftDragOneAxisTests.swift`; `handleResize` now also serves several boxes (see `segment-editor.edges-drag-and-say-so`), nothing else changed here. The tools and keys below stay **[PROPOSED]** (open choice
+  `fichero/Tests/Unit/general/Views/Segments/ShiftDragOneAxisTests.swift`. The tools and keys below stay **[PROPOSED]** (open choice
   for the owner: tools plus keys, or only one of them): a way to expand a segment only vertically or only horizontally. Proposed, A: two tools, Expand Vertically (V) and
   Expand Horizontally (H); dragging over a segment changes only that axis with the other edges locked; a click grows that axis
   to fit the ink (snapping to the page's text); Shift applies it to every selected segment. Proposed, C: keys on a selection,
