@@ -55,7 +55,7 @@ struct ModelsPaneView: View {
             }
         }
         .searchable(text: $search, prompt: "Search models")
-        .sheet(isPresented: $addsModel) { addSheet }
+        .background { Color.clear.sheet(isPresented: $addsModel) { addSheet } }
         .task { await ModelsAnswerStore.shared.watch(libraryManager) }
         .task { await openStore() }
         .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { refresh() }
