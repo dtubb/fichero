@@ -36,7 +36,7 @@ struct ActivityStatusToolbarItem: View {
     @State private var showPopover = false
 
     /// One click opens the popover and the next closes it; a click never leaves a second one up (#7090).
-    static func popoverAfterClick(_ isOpen: Bool) -> Bool { !isOpen }
+    nonisolated static func popoverAfterClick(_ isOpen: Bool) -> Bool { !isOpen }
     /// The failures the popover may show, fixed as it opens (#5666): the last hour, or since it was last opened.
     @State private var errorWindow = ActivityErrorWindow()
     private let errorLedger = ActivityErrorLedger.shared
