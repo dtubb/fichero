@@ -1,0 +1,76 @@
+"""The build rung's remote path (#6589): the runner's real directory (`pwd -P`), every use of it quoted for the remote shell, the
+rsync told to protect its arguments, and one alert when the remote build env-reds three times in a row."""
+import shlex
+
+from fichero_builder import check_tool, journal
+
+LOGICAL = "/Users/Shared/gate-link"
+REAL = "/Volumes/Ext Disk/fichero gate"  # the symlink's target: a space in a volume name and in a folder name
+BUILD = ("xcodebuild", "-scheme", "S", "-derivedDataPath", "x", "build")
+
+
+def _cfg():
+    return check_tool.Config(build=BUILD, build_remote=f"imac:{LOGICAL}")
+
+
+class Fake:
+    """A fake ssh and run_command that record what they were asked; `red` is the stderr of a build that exits 1 (None = green)."""
+
+    def __init__(self, monkeypatch, tmp_path, red=None):
+        self.ssh_scripts, self.argvs, self.red = [], [], red
+        monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+        monkeypatch.setattr(check_tool, "_BUILD_ENV_REDS", {"n": 0, "last": ""})
+        monkeypatch.setattr(check_tool, "_stable_build_tree", lambda root, cfg: str(root))
+        monkeypatch.setattr(check_tool, "_ssh", self.ssh)
+        monkeypatch.setattr(check_tool, "run_command", self.run)
+
+    def ssh(self, host, script, *a, **k):
+        self.ssh_scripts.append(script)
+        return type("P", (), {"returncode": 0, "stdout": REAL.encode() if "pwd" in script else b"", "stderr": b""})()
+
+    def run(self, name, argv, *a, **k):
+        self.argvs.append((name, list(argv)))
+        if name == "build-sync":
+            return {"ok": True}
+        return {"ok": self.red is None, "exit_code": 0 if self.red is None else 1, "timed_out": False, "seconds": 1,
+                "stdout_tail": "", "stderr_tail": self.red or "", "errors": ""}
+
+
+def test_the_real_path_with_a_space_survives_into_every_remote_command(tmp_path, monkeypatch):
+    fake = Fake(monkeypatch, tmp_path)
+    assert check_tool._remote_build(tmp_path, _cfg(), reuse=False)["ok"]
+    assert "pwd -P" in fake.ssh_scripts[0]  # the probe asks for the physical path, so the tool sees one path, not two
+    sync = dict(fake.argvs)["build-sync"]
+    assert "--protect-args" in sync and sync[-1] == f"imac:{REAL}/build-tree/"  # rsync is told not to re-split the remote path
+    outer = shlex.split(dict(fake.argvs)["build"][-1])  # python -c <lock code> <lock file> <script>
+    assert outer[0] == f"{REAL}/venv/bin/python" and outer[3] == f"{REAL}/heavy.lock"
+    inner = shlex.split(outer[4])  # rm -rf <bundle> && mkdir -p <results> && cd <tree> && the build
+    for part in (f"{REAL}/results/build.xcresult", f"{REAL}/results", f"{REAL}/build-tree", f"{REAL}/derived"):
+        assert part in inner, part
+
+
+def test_the_probe_quotes_the_configured_base_with_a_space(tmp_path, monkeypatch):
+    fake = Fake(monkeypatch, tmp_path)
+    cfg = check_tool.Config(build=BUILD, build_remote="imac:/Volumes/My Disk/gate")
+    check_tool._remote_build(tmp_path, cfg, reuse=False)
+    assert shlex.split(fake.ssh_scripts[0])[:3] == ["mkdir", "-p", "/Volumes/My Disk/gate"]
+
+
+def test_three_env_reds_in_a_row_raise_one_alert_naming_the_runner_and_the_last_error(tmp_path, monkeypatch):
+    fake = Fake(monkeypatch, tmp_path)
+    for n in (1, 2, 3, 4):
+        fake.red = f"module '_Builtin_float' is defined in both ({n})"
+        assert check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)["remote_env_red"]
+        alerts = [x for x in journal.read() if x.get("event") == "alert"]
+        assert len(alerts) == (1 if n >= 3 else 0), n
+    assert "imac" in alerts[0]["what"] and "defined in both (3)" in alerts[0]["what"]
+
+
+def test_a_green_build_resets_the_env_red_count(tmp_path, monkeypatch):
+    fake = Fake(monkeypatch, tmp_path, red="boom")
+    for _ in range(2):
+        check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)
+    assert check_tool._BUILD_ENV_REDS["n"] == 2
+    fake.red = None
+    check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)
+    assert check_tool._BUILD_ENV_REDS["n"] == 0

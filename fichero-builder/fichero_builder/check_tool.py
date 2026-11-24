@@ -971,6 +971,24 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     return _build_locked(root, changed, cfg)  # ponytail: the remote down under the owner's hold waits here, holding its slot
 
 
+def _remote_arg(path: str) -> str:
+    """`path` as one argument of a remote shell command; a leading `~/` still expands there."""
+    return "~/" + shlex.quote(path[2:]) if path.startswith("~/") else shlex.quote(path)
+
+
+_BUILD_ENV_REDS = {"n": 0, "last": ""}  # consecutive env-reds of the remote build in this process; a build that ran resets it
+BUILD_ENV_RED_ALERT_AFTER = 3
+
+
+def _build_env_red(host: str, name: str, why: str) -> None:
+    """An env-red of the remote build: the third in a row raises one alert naming the runner and the last error (the build then runs
+    here, as before, but no longer quietly)."""
+    _BUILD_ENV_REDS["n"] += 1
+    _BUILD_ENV_REDS["last"] = why
+    if _BUILD_ENV_REDS["n"] == BUILD_ENV_RED_ALERT_AFTER:
+        _rung_alert("build-remote", f"the remote {name} on {host} env-red {BUILD_ENV_RED_ALERT_AFTER} times in a row; last error: {why}")
+
+
 def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse: bool = True, timeout_s: float | None = None) -> dict | None:
     """The build rung on `[check].build_remote` (manager 2026-11-06 t88: the M1 Air, so the Pro stays the owner's; the first step of
     the machine pool, #6356): the stable build tree rsynced (mtimes kept, removed files removed, no .git) to <dir>/build-tree there,
@@ -978,7 +996,8 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
     one registered root <dir>. A green key is reused as here. None when that Mac cannot be reached (ssh failed): the build runs here.
     ponytail: no clean retry over there; a stale-state red there is a red, retried by the next push."""
     host, _, base = cfg.build_remote.partition(":")
-    home = _ssh(host, f"mkdir -p {base or '.'} && cd {base or '.'} && pwd", 30)
+    where = _remote_arg(base or ".")
+    home = _ssh(host, f"mkdir -p {where} && cd {where} && pwd -P", 30)  # -P: the physical path; Xcode sees one derived-data path, not a symlink's two
     rbase = home.stdout.decode().strip()
     if home.returncode or not rbase.startswith("/"):
         journal.append("check", state="build-remote-down", rung="build", runner=host, detail=home.stderr.decode(errors="replace")[-200:])
@@ -1036,7 +1055,7 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
         sync = run_command("security-checkout", ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host,
                            f"git --git-dir={g} worktree prune; rm -rf {t}; git --git-dir={g} worktree add -q -f --detach {t} {shlex.quote(head)}"], src, 300, None, as_jail=False)
     else:
-        sync = run_command("build-sync", ["rsync", "-a", "--delete", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
+        sync = run_command("build-sync", ["rsync", "-a", "--delete", "--protect-args", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
                                           f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
     if not sync["ok"]:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=f"{'checkout' if keep_git else 'rsync'}: {sync['stderr_tail'][-200:]}")
@@ -1058,12 +1077,15 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
     if not r["ok"] and not r.get("timed_out") and name == "perf":
         # a perf run that exits non-zero crashed over there: its stderr is the row, never "unreachable"
         journal.append("check", state="build-remote-crash", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
+        _build_env_red(host, name, (r.get("stderr_tail") or "")[-200:])
         return {"ok": False, "skipped": False, "crashed": True, "remote_env_red": True, "remote": host, "results": [r]}
     if not r["ok"] and name != "perf" and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")):
         # a red that names no Swift source error is that Mac's (a missing component, a package fetch, a timeout), never the code's
         journal.append("check", state="build-remote-env-red", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
+        _build_env_red(host, name, (r.get("stderr_tail") or "")[-200:])
         return {"ok": False, "skipped": False, "remote_env_red": True, "remote": host, "results": [r]}  # the row stays: its stderr says why
     r["remote"] = host
+    _BUILD_ENV_REDS["n"] = 0  # the build ran over there (green, or red on the code's own error)
     if r["ok"] and name in WARNING_PLATFORMS and not keep_git:
         _warning_ratchet(Path(src), host, bundle, name, r)
     journal.append("check", state="build-remote", rung=name, runner=host, ok=r["ok"], seconds=r.get("seconds"))
