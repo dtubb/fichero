@@ -9817,6 +9817,16 @@
         "response_model": "ModelCandidateList"
       },
       {
+        "method": "POST",
+        "path": "/recipes/candidates/add",
+        "operation_id": "add_candidate_by_address_api_recipes_candidates_add_post",
+        "summary": "Add Candidate By Address",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AddModelRequest",
+        "response_model": null
+      },
+      {
         "method": "DELETE",
         "path": "/recipes/candidates/bookmark",
         "operation_id": "remove_candidate_bookmark_api_recipes_candidates_bookmark_delete",

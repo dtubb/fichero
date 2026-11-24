@@ -18066,6 +18066,52 @@
         }
       }
     },
+    "/api/recipes/candidates/add": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Add Candidate By Address",
+        "description": "Add a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card filled in from its source,\nthe key the bookmark routes take. 422 for an address no model is named by, 404 for a model its source does not know, 403 while\nthis engine works offline (a Hub model is read over the network).",
+        "operationId": "add_candidate_by_address_api_recipes_candidates_add_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Add Candidate By Address Api Recipes Candidates Add Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/candidates": {
       "get": {
         "tags": [
@@ -53576,6 +53622,22 @@
         "type": "object",
         "title": "ActivitySummary",
         "description": "The ONE engine summary the window and the toolbar popover both read (`activity.popover.same-summary`, #5852):\nthe live blocks, the background group, and how many ended runs are folded into History."
+      },
+      "AddModelRequest": {
+        "properties": {
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "address"
+        ],
+        "title": "AddModelRequest",
+        "description": "What a person typed to add a model: a Hugging Face id or address, a Zenodo address or DOI."
       },
       "AddressListResponse": {
         "properties": {

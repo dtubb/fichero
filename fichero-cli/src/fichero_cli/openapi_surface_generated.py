@@ -14273,6 +14273,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("add-candidate-by-address")
+    def recipes_add_candidate_by_address_post(
+        ctx: typer.Context,
+        address: str = typer.Option(..., '--address', help='a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model.'),
+    ) -> None:
+        """Add Candidate By Address (POST /api/recipes/candidates/add)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/candidates/add"
+            params = None
+            payload = _build_json_payload({
+                "address": address,
+            }, {
+                "address": {'type': 'string', 'title': 'Address', 'description': 'a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("remove-candidate-bookmark")
     def recipes_remove_candidate_bookmark_delete(
         ctx: typer.Context,
