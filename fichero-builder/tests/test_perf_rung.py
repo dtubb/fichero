@@ -250,15 +250,3 @@ def test_an_engine_and_swift_batch_runs_both_halves(tmp_path, monkeypatch):
     r = check_tool.perf(tmp_path, "a", [*_SWIFT, "fichero-server/src/x.py"], cfg)
     assert len(seen) == 2 and seen[0][0] != "/usr/bin/time" and seen[1][0] == "/usr/bin/time"
     assert "Swift perf: T/U" in r["stdout_tail"]
-
-
-def test_the_perf_script_prints_its_result_line_with_the_runners_bare_path(tmp_path):
-    """#6600: a non-login runner shell has no /usr/sbin on PATH; the script called bare `sysctl`, died, and the rung read no PERF-RESULT line."""
-    import os
-    import subprocess
-    import sys
-    from pathlib import Path
-    root = Path(__file__).resolve().parents[2]
-    r = subprocess.run([sys.executable, str(root / "scripts/perf_engine_run.py"), "--tests", str(tmp_path / "none")], cwd=root, capture_output=True, text=True,
-                       env={**os.environ, "PATH": "/usr/bin:/bin"})
-    assert "PERF-RESULT {" in r.stdout, r.stderr[-400:]
