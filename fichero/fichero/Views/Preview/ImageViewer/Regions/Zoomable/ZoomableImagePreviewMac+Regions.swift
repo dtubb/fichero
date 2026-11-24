@@ -256,6 +256,13 @@ extension ZoomableImagePreview {
                 if selectionHasBaselines {
                     Button("Redraw Outline from Baseline") { redrawSelectedOutlines() }
                 }
+                if let documentId, let level = SegmentShapes.addLevel(for: selectedSegments(documentId)) {
+                    Button(level == .word ? "Add Word" : "Add Line") { addDrawnInSelection() }
+                }
+                Menu("Change Kind") {
+                    Button("Region") { convertSelected(to: "region") }
+                    Button("Line") { convertSelected(to: "line") }
+                }
                 Button("Convert to Box") { convertSelectedToBox() }
                 Button("Convert to Line") { convertSelected(to: "line") }
                 Button("Convert to Region") { convertSelected(to: "region") }

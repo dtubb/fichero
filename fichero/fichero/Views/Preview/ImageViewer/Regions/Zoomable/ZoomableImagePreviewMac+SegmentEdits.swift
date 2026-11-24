@@ -149,11 +149,19 @@ extension ZoomableImagePreview {
             kind: kind, points: points, passId: ocrGeometryPassId, artifactId: ocrGeometryArtifactId,
             passIsProvisional: onThePass.contains { $0.provisional }
         )
-        windowState?.lastDrawnKind = kind == .baseline ? "line" : "region"
+        // What a polygon or box makes: the kind picker's choice, else one level inside the selection (#7083).
+        let level: SegmentShapes.DrawnLevel = kind == .baseline ? .line : SegmentShapes.level(
+            chosen: windowState?.drawnLevel, selected: selectedSegments(documentId)
+        )
+        windowState?.lastDrawnKind = level.rawValue
         switch target {
         case .refused(let why):
             Self.logger.error("Draw \(kind.title, privacy: .public) not sent: \(why, privacy: .public)")
         case .addRegionToArtifact(let artifactId, let bbox):
+            guard level == .region else {
+                windowState?.segmentNotice = "The page's boxes are not saved as segments yet, so a \(level.rawValue) cannot be drawn on it"
+                return
+            }
             guard let artifactService else { return }
             Task {
                 do {
@@ -164,15 +172,19 @@ extension ZoomableImagePreview {
                 }
             }
         case .createOnPass(let passId):
-            // A line lands in the region that holds most of it; none, and it stays at page level (no guessing).
-            let region = kind == .baseline ? SegmentShapes.containingRegion(for: points, among: onThePass) : nil
+            // A line lands in the region that holds most of it, a word in its line; none, and it stays at page level
+            // (no guessing), and the page says so.
+            let parent = SegmentShapes.containingParent(for: points, level: level, among: onThePass)
             runSegmentEdit(
                 SegmentShapes.create(
-                    kind, points: points, documentId: documentId, passId: passId, onPass: onThePass.first,
-                    parentSegmentId: region?.id
+                    kind, level: level, points: points, documentId: documentId, passId: passId, onPass: onThePass.first,
+                    parentSegmentId: parent?.id
                 ),
-                documentId: documentId, name: "Draw \(kind.title)",
-                answered: { result in if selectingResult { selectNewSegment(result.resultId, documentId: documentId) } }
+                documentId: documentId, name: level == .region || kind == .baseline ? "Draw \(kind.title)" : "Draw \(level.title)",
+                answered: { result in
+                    selectNewSegment(result.resultId, documentId: documentId, openForText: selectingResult)
+                    if level == .line, parent == nil { windowState?.segmentNotice = SegmentShapes.noRegionNotice }
+                }
             )
         }
     }
