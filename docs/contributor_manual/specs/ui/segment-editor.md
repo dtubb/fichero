@@ -308,6 +308,16 @@ targets are at least 44 pt.
   `SegmentSelectionGestures.sameKind`). *Built note (#7033, needs an on-screen check):* ⌘-click toggles a box as ⇧-click does.
   Join keeps its one shortcut, ⌘⌥J (no new chord; `canJoin` is tested in `SegmentJoinTests.swift`). *Tests:* `fichero/Tests/Unit/general/Views/Segments/SelectPointerTests.swift`;
   `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift`.
+- `segment-editor.simplify-always-answers` — **[OK]** (→ #7069; app + engine) Simplify always answers. When no point
+  can be removed, `segment.simplify` answers success with `removed` 0 (not a 422; the usual audit row is written), and the
+  page says "Simplify removed no points". An outline whose tolerance would leave fewer than three points (a baseline two)
+  is simplified as far as that floor allows, not left as it was. The answer carries `removed`, the points taken out. The
+  slider's release sends in any mode, not only Edit Shape, and only for the focused pane. *Tests:*
+  `fichero-server/tests/unit/api/test_segment_simplify.py` (`test_a_shape_already_simple_answers_removed_zero_and_is_left_alone`,
+  `test_the_answer_says_how_many_points_went`, `test_a_dense_outline_at_a_big_tolerance_keeps_at_least_three_points_and_still_simplifies`,
+  `test_an_outline_that_would_fall_under_the_floor_is_held_not_discarded`);
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift` (`releaseIsForTheFocusedPane`, `noticeReadsTheEnginesCount`).
+  *Not built:* ⌘Z on a Simplify that removed nothing is refused by the engine (the audit row holds no segment to restore).
 - `segment-editor.select-brush` — **[PARTIAL]** (→ #4941; app) the Brush paints a mask on the page; every segment the
   mask touches is selected when the stroke ends; ⌥ while painting subtracts; `[` and `]` change
   the size, shown as a circle under the pointer; on the iPad the size follows the slider and,
@@ -372,6 +382,9 @@ targets are at least 44 pt.
   *Built note (2026-11-20):* a tolerance far above the outline's size still leaves three outline points and two baseline
   points; several segments simplify as one action and one undo restores all; one stale version refuses the whole simplify
   and changes nothing (`fichero-server/tests/unit/api/test_segment_simplify_edges.py`). Needs an on-screen check.
+  *Built note (2026-11-23, #7035):* a shape the tolerance cannot make simpler is no longer refused: the action answers
+  success with `removed` 0 (see `segment-editor.simplify-always-answers`); the page notice reads the engine's `removed`
+  where it used to count points before and after.
 
 ### Drawing
 

@@ -61,7 +61,8 @@ extension ActionLibraryService {
                 resultId: (json.result.value as? [String: (any Sendable)?])?["id"] as? String,
                 resultListCounts: ActionInvokeResult.listCounts(json.result.value),
                 resultListStrings: ActionInvokeResult.listStrings(json.result.value),
-                resultIdPairs: ActionInvokeResult.idPairs(json.result.value)
+                resultIdPairs: ActionInvokeResult.idPairs(json.result.value),
+                resultIntegers: ActionInvokeResult.integers(json.result.value)
             )
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
             return result
@@ -242,6 +243,9 @@ struct ActionInvokeResult: Decodable {
     /// by key: only lists whose every entry is two strings.
     var resultIdPairs: [String: [[String]]] = [:]
 
+    /// Each top-level whole number in the answer, by key (`removed`).
+    var resultIntegers: [String: Int] = [:]
+
     /// The answer's top-level lists of string pairs; empty for anything that is not an object.
     static func idPairs(_ value: Any?) -> [String: [[String]]] {
         guard let object = value as? [String: (any Sendable)?] else { return [:] }
@@ -268,6 +272,12 @@ struct ActionInvokeResult: Decodable {
             if strings.count == list.count { lists[key] = strings }
         }
         return lists
+    }
+
+    /// The answer's top-level whole numbers by key (`removed` from Simplify); empty for anything that is not an object.
+    static func integers(_ value: Any?) -> [String: Int] {
+        guard let object = value as? [String: (any Sendable)?] else { return [:] }
+        return object.compactMapValues { $0 as? Int }
     }
 
     /// The list lengths of an answer's top level; empty for anything that is not an object.

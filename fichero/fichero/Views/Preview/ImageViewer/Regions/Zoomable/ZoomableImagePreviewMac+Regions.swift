@@ -203,7 +203,7 @@ extension ZoomableImagePreview {
             }
             .onChange(of: windowState?.orderArmed) { _, armed in if armed == false { sendOrderClicks() } }
             .onChange(of: windowState?.simplifyRelease) { _, release in
-                if let release, isEditingSegments, windowState?.focusedRegionSelection === regionSelection {
+                if let release, windowState?.simplifyReleaseIsFor(regionSelection) == true {
                     simplifySelectedSegments(tolerance: release.tolerance)
                 }
             }
