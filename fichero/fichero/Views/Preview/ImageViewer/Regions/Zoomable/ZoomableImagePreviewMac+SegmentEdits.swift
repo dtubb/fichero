@@ -320,8 +320,8 @@ extension ZoomableImagePreview {
         let flash = SegmentEdit.joinsRegions(segments)
         runSegmentEdit(
             SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments",
-            afterReread: { selectAfterJoin(segments.map(\.id), documentId: documentId) },
-            answered: { _ in if flash { windowState?.flashOrderOverlay() } }
+            answered: { _ in if flash { windowState?.flashOrderOverlay() } },
+            afterReread: { selectAfterJoin(segments.map(\.id), documentId: documentId) }
         )
         return true
     }
@@ -352,8 +352,8 @@ extension ZoomableImagePreview {
 
     func runSegmentEdit(
         _ planned: Result<SegmentEdit.Call, SegmentEdit.Refusal>, documentId: String, name: String,
-        afterReread: @escaping @MainActor () -> Void = {},
-        answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in }
+        answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in },
+        afterReread: @escaping @MainActor () -> Void = {}
     ) {
         guard case .success(let call) = planned else {
             if case .failure(let refusal) = planned {
