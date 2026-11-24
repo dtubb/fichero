@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
 
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import DocType, Document, FileType, Segment, Status
@@ -89,7 +88,8 @@ def test_one_undo_brings_every_point_back(db, client):
     assert after.baseline == before.baseline
 
 
-def test_a_shape_already_simple_is_refused_and_left_alone(db, client):
+def test_a_shape_already_simple_answers_removed_zero_and_is_left_alone(db, client):
+    """`segment-editor.simplify-always-answers`: nothing to remove is an answer, not a 422."""
     doc, pass_id = _page(db, client)
     response = client.post("/api/segments", json={
         "document_id": doc.id, "pass_id": pass_id, "kind": "line",
@@ -98,23 +98,49 @@ def test_a_shape_already_simple_is_refused_and_left_alone(db, client):
     box = response.json()["id"]
     version = db.get(Segment, box).version
 
-    with pytest.raises(HTTPException) as refused:
-        _simplify(db, [box], 2.0)
-    assert refused.value.status_code == 422
+    result = _simplify(db, [box], 2.0)
+
+    assert result.result["removed"] == 0
+    assert result.result["segment_ids"] == []
     assert db.get(Segment, box).version == version
 
 
-def test_the_tolerance_is_in_pixels_not_fractions(db, client):
+def test_the_answer_says_how_many_points_went(db, client):
+    doc, pass_id = _page(db, client)
+    line = _dense_line(client, doc, pass_id)
+    before = db.get(Segment, line)
+    points = len(before.anchor.polygon) + len(before.baseline)
+
+    result = _simplify(db, [line], 2.0)
+
+    after = db.get(Segment, line)
+    assert result.result["removed"] == points - len(after.anchor.polygon) - len(after.baseline) > 0
+
+
+def test_a_dense_outline_at_a_big_tolerance_keeps_at_least_three_points_and_still_simplifies(db, client):
     doc, pass_id = _page(db, client)
     line = _dense_line(client, doc, pass_id)
     points = len(db.get(Segment, line).anchor.polygon)
 
-    # A tenth of a pixel is less than the half-pixel wobble, so no point can go (read as a fraction of the page it
-    # would have flattened the whole line).
-    with pytest.raises(HTTPException) as refused:
-        _simplify(db, [line], 0.1)
-    assert refused.value.status_code == 422
-    assert len(db.get(Segment, line).anchor.polygon) == points
+    result = _simplify(db, [line], 20.0)
+
+    after = db.get(Segment, line)
+    assert 3 <= len(after.anchor.polygon) < points
+    assert len(after.baseline) >= 2
+    assert result.result["removed"] > 0
+
+
+def test_an_outline_that_would_fall_under_the_floor_is_held_not_discarded():
+    """A thin sliver traced densely: at a tolerance wider than it is, Douglas-Peucker leaves two points. The floor
+    is held (three), the outline is not left as it was."""
+    from fichero_server.api.routes.document.segments import _fewer_points
+
+    sliver = [[float(x), 0.5 * (x % 2)] for x in range(0, 600, 3)] + [[float(x), 2.0 + 0.5 * (x % 2)] for x in range(600, 0, -3)]
+    identity = lambda points: points  # noqa: E731 -- pixels are the points
+
+    kept = _fewer_points(sliver, True, 3, 20.0, identity, identity)
+
+    assert kept is not None and 3 <= len(kept) < len(sliver)
 
 
 def test_the_preview_answers_the_shapes_simplify_would_write_and_writes_nothing(db, client):

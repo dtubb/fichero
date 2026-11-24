@@ -1646,13 +1646,19 @@ def _marker_shapes(db: Database, params: SegmentCreateParams) -> tuple[SegmentCr
 
 
 def _fewer_points(points, closed: bool, least: int, tolerance: float, forward, back) -> list[list[float]] | None:
-    """Douglas-Peucker on `points` (page fractions) in the image's pixels; None when it would not drop a point or would
-    leave fewer than `least`."""
+    """Douglas-Peucker on `points` (page fractions) in the image's pixels; None when it would not drop a point. A
+    tolerance wide enough to leave fewer than `least` points is narrowed (halved) until `least` are left, so the shape
+    is simplified as far as the floor allows, not left as it was."""
     import cv2
     import numpy as np
 
     pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
     kept = cv2.approxPolyDP(pixels, tolerance, closed).reshape(-1, 2).tolist()
+    for _ in range(12):
+        if len(kept) >= least:
+            break
+        tolerance /= 2
+        kept = cv2.approxPolyDP(pixels, tolerance, closed).reshape(-1, 2).tolist()
     if len(kept) < least or len(kept) >= len(points):
         return None
     return [[round(x, 6), round(y, 6)] for x, y in back(kept)]
@@ -4102,7 +4108,8 @@ class SegmentSimplifyParams(BaseModel):
 def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionContext):
     """Douglas-Peucker on each segment's outline (closed) and baseline (open), in the page image's pixels, so the
     tolerance means the same on every page; one action, one undo. A segment already as simple as the tolerance allows
-    is left as it is and not bumped. An outline is never brought below three points, a baseline below two."""
+    is left as it is and not bumped; when none changes the action still answers, `removed` 0. An outline is never brought
+    below three points, a baseline below two."""
     if not params.segment_ids:
         raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to simplify")
     _refuse_repeated_ids(params.segment_ids)
@@ -4113,7 +4120,16 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
 
     audit_id = uuid.uuid4().hex
     after_versions, simplified_ids = [], []
-    for row, polygon, baseline in _simplified_shapes(db, rows, params.tolerance):
+    shapes = _simplified_shapes(db, rows, params.tolerance)
+    # Nothing to remove is an answer (`removed` 0), not a refusal (`segment-editor.simplify-always-answers`).
+    removed = sum(
+        max(0, len(row.anchor.polygon) - len(polygon)) if polygon is not None else 0
+        for row, polygon, _baseline in shapes
+    ) + sum(
+        max(0, len(row.baseline) - len(baseline)) if baseline is not None else 0
+        for row, _polygon, baseline in shapes
+    )
+    for row, polygon, baseline in shapes:
         snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
         if polygon is not None:
             xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
@@ -4127,8 +4143,6 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
         db.save(row)
         after_versions.append({"segment_id": row.id, "version": row.version})
         simplified_ids.append(row.id)
-    if not simplified_ids:
-        raise HTTPException(status_code=422, detail="the shapes are already as simple as that tolerance allows")
 
     spec = ChangeSpec(
         audit_id=audit_id,
@@ -4141,7 +4155,7 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
         pass_ids=[rows[0].pass_id],
         document_ids=[rows[0].document_id],
     )
-    return {"segment_ids": simplified_ids, "versions": after_versions}, spec
+    return {"segment_ids": simplified_ids, "versions": after_versions, "removed": removed}, spec
 
 
 class SegmentConvertToBoxParams(BaseModel):
