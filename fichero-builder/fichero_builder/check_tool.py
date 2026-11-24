@@ -211,18 +211,20 @@ def rules_problems(root) -> list[str]:
 
 
 SECURITY_RESULT_PREFIX = "SECURITY-RESULT "
+PERF_RESULT_PREFIX = "PERF-RESULT "
 SECURITY_RESULT_MAX = 16384  # a final SECURITY-RESULT line longer than this is cut like any other line
 FAILURES = re.compile(r"^=+ (?:FAILURES|ERRORS) =+$")
 ERRLINE = re.compile(r"^(?:Traceback \(most recent|E\s{2,}\S|\w*(?:Error|Exception)\b.*:)")
 
 
 def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
-    """The last lines, bounded. A `SECURITY-RESULT {json}` line that is the output's final line is never cut to `line_chars`
+    """The last lines, bounded. A `PERF-RESULT {json}` line is kept whole under the same rule (#6600: a first run lists every figure,
+    the line passed 300 characters, lost its closing brace and the rung read no result). A `SECURITY-RESULT {json}` line that is the output's final line is never cut to `line_chars`
     (#6589 item 15: a 326-byte line lost its closing brace and the rung read it as absent): it is the scan's one machine-read
     line. Only that one final line is kept so, once, and only up to SECURITY_RESULT_MAX; any rung can print such lines, so
     earlier ones and longer ones get the normal cut."""
     stripped = (text or "").strip().splitlines()
-    if stripped and stripped[-1].startswith(SECURITY_RESULT_PREFIX) and len(stripped[-1]) <= SECURITY_RESULT_MAX:
+    if stripped and stripped[-1].startswith((SECURITY_RESULT_PREFIX, PERF_RESULT_PREFIX)) and len(stripped[-1]) <= SECURITY_RESULT_MAX:
         head = _tail_lines("\n".join(stripped[:-1]), max(lines - 1, 1), chars, line_chars)
         return (head + "\n" if head else "") + stripped[-1]
     return _tail_lines(text, lines, chars, line_chars)

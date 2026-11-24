@@ -144,22 +144,6 @@ def judge(figures: dict, baseline: dict, model: str, thermal: str | None, idle: 
     return out
 
 
-RESULT_LIMIT = 3500  # the runner returns only the last 4000 characters of stdout; a longer line loses its start and the rung cannot find it
-
-
-def result_line(verdict: dict) -> str:
-    """The `PERF-RESULT {json}` line, kept under RESULT_LIMIT: `changes` (said, not judged) are shortened to what fits and the
-    count left out is named. Every other key is what the rung reads and is never dropped."""
-    def line(v):
-        return "PERF-RESULT " + json.dumps(v, separators=(",", ":"))
-    changes = list(verdict.get("changes", []))
-    out = verdict
-    while len(line(out)) > RESULT_LIMIT and changes:
-        changes.pop()
-        out = {**verdict, "changes": [*changes, f"{len(verdict['changes']) - len(changes)} more changes not shown (line length)"]}
-    return line(out)
-
-
 def raised_baselines(old: dict, new: dict) -> list[str]:
     """What a batch's diff of `scripts/perf_baseline.json` raised (`ratchets-held-exactly`): a figure up, a tolerance loosened, a
     figure dropped is not a raise. A figure that is new is not a raise either: it is recorded."""
