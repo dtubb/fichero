@@ -633,47 +633,95 @@ def test_a_base_that_moved_during_the_check_is_rebased_before_the_review_and_a_d
     monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
     monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
     monkeypatch.setattr(work, "_base_moved", lambda a, branch, head: next(moved))
-    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg, oh="", h="": f"kept across rebase onto {nb[:9]}: base delta disjoint (1 file(s))"
-                        if (ob, of, f) == ("b" * 40, ["fichero-builder/x.py"], ["fichero-builder/x.py"]) else "")
+    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg, oh="", h="": (f"kept across rebase onto {nb[:9]}: base delta disjoint (1 file(s)); re-running guards", ("guards",))
+                        if (ob, of, f) == ("b" * 40, ["fichero-builder/x.py"], ["fichero-builder/x.py"]) else ("", ()))
+    monkeypatch.setattr(work, "kept_rows", lambda ladder, ob, oh, pinned: {"ready": {"ok": True}, "guards": {"ok": True}})
+    seen = []
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder, partial=None: (chain.calls.append(("check", since, head)), seen.append(partial), {"ok": True, "failed": ""})[2])
     assert chain() == 0
-    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "rebase", "export", "fetch", "review", "land"]
-    (kept,) = [r for r in journal.read() if r["event"] == "check" and r.get("kept")]
-    assert kept["since"] == "c" * 40 and kept["ok"] is True and "ccccccccc" in kept["kept"]
+    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "rebase", "export", "fetch", "check", "review", "land"]
+    assert seen[0] is None and seen[1][0] == {"ready": {"ok": True}} and seen[1][1] == ("guards",), "the old rows stand except the rung the delta can change"
+    assert "ccccccccc" in seen[1][2]
+    assert any(r["step"] == "kept" and "re-running guards" in r["detail"] for r in rows())
 
 
-def test_keep_green_only_for_a_base_delta_outside_the_batchs_dirs_check_files_and_guards(tmp_path):
-    """The keep rule: the same batch files, an ancestor move, and a delta touching none of: the batch's files, the top-level
-    dirs it changes, [check].check_paths, the guard glob."""
+def test_a_kept_rebase_without_the_old_green_rows_runs_the_whole_ladder(chain, monkeypatch):
+    bases, moved = iter(["b" * 40, "c" * 40]), iter([True, False])
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
+    monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
+    monkeypatch.setattr(work, "_base_moved", lambda a, branch, head: next(moved))
+    monkeypatch.setattr(work, "keep_green", lambda *a, **k: ("kept: x", ("guards",)))
+    monkeypatch.setattr(work, "kept_rows", lambda *a: {})
+    assert chain() == 0
+    assert [c[0] for c in chain.calls].count("check") == 2 and not any(r["step"] == "kept" for r in rows())
+
+
+def test_keep_green_for_a_base_delta_that_shares_no_file_test_check_file_or_guard_with_the_batch_and_names_what_to_run_again(tmp_path):
+    """The keep rule (manager 2026-11-24: 81 of 89 deltas were file-disjoint): the same patch, an ancestor move, and a delta touching none of:
+    the batch's files, a test the batch ran (its changed tests, its whole-tests dirs), [check].check_paths, the guard glob. The delta then
+    picks the rungs to run again: .md = guards; fichero/ = build; fichero-server/src = red-on-base (head half) and guards."""
     g = lambda *a: _g(tmp_path, *a)  # noqa: E731
     g("init", "-q"), g("config", "user.email", "t@e"), g("config", "user.name", "t")
-    for f in ("pkg/a.py", "other/b.py", "scripts/check_x.py", "harness.toml"):
-        (tmp_path / f).parent.mkdir(exist_ok=True)
+    files = ("pkg/a.py", "pkg/tests/test_a.py", "pkg/tests/NOTES.md", "pkg/NOTES.md", "docs/x.md", "docs/y.md", "fichero/F.swift", "fichero-server/src/s.py",
+             "other/b.py", "scripts/check_x.py", "harness.toml")
+    for f in files:
+        (tmp_path / f).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / f).write_text("1\n")
     g("add", "."), g("commit", "-qm", "base")
     old = g("rev-parse", "HEAD")
-    cfg = work.check_tool.Config(check_paths=("harness.toml",), guard_glob="scripts/check_*.py")
-    batch = ["pkg/a.py"]
+    cfg = work.check_tool.Config(check_paths=("harness.toml",), guard_glob="scripts/check_*.py", whole_tests={"pkg/": "pkg/tests"})
+    batch = ["pkg/a.py", "pkg/tests/test_a.py"]
 
-    def move(f):
-        (tmp_path / f).write_text((tmp_path / f).read_text() + "2\n")
-        g("commit", "-qam", f)
+    def move(*fs):
+        g("reset", "-q", "--hard", old)
+        for f in fs:
+            (tmp_path / f).write_text((tmp_path / f).read_text() + "2\n")
+        g("commit", "-qam", "move")
         return g("rev-parse", "HEAD")
-    new = move("other/b.py")
-    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg, old, new).startswith(f"kept across rebase onto {new[:9]}")
-    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg) == "", "no heads: the patch cannot be compared"
-    assert work.keep_green(str(tmp_path), old, batch, new, ["pkg/a.py", "pkg/c.py"], cfg, old, new) == "", "a different batch"
+    keep = lambda new, files=batch, head=None: work.keep_green(str(tmp_path), old, batch, new, files, cfg, old, head or new)  # noqa: E731
+    words, rungs = keep(move("docs/x.md"))
+    assert words.startswith("kept across rebase onto") and "base delta disjoint (1 file(s))" in words and rungs == ("guards",)
+    assert keep(move("pkg/NOTES.md"))[1] == ("guards",), "a delta in the batch's own top dir, outside its tests, is disjoint now"
+    assert keep(move("fichero/F.swift"))[1] == ("build",)
+    assert keep(move("fichero-server/src/s.py"))[1] == ("red-on-base", "guards")
+    assert keep(move("docs/x.md", "fichero/F.swift", "fichero-server/src/s.py"))[1] == ("red-on-base", "guards", "build"), "a mixed delta runs the union, in ladder order"
+    new = move("docs/x.md")
+    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg) == ("", ()), "no heads: the patch cannot be compared"
+    assert keep(new, ["pkg/a.py", "pkg/c.py"]) == ("", ()), "a different batch"
+    for f in ("pkg/a.py", "harness.toml", "scripts/check_x.py", "pkg/tests/NOTES.md", "other/b.py"):
+        assert keep(move(f)) == ("", ()), f"{f}: the batch's file, a check file, a guard, a dir the green run took whole, a path with no cheap answer"
     # same file names, different content: the patch of the rebased head is not the one the ladder judged
+    new = move("docs/x.md")
     (tmp_path / "pkg" / "a.py").write_text("changed after the check\n")
     g("commit", "-qam", "new content in the batch file")
-    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg, old, g("rev-parse", "HEAD")) == "", "new content rides no green"
-    g("reset", "-q", "--hard", new)
-    for f in ("pkg/a.py", "harness.toml", "scripts/check_x.py"):
-        g("reset", "-q", "--hard", old)
-        assert work.keep_green(str(tmp_path), old, batch, move(f), batch, cfg, old, old) == "", f
-    g("reset", "-q", "--hard", old)
-    (tmp_path / "pkg" / "z.py").write_text("1\n")
-    g("add", "."), g("commit", "-qm", "same dir")
-    assert work.keep_green(str(tmp_path), old, batch, g("rev-parse", "HEAD"), batch, cfg, old, old) == "", "a delta in the batch's own dir"
+    assert keep(new, head=g("rev-parse", "HEAD")) == ("", ()), "new content rides no green"
+
+
+def test_kept_rows_are_the_green_rows_of_the_old_ladder_for_exactly_its_head_base_and_pinned_copy(tmp_path):
+    f = tmp_path / "ladder.json"
+    f.write_text(json.dumps({"ok": True, "head": "h1", "since": "b1", "pinned": "/p/1", "rungs": [{"name": "ready", "ok": True}, {"name": "guards", "ok": True}]}))
+    assert set(work.kept_rows(str(f), "b1", "h1", "/p/1")) == {"ready", "guards"}
+    for args in (("b2", "h1", "/p/1"), ("b1", "h2", "/p/1"), ("b1", "h1", "/p/2")):
+        assert work.kept_rows(str(f), *args) == {}
+    assert work.kept_rows(str(tmp_path / "none.json"), "b1", "h1", "/p/1") == {}
+    f.write_text(json.dumps({"ok": False, "head": "h1", "since": "b1", "pinned": "/p/1", "rungs": []}))
+    assert work.kept_rows(str(f), "b1", "h1", "/p/1") == {}, "a red ladder keeps nothing"
+
+
+def test_a_partial_do_check_reuses_the_held_rows_and_runs_red_on_base_head_only(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(work.land_tool, "resolve_branch", lambda repo, branch: "b2")
+    monkeypatch.setattr(work.check_tool, "ladder_over", lambda *a, **k: seen.append((dict(work.check_tool.REUSE[0] or {}), work.check_tool.HEAD_GREEN_ONLY[0])) or {"ok": True, "failed": "", "rungs": []})
+    monkeypatch.setattr(work.journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    a = types.SimpleNamespace(name="l", pinned="/p/1", ids=[])
+    work.do_check(a, "/r", "integration", "h2", str(tmp_path / "l.json"), partial=({"ready": {"ok": True}}, ("guards",), "kept: x"))
+    assert seen == [({"ready": {"ok": True}}, True)]
+    assert work.check_tool.REUSE[0] is None and work.check_tool.HEAD_GREEN_ONLY[0] is False, "the flags never outlive the check"
+    (row,) = [r for r in work.journal.read() if r["event"] == "check"]
+    assert row["kept"] == "kept: x" and row["reran"] == ["guards"] and row["head"] == "h2"
+    work.do_check(a, "/r", "integration", "h2", str(tmp_path / "l.json"))
+    assert seen[1] == ({}, False)
 
 
 def test_every_reason_a_pinned_refusal_lists_maps_to_the_approval_that_excuses_it():

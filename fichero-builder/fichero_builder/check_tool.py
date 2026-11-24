@@ -1547,6 +1547,7 @@ class _PerThread(threading.local):
         self.v[i] = x
 
 
+HEAD_GREEN_ONLY = _PerThread(False)  # a kept rebase: red-on-base runs only its head-green half (the base run stood on the old base)
 ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
 _KEY = _PerThread("")  # the running ladder's key, for its rung rows
@@ -2110,7 +2111,8 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
-            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
+            ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if HEAD_GREEN_ONLY[0]
+             else red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
              else _no_red_row(own, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),
             ("security", lambda: security(tree, since, head, names, cfg)),

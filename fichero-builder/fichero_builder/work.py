@@ -298,8 +298,21 @@ def green_before_approve(ladder: str, since: str, head: str, pinned) -> dict:
     return green
 
 
-def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
-    """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name."""
+def kept_rows(ladder: str, old_base: str, old_head: str, pinned) -> dict:
+    """The rung rows of a GREEN ladder file for exactly this old head, base and pinned copy ({} otherwise): what a kept rebase leaves standing."""
+    try:
+        prev = json.loads(Path(ladder).read_text())
+    except (OSError, ValueError):
+        return {}
+    if not prev.get("ok") or (prev.get("head"), prev.get("since"), prev.get("pinned")) != (old_head, old_base, str(pinned)):
+        return {}
+    return {row["name"]: row for row in prev.get("rungs") or [] if row.get("ok")}
+
+
+def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple | None = None) -> dict:
+    """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name.
+    `partial` = (rows that stand, rungs to run again, the kept row's words): a kept rebase; the rest of the ladder is reused, red-on-base
+    runs its head-green half only, never the base run."""
     since = land_tool.resolve_branch(repo, branch)
     if not since:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
@@ -314,14 +327,17 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path
     guard_data = tuple(getattr(a, "guard_data", ()) or ())
     approved = maintainer or approve or bool(red_ok) or pin_new or bool(guard_data) or bool(getattr(a, "retry", False))  # a retry resumes at the failed rung too (2026-11-11)
-    check_tool.REUSE[0] = green_before_approve(ladder, since, head, a.pinned) if approved else None
+    check_tool.REUSE[0] = partial[0] if partial else green_before_approve(ladder, since, head, a.pinned) if approved else None
+    check_tool.HEAD_GREEN_ONLY[0] = bool(partial)
     try:
         r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                                    approve_pinned_new=pin_new, guard_data=guard_data)
     finally:
         check_tool.REUSE[0] = None
+        check_tool.HEAD_GREEN_ONLY[0] = False
     Path(ladder).write_text(json.dumps({**r, "head": head, "since": since, "pinned": str(a.pinned)}, indent=1))
-    journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
+    journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
+                   **({"kept": partial[2], "reran": list(partial[1])} if partial else {}))
     return r
 
 
@@ -427,27 +443,48 @@ def lane_diff(repo: str, since: str, head: str, *opts: str, paths: tuple = ()) -
     return _git(repo, "diff", *opts, f"{since}...{head}", *(["--", *paths] if paths else [])).stdout
 
 
-MOVES = 3  # ponytail: a busier landing branch than three moves in one chain is a row for a person
+MOVES = 6  # ponytail: a busier landing branch than six moves in one chain is a row for a person; a kept rebase costs one rung, not a ladder
+
+# What a base delta can change, by where it lands: the rungs that must run again for it (manager 2026-11-24 throughput review).
+# A path in none of these classes has no cheap answer, so the whole ladder runs.
+_RERUN = (("guards",), ("build",), ("red-on-base", "guards"))
 
 
-def keep_green(repo: str, old_base: str, old_files: list[str], new_base: str, files: list[str], cfg, old_head: str = "", head: str = "") -> str:
-    """Stale base (manager 2026-11-02): a green check survives a clean rebase when the base delta (old..new) touches no file
-    the batch changes, nothing under the top-level dirs it changes (its tests and whole-tests inputs), no pinned check file
-    and no guard, and the rebased batch is the same patch as the checked one (review 2026-11-02: file names alone let new content
-    ride a green). '' = check again; else the row's words."""
+def _delta_class(path: str) -> int:
+    """Index into _RERUN for one delta path, -1 for none: .md alone re-runs the guards; fichero/ the build; fichero-server/src the head-green half
+    of red-on-base plus the guards."""
+    if path.endswith(".md"):
+        return 0
+    if path.startswith("fichero/"):
+        return 1
+    if path.startswith("fichero-server/src/"):
+        return 2
+    return -1
+
+
+def keep_green(repo: str, old_base: str, old_files: list[str], new_base: str, files: list[str], cfg, old_head: str = "", head: str = "") -> tuple[str, tuple]:
+    """Stale base (manager 2026-11-02, 2026-11-24): a green check survives a clean rebase when the base delta (old..new) shares no file with
+    the batch, touches no test the batch ran (a changed test, a whole-tests dir) and no pinned check file or guard, and the rebased batch is
+    the same patch as the checked one (review 2026-11-02: file names alone let new content ride a green). Returns (the row's words, the rungs
+    the delta can change and that must run again); ('', ()) = check again."""
+    no = ("", ())
     if not files or sorted(files) != sorted(old_files) or not old_base or new_base == old_base or not old_head or not head:
-        return ""
+        return no
     old_patch, new_patch = _git(repo, "diff", old_base, old_head), _git(repo, "diff", new_base, head)
     if old_patch.returncode or new_patch.returncode or old_patch.stdout != new_patch.stdout:
-        return ""
+        return no
     if _git(repo, "merge-base", "--is-ancestor", old_base, new_base).returncode:
-        return ""
+        return no
     delta = _git(repo, "diff", "--name-only", old_base, new_base).stdout.split()
-    tops = tuple({f.split("/", 1)[0] + "/" for f in files if "/" in f})
-    if not delta or any(p in files or p.startswith(tops) or p.startswith(tuple(cfg.check_paths)) or (cfg.guard_glob and fnmatch.fnmatch(p, cfg.guard_glob))
+    ran = check_tool._whole_tests(files, cfg)  # the dirs and files the batch's green run took whole
+    if not delta or any(p in files or p.startswith(ran) or p.startswith(tuple(cfg.check_paths)) or (cfg.guard_glob and fnmatch.fnmatch(p, cfg.guard_glob))
                         for p in delta):
-        return ""
-    return f"kept across rebase onto {new_base[:9]}: base delta disjoint ({len(delta)} file(s))"
+        return no
+    classes = {_delta_class(p) for p in delta}
+    if -1 in classes:
+        return no
+    rerun = tuple(n for n in check_tool.RUNGS if any(n in _RERUN[c] for c in classes))
+    return f"kept across rebase onto {new_base[:9]}: base delta disjoint ({len(delta)} file(s)); re-running {', '.join(rerun)}", rerun
 
 
 def _base_moved(a, branch: str, head: str) -> bool:
@@ -573,7 +610,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             files = lane_diff(repo, since_now, head, "--name-only").split()
         except (RuntimeError, OSError):
             since_now, files = "", []  # unknown: shares every file, so it runs alone
-        kept = keep_green(repo, carry[0], carry[1], since_now, files, check_tool.load(a.pinned), carry[2], head) if carry else ""
+        kept, rerun = keep_green(repo, carry[0], carry[1], since_now, files, check_tool.load(a.pinned), carry[2], head) if carry else ("", ())
+        held = kept_rows(ladder, carry[0], carry[2], a.pinned) if kept else {}  # the old ladder's rows: without them the whole ladder runs
         carry = None
         with ladder_slot(a.name, files, check_tool.load(a.pinned).parallel):  # speed 3: [check].parallel ladders, disjoint batches only
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
@@ -593,10 +631,9 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     early["fut"] = _EARLY.submit(do_review, a, repo, head, partial, verdicts, model, early)
             check_tool.ON_RUNG[0] = on_rung
             try:
-                if kept:  # the green check of the same batch on the old base stands (its row names why)
-                    r = {"ok": True, "failed": ""}
-                    journal.append("check", repo=str(repo), since=since_now, head=head, ok=True, failed="", kept=kept)
+                if kept and held:  # the green check of the same batch on the old base stands; only what the delta can change runs again
                     step("kept", True, kept)
+                    r = do_check(a, repo, branch, head, ladder, partial=({n: row for n, row in held.items() if n not in rerun}, rerun, kept))
                 else:
                     r = do_check(a, repo, branch, head, ladder)
             except (RuntimeError, OSError, ValueError) as e:

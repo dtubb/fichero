@@ -55,3 +55,25 @@ def test_do_check_resumes_only_when_an_approval_is_given_and_records_head_base_a
     f = _prior(tmp_path)
     work.do_check(types.SimpleNamespace(name="l", pinned="/p/1", ids=[]), "/r", "integration", "h1", f)
     assert seen[1] == {}, "no approval: the whole ladder runs"
+
+
+def test_a_kept_rebase_runs_the_head_green_half_of_red_on_base_and_never_the_base_run(monkeypatch):
+    """2026-11-24: HEAD_GREEN_ONLY turns the red-on-base rung into the green run of the changed tests; the base run is not made."""
+    ran = []
+    monkeypatch.setattr(check_tool, "stricter_files", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "pinned_violations", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "weakened_tests", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "acceptance_changed", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "_changes", lambda *a, **k: [("A", "", "pkg/a.py"), ("A", "", "pkg/tests/test_a.py")])
+    monkeypatch.setattr(check_tool, "_git", lambda *a, **k: {"ok": True})
+    monkeypatch.setattr(check_tool, "_scratch_tree", lambda *a, **k: "tree")
+    monkeypatch.setattr(check_tool, "drop_tree", lambda *a, **k: None)
+    monkeypatch.setattr(check_tool, "green_runs", lambda tree, files, whole, cfg, t: ran.append(("green", files)) or {"ok": True})
+    monkeypatch.setattr(check_tool, "red_on_base", lambda *a, **k: ran.append("base run") or {"ok": True})
+    check_tool.REUSE[0] = {n: {"ok": True} for n in check_tool.RUNGS if n != "red-on-base"}
+    check_tool.HEAD_GREEN_ONLY[0] = True
+    try:
+        out = check_tool._run_ladder("/r", "s", "h", "/p", ())
+    finally:
+        check_tool.HEAD_GREEN_ONLY[0] = False
+    assert out["ok"] and ran == [("green", ["pkg/tests/test_a.py"])]
