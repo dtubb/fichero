@@ -33,11 +33,10 @@ extension RegionInteractionLayer {
         return true
     }
 
-    /// Hand the points over when there are enough; too few is dropped (nothing is made of it).
+    /// Hand the points over when there are enough; too few makes nothing and says why (`WindowState.closeDrawing`).
     func finishDrawing() {
-        defer { drawingPoints = [] }
-        guard drawingPoints.count >= drawKind.minimumPoints else { return }
-        onDrawShapeCommit?(drawKind, drawingPoints)
+        guard let points = windowState?.closeDrawing() else { return }
+        onDrawShapeCommit?(drawKind, points)
     }
 
     /// The drawing so far: its points joined, each marked.

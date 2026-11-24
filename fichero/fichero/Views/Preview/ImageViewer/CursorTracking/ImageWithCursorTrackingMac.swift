@@ -49,6 +49,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     /// the image is a case wanted). Off, the pixels are not drawn, but the image view keeps its
     /// frame, zoom and scroll position, so every overlay stays exactly where it was.
     var imageVisible: Bool = true
+    /// Off while clicks place the points of a polygon or baseline: the double-click recognizer would delay and
+    /// swallow the closing click (#7082).
+    var doubleClickZooms: Bool = true
     /// The boxes and selection, drawn INSIDE the image view so AppKit's one transform moves them
     /// with the pixels (#5020, #5142). Empty draws nothing.
     var documentOverlay: DocumentOverlay = .empty
@@ -205,6 +208,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.doubleClickGesture?.isEnabled = doubleClickZooms
         if let trackingView = context.coordinator.imageView as? TrackingImageView {
             trackingView.drawsImagePixels = imageVisible
             context.coordinator.syncDocumentOverlay(documentOverlay, in: trackingView)

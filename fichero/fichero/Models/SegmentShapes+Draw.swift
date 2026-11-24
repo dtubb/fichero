@@ -19,6 +19,8 @@ extension SegmentShapes {
         }
         /// Points it needs before it can be finished.
         var minimumPoints: Int { self == .baseline ? 2 : 3 }
+        /// Said when a close is asked for with fewer points than `minimumPoints`.
+        var tooFewWords: String { "A \(title.lowercased()) needs at least \(minimumPoints) points" }
     }
 
     /// The four corners of a normalised `[x, y, width, height]` rect, clockwise from the top left: a marquee
@@ -34,6 +36,12 @@ extension SegmentShapes {
     /// regions-artifact route (#6426).
     static func drawsMarqueesOnPass(passShown: Bool, onlyIndex: Int?) -> Bool {
         passShown && onlyIndex == nil
+    }
+
+    /// True when clicks in the image place points (a polygon or baseline in Edit Segments), so the
+    /// double-click that zooms the page must not take them: it delays and swallows the second click (#7082).
+    static func clicksPlacePoints(kind: DrawKind, isEditing: Bool) -> Bool {
+        isEditing && kind != .box
     }
 
     /// A click on the FIRST point of a polygon with enough points closes it.

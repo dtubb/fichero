@@ -262,10 +262,8 @@ extension ZoomableImagePreview {
     func finishShapeDrawingFromKey() -> KeyPress.Result {
         // Return leaves the Order tool, which sends its clicks (`segment-editor.order-by-clicking`).
         if windowState?.orderArmed == true { windowState?.chooseSegmentTool(nil); return .handled }
-        guard let windowState, windowState.drawingPoints.count >= windowState.shapeKind.minimumPoints else { return .ignored }
-        let points = windowState.drawingPoints
-        windowState.drawingPoints = []
-        drawSegmentShape(windowState.shapeKind, points: points)
+        guard let windowState, !windowState.drawingPoints.isEmpty else { return .ignored }
+        if let points = windowState.closeDrawing() { drawSegmentShape(windowState.shapeKind, points: points) }
         return .handled
     }
 

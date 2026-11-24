@@ -226,6 +226,17 @@ class WindowState {
     /// The Knife's stroke so far, in the page's fractions, while it is being drawn.
     var knifeStroke: [[Double]] = []
 
+    /// Close the drawing: its points, and it ends. Too few: nil, a notice why, points kept. None: nil.
+    func closeDrawing() -> [[Double]]? {
+        guard !drawingPoints.isEmpty else { return nil }
+        guard drawingPoints.count >= shapeKind.minimumPoints else {
+            segmentNotice = shapeKind.tooFewWords
+            return nil
+        }
+        defer { drawingPoints = [] }
+        return drawingPoints
+    }
+
     /// Escape during a drawing: drop the points clicked so far and make nothing. True when there was a
     /// drawing to abandon -- that Escape does nothing else; the next one clears as it always has.
     @discardableResult
