@@ -362,7 +362,7 @@ With no stronger model on call, quality is whatever the gates enforce. These are
 - `local.spec-ux-section` — **[OK]** (#7067) a spec file with behaviours that name a screen has a "What the person sees" (or "UX")
   section that says, for each screen, where the person opens it (menu, window, pane or shortcut), what it shows, its controls,
   the empty, loading and error states with how each is tested, and an acceptance line; a spec without one is in the same
-  shrinking baseline. Test: `test_a_spec_with_app_behaviours_needs_a_ux_section_naming_opener_states_and_acceptance`.
+  shrinking baseline. Test: `fichero-server/tests/unit/scripts/test_check_spec_app_evidence.py::test_a_spec_with_app_behaviours_needs_a_ux_section_naming_opener_states_and_acceptance`.
 - `local.engine-ux-coverage-report` — **[OK]** (#7067) `scripts/report_engine_ux_coverage.py` prints, for the operations frozen in
   `check_endpoint_coverage_matrix_known_gaps.json`, how many no spec names, how many a spec names with no screen behaviour, how
   many have a screen behaviour still [GAP], and how many screen features have no UX section, with the first 20 of each. First run
@@ -370,7 +370,7 @@ With no stronger model on call, quality is whatever the gates enforce. These are
   `test_the_report_prints_the_three_counts_the_ux_count_and_the_top_twenty`.
 - `local.new-route-has-a-spec` — **[OK]** (#7067) `check_endpoint_coverage_matrix.py` fails a route whose path or operation id no spec
   names, unless it is in `check_endpoint_coverage_matrix_no_spec_baseline.json` (694 at landing). Test:
-  `test_the_matrix_fails_a_route_no_spec_names_unless_it_is_baselined`.
+  `fichero-server/tests/unit/scripts/test_report_engine_ux_coverage.py::test_the_matrix_fails_a_route_no_spec_names_unless_it_is_baselined`.
 - `local.review-screen-lens` — **[OK]** (#7067) the reviewer prompt's third lens (`review_lenses.APP_SCREEN`) makes a step whose
   behaviours are screen ones NOT READY when the diff adds no Window/openWindow id, menu command or pane kind reaching the feature.
   Test: `fichero-builder/tests/test_perf_sweep.py::test_the_reviewer_refuses_an_app_step_whose_diff_adds_no_screen_reaching_the_feature`.
