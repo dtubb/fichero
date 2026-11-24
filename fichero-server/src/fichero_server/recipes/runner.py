@@ -2128,7 +2128,11 @@ def doing_words(card: dict[str, Any]) -> str:
     provider = (card.get("provider_override") or card.get("provider") or "").lower()
     model = card.get("model_override") or card.get("model")
     reader = _READERS.get(provider) or (str(model).rsplit("/", 1)[-1] if model and provider else None)
-    if reader == "Kraken" and model:
+    if reader == "Kraken" and model and job == "read-a-line" and "/" not in str(model):  # an id, not a model file
+        from fichero_server.llm.kraken_runtime import recognition_display_name
+
+        reader = recognition_display_name(str(model))  # the reader as a person chose it: "PP-OCRv6 (medium)", not its id (#7086)
+    elif reader == "Kraken" and model:
         reader = f"Kraken ({str(model).rsplit('/', 1)[-1]})"  # the model beside the reader (#6745)
     return f"{said} with {reader}" if reader else said
 
