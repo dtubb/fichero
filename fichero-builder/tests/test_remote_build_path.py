@@ -40,7 +40,8 @@ def test_the_real_path_with_a_space_survives_into_every_remote_command(tmp_path,
     assert check_tool._remote_build(tmp_path, _cfg(), reuse=False)["ok"]
     assert "pwd -P" in fake.ssh_scripts[0]  # the probe asks for the physical path, so the tool sees one path, not two
     sync = dict(fake.argvs)["build-sync"]
-    assert "--protect-args" in sync and sync[-1] == f"imac:{REAL}/build-tree/"  # rsync is told not to re-split the remote path
+    assert "--protect-args" not in sync and "-s" not in sync  # Apple's stock rsync (2.6.9) rejects the flag
+    assert sync[-1] == f"imac:{shlex.quote(REAL + '/build-tree')}/"  # the remote shell re-splits the path, so it is quoted
     outer = shlex.split(dict(fake.argvs)["build"][-1])  # python -c <lock code> <lock file> <script>
     assert outer[0] == f"{REAL}/venv/bin/python" and outer[3] == f"{REAL}/heavy.lock"
     inner = shlex.split(outer[4])  # rm -rf <bundle> && mkdir -p <results> && cd <tree> && the build

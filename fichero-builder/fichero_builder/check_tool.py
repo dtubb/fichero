@@ -1060,8 +1060,8 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
         sync = run_command("security-checkout", ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host,
                            f"git --git-dir={g} worktree prune; rm -rf {t}; git --git-dir={g} worktree add -q -f --detach {t} {shlex.quote(head)}"], src, 300, None, as_jail=False)
     else:
-        sync = run_command("build-sync", ["rsync", "-a", "--delete", "--protect-args", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
-                                          f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
+        sync = run_command("build-sync", ["rsync", "-a", "--delete", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
+                                          f"{src}/", f"{host}:{_remote_arg(tree)}/"], src, 900, None, as_jail=False)
     if not sync["ok"]:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=f"{'checkout' if keep_git else 'rsync'}: {sync['stderr_tail'][-200:]}")
         return None
