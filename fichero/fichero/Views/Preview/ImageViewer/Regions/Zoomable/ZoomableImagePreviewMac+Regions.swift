@@ -176,6 +176,7 @@ extension ZoomableImagePreview {
                 },
                 pointer: pointerFeed,
                 onMoveCommit: { index, bbox in commitRegionMove(index: index, bbox: bbox) },
+                onResizeCommit: { resizeSegments($0) },
                 onPromote: { name, index in
                     promoteMarquees(named: name, onlyIndex: index)
                 },
