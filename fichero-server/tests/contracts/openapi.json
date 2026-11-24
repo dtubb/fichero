@@ -18078,7 +18078,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AddModelRequest"
+                "$ref": "#/components/schemas/AddByAddressRequest"
               }
             }
           },
@@ -53623,7 +53623,7 @@
         "title": "ActivitySummary",
         "description": "The ONE engine summary the window and the toolbar popover both read (`activity.popover.same-summary`, #5852):\nthe live blocks, the background group, and how many ended runs are folded into History."
       },
-      "AddModelRequest": {
+      "AddByAddressRequest": {
         "properties": {
           "address": {
             "type": "string",
@@ -53636,7 +53636,7 @@
         "required": [
           "address"
         ],
-        "title": "AddModelRequest",
+        "title": "AddByAddressRequest",
         "description": "What a person typed to add a model: a Hugging Face id or address, a Zenodo address or DOI."
       },
       "AddressListResponse": {

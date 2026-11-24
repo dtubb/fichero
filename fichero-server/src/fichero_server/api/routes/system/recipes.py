@@ -1654,7 +1654,7 @@ async def bookmark_candidate(request: BookmarkRequest) -> dict[str, str]:
     return {"key": request.key}
 
 
-class AddModelRequest(BaseModel):
+class AddByAddressRequest(BaseModel):
     """What a person typed to add a model: a Hugging Face id or address, a Zenodo address or DOI."""
 
     model_config = ConfigDict(extra="forbid")
@@ -1677,7 +1677,7 @@ async def _fetch_hub_card(repo: str) -> Optional[str]:
 
 
 @router.post("/candidates/add")
-async def add_candidate_by_address(request: AddModelRequest) -> dict[str, str]:
+async def add_candidate_by_address(request: AddByAddressRequest) -> dict[str, str]:
     """Add a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card filled in from its source,
     the key the bookmark routes take. 422 for an address no model is named by, 404 for a model its source does not know, 403 while
     this engine works offline (a Hub model is read over the network)."""

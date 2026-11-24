@@ -9823,7 +9823,7 @@
         "summary": "Add Candidate By Address",
         "path_params": [],
         "query_params": [],
-        "request_model": "AddModelRequest",
+        "request_model": "AddByAddressRequest",
         "response_model": null
       },
       {
