@@ -238,28 +238,6 @@ extension ZoomableImagePreview {
         }
     }
 
-    /// PAINT a line (`segment-editor.paintbrush`): one `segment.create` with the brush's stroke, in the region holding most
-    /// of it; the engine makes the outline and the baseline. ⌘Z.
-    func drawPaintStroke(_ stroke: [[Double]], widthPixels: Double) {
-        if refusesEditOnMappedRendition() { return }
-        guard let store = segmentEditStore else { return }
-        let onThePass = documentId.map { id in store.segments(documentId: id).filter { $0.passId == ocrGeometryPassId } } ?? []
-        switch StrokeTarget.resolve(
-            documentId: documentId, passId: ocrGeometryPassId, onPass: onThePass,
-            region: SegmentShapes.containingRegion(for: stroke, among: onThePass)
-        ) {
-        case .failure(let refusal):
-            Self.logger.notice("Paintbrush stroke not sent: \(refusal.words, privacy: .public)")
-            windowState?.segmentNotice = refusal.words
-        case .success(let target):
-            runSegmentEdit(
-                PaintbrushStroke.create(stroke, widthPixels: widthPixels, on: target),
-                documentId: target.documentId, name: "Paint Line"
-            )
-            windowState?.lastDrawnKind = "line"
-        }
-    }
-
     /// MOVE A CUT by its mark (`segment-editor.cut-marks-editable`): one `segment.move_cut`, the cut a person's now. ⌘Z.
     func moveCut(_ firstId: String, _ secondId: String, to place: Double) {
         if refusesEditOnMappedRendition() { return }
