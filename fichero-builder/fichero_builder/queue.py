@@ -61,6 +61,8 @@ def load_cfg(root) -> None:
     """`[queue]` of harness.toml into CFG. A bad value is a ValueError, never a default."""
     f = Path(root) / "harness.toml"
     q = tomllib.loads(f.read_text()).get("queue", {}) if f.is_file() else {}
+    if unknown := sorted(set(q) - {"workers", "batch_max", "session", "session_max_context", "session_max_steps"}):
+        raise ValueError(f"[queue] has no key {', '.join(unknown)}")
     cfg = {"batch_max": int(q.get("batch_max", 4)), "session": str(q.get("session", "lane")),
            "session_max_context": float(q.get("session_max_context", 0.70)), "session_max_steps": int(q.get("session_max_steps", 5))}
     if cfg["session"] not in ("lane", "step"):
@@ -162,6 +164,11 @@ def store(lane: dict, expect: tuple | None = None) -> bool:
             for k in ("pane", "hold", "maintainer"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
                 if k in fresh:
                     lane[k] = fresh[k]
+            theirs = {s["step"]: s for s in fresh["steps"]}
+            for s in lane["steps"]:  # a part `add` joined to a step still queued while this copy was out: the file's issues stand
+                f = theirs.get(s["step"])
+                if f and s["state"] == f["state"] == "queued" and not s.get("head") and not s["rounds"]:
+                    s["issues"] = f["issues"]
             have = {s["step"] for s in lane["steps"]}
             lane["steps"] += [s for s in fresh["steps"] if s["step"] not in have]
         save([lane if x["id"] == lane["id"] else x for x in lanes])

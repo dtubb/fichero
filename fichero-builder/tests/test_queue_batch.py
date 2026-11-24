@@ -77,6 +77,9 @@ def test_batch_max_and_session_come_from_the_queue_table(state):
     (state / "harness.toml").write_text('[queue]\nbatch_max = 2\nsession = "step"\nsession_max_context = 0.5\nsession_max_steps = 3\n')
     queue.load_cfg(state)
     assert queue.CFG == {"batch_max": 2, "session": "step", "session_max_context": 0.5, "session_max_steps": 3}
+    (state / "harness.toml").write_text('[queue]\nsession_max_step = 3\n')
+    with pytest.raises(ValueError, match="session_max_step"):
+        queue.load_cfg(state)
     (state / "harness.toml").write_text('[queue]\nsession = "everywhere"\n')
     with pytest.raises(ValueError, match="session"):
         queue.load_cfg(state)
@@ -193,3 +196,16 @@ def test_a_managed_lanes_worker_is_stopped_when_its_last_step_lands(state):
     lane["cursor"] = len(lane["steps"])
     queue.end_session(lane, lane["steps"][0], handles, fake.procs)
     assert handles == {} and fake.stops.count("m1") >= 1 and lane["feed"] == ""
+
+
+def test_a_part_joined_while_the_tick_holds_its_copy_of_the_lane_survives_the_ticks_store(state):
+    add(state, "s1", "a", 7)
+    add(state, "s2", "b", 9)  # the lane's cursor step s1 is the one joined; make a second step to join to
+    queue.add("m1", "/w/m1", "s3", str(state / "bc"), [10], batch=True, alone=True)
+    lanes = queue.load()
+    lanes[0]["cursor"], lanes[0]["steps"][0]["state"] = 1, "landed"
+    queue.save(lanes)
+    held = queue.load()[0]  # the tick's copy, taken before the add
+    queue.add("m1", "/w/m1", "s4", str(state / "bd"), [11], batch=True)
+    assert queue.store(held)
+    assert next(s for s in steps() if s["step"] == "s3")["issues"] == [10, 11]
