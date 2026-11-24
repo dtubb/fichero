@@ -456,6 +456,7 @@ struct ZoomableImagePreview: View {
             // Using this pane's selection makes it the one the Inspector and the markup row act on.
             .onChange(of: regionSelection.indices) { _, _ in
                 windowState?.focusRegionSelection(regionSelection)
+                refreshJoinRowsSentence()
             }
             .onDisappear { windowState?.releaseRegionSelection(regionSelection) }
             // A line revealed from the Order tab, the Order pane or the Reader (#5424): zoom to it.

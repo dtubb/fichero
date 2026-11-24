@@ -239,6 +239,23 @@ extension SegmentService {
         }
     }
 
+    /// What Join Lines in the Same Row would do to `segmentIds`, written nowhere
+    /// (`segment-editor.join-rows-says-what-it-will-do`): the engine's one sentence, the Preview item's help.
+    func joinRowsPreview(documentId: String, segmentIds: [String]) async throws -> String {
+        let response = try await client.api.previewJoinRowsApiSegmentsDocumentDocIdJoinRowsPreviewGet(
+            path: .init(docId: documentId), query: .init(segmentIds: segmentIds)
+        )
+        switch response {
+        case .ok(let okResponse):
+            guard let summary = try okResponse.body.json.value["summary"] as? String else {
+                throw SegmentServiceError.serverError("the join preview had no summary")
+            }
+            return summary
+        case .unprocessableContent: throw SegmentServiceError.serverError("the rows could not be previewed")
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// The language, script, direction and encoding the engine resolves for ONE segment, each with
     /// where it came from (#5158; `GET /api/source-settings/resolve`). Empty for an id it cannot find.
     func resolvedSettings(segmentId: String) async throws -> [InspectorLanguage.Setting] {

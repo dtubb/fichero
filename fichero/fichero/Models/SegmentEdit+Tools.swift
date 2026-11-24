@@ -351,7 +351,7 @@ extension SegmentEdit.Params {
         case .regenerateOutline(let params): params
         case .knife(let params): params
         case .simplify(let params): params
-        case .cutWords(let params): params
+        case .cutWords(let params), .joinRows(let params): params
         case .addBaseline(let params), .cutCharacters(let params), .convertToBox(let params), .groupLines(let params): params
         case .ungroupRegion(let params): params
         case .convertLevel(let params): params

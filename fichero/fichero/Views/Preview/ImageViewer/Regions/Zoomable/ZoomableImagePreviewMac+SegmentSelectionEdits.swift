@@ -106,6 +106,52 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// The lines Join Lines in the Same Row looks at: the selection's, or the page's with nothing selected.
+    private func rowJoinCandidates(_ documentId: String) -> [Segment] {
+        SegmentEdit.linesToJoinInRows(
+            selected: selectedSegments(documentId), page: segmentEditStore?.segments(documentId: documentId) ?? []
+        )
+    }
+
+    /// JOIN LINES IN THE SAME ROW (`segment-editor.join-lines-in-the-same-row`, ⌥⇧⌘J): one `segment.join_rows`, one ⌘Z;
+    /// the notice says what was joined and what was left alone, and the joined lines are selected.
+    func joinLinesInTheSameRow() {
+        guard let documentId else { return }
+        let lines = rowJoinCandidates(documentId)
+        runSegmentEdit(
+            SegmentEdit.joinRows(lines), documentId: documentId, name: "Join Lines in the Same Row",
+            answered: { result in
+                windowState?.segmentNotice = SegmentEdit.joinRowsNotice(
+                    rows: result.resultListCounts["joined"] ?? 0, leftAlone: result.resultListCounts["left_alone"] ?? 0
+                )
+            },
+            afterReread: {
+                guard let store = segmentEditStore else { return }
+                let live = Set(store.segments(documentId: documentId).map(\.id))
+                InspectorPath.select(
+                    segmentIds: SegmentEdit.selectionAfterJoinRows(asked: lines.map(\.id), live: live),
+                    into: regionSelection, documentId: documentId, store: store
+                )
+            }
+        )
+    }
+
+    /// Ask the engine what Join Lines in the Same Row would do now, for the item's help; nil when it cannot be asked.
+    func refreshJoinRowsSentence() {
+        guard let windowState else { return }
+        guard let documentId, let segmentService else { windowState.joinRowsSentence = nil; return }
+        let ids = rowJoinCandidates(documentId).map(\.id)
+        guard ids.count >= 2 else { windowState.joinRowsSentence = nil; return }
+        Task {
+            do {
+                windowState.joinRowsSentence = try await segmentService.joinRowsPreview(documentId: documentId, segmentIds: ids)
+            } catch {
+                windowState.joinRowsSentence = nil
+                Self.logger.error("Join rows preview failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     /// JOIN BROKEN WORDS: each word the last Cut Words found broken at a line's end becomes one word with both pieces'
     /// shapes (`segment-editor.edge.word-across-lines`), one merge (and one ⌘Z) per word.
     func joinBrokenWords() {

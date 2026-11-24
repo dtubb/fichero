@@ -210,6 +210,7 @@ class WindowState {
     /// held (nil otherwise). The page asks the engine what Simplify would make at it and draws that (`simplifyPreview`,
     /// paths in the page's fractions); nothing is written until the slider is let go (`simplifyRelease`).
     var simplifyTolerance: Double?
+    var joinRowsSentence: String?  // the engine's sentence on what Join Lines in the Same Row would do
     var simplifyPreview: [[[Double]]] = []
     /// The slider let go: the page sends ONE `segment.simplify` at this tolerance. A new value each release.
     var simplifyRelease: SimplifyRelease?

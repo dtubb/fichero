@@ -42,6 +42,11 @@ struct SegmentVerbMenu: View {
         ForEach(Self.regionVerbs(kinds: kinds), id: \.self) { verb in
             Button(verb.title) { run(verb) }
         }
+        if ids.count >= 2 {
+            Button("Join Lines in the Same Row") {
+                run("Join Lines in the Same Row", selectingJoined: true) { SegmentEdit.joinRows($0) }
+            }
+        }
         if !ids.isEmpty {
             Divider()
             Button("Convert to Line") { run("Convert to Line") { SegmentEdit.convertLevel($0, to: "line") } }

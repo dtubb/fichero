@@ -259,6 +259,8 @@ extension ZoomableImagePreview {
                 Button("Convert to Box") { convertSelectedToBox() }
                 Button("Convert to Line") { convertSelected(to: "line") }
                 Button("Convert to Region") { convertSelected(to: "region") }
+                Button("Join Lines in the Same Row") { joinLinesInTheSameRow() }
+                    .help(windowState?.joinRowsSentence ?? "Joins the lines that sit in one row into one line each")
                 if selection.count >= 2 {
                     Button("Make Region from Lines") { makeRegionFromSelectedLines() }
                 }

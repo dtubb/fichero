@@ -34,6 +34,8 @@ enum SegmentEdit {
         case simplify(SegmentSimplifyRequest)
         /// Cut Words (`segment.cut_words`).
         case cutWords(SegmentCutWordsRequest)
+        /// Join Lines in the Same Row (`segment.join_rows`).
+        case joinRows(SegmentCutWordsRequest)
         /// Add Baseline (`segment.add_baseline`).
         case addBaseline(SegmentCutWordsRequest)
         /// Cut Characters (`segment.cut_characters`).
