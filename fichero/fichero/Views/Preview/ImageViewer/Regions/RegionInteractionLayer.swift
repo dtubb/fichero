@@ -86,6 +86,9 @@ struct RegionInteractionLayer: View {
     /// The Region tool's dragged box while editing segments: the host saves it as a region on the shown pass (`segment.create`).
     /// Nil: the box stays a marquee.
     var onDrawRegionBox: (([Double]) -> Void)?
+    /// An edge or corner drag of the selected boxes let go: each box's index and new rect (`segment-editor.edges-drag-and-say-so`).
+    /// Nil: a single box goes through `onMoveCommit` as before.
+    var onResizeCommit: (([(index: Int, bbox: [Double])]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?
     /// Commit a Marker stroke (M held or the Marker chosen): its points in the page's fractions, and whether it closed.
