@@ -353,26 +353,26 @@ With no stronger model on call, quality is whatever the gates enforce. These are
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 - `local.spec-screen-evidence` — **[OK]** (#7067) a screen is done only when it exists: a spec behaviour tagged [OK] or [BUILT]
-  whose text names the Mac or iPad `application` must cite a Swift test file under fichero/Tests (a UI test included);
+  whose text after the tag contains the word `app` (matched as a whole word, so "application" does not count) must cite a Swift test file under fichero/Tests (a UI test included);
   citing only pytest files fails as "engine done, the screen is not". Offenders at landing are in
   `scripts/check_spec_app_evidence_baseline.json`, which fails when a listed line now passes. Wired by the `check_spec_*.py`
   glob in CI. Test: `fichero-server/tests/unit/scripts/test_check_spec_app_evidence.py::test_an_ok_app_behaviour_citing_only_pytest_is_engine_done_the_app_part_is_not`,
   `test_a_swift_test_path_or_a_ui_test_satisfies_it_and_a_non_app_or_gap_line_is_not_judged`,
   `test_a_new_offender_fails_a_baselined_one_passes_and_a_listed_line_that_now_passes_fails`.
-- `local.spec-ux-section` — **[OK]** (#7067) a spec file with behaviours that name a screen has a "What the person sees" (or "UX")
+- `local.spec-ux-section` — **[OK]** (#7067) a spec file with a behaviour that contains the word `app` (any live tag) has a "What the person sees" (or "UX")
   section that says, for each screen, where the person opens it (menu, window, pane or shortcut), what it shows, its controls,
   the empty, loading and error states with how each is tested, and an acceptance line; a spec without one is in the same
   shrinking baseline. Test: `fichero-server/tests/unit/scripts/test_check_spec_app_evidence.py::test_a_spec_with_app_behaviours_needs_a_ux_section_naming_opener_states_and_acceptance`.
 - `local.engine-ux-coverage-report` — **[OK]** (#7067) `scripts/report_engine_ux_coverage.py` prints, for the operations frozen in
-  `check_endpoint_coverage_matrix_known_gaps.json`, how many no spec names, how many a spec names with no screen behaviour, how
-  many have a screen behaviour still [GAP], and how many screen features have no UX section, with the first 20 of each. First run
+  `check_endpoint_coverage_matrix_known_gaps.json`, how many no spec names, how many a spec names with no `app` behaviour, how
+  many have an `app` behaviour still [GAP], and how many `app` features have no UX section, with the first 20 of each. First run
   (2026-11-23): 221 / 58 / 33 / 111. Test: `fichero-server/tests/unit/scripts/test_report_engine_ux_coverage.py::test_each_known_gap_lands_in_one_bucket_no_spec_no_app_behaviour_or_app_behaviour_still_gap`,
   `test_the_report_prints_the_three_counts_the_ux_count_and_the_top_twenty`.
 - `local.new-route-has-a-spec` — **[OK]** (#7067) `check_endpoint_coverage_matrix.py` fails a route whose path or operation id no spec
   names, unless it is in `check_endpoint_coverage_matrix_no_spec_baseline.json` (694 at landing). Test:
   `fichero-server/tests/unit/scripts/test_report_engine_ux_coverage.py::test_the_matrix_fails_a_route_no_spec_names_unless_it_is_baselined`.
 - `local.review-screen-lens` — **[OK]** (#7067) the reviewer prompt's third lens (`review_lenses.APP_SCREEN`) makes a step whose
-  behaviours are screen ones NOT READY when the diff adds no Window/openWindow id, menu command or pane kind reaching the feature.
+  behaviours contain the word `app` NOT READY when the diff adds no Window/openWindow id, menu command or pane kind reaching the feature.
   Test: `fichero-builder/tests/test_perf_sweep.py::test_the_reviewer_refuses_an_app_step_whose_diff_adds_no_screen_reaching_the_feature`.
 
 ### C. The manager and escalation
