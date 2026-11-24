@@ -697,12 +697,25 @@ See section 7.2 below for what exists. The design:
 - `segment-editor.expand-one-axis` — **[PARTIAL]** (#6735; app) owner ruling 2026-11-21: dragging a handle with ⇧ held changes
   one axis, chosen by the way the drag first moves; the other edges stay; without ⇧ the drag is as before; one undoable move; lines
   and regions both. *Built note (needs an on-screen check):* `BoxResize.axis`, `resized(axis:)` and `handleResize`;
-  `fichero/Tests/Unit/general/Views/Segments/ShiftDragOneAxisTests.swift`. The tools and keys below stay **[PROPOSED]** (open choice
+  `fichero/Tests/Unit/general/Views/Segments/ShiftDragOneAxisTests.swift`; `handleResize` now also serves several boxes (see `segment-editor.edges-drag-and-say-so`), nothing else changed here. The tools and keys below stay **[PROPOSED]** (open choice
   for the owner: tools plus keys, or only one of them): a way to expand a segment only vertically or only horizontally. Proposed, A: two tools, Expand Vertically (V) and
   Expand Horizontally (H); dragging over a segment changes only that axis with the other edges locked; a click grows that axis
   to fit the ink (snapping to the page's text); Shift applies it to every selected segment. Proposed, C: keys on a selection,
   ⌥↑ and ⌥↓ for height and ⌥← and ⌥→ for width, 1 px a press (10 px with Shift), working on many lines at once. Edge handles
   that move one axis with ⌥-drag are left out as fiddly on small line boxes. Saved and undoable; a test per gesture.
+- `segment-editor.edges-drag-and-say-so` — **[PARTIAL]** (#6735; app) an edge of a box is grabbed anywhere along its length (a corner first), in
+  any mode; with several boxes selected the same edge of every box moves by the same amount, as one undoable change. *Built:*
+  `BoxResize.grab`, `resizedTogether`, `cursor(overHandle:)`, `handleResize` for the selection, and the host commit
+  `resizeSegments` (shapes scale with the box). *Not built:* the pointer-over cursor (the pointer feed has no hover phase, so
+  `BoxResize.cursor` is not wired to `NSCursor`) and the handles drawn on the union rectangle. Needs an on-screen check.
+  Tests: `fichero/Tests/Unit/general/Views/Segments/BoxResizeEdgeTests.swift`.
+- `segment-editor.edges-move-by-key` — **[OK]** (#6735; app) with saved segments selected, ⌥-arrow moves the edge on the arrow's
+  side in the arrow's direction (the box grows), ⌃⌥-arrow moves that edge back (it shrinks); 1 px a press, 10 with ⇧; held to the
+  page, and a press that would leave a box thinner than the minimum leaves it unchanged; several boxes are one ⌘Z; the key is
+  taken even when nothing changes, so it does not page. Tests: `fichero/Tests/Unit/general/Models/EdgeKeysTests.swift` (the plan
+  only; the key handlers are not unit-tested).
+- `segment-editor.edges-set-by-number` — **[GAP]** (#6735; app) set a box's edges by number. Waits on the Shape rows of step 5,
+  which have not landed (no "Shape rows" in the spec or the code).
 - `segment-editor.convert-to-box` — **[PARTIAL]** (#6736; app + engine; owner 2026-11-19) Convert to Box replaces each selected
   segment's polygon with its axis-aligned bounding rectangle, from the Segment menu, the context menu of the selected
   segments, the toolbar's shape menu and a shortcut (⌥⌘B proposed); it works on many at once. An optional second form,
