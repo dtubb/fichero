@@ -191,7 +191,7 @@ targets are at least 44 pt.
 ### Structure: merge, split, reassign
 
 - `segment-editor.merge-lines` — **[OK]** (→ #4941; app + engine; builds on `source.editor.join-is-easy`, #6182) two or
-  more selected lines and ⌘J become one line: the first picked keeps its id; the outlines are
+  more selected lines and ⌥⌘J become one line: the first picked keeps its id; the outlines are
   joined into one polygon (their union, hulled across the gap when they do not touch); the
   baselines are joined end to end in the page's reading order; the readings join with the
   script's separator; the result sits where the first line sat in every order; the others
@@ -532,6 +532,32 @@ targets are at least 44 pt.
   list from `SegmentStore.regionTypesByDocument`, read with the page's segments. *Not built:* the Inspector's list of
   notes anchored to a segment; the Swift tests were not run in the worker. *Tests:* `fichero-server/tests/unit/api/test_segment_update_many.py`;
   `fichero/Tests/Unit/general/Models/SegmentEditTests.swift`.
+
+- `source.editor.inspector-is-a-form-at-every-level` — **[PARTIAL]** (→ #7074; app; refines `source.editor.set-kind`) the
+  Inspector shows a grouped form for the selection at every level (region, line, word, or a mix), one labelled row per
+  property in the engine's order, which is the Tab and VoiceOver order. Switches are switches; the others are menus, and
+  language and script also take typed codes. *Built:* `InspectorFormView` (a `Form` with `LabeledContent` rows) in
+  `SegmentInspectorView`, replacing the Details sentence and the Segment pull-down in the Inspector's head (the Segment menu
+  in the menu bar keeps its items). *Not built:* the notes anchored to a segment (the Inspector shows them, manager
+  ruling), a window never seen (no worker can run the app). *Tests:* `SegmentInspectorFormTests.swift` (the model; not run).
+- `source.editor.inspector-form-comes-from-the-engine` — **[OK]** (→ #7074; engine) `GET /api/segments/inspect?segment_ids=..`
+  answers the rows for the level: a region has type, furniture, language, script, direction and line_progression; a line
+  has furniture, language, script and direction; a word has language, script and direction. Each row is `set`, `inherited`
+  (with the level it came from), `mixed` (with every distinct value) or `none`, and carries its choices; ids the person may
+  not read are counted as withheld. The app keeps no table of rows. *Built:* `segment_inspect_rows.py`, the route in
+  `segments.py`, `SegmentService.inspectForm`. *Tests:* `fichero-server/tests/unit/api/test_segment_inspect.py`,
+  `SegmentInspectorFormTests.swift`.
+- `source.editor.inspector-form-edits-the-selection-at-once` — **[PARTIAL]** (→ #7074; app + engine) a change in the form
+  is ONE `segment.update_many` over every selected segment (type, furniture, language, script, direction; a region's
+  line_progression), so one ⌘Z undoes it, and the form is read again after it. *Built:* `InspectorForm.edit`,
+  `SegmentEdit.Attribute.kindRaw` and `.lineProgression`, `update_many` taking `line_progression` and `kind_raw`.
+  *Not built:* `updated_at` and `line_progression` on the app's `Segment`. *Tests:* `test_segment_inspect.py`,
+  `SegmentInspectorFormTests.swift`.
+- `source.editor.inspector-form-keyboard-and-voiceover` — **[PARTIAL]** (→ #7074; app) every row is reachable by Tab in the
+  engine's order and reads as its label, its value and how it stands ("Mixed: a, b", "inherited from page", "Not set").
+  Each row carries the identifier `inspector.form.<key>`, the form `inspector.form`. *Built:* `InspectorForm.Row.accessibilityValue`
+  and the identifiers in `InspectorFormView`. *Not built:* the chords ⌥⇧⌘J (row join) and ⌥ArrowKeys / ⌃⌥ArrowKeys (edges),
+  which no menu uses and no step builds yet; a window never seen. *Tests:* `SegmentInspectorFormTests.swift`.
 
 ### Words and characters
 
