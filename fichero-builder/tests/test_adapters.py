@@ -39,7 +39,7 @@ def test_six_answers_and_unsupported_is_said():
 
 
 def test_claude_code_argv(tmp_path, monkeypatch):
-    write_rules(tmp_path, '[policy]\nrules = [{ re = "x", reason = "NO X" }]\n')
+    write_rules(tmp_path, '[policy]\nrules = [{ re = "x", reason = "NO X" }]\n[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
     wt = tmp_path / "wt"
     wt.mkdir()
     subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)

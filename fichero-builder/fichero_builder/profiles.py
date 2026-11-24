@@ -10,6 +10,7 @@ import tomllib
 from pathlib import Path
 
 AGENTS = Path(__file__).resolve().parents[1] / "agents"
+REPO = Path(__file__).resolve().parents[2]
 # a task id, a commit sha, a date: a prompt is project-free and timeless
 _PRIVATE = (r"#\d{3,}", r"\b[0-9a-f]{9,40}\b", r"\b20\d\d-\d\d-\d\d\b")
 
@@ -18,12 +19,12 @@ class ProfileError(Exception):
     pass
 
 
-# the CLI alias a worker is started with -> the display name the trailer carries; a name not listed passes through unchanged
-DISPLAY_NAMES = {"sonnet": "Claude Sonnet 5.5", "haiku": "Claude Haiku 5.5", "opus": "Claude Opus 5.5", "fable": "Claude Fable 5.2"}
-
-
-def trailer(model: str, harness: str) -> str:
-    return f"Written-By: {DISPLAY_NAMES.get(model, model)} using {harness} using Fichero Builder"
+def trailer(model: str, harness: str, root=None) -> str:
+    """`Written-By: <MODEL> using <HARNESS> using Fichero Builder`, MODEL the display name `harness.toml` [models.display] gives the
+    alias the worker was started with; a name it does not list passes through unchanged."""
+    toml = Path(root or REPO) / "harness.toml"
+    names = (tomllib.loads(toml.read_text()) if toml.is_file() else {}).get("models", {}).get("display", {})
+    return f"Written-By: {names.get(model, model)} using {harness} using Fichero Builder"
 
 
 def private_text(text: str, boundary: list[str]) -> list[str]:
@@ -45,7 +46,7 @@ def assemble(root, *, worktree, scratch, harness: str, model: str, role: str | N
     cfg = tomllib.loads(toml.read_text()) if toml.is_file() else {}
     policy = "\n".join(f"  - `{r['re']}`: {r['reason']}" for r in cfg.get("policy", {}).get("rules", []))
     common = (_part(agents, "common/common.md").replace("{{WORKTREE}}", str(worktree)).replace("{{SCRATCH}}", str(scratch))
-              .replace("{{POLICY}}", policy).replace("{{TRAILER}}", trailer(model, harness)))
+              .replace("{{POLICY}}", policy).replace("{{TRAILER}}", trailer(model, harness, root)))
     rels = (role and f"roles/{role}.md", stack and f"stacks/{stack}.md", project and f"projects/{project}/project.md")
     parts = [common, *[_part(agents, rel) for rel in rels if rel]]
     if servers is not None:
