@@ -111,7 +111,7 @@ def scratch(tmp_path, monkeypatch):
                  "specs": "specs", "check_paths": ["scripts/", "pipeline/", "fichero-builder/fichero_builder/lint.py"], "python_path": ".", "test_env": {},
                  "scratch_base_env": "", "pinned": str(repo)},
         "labels": {"bug": "type:bug", "urgent": "urgent", "claimed": "claimed", "from_user": "from-user", "residue": "residue"},
-        "github": {"maintainer": "dtubb", "allowed_authors": ["dtubb"], "agent_email": "noreply@anthropic.com"},
+        "github": {"maintainer": "dtubb", "allowed_authors": ["dtubb"], "agent_email": "noreply@anthropic.com", "trailer_tool": "Fichero Builder"},
         "ladder": [
             {"name": "ready", "cmd": "{pinned}/scripts/lane_ready_check.sh --no-guards HEAD"},
             {"name": "red-on-base", "kind": "red-on-base", "test_glob": ["*test*.py"],

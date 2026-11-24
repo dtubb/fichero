@@ -584,6 +584,25 @@ def test_brief_is_a_stable_prefix_then_the_issue_tail(scratch, issues):
     assert head(a) == head(b) and "1001" not in head(a) and "t1" not in head(a), "no ids or tasks before the tail"
 
 
+def test_the_brief_rule_is_generic_and_the_trailer_line_names_the_workers_own_model(scratch, issues):
+    """The prefix stays byte-stable; the exact Written-By line, from the worker's model through [models.display], follows the issue header."""
+    sonnet = {"provider": "anthropic", "model": "sonnet", "kind": "pi"}
+    qwen = {"provider": "openrouter", "model": "qwen/x", "kind": "pi"}
+    a, b = core.brief(issues[1001], "t", worker=sonnet), core.brief(issues[1001], "t", worker=qwen)
+    assert "Your trailer, exactly: `Written-By: Claude Sonnet 5.5 using pi using Fichero Builder`" in a
+    assert "Your trailer, exactly: `Written-By: openrouter/qwen/x using pi using Fichero Builder`" in b, "an unlisted model passes through"
+    assert a.split("# Issue #")[0] == b.split("# Issue #")[0] and "Sonnet" not in a.split("# Issue #")[0]
+
+
+def test_the_writeup_commit_is_signed_by_the_worker_that_wrote_it(scratch, issues, fake_coder, monkeypatch):
+    approve_spec(scratch)
+    fc = fake_coder()
+    fc.reply = "ID: `demo.two`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_1002.py::test_f1002_v2"
+    core.start([1002], writeup=True)
+    log = git(scratch["repo"], "log", "--all", "--format=%B", "--grep=write-up of #1002")
+    assert "Written-By: openrouter/qwen/x using pi using Fichero Builder" in log and "Claude Sonnet" not in log, log
+
+
 def test_a_model_names_the_files_only_when_localisation_finds_nothing(scratch, issues, monkeypatch):
     calls = []
 

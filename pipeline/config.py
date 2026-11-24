@@ -39,3 +39,12 @@ def at_tier(cfg: dict, worker: dict, tier: str) -> dict:
 
 def pi_model_id(worker: dict) -> str:
     return f"{worker['provider']}/{worker['model']}"
+
+
+def written_by(worker: dict, repo: str, tool: str) -> str:
+    """The trailer for work this worker wrote: its model id (or the bare model name) through `[models.display]` of the repo's harness.toml (an unlisted id passes
+    through, agent-profiles.trailer.one-line), and the harness the pipeline runs workers in."""
+    toml = Path(repo) / "harness.toml"
+    names = (tomllib.loads(toml.read_text()) if toml.is_file() else {}).get("models", {}).get("display", {})
+    model = pi_model_id(worker)
+    return f"Written-By: {names.get(model) or names.get(worker['model']) or model} using pi using {tool}"
