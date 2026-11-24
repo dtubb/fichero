@@ -349,6 +349,11 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   and every fast guard the runner's fast-guards rung runs (all `scripts/check_*.py` minus the skip list in
   `pipeline/projects/fichero.toml`, read from there, 60 s each; #6140). Test: `scripts/lane_ready_check.sh --self-test`
   (a scratch commit that breaks `check_folder_organization` is NOT READY).
+- `pipeline.ready-trailers` [OK] — the ready check judges trailers and empty commits itself, in seconds, so the review does
+  not spend a full ladder on them: each commit has exactly one `Written-By: <model> using ...` whose model is a value of
+  `[models.display]` in `harness.toml`, at most one `Spec-change:` line (so `Written-By` plus an optional `Spec-change` is
+  the whole trailer set), and changes at least one file. Evidence (manager's throughput review 2026-11-24): 24 refusals for
+  trailer text or an empty commit, each after a full ladder. Test: `fichero-builder/tests/test_ready_trailers.py`.
 - (moved) pipeline.test-red-on-base → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 - `pipeline.quick-checks-per-item` [PARTIAL] (#6116) — each item, in order, stopping at the first red: the ready check,
   the test files the spec's Test matrix and the issue name (red on base, green on the branch), `scripts/gate part`
