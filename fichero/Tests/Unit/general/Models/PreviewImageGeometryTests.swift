@@ -165,7 +165,7 @@ final class PreviewImageGeometryTests: XCTestCase {
 
     // MARK: - settles (#7081)
 
-    /// Layout re-measures on every pass; base sub-pixel wobble between passes must not count as base change,
+    /// Layout re-measures on every pass; a sub-pixel wobble between passes must not count as a change,
     /// or each publish re-runs the body, re-lays-out, and wobbles again (the hang in #7081).
     func testWobbleBelowTolerancePublishesNothing() {
         let base = PreviewImageGeometry(visible: visible, drawnFrame: drawn)
@@ -176,7 +176,7 @@ final class PreviewImageGeometryTests: XCTestCase {
         XCTAssertTrue(base.settles(with: wobbled))
     }
 
-    /// A real move (base resize of base pixel, base scroll) still publishes.
+    /// A real move (a resize of a pixel, a scroll) still publishes.
     func testRealChangePublishes() {
         let base = PreviewImageGeometry(visible: visible, drawnFrame: drawn)
         var widened = base
