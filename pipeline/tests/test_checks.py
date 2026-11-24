@@ -236,8 +236,8 @@ def test_ready_check_fails_a_wrong_author_and_no_issue(scratch):
 
 
 def test_ready_check_fails_an_agent_commit_with_no_written_by_trailer_and_takes_the_new_or_the_old_one(scratch):
-    """dev-workflows.run.presubmit-lints (owner 2026-11-05): ONE trailer, `Written-By: <model>`, the model a `[models.display]` name; the old
-    `Directed-By: the maintainer` and an unlisted model are refused too; no trailer at all is named (it cost two ladders, 2026-11-03/04)."""
+    """dev-workflows.run.presubmit-lints (owner 2026-11-05): ONE trailer, `Written-By: <model>`, the form `<model> using <harness> using Fichero Builder`; the old
+    `Directed-By: the maintainer` and a bare model name are refused; no trailer at all is named (it cost two ladders, 2026-11-03/04)."""
     wt = lane(scratch, "trailer", REAL_FIX)
     git(wt, "commit", "-q", "--amend", "-m", "work (Fixes #1001)")
     r = checks.run_all(wt, scratch["cfg"])[1]
