@@ -184,7 +184,7 @@ filters Activity by `model:`.
 ### A. The window and its bones
 
 - `models.window.is-activitys-shape` — **[PARTIAL]** (#6588, #4307) the window is a `NavigationSplitView` with a source
-  list (Models: Usable now, Bookmarked, Found; This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
+  list (Models: All Models, Usable now, Bookmarked, Found; Providers; This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
   window can show it as a pane; the toolbar leads with Activity's run controls; the bottom bar is the filter.
   *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowLayoutTests.swift`. **Also built:** the `Window` scene "Models & Cluster" (Window menu, id `models-cluster`), `PaneKind.models`, `ModelsPaneView` (the `NavigationSplitView`, the one table of size, memory, fits here, account, using now and last failed, and the Inspector), reading the one list through `ModelsAnswerStore`, which Activity's Models tree shares. Tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowSceneTests.swift` (the window id and title, the pane kind, the sidebar from the model, the needs-you sort, the Inspector following the selection, the shared store) and `ActivityWindowSelectionStateTests.swift` (the scene is a `Window` that replaces `.newItem` with the File menu). **Also written, without a view test:** the Models section (Usable now the default item, Bookmarked, Found), its Search field and a button column on the rows. **Not built:** the This Mac row's pressure, the run controls, the filter and the column menu.
 - `models.window.one-list` — **[PARTIAL]** (#6588; built: `GET /api/activity/models` with place › provider › model,
@@ -224,6 +224,46 @@ filters Activity by `model:`.
   reader as a project override "chosen by you", and Set Up's step menu calls it; not built: the window's verb) Use for…
   on a usable card offers the open project's steps that take its kind and sets it as that step's model; the Start plan
   shows it at once.
+
+### A3. Providers and Models in the sidebar, search over every model, add a model, and the window replaces Settings' AI panes (owner 2026-11-24)
+
+- `models.window.providers-and-models-in-the-sidebar` — **[PARTIAL]** (#6588, owner 2026-11-24) the sidebar has two sections
+  beside This Mac, Places and Work: **Models** (All Models: every model, local and cloud, then Usable now, Bookmarked,
+  Found) and **Providers** (one item per provider the one list names: the local runtimes Kraken, MLX, Apple Vision and
+  Apple Intelligence first, then the cloud providers, each by name, each badged with its rows needing you). Each item
+  lists its own rows; the Inspector of a row says what it does, its size, where it runs and its cost. Acceptance: with
+  Kraken and Apple Intelligence on this Mac and an Anthropic model without a key, Providers lists Apple Intelligence,
+  Kraken, Anthropic in that order, Anthropic badged 1; All Models lists all three models; a provider item lists only its
+  own. *Test:* `ModelsWindowLayoutTests.swift::providersSection`, `allModelsAndProviderRows`, `inspectorSaysRunsOnAndCost`.
+  **Built:** `ModelsWindowModel.providers`, `Item.provider`, `Item.allModels`, the Providers section in
+  `ModelsWindowModel.sidebar`, the Inspector's Runs on and Cost lines, tested there. **Not built:** a cloud model's price (the
+  models answer carries none; ui-5 and cards-1), whether the project allows cloud use drawn on a cloud row, "what it does".
+- `models.search.over-every-model` — **[PARTIAL]** (#6588, owner 2026-11-24) the window's search field filters the list shown
+  by name, provider, place or licence, every word needed, ignoring case and accents; the finder's Search Online reaches
+  further (cards, Hugging Face, Zenodo and the cloud providers' lists: by name, job, script, language or period) through
+  the one `find-models` job (`models.search.is-the-finder`), not a second catalogue. *Test:*
+  `ModelsWindowLayoutTests.swift::searchOverTheList`. **Built:** the filter over the models answer's rows. **Not built:**
+  the cloud providers' model lists and a search by job, script, language or period over rows that are not cards.
+- `models.apple-intelligence.is-a-provider-and-a-model` — **[OK]** (#6588, owner 2026-11-24: "missing today") on a Mac where
+  the engine can run Apple Intelligence (the fm-bridge present, macOS 26 with Apple Intelligence on:
+  `local_model_choice.apple_intelligence_in_this_build`), the models answer lists a This Mac row "Foundation Models" under the
+  provider "Apple Intelligence"; where it cannot, no row. *Test:*
+  `fichero-server/tests/unit/api/test_activity_models_6588.py::test_apple_intelligence_is_a_provider_and_a_model_on_a_mac_that_has_it`.
+  Offering it where its jobs fit, and a catalogue card for it, are `models.cards.richer-and-more` (cards-1).
+- `models.settings.window-replaces-ai-panes` — **[GAP]** (#6588, #4307, owner 2026-11-24) Models & Cluster folds in Settings'
+  AI models and providers panes: every provider's key, switch, base URL and model list, the defaults per kind of work and
+  the local models move into the window (a provider item's Inspector holds its key field and its switch; the model rows hold
+  the defaults); Settings keeps at most a link, "Models & Cluster…" (this supersedes `models.settings.keeps-preferences`
+  where it keeps the defaults and caps in Settings). Acceptance: no provider key field is reachable from Settings; the
+  window's provider item saves and clears a key through the engine's key routes; the alert's `settings.ai.providers` link
+  lands on that provider item. *Test (to write):* `ModelsWindowProvidersTests.swift` (ui-4).
+- `models.manage.add-by-id-or-url` — **[GAP]** (#6588, #5460, owner 2026-11-24) from a search result the window downloads a
+  local model or adds a cloud model; "Add by id or URL…" takes a Hugging Face id or a URL and resolves it through the same
+  finder, so the added model is one card like any other, bookmarked until downloaded. *Test (to write):*
+  `ModelsWindowAddTests.swift` (ui-5) and a pytest beside `test_bookmark_route_5460.py` for the by-id resolve.
+- `models.cards.richer-and-more` — **[GAP]** (#6588, owner 2026-11-24) the catalogue's cards (`recipes/seed/cards.yaml`) say
+  what a model does, its size, where it runs and its cost, and cover more models, Apple Intelligence's included, offered
+  where its jobs fit. *Test (to write):* `fichero-server/tests/unit/recipes/` over the seed (cards-1).
 
 ### B. What a row says
 
@@ -421,6 +461,30 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 - Behaviours: `models.search.is-the-finder`, `models.bookmark.kept-not-added`, `models.window.shows-what-a-recipe-can-reach`, `models.row.use-for-a-step`
 - Tests: fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py, fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py (extended with the bookmark mark; the Usable-now equality test to write beside them)
 - Depends on: 1.2
+- Size: M
+
+#### Step 2.3 — Providers and Models in the sidebar, search, Apple Intelligence (#6588; ui-3)
+- Behaviours: `models.window.providers-and-models-in-the-sidebar`, `models.search.over-every-model`, `models.apple-intelligence.is-a-provider-and-a-model`
+- Tests: fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowLayoutTests.swift, fichero-server/tests/unit/api/test_activity_models_6588.py
+- Depends on: 2.2
+- Size: M
+
+#### Step 2.4 — Providers' keys and switches move into the window; Settings' panes become a link (#6588; ui-4)
+- Behaviours: `models.settings.window-replaces-ai-panes`
+- Tests: ModelsWindowProvidersTests.swift (to write)
+- Depends on: 2.3
+- Size: L
+
+#### Step 2.5 — Add a model: download, cloud, by id or URL (#6588, #5460; ui-5)
+- Behaviours: `models.manage.add-by-id-or-url`, `models.manage.add-a-model`
+- Tests: ModelsWindowAddTests.swift (to write)
+- Depends on: 2.4
+- Size: M
+
+#### Step 2.6 — Richer cards and more of them (#6588; cards-1)
+- Behaviours: `models.cards.richer-and-more`
+- Tests: a pytest over `recipes/seed/cards.yaml` (to write)
+- Depends on: 2.3
 - Size: M
 
 ### Stage 3 — Places
