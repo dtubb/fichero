@@ -257,10 +257,17 @@ filters Activity by `model:`.
   where it keeps the defaults and caps in Settings). Acceptance: no provider key field is reachable from Settings; the
   window's provider item saves and clears a key through the engine's key routes; the alert's `settings.ai.providers` link
   lands on that provider item. *Test:* `AISettingsPlacementTests.swift` (every AI tab is in exactly one place: the window or Settings). **Built (ui-4):** `AISettingsView(placement:)`: the window's item "Keys, Defaults & Downloads" (Providers section) draws the existing Defaults, Models & Providers (every provider's key, switch and model list) and Downloads tabs; Settings draws Advanced and an "Open Models & Cluster…" button; the build tier's gate (`isSettingsModelsTabEnabled`, `ai-settings.md`) still decides whether Models & Providers and Downloads are drawn: with it off the window's item holds Defaults only, tested in `AISettingsPlacementTests.swift::gateOff`; the old "Local LLM" selection resolves to Providers. **Not built:** the key field on each provider item's own Inspector (the pane is moved whole, not re-laid per item), and the `settings.ai.providers` deep link landing on a provider item.
-- `models.manage.add-by-id-or-url` — **[GAP]** (#6588, #5460, owner 2026-11-24) from a search result the window downloads a
+- `models.manage.add-by-id-or-url` — **[PARTIAL]** (#6588, #5460, owner 2026-11-24) from a search result the window downloads a
   local model or adds a cloud model; "Add by id or URL…" takes a Hugging Face id or a URL and resolves it through the same
-  finder, so the added model is one card like any other, bookmarked until downloaded. *Test (to write):*
-  `ModelsWindowAddTests.swift` (ui-5) and a pytest beside `test_bookmark_route_5460.py` for the by-id resolve.
+  finder, so the added model is one card like any other, bookmarked until downloaded. *Test:*
+  `test_add_model_by_id_or_url_6588.py` and `ModelsWindowAddByAddressTests.swift`. **Built:** `POST /api/recipes/candidates/add`
+  (`{address}` returns the bookmark key; 422 for an address no model is named by or a `provider:model` id, 404 for a model its
+  source does not know, 403 offline) over `recipes.discovery.add_by_address` and `parse_model_address` (a Hugging Face id or
+  address, a Zenodo address); the window's toolbar "Add by id or URL…" (`models.toolbar.add`) opens a sheet with one field,
+  `ModelsWindowStore.addByAddress` sends it and reloads, a refusal shows the engine's words, and the card lists under
+  Bookmarked. The route's test and the Swift test have not been run in the worker's environment (the route test needs a
+  library location the worker lacks; the app is not built there). **Not built:** a provider's model id by address (a cloud
+  model is added on the provider's page), a Zenodo record that is not in the kept listing, the cloud price on the card.
 - `models.cards.richer-and-more` — **[GAP]** (#6588, owner 2026-11-24) the catalogue's cards (`recipes/seed/cards.yaml`) say
   what a model does, its size, where it runs and its cost, and cover more models, Apple Intelligence's included, offered
   where its jobs fit. *Test (to write):* `fichero-server/tests/unit/recipes/` over the seed (cards-1).
@@ -301,9 +308,9 @@ filters Activity by `model:`.
 - `models.manage.load-and-unload` — **[GAP]** (#6588, owner 2026-11-19) the window loads a downloaded model into memory now
   and unloads a loaded one (one model, not only the idle ones), refused with the reason when it does not fit
   (`models.row.fits-here`); the work happens as a row in Activity. **Built:** a loaded row's Unload calls `POST /api/activity/models/unload-idle`, which unloads every idle model, not that row's alone. **Not built:** a per-model unload and any load route.
-- `models.manage.add-a-model` — **[GAP]** (#6588, #5460, #6747, owner 2026-11-19) the window adds a model: search Hugging
+- `models.manage.add-a-model` — **[PARTIAL]** (#6588, #5460, #6747, owner 2026-11-19) the window adds a model: search Hugging
   Face or a provider (`models.search.is-the-finder`), then download it to the models folder (#6747), with its progress in
-  Activity (`models.row.download-reports-bytes`).
+  Activity (`models.row.download-reports-bytes`). **Built:** a found card's Download goes through the one download path (`ModelsWindowStore.press`); adding by id or URL is `models.manage.add-by-id-or-url`. **Not built:** adding a cloud provider's model from the window's cards.
 - `models.manage.delete-a-model` — **[PARTIAL]** (#6588, #6747, owner 2026-11-19) the window deletes a downloaded model's files
   (the bookmark stays), says how much disk it frees, and asks first when a recipe uses it (open question 3), with the
   deletion shown in Activity. **Built:** the engine half of asking first: `DELETE /api/local-models/{model_type}/{model_id}`
@@ -478,7 +485,8 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 #### Step 2.5 — Add a model: download, cloud, by id or URL (#6588, #5460; ui-5)
 - Behaviours: `models.manage.add-by-id-or-url`, `models.manage.add-a-model`
-- Tests: ModelsWindowAddTests.swift (to write)
+- Tests: `test_add_model_by_id_or_url_6588.py`, `ModelsWindowAddByAddressTests.swift`
+- Status: partial; the by-id route, store method and sheet are written, see `models.manage.add-by-id-or-url` for what is not built
 - Depends on: 2.4
 - Size: M
 
