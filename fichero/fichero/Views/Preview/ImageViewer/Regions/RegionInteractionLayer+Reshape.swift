@@ -89,7 +89,7 @@ extension RegionInteractionLayer {
             guard let handle = BoxResize.grab(at: point, of: union, reach: reach) else { return false }
             let boxes = picked.map { allBoxes[$0].bbox }
             resizeDrag = BoxResize.Drag(
-                index: picked[0], handle: handle, bbox: boxes[0], start: point, indices: picked, origins: boxes, live: boxes
+                index: picked[0], handle: handle, bbox: boxes[0], indices: picked, origins: boxes, live: boxes, start: point
             )
             return true
         case .dragged:
