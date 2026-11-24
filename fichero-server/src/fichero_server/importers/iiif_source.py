@@ -31,6 +31,8 @@ STEP_LONGEST = 2400
 #: The bounded cache of step-sized images is a share of free disk with a floor (ruled 2026-10-04, #5323).
 STEP_CACHE_SHARE = 0.10
 STEP_CACHE_FLOOR = 1024**3
+#: Set on a folder made before the manifest was read, named for the URL's host, until the manifest's label replaces it.
+PROVISIONAL_NAME = "iiif_name_provisional"
 
 
 def bound_folder(db: Any, url: str) -> Any | None:
@@ -61,8 +63,12 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
         folder = Document(name=name or collection.get("name") or _label_text(collection) or "IIIF",
                           doc_type=DocType.folder, metadata={"iiif_source": url})
         db.save(folder)
-    elif (folder.metadata or {}).get("iiif_source") != url:
-        folder = folder.model_copy(update={"metadata": {**(folder.metadata or {}), "iiif_source": url}})
+    elif (folder.metadata or {}).get("iiif_source") != url or (folder.metadata or {}).get(PROVISIONAL_NAME):
+        # The folder `start` made at once carries the URL's host; the manifest's own label replaces it (#7066).
+        facts = {k: v for k, v in (folder.metadata or {}).items() if k != PROVISIONAL_NAME}
+        label = name or collection.get("name") or _label_text(collection)
+        renamed = {"name": label} if (folder.metadata or {}).get(PROVISIONAL_NAME) and label else {}
+        folder = folder.model_copy(update={"metadata": {**facts, "iiif_source": url}, **renamed})
         db.save(folder)
     # One folder per collection and manifest, found again by IIIF id on a refresh; a folder already holding the old
     # flat import (pages directly in it) stays flat.
@@ -113,16 +119,28 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
 # --- the job ----------------------------------------------------------------------------------------------------
 
 
-def start(db: Any, url: str, *, folder_id: str | None, started_by: str, max_manifests: int | None = None) -> str:
-    """Queue the import (or refresh) as one job in Activity; returns its id."""
+def start(db: Any, url: str, *, folder_id: str | None, started_by: str, max_manifests: int | None = None
+          ) -> tuple[str, str, bool]:
+    """Make (or find) the destination folder, then queue the import (or refresh) as one job in Activity. Returns the
+    job id, the folder id and whether this call made the folder, all before any manifest is read or canvas made
+    (#7066). A new folder is named for the URL's host until the manifest's label is known."""
     import json
     import uuid
+    from urllib.parse import urlparse
 
     from fichero_server.execution import jobs
+    from fichero_server.models import DocType, Document
 
+    folder = db.get(Document, folder_id) if folder_id else bound_folder(db, url)
+    made = folder is None
+    if made:
+        folder = Document(name=urlparse(url).hostname or "IIIF", doc_type=DocType.folder,
+                          metadata={"iiif_source": url, PROVISIONAL_NAME: True})
+        db.save(folder)
     register_job_kinds()
-    return jobs.enqueue(db, IMPORT_KIND, f"iiif:{uuid.uuid4().hex[:12]}", started_by=started_by, watched=True,
-                        detail=json.dumps({"url": url, "folder_id": folder_id, "max_manifests": max_manifests}))
+    job_id = jobs.enqueue(db, IMPORT_KIND, f"iiif:{uuid.uuid4().hex[:12]}", started_by=started_by, watched=True,
+                          detail=json.dumps({"url": url, "folder_id": folder.id, "max_manifests": max_manifests}))
+    return job_id, folder.id, made
 
 
 def register_job_kinds() -> None:

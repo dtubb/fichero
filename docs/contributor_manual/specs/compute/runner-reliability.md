@@ -245,7 +245,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `runner.no-fallback-without-asking` — **[OK]** (#5592, #6269) no runner substitutes a different model or reader for the
   one the step names: a step whose model cannot run says so and is skipped or blocked; the only fallback is the same card at
   a place the person accepted at Start (`ai.where.fallback-free-and-asked`). Built: the plan's `use-instead`; the read-a-page
-  override honoured (#6269's model-choice half). *Test:* `fichero-server/tests/unit/recipes/test_fallback_free_and_asked.py`.
+  override honoured (#6269's model-choice half). *Test:* `fichero-server/tests/unit/recipes/test_fallback_free_and_asked.py::test_ai_where_fallback_free_and_asked_offers_a_free_place_and_applies_it_only_on_the_press`, `::test_a_paid_or_unpriced_place_is_never_offered`.
 - `runner.cli-mcp.same-words` — **[PARTIAL]** (#6354, #6350) the CLI and MCP print the run's `failure` words, fix and
   actions; a refusal or a pause carries its typed shape intact. Built for a failed workflow run and a cloud refusal; not for a
   paused recipe run's cause or a remote job. *Test:* `fichero-cli/tests/test_cli_run_failure_words_6354`,
@@ -261,7 +261,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   other steps run. *Test:* `fichero-server/tests/unit/recipes/test_models_fetched_before_the_step_6673.py`.
 - `runner.models.blocked-never-polled` — **[OK]** (#6593; `activity.pane.blocked-under-its-blocker` owns it) work that needs
   a missing or broken model is `blocked` under the blocker's row and never picked and re-deferred. *Test:*
-  `fichero-server/tests/unit/jobs/test_blocked_work_waits_on_its_blocker_6593.py`.
+  `fichero-server/tests/unit/jobs/test_blocked_work_waits_on_its_blocker_6593.py::test_a_missing_model_blocks_the_embeds_on_one_download_and_the_lane_picks_none`, `::test_a_failed_download_keeps_them_blocked_and_a_finished_one_lets_them_run`.
 - `runner.results.no-silent-loss` — **[PARTIAL]** (#6673, #6271) no runner drops an item it found without a word: Kraken's
   line without an outline is boxed and counted (`recipes-run.kraken.no-silent-line-loss`, built); a page a step skipped is
   counted and named with its reason on the step (#6271: 545 pages never segmented and counted done, owed); a names run
@@ -336,10 +336,10 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   bytes and time left, resumes at launch whichever project started it (#5649, owner's ruling owed), and marks a model
   `installed` only after a load check; a failed download is `network` (Retry) or `model-broken` (Download again), never
   silent.
-- `runner.security.yolo-weights-pinned` — **[OK]** (#6697; `tests/unit/llm/test_yolo_pinned_and_hashed_6697.py`) the YOLO
+- `runner.security.yolo-weights-pinned` — **[OK]** (#6697; `fichero-server/tests/unit/llm/test_yolo_pinned_and_hashed_6697.py::test_a_file_whose_hash_differs_is_refused_and_never_reaches_yolo`, `::test_the_download_names_a_commit_revision`) the YOLO
   layout weights are a pickle: the download names a commit revision, and a file whose sha256 differs from the pinned one is
   refused as `model-broken` and never reaches `YOLO()`.
-- `runner.security.socket-and-keychain` — **[OK]** (#6704, #4818; `tests/unit/security/test_keychain_write_and_socket_mode_6704.py`)
+- `runner.security.socket-and-keychain` — **[OK]** (#6704, #4818; `fichero-server/tests/unit/security/test_keychain_write_and_socket_mode_6704.py::test_the_uds_socket_is_0600_after_bind`, `::test_the_secret_goes_on_stdin_never_argv`, `::test_security_is_called_by_absolute_path`, `::test_httpx_and_httpcore_do_not_log_request_urls_at_info`)
   the engine's Unix socket is mode 0600 right after bind; the keychain write passes the key on stdin (`security -i`), never
   argv, and `security` is run as `/usr/bin/security`; the engine's `httpx` and `httpcore` loggers sit at WARNING so no request
   URL is logged at INFO.

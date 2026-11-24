@@ -12,7 +12,7 @@ max_commits = 100  # the most commits a lane may be ahead of origin/integration 
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
 min_guards = 20
-parallel = 3   # manager 2026-11-22: one ladder per check runner (m4, imac, air), disjoint batches only; was 2 from 2026-11-02 with one runner
+parallel = 3   # owner 2026-11-23 afternoon: the iMac runs two checks at once (two gate dirs, two heavy locks), the M1 Air one
 # Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).
 guard_skip = [
   "check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
@@ -58,13 +58,13 @@ pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
 # synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
 # rung and the guards that call git stay on the Pro
-remote = ["m4:~/fichero-gate", "imac:~/fichero-gate", "air:~/fichero-gate"]  # manager 2026-11-09 11:58: the M4 first (~/fichero-gate is a link to its Dev Disk), the Pro is the owner's Xcode machine
+remote = ["imac:~/fichero-gate", "imac:~/fichero-gate2", "air:~/fichero-gate"]  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
 # manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
 # or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
 remote_guards = "auto"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
-build_remote = "m4:~/fichero-gate"  # 2026-11-09: the M4 (Xcode 27, derived data on its Dev Disk); the Air stays in remote above
+build_remote = "imac:~/fichero-gate"  # owner 2026-11-23: the M4 Air is taken away; the iMac has Xcode 27.2
 remote_min_free_gb = 4  # manager 2026-11-22: checks need about 1-2 GB of /tmp; the M4 internal disk sits near 5 GB with the work on its external disk
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
@@ -392,6 +392,7 @@ OMP_NUM_THREADS = "2"
 # the manager's Mac; figures judged against scripts/perf_baseline.json. A timeout is one alert row, never a red.
 enforce = false
 timeout_s = 360   # the 6-minute budget
+# swift_test = "FicheroUITests/LaunchPerformanceUITests"   # #6600: left unset until run.swift-tests gives the build remote a GUI session; set, the app half runs it under /usr/bin/time -l on build_remote
 
 [check.security]
 # #6600 Step 2.30: the security rung (REPORT-ONLY). Reads only what is NEW in the batch. Runs in the scratch tree because semgrep
@@ -445,7 +446,7 @@ no_new_steps_at = "22:00"
 freeze_at = "00:00"
 check_runner = "imac:~/code/fichero-worktrees/nightly"  # 24 GB; the M4 is overnight-only and 16 GB hit the gate ceiling
 build_machine = "local"
-smoke_machine = "m4"  # overnight
+smoke_machine = "imac"  # owner 2026-11-23: the M4 Air is taken away
 publish = "dev"
 check_footprint_mb = 14336  # passed to the verify run as GATE_FOOTPRINT_MB (the kraken two-model test peaks at 9.4 GB)
 
@@ -477,7 +478,7 @@ disk_floor_gb = 30
 # dev-workflows.run.measure: test machines `builder measure` ships a lane's commit to (ssh host, the gate dir with venv/)
 imac = { ssh = "imac", dir = "~/fichero-gate", min_free_gb = 5 }
 m1air = { ssh = "air", dir = "~/fichero-gate", min_free_gb = 5 }   # the owner's M1 Air: any time
-m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air: gate runner since 2026-11-09 (headless; ~/fichero-gate -> /Volumes/Fichero Dev Disk/fichero-gate), a GUI session for the app
+m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air: gate runner since 2026-11-09 (headless; ~/fichero-gate -> /Volumes/Fichero Dev Disk/fichero-gate), a GUI session for the app  # owner 2026-11-23: the M4 Air is away; kept for the perf-sweep table, not a check runner
 
 [queue]
 # `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
@@ -534,6 +535,15 @@ manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answ
 researcher = { provider = "claude-code", model = "sonnet" }
 # owner 2026-11-18: a lane runs its worker on this role (`builder queue add --role maintainer-fable`); its handoff mark is 85 % of `context`
 maintainer-fable = { provider = "claude-code", model = "claude-fable-5-1", context = 200000 }
+
+[models.display]
+# the name the `Written-By:` trailer carries for each model alias a worker is started with (agent-profiles.trailer.one-line);
+# when an alias moves to a newer model, edit it here. A name not listed passes through unchanged.
+sonnet = "Claude Sonnet 5.5"
+haiku = "Claude Haiku 5.5"
+opus = "Claude Opus 5.5"
+fable = "Claude Fable 5.2"
+claude-fable-5-1 = "Claude Fable 5.1"
 
 [triage.labels]
 # `builder triage --labels` (dev-workflows.tool.triage, rules in specs/harness/issues-and-labels.md): a label outside

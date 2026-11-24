@@ -96,6 +96,15 @@ def main(argv=None) -> int:
     ms.add_argument("--gh", default="gh")
     ms.add_argument("--enqueue", action="store_true", help="queue each step brief in the milestone's lane (worktree <[jail].workroot>/wt-<lane>), in build order")
     ms.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    rv = sub.add_parser("review", help="a review is a step kind: start (a session in a review worktree), check (the report), approve (file the issues, land the spec, queue the steps)")
+    rv.add_argument("action", choices=["start", "check", "approve"]), rv.add_argument("area", help="a word of letters, digits and dashes")
+    rv.add_argument("--repo-dir", default=str(Path.cwd())), rv.add_argument("--report", help="check: the report file (default review-<area>.md in the review worktree)")
+    rv.add_argument("--base", help="start: the commit the review worktree is made from (default origin/<[land].branch>)"), rv.add_argument("--scope", default="", help="start: what the review covers, in the brief")
+    rv.add_argument("--milestone", help="approve: the milestone the issues are filed in"), rv.add_argument("--spec", help="approve: the review's spec, relative to the worktree")
+    rv.add_argument("--after", default="", help="approve: the build-order line the milestone goes after (default last)"), rv.add_argument("--desc", default="", help="approve: the build-order line's text")
+    rv.add_argument("--written-by", default="", help="start, approve: the Written-By trailer's text (the model and harness, from the brief)")
+    rv.add_argument("--gh", default="gh"), rv.add_argument("--enqueue", action="store_true", help="approve: after the spec commit has landed, queue the milestone's steps (builder milestone M --enqueue)")
+    rv.add_argument("--state", help="where the journal, the queue and the approve's map live (default: the owner's journal dir)")
     land = sub.add_parser("land", help="the land gate after a green check row: a READY verdict for the exact range and the boundary, no second ladder; prints the push, never pushes")
     land.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
     land.add_argument("head")
@@ -178,7 +187,7 @@ def main(argv=None) -> int:
     rl.add_argument("--mac", default="local", help="candidate machines for the Mac chain, comma-separated, first usable wins"), rl.add_argument("--ios", default="local"), rl.add_argument("--check-runner", default="local")
     rl.add_argument("--floor-gb", type=int, default=60, help="the free disk a runner needs")
     al = sub.add_parser("alert", help="answer one alert row (dev-workflows.run.loop-alerts): retry | park | ask-owner, or approve | send-back for needs-maintainer")
-    al.add_argument("id"), al.add_argument("action")
+    al.add_argument("id"), al.add_argument("action"), al.add_argument("--text", default="", help="send-back of a worker's question: the answer")
     al.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     al.add_argument("--gh", default="gh"), al.add_argument("--root", default=str(Path.cwd()), help="the checkout gh runs from (ask-owner)")
     bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
@@ -307,7 +316,7 @@ def main(argv=None) -> int:
         from fichero_builder import queue
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
-        rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root)
+        rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root, text=a.text)
         print(msg)
         return rc
     if a.cmd == "heavy":
@@ -558,6 +567,11 @@ def main(argv=None) -> int:
         from fichero_builder import console
 
         return console.main(a)
+    if a.cmd == "review":
+        from fichero_builder import review
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        return review.main(a)
     if a.cmd == "landed":
         from fichero_builder import landed
 

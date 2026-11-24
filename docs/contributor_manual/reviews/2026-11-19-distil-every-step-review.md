@@ -99,6 +99,31 @@ Missing:
 - one trainer in three places is not proven (`compute.tune.one-trainer-three-places`), and there is no recorded real
   run in the repository since the first notebook-corpus runs made by API.
 
+Built since (hf-kraken-1, against a fake Hub; no Job was submitted):
+- a training start is checked against the project's monthly cap as the hardware's listed hourly price times the time
+  limit, plus what this month's Jobs can already cost; a $0 cap, an unlisted price or an unreadable limit refuses in
+  words before anything is queued or sent (`training/job.py` `_within_the_cap`);
+- landing starts the evaluation job on the held-out pages and records its id on the row (`held_out_score`); with no
+  held-out pages, or no person's reading on them, the row says "not measured" and why; the card entry carries CER by
+  policy, pages read and lines scored;
+- the evaluation writes the gate's verdict on the card (`training/gate.py`: better by N points on M pages, too close
+  to call, worse: kept, not offered, not measured), and the catalogue says it beside the reader;
+- the card carries `taught_by`, its teacher in words.
+
+What the first real run will do and cost (dry-run reasoning only, nothing submitted):
+1. Start refuses unless the cap is above $0 and `price x 4 h` (the default limit) fits what is left of the month.
+   `t4-small` is read from the service at start; at $0.40 an hour (the figure the tests' fake Hub uses, not a
+   measured price) the most one training can cost is $1.60, so a cap of $5 covers it with room for a second try.
+2. The set goes to a private bucket in the token owner's account, the trainer runs as one Job on `t4-small`, the
+   reader comes home and lands inside the project's folder, never as a default.
+3. Landing queues one local evaluation job (no Hugging Face cost): the reader and the downloadable readers on this Mac
+   read the held-out pages; the card gains the CER, the lines scored and the verdict. The verdict is "not measured"
+   until a downloadable reader is on this Mac and at least 15 held-out pages were read.
+4. A reading run of 20 pages is one shard Job per shard sent, each at its 2 h limit: the cap check counts every try,
+   so the most it can add is shards x tries x price x 2 h.
+5. Needed from the owner, unchanged: a fine-grained token (write to the owner's repositories, Jobs), billing enabled
+   for Jobs, a cap above $0.
+
 A first end-to-end test needs from the owner: a fine-grained Hugging Face token with write to his own repositories and
 to Jobs; billing enabled for Jobs on that account; and a spending cap above $0 on the test project (a few dollars
 covers a `t4-small` run inside its limit). Then, on the named machine: 20 public test pages segmented and read by a

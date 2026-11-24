@@ -59,6 +59,12 @@ def test_the_yolo_region_finder_marks_its_boxes_upright(db, tmp_path, monkeypatc
     db.save(doc)
     monkeypatch.setattr(yolo_runtime, "detect_regions", lambda path, model: [yolo_runtime.Region("Text", [0.1, 0.1, 0.5, 0.2], 0.9)])
     monkeypatch.setattr(vision_base, "page_direction", lambda library, doc_id: {})
+    from fichero_server.execution import jobs
+
+    on_lane = []
+    monkeypatch.setattr(jobs, "run_on_lane_blocking",  # no scheduler here: the lane runs the page in place
+                        lambda library, kind, subject, *, fn, **kw: on_lane.append(kind) or fn())
     found, count = regions._find_on(db, doc, str(photo), 20, 40, "yolo", "m", "run", str(db.path.parent), None)
     assert count == 1
+    assert len(on_lane) == 1  # the YOLO page went through the local ML lane (#5525)
     assert found.metadata["frame"] == FRAME_UPRIGHT and all(b.metadata["frame"] == FRAME_UPRIGHT for b in found.boxes)

@@ -64,6 +64,7 @@ struct ActivityLogLinesView: View {
     }
 
     private func row(_ line: ActivityJobLogLine, isCurrent: Bool) -> some View {
+        let previous = lines.indices.contains(line.id - 1) ? lines[line.id - 1].timestamp : nil  // ids are positions
         let glyph = ActivityLogList.glyph(line.level)
         let selected = selection.lines.contains(line.id)
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -71,7 +72,7 @@ struct ActivityLogLinesView: View {
                 .foregroundStyle(.tertiary)
                 .frame(minWidth: 28, alignment: .trailing)
             Image(systemName: glyph.symbol).foregroundStyle(glyph.color).font(.caption)
-            Text(line.timestamp.map { $0.formatted(date: .omitted, time: .standard) } ?? "now")
+            Text(ActivityLogList.timeWords(line.timestamp, after: previous))
                 .foregroundStyle(.secondary)
             Text(ActivityLogList.highlighted(line.message, query: query))
                 .foregroundStyle(line.level == "error" ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))

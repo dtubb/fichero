@@ -15,6 +15,16 @@ from fichero_server.models import ActionAudit, DocType, Document
 from fichero_server.api.routes import ingest
 from fichero_server.importers.sources_folder import ensure_sources_folder
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_embedding_model(monkeypatch):
+    """An ingest queues an embed job; a unit test must never load or download the embedding model."""
+    from fichero_server.importers import derivatives
+
+    monkeypatch.setattr(derivatives, "_embed_stage", lambda doc_id, library: None)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -257,7 +267,10 @@ class TestIngestFolder:
         # One per-file event for each document (progressive streaming), plus
         # the action's trailing bulk completion event with the full set.
         per_file = [e for e in created if len(e["document_ids"]) == 1]
-        assert {e["document_ids"][0] for e in per_file} == {"doc-a", "doc-b"}
+        # The first event announces the folder the route made before answering (#7066).
+        folder_id = r.json()["folder_id"]
+        assert per_file[0]["document_ids"] == [folder_id]
+        assert {e["document_ids"][0] for e in per_file} - {folder_id} == {"doc-a", "doc-b"}
         # The bulk completion event carries both ids and fires last.
         assert created[-1]["document_ids"] == ["doc-a", "doc-b"]
 
@@ -295,7 +308,8 @@ class TestIngestFolder:
             response = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
 
         assert response.status_code == 200
-        assert emitted_in_transaction == [False, False]
+        # The destination folder's event (#7066) and the two files': none inside a transaction.
+        assert emitted_in_transaction == [False, False, False]
 
     def test_failed_file_is_visible_in_task_status(self, client, tmp_path):
         (tmp_path / "broken.pdf").write_bytes(b"broken")

@@ -157,9 +157,10 @@ fallback, already on). The rest ship off-by-default, one toggle away.
   (finding that an entity IS the same real-world thing an authority already describes), a
   different capability sharing the same authority sources. Needs a product/design pass on
   authority source config + match confidence before building, per the issue's own account.
-- `kg.enrich.per-type` [MISSING] (#4758) — a source is offered for the entity types it serves
+- `kg.enrich.per-type` [PARTIAL] (#4758) — a source is offered for the entity types it serves
   (places → GeoNames/Pleiades/TGN; persons/orgs → VIAF/LoC/GND/ISNI; concepts → Getty AAT;
   periods → PeriodO), so the UI never suggests a nonsensical lookup.
+  Built: `authorities_for(entity_type)` (`knowledge/authorities.py`) lists the registered authorities that serve a type (places → Wikidata + the gazetteers; persons/organizations → Wikidata, VIAF, LoC; concepts → Wikidata, LoC). Not built: GND, ISNI, Getty AAT and PeriodO are not registered authorities yet, and no client calls `authorities_for`. Tests: `fichero-server/tests/unit/kg/test_authorities_per_type.py`.
 - `kg.enrich.provenance` — **[GAP]** every enriched value is authority-sourced + provenance-tagged
   with WHICH source (rides #4636), never indistinguishable from hand/AI values; a value can
   carry several `sameAs` ids at once (Wikidata + VIAF + GeoNames).

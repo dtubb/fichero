@@ -223,8 +223,10 @@ def estimate_on(db: Any, plan: dict[str, Any], pages: dict[str, Any], within: se
     review passes on their lines, the Catalogue step on its folders. The one pricing Start's plan and "run fewer pages" share."""
     from fichero_server.recipes import booked_cost
     from fichero_server.recipes.done import todo_counts
+    from fichero_server.recipes.routes import measured_speeds
     from fichero_server.recipes.start import estimate
 
     return estimate(plan["workflows"], pages["pages"], lines_known(db, plan["workflows"], pages["ids"], memo),
                     catalogue=catalogue_runs(plan["runs"]), folders=folders_covering(db, pages["ids"], memo),
-                    todo=todo_counts(db, plan, within, memo=memo), booked=booked_cost.for_workflows(db, plan["workflows"]))
+                    todo=todo_counts(db, plan, within, memo=memo), booked=booked_cost.for_workflows(db, plan["workflows"]),
+                    speeds=measured_speeds(db, plan["workflows"]))

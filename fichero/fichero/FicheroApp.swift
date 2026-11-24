@@ -653,6 +653,9 @@ struct FicheroApp: App {
 
         detailScenes
 
+        // The Models and Cluster window (#6588), its own scene file.
+        ModelsWindowScene(appState: appState, libraryManager: libraryManager, observer: appExecutionObserver)
+
         // Activity monitor (#2546 / B2): the poppable live workflow monitor —
         // the window's root IS the hierarchical outline table. Resolves the
         // active library's shared WorkflowExecutionStore via LibraryManager and

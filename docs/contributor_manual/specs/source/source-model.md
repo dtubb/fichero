@@ -455,8 +455,7 @@ level it was made for.
   names the line the words start on and the reading measured, with every line covered in
   `quote_lines`. The speaker is the model's name only (no "X said" guess); where the attributing
   sentence writes it, it is a supporting source on the entity on its span and line, read as a mention
-  by `GET /api/segments/{id}/statements`. Pinned by `fichero-server/tests/unit/workflows/
-  test_quotes_on_their_words.py` (4 tests). The `quotes` artifact beside the claim is
+  by `GET /api/segments/{id}/statements`. Pinned by `fichero-server/tests/unit/workflows/test_quotes_on_their_words.py::test_a_quotation_is_anchored_on_its_words_on_its_line_and_its_speaker_is_a_mention`, `::test_an_unattributed_quotation_has_no_speaker_and_none_is_guessed`, `::test_words_not_on_the_page_are_not_anchored_on_the_sentence`, `::test_a_page_not_tied_to_lines_keeps_the_words_span_with_no_line`. The `quotes` artifact beside the claim is
   `one-fact-one-home`'s (#5597).*
 - `source.extract.date-on-its-heading` — **[PARTIAL]** (#5518, #5557) *Built: a page's date is read
   from its heading, recorded with its status and conflicts. Not built: the heading as a date mention
@@ -564,8 +563,7 @@ level it was made for.
   narrative is a reading of kind description on the folder, and, written by the recipe's Catalogue STAGE only (#6131, owner 2026-10-25; the Catalogue workflow still never writes `page_content`), also the folder's content when it has none, or has the stage's own earlier description (the open migration skips such a folder, `catalogue_content_from`): a person's own content, or one they edited, is never overwritten (`catalogue_step.put_in_content`).
   *Built (#5599): `catalogue.py` writes the narrative through the one reading writer, derived from
   the `catalogue.narrative` artifact; a re-run retracts the machine description it replaces, so the
-  folder is described once. Pinned by `fichero-server/tests/unit/workflows/
-  test_text_outputs_are_readings.py` (the shipped Catalogue preset through the real runner).*
+  folder is described once. Pinned by `fichero-server/tests/unit/workflows/test_text_outputs_are_readings.py::test_the_catalogue_narrative_is_a_description_reading_of_the_folder`, `::test_a_rerun_describes_the_folder_once_not_once_per_run` (the shipped Catalogue preset through the real runner).*
   A project whose documents an earlier Catalogue run wrote over is moved once when it opens (ruled
   2026-10-08): a document whose text is exactly (whitespace-trimmed) one of its own
   `catalogue.narrative` artifacts gains that narrative as a machine description reading (under the
@@ -576,9 +574,7 @@ level it was made for.
   changes nothing. The engine log says at open how many texts moved and which were left and why;
   the run is recorded with each change in the mutation log, so it can be rolled back.
   *Built: `MigrationRunner.move_catalogue_narratives_to_descriptions`, run from
-  `DatabaseManager.get_database`. Pinned by `fichero-server/tests/unit/db/
-  test_catalogue_narrative_migration.py` (folder moved, person-edited untouched, file left and
-  reported, twice changes nothing, the real open migrates once).*
+  `DatabaseManager.get_database`. Pinned by `fichero-server/tests/unit/db/test_catalogue_narrative_migration.py::test_an_overwritten_folder_gets_a_description_reading_its_text_cleared_and_logged` (folder moved), `::test_a_person_edited_folder_is_never_touched`, `::test_a_file_target_is_described_but_its_text_left_and_reported` (file left and reported), `::test_running_twice_changes_nothing_the_second_time`, `::test_a_library_opened_on_new_code_migrates_once_through_the_real_open` (the real open migrates once).*
 - `source.extract.shown-as-layers` — **[GAP]** (#1659, #5418) names, statements, quotations, dates,
   entries and table cells each have a layer in the Preview, drawn on their segments, with the empty
   case said.
@@ -1268,7 +1264,7 @@ action record holding a researcher's words is ruled out.
 
 ## Triaged from the backlog (2026-10-04)
 - `source.store.every-model-registered` — **[GAP]** (#5055) every persisted model is in `Database._all_schema_models`, so a library open creates every table and index.
-- `source.store.saved-is-found-after-a-crash` — **[OK]** (#5644) what a run saved is found after the engine was killed mid-work: a page's segment pass and its lines are listed, its run's activity is found, and a library damaged before the fix opens repaired, once. DuckDB 1.4–1.5.6 writes stale secondary indexes at the first checkpoint after replaying a WAL (`scripts/repro_duckdb_wal_index.py`); the first open of a file after a crash rebuilds them in `core/duckdb_session.py::connect_utc`, whoever opens it. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py` (a real engine process killed mid-write).
+- `source.store.saved-is-found-after-a-crash` — **[OK]** (#5644) what a run saved is found after the engine was killed mid-work: a page's segment pass and its lines are listed, its run's activity is found, and a library damaged before the fix opens repaired, once. DuckDB 1.4–1.5.6 writes stale secondary indexes at the first checkpoint after replaying a WAL (`scripts/repro_duckdb_wal_index.py`); the first open of a file after a crash rebuilds them in `core/duckdb_session.py::connect_utc`, whoever opens it. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_pages_segments_are_listed_after_the_engine_was_killed`, `::test_the_activity_store_opening_first_finds_a_crashed_runs_rows`, `::test_a_library_damaged_before_the_fix_is_repaired_once` (a real engine process killed mid-write).
 - `source.store.one-managed-database` — **[PARTIAL]** (#5645) a library's stores keep their rows as registered
   models through the library's one managed `Database` (one connection, one lock, opened through `connect_utc`), not
   through connections and hand-made tables of their own. A library made before a store was folded opens with every
@@ -1316,7 +1312,7 @@ action record holding a researcher's words is ruled out.
   statement (a native crash inside the app's engine), and the worker `_embed_worker` opened is never left open behind
   the manager. An embed that carries on after the close fails cleanly on its next statement. Closing twice is
   harmless. `db_manager.close_database` takes the library out under its lock and closes it outside. *Test:*
-  `fichero-server/tests/unit/db/test_close_closes_the_embed_worker_6238.py`.
+  `fichero-server/tests/unit/db/test_close_closes_the_embed_worker_6238.py::test_closing_a_library_closes_the_embed_worker_it_opened`, `::test_a_close_while_the_library_is_mid_statement_waits_for_it`.
 - `source.store.duckdb-spill-survives-a-query` — **[GAP]** (#6272) a query that spills to DuckDB's temp directory keeps its spill
   file until the query ends: GET children of a large folder must not return 500 "Could not read enough bytes". Not reproduced or built.
 - `source.store.a-closed-database-stays-closed` — **[OK]** (#6238) a `Database` that was closed refuses every later
@@ -1326,6 +1322,6 @@ action record holding a researcher's words is ruled out.
   once per use, and bind it to a local for a block of several statements or a transaction: a close mid-block fails the
   next statement and cannot open a second `Database` on the file for it to write through outside the transaction.
   `close_all` takes each `Database` out of the manager's table before it closes it, as `close_database` does. Tests:
-  `fichero-server/tests/unit/db/test_a_closed_database_stays_closed_6238.py`.
+  `fichero-server/tests/unit/db/test_a_closed_database_stays_closed_6238.py::test_a_statement_after_close_is_refused_and_opens_nothing`, `::test_a_library_closed_inside_a_transaction_opens_no_second_database`.
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

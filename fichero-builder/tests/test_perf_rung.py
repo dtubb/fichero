@@ -156,17 +156,97 @@ def test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why(tmp_pa
     # perf(): None is "runner down"; a refused tool and a missing file are named, each with the remote stderr, never "unreachable"
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: None)
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
-    assert r["ok"] and r["not_run"] and "not-run: runner down" in r["stdout_tail"]
+    assert not r["ok"] and r["not_run"] and "not-run: runner down" in r["stdout_tail"]
     def env_red(err):
         return {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"exit_code": 1, "stderr_tail": err, "stdout_tail": ""}]}
 
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: env_red("ModuleNotFoundError: No module named pytest_benchmark"))
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
-    assert r["ok"] and r["not_run"] and "not-run: perf tool refused" in r["stdout_tail"] and "pytest_benchmark" in r["stdout_tail"]
+    assert not r["ok"] and r["not_run"] and "not-run: perf tool refused" in r["stdout_tail"] and "pytest_benchmark" in r["stdout_tail"]
     assert "unreachable" not in r["stdout_tail"]
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: env_red("FileNotFoundError: [Errno 2] No such file or directory: 'scripts/perf_baseline.json'"))
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
-    assert r["ok"] and r["not_run"] and "not-run: scripts/perf_baseline.json missing on the runner" in r["stdout_tail"]
+    assert not r["ok"] and r["not_run"] and "not-run: scripts/perf_baseline.json missing on the runner" in r["stdout_tail"]
     # every one is a journal row with state not-run and an id
     rows = [x for x in journal.read() if x.get("state") == "not-run" and x.get("rung") == "perf"]
     assert len(rows) == 3 and all(x.get("id") for x in rows) and len({x["id"] for x in rows}) == 3
+
+
+def test_a_perf_run_that_could_not_measure_is_red_even_report_only_but_a_slow_number_is_not(tmp_path, monkeypatch):
+    """#6600: report-only forgives a slow figure, never a missing one (2026-11-23: no PERF-RESULT line, pytest exit 1, and the rung counted ok)."""
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    row = {"name": "perf", "ok": True, "exit_code": 1, "stdout_tail": "no result here", "stderr_tail": "pytest exit 1", "timed_out": False}
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": True, "skipped": False, "results": [row]})
+    r = check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg())
+    assert not r["ok"] and "REFUSED: the perf run printed no PERF-RESULT line" in r["stdout_tail"]
+    slow = check_tool._report_only("perf", {"enforce": False}, False, ["median 130 ms over 100"])
+    assert slow["ok"] and not slow.get("not_run")
+
+
+def test_the_result_carries_bytes_written_and_says_each_figures_change_against_the_base_in_percent():
+    """#6600: time, peak RSS and the disk the workload added are each compared with the base and the change is said in %."""
+    base = {**BASE, "figures": {**BASE["figures"], "written_kib|engine perf run|Mac16,10": {"median": 2000.0}}}
+    figs = {"benchmarks": perf_rung.read_benchmarks(_bench(104.0)), "peak_rss_mb": 1020.0, "disk_kib": {}, "written_kib": 2500.0, "top": []}
+    out = perf_rung.judge(figs, base, "Mac16,10", "nominal")
+    assert out["ok"], out["reds"]
+    text = "\n".join(out["changes"])
+    assert "104 vs base 100 (+4.0%)" in text and "1020 vs base 1000 (+2.0%)" in text and "2500 vs base 2000 (+25.0%)" in text
+    fresh = perf_rung.judge(figs, BASE, "Mac16,10", "nominal")
+    assert "written_kib" in "\n".join(fresh["changes"]) and "no base yet" in "\n".join(fresh["changes"])
+    assert fresh["recorded"]["written_kib|engine perf run|Mac16,10"] == {"median": 2500.0} and fresh["ok"], "a first figure is recorded, never a red"
+
+
+_TIME_L = "Test Suite passed\n       42.50 real        30.00 user         5.00 sys\n  734003200  maximum resident set size\n"
+_BUILD = ("xcodebuild", "-scheme", "S", "build")
+_SWIFT = ["fichero/fichero/A.swift"]
+
+
+def _swift_remote(monkeypatch, tmp_path, stderr=_TIME_L, exit_code=0):
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    seen = []
+
+    def fake(root, cfg, cmd=(), *a, **k):
+        seen.append(cmd)
+        timed = cmd and cmd[0] == "/usr/bin/time"
+        row = {"name": "perf", "ok": exit_code == 0 or not timed, "exit_code": exit_code if timed else 0, "stdout_tail": "",
+               "stderr_tail": stderr if timed else "", "timed_out": False}
+        return {"ok": row["ok"], "skipped": False, "results": [row]}
+    monkeypatch.setattr(check_tool, "_remote_build", fake)
+    return seen
+
+
+def test_a_swift_only_batch_runs_the_app_perf_test_on_the_remote_and_reports_time_and_memory(tmp_path, monkeypatch):
+    """#6600: a changed path under fichero/ runs `[check.perf].swift_test` under /usr/bin/time -l on the build remote."""
+    from fichero_builder import check_tool
+    seen = _swift_remote(monkeypatch, tmp_path)
+    cfg = _perf_cfg(build=_BUILD)
+    cfg.perf["swift_test"] = "FicheroUITests/LaunchPerformanceUITests"
+    r = check_tool.perf(tmp_path, "a", _SWIFT, cfg)
+    assert seen == [("/usr/bin/time", "-l", "xcodebuild", "-scheme", "S", "-only-testing:FicheroUITests/LaunchPerformanceUITests", "test")]
+    assert r["ok"] and "not required" not in r["stdout_tail"]
+    assert "Swift perf: FicheroUITests/LaunchPerformanceUITests 42.5 s, peak 700 MB" in r["stdout_tail"]
+    _swift_remote(monkeypatch, tmp_path, stderr="no figures")
+    assert not check_tool.perf(tmp_path, "a", _SWIFT, cfg)["ok"], "no readable figure is a refusal"
+    _swift_remote(monkeypatch, tmp_path, exit_code=65)
+    assert not check_tool.perf(tmp_path, "a", _SWIFT, cfg)["ok"], "a failing test run measured nothing"
+
+
+def test_a_swift_batch_with_no_swift_test_says_no_workload_yet_and_alerts_once_a_day(tmp_path, monkeypatch):
+    from fichero_builder import check_tool, journal
+    seen = _swift_remote(monkeypatch, tmp_path)
+    r = check_tool.perf(tmp_path, "a", _SWIFT, _perf_cfg(build=_BUILD))
+    check_tool.perf(tmp_path, "a", ["fichero/fichero/B.swift"], _perf_cfg(build=_BUILD))
+    assert r["ok"] and r["not_run"] and "Swift perf: no workload yet (#6600)" in r["stdout_tail"] and seen == []
+    assert len([x for x in journal.read() if x["event"] == "alert" and x.get("rung") == "perf"]) == 1
+
+
+def test_an_engine_and_swift_batch_runs_both_halves(tmp_path, monkeypatch):
+    from fichero_builder import check_tool
+    seen = _swift_remote(monkeypatch, tmp_path)
+    cfg = _perf_cfg(build=_BUILD)
+    cfg.perf["swift_test"] = "T/U"
+    r = check_tool.perf(tmp_path, "a", [*_SWIFT, "fichero-server/src/x.py"], cfg)
+    assert len(seen) == 2 and seen[0][0] != "/usr/bin/time" and seen[1][0] == "/usr/bin/time"
+    assert "Swift perf: T/U" in r["stdout_tail"]

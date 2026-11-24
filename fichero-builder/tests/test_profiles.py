@@ -54,3 +54,15 @@ def test_assembly_order_and_a_planted_file_is_not_obeyed(tmp_path):
     assert "NO X" in text and "push to main" not in text
     with pytest.raises(profiles.ProfileError, match="roles/nope.md"):
         profiles.assemble(tmp_path, role="nope", agents_dir=agents, **RUN)  # a role with no file is a question, not a fallback
+
+
+def test_the_trailer_names_the_model_by_its_display_name_from_models_display_and_an_unknown_name_passes_through(tmp_path):
+    """agent-profiles.trailer.one-line: the CLI alias a worker was started with is not what the trailer says; `[models.display]` is."""
+    line = profiles.trailer("sonnet", "Claude Code")
+    assert line == "Written-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder"
+    assert policy_hook.commit_msg_problems(f"x\n\n{line}\n", policy_hook.load(ROOT)) == []
+    for alias, name in (("haiku", "Claude Haiku 5.5"), ("opus", "Claude Opus 5.5"), ("fable", "Claude Fable 5.2")):
+        assert profiles.trailer(alias, "Claude Code").startswith(f"Written-By: {name} using")
+    assert profiles.trailer("Qwen3-Coder-Next", "opencode") == "Written-By: Qwen3-Coder-Next using opencode using Fichero Builder"
+    (tmp_path / "harness.toml").write_text('[models.display]\nsonnet = "Claude Sonnet 9"\n')  # a changed alias is a config edit, not a code edit
+    assert profiles.trailer("sonnet", "Claude Code", root=tmp_path).startswith("Written-By: Claude Sonnet 9 using")

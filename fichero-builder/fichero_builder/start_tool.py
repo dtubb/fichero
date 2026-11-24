@@ -6,6 +6,7 @@ Stdlib + workflows.check_tool/jail only. `scripts/harness_start.py` is the only 
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -74,7 +75,7 @@ AUTHOR = {f"GIT_{r}_{f}": v for r in ("AUTHOR", "COMMITTER") for f, v in (("NAME
 
 # Reads the prompt file in the pane's own shell: the text is never on tmux's line (claude's own argv still holds it). Every value reaches the shell as a
 # positional argument (harness_start shell-quotes each argv word), so a brief or model string is never parsed as shell.
-_READ_PROMPT = 'f=$1; b=$2; shift 2; exec "$@" --append-system-prompt "$(cat "$f")" "$b"'
+_READ_PROMPT = 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"; f=$1; b=$2; shift 2; exec "$@" --append-system-prompt "$(cat "$f")" "$b"'
 
 
 def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude", *, role: str | None = None,
@@ -89,13 +90,18 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
         "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}],
         "PostToolUse": [handoff], "Stop": [handoff]}}
     (scratch / "settings.json").write_text(json.dumps(settings, indent=1))
-    # the worker's git must open owner-made trees (the engine repo, the ladder's scratch worktrees) or every call there dies
-    # with "dubious ownership" (first real check, 2026-11-01); the worker user is the jail, so the wide allow is its own risk only
-    if "*" not in subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split():
-        subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"], check=True)
-    # the worker commits as Claude, never as the jail user (a host name leaked, check_agent_commits_authored_as_claude, 2026-11-02)
+    # the worker's git must open owner-made trees (the engine repo, the ladder's scratch worktrees) or every call there dies with
+    # "dubious ownership" (first real check, 2026-11-01): _READ_PROMPT exports safe.directory=* into the worker's own environment.
+    # The worker commits as Claude, never as the jail user (a host name leaked, 2026-11-02): the name and email go in THIS
+    # worktree's config, never --global (#6854: a global write made two starts at once race on one file and rewrote every user's identity).
+    wt = ["git", "-C", str(worktree)]
+    if subprocess.run([*wt, "config", "--get", "extensions.worktreeConfig"], capture_output=True, text=True).stdout.strip() != "true":
+        # the one write to the repo's shared config file, once per repo, under a lock named for that repo (two starts in two repos never meet)
+        common = subprocess.run([*wt, "rev-parse", "--path-format=absolute", "--git-common-dir"], capture_output=True, text=True, check=True).stdout.strip()
+        with journal.Lock("git-config-" + hashlib.sha1(common.encode()).hexdigest()[:12], what=f"worktreeConfig of {common}"):
+            subprocess.run([*wt, "config", "extensions.worktreeConfig", "true"], check=True)
     for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
-        subprocess.run(["git", "config", "--global", k, v], check=True)
+        subprocess.run([*wt, "config", "--worktree", k, v], check=True)  # this worktree's own config.worktree file: no lock
     adapters.require_lane_capable(adapters.ClaudeCode())
     servers, missing = mcp_servers.delivered(root, role=role, stack=stack, project=project)
     for name in missing:
@@ -112,4 +118,6 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
                                role=role, stack=stack, project=project, servers=list(servers)))  # a file, never the text on tmux's line
     claude = [claude_bin, "--dangerously-skip-permissions", "--model", model, "--settings", str(scratch / "settings.json"),
               "--setting-sources", "", "--strict-mcp-config", f"--mcp-config={scratch / 'mcp.json'}"]  # =form: --mcp-config is variadic and would swallow the brief
+    if "PYTEST_ADDOPTS" in os.environ:  # #6869: set by queue.real_procs.start for the lane; a window in a running tmux server gets the server's environment, not ours
+        claude = ["env", *(f"{k}={os.environ[k]}" for k in ("TMPDIR", "PYTEST_ADDOPTS") if k in os.environ), *claude]
     return ["sh", "-c", _READ_PROMPT, "sh", str(scratch / "prompt.md"), brief, *claude]  # the brief stays the first user message

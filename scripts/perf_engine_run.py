@@ -70,11 +70,12 @@ def main() -> int:
     except (OSError, ValueError, KeyError):
         notes.append("REFUSED: no pyinstrument profile (pyinstrument missing)")
     figs["disk_kib"] = perf_rung.disk_delta(before, after, json.loads(a.declared)) if dirs else {}
+    figs["written_kib"] = float(sum(max(0, after[d] - before[d]) for d in before)) if dirs else None  # net growth of the watched dirs: what the workload added, declared output included
     model = sh(["sysctl", "-n", "hw.model"]).strip()
     verdict = perf_rung.judge(figs, baseline, model, thermal(), idle=os.getloadavg()[0] < 2.0, root=ROOT)
     if notes:
         verdict = {**verdict, "ok": False, "reds": [*notes, *verdict["reds"]]}
-    verdict["figures"] = {"benchmarks": figs["benchmarks"], "peak_rss_mb": figs["peak_rss_mb"], "disk_kib": figs["disk_kib"]}
+    verdict["figures"] = {"benchmarks": figs["benchmarks"], "peak_rss_mb": figs["peak_rss_mb"], "disk_kib": figs["disk_kib"], "written_kib": figs["written_kib"]}
     if verdict.get("recorded") and not notes:
         # a baseline with no figure for these keys: WRITE them (report-only; a first measurement is recorded, never a fail)
         baseline["figures"] = {**(baseline.get("figures") or {}), **verdict["recorded"]}

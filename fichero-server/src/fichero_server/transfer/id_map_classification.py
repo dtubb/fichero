@@ -141,6 +141,8 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "ReadingOrderEntry.parent_entry_id": (MAPPED, "nested entries"),
     "EditorialFact.segment_id": (MAPPED, "an editorial fact (gap, unclear) on a moved segment"),
     "EditorialFact.representation_id": (MAPPED, "an editorial fact on a moved reading"),
+    "KgComment.anchor_id": (NOT_DOCUMENT_SCOPED, "a comment stays in its project: a transfer does not carry comments, so nothing is re-pointed"),
+    "KgComment.parent_id": (NOT_DOCUMENT_SCOPED, "a reply names a comment of the same project; comments are not carried by a transfer"),
     "Campaign.document_id": (MAPPED, "a page's writing campaigns"),
     "Campaign.hand_id": (PROJECT_VOCAB, "the hand is the project's: matched by label in the target, made if missing"),
     "CampaignMembership.campaign_id": (MAPPED, "campaign membership of a moved segment"),

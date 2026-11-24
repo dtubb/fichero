@@ -54,3 +54,11 @@ def training_sbatch(cluster: HpcClusterConfig, config: SlurmJobConfig, trainer_a
     """The sbatch script of a resumable training job: `--requeue`, the warning signal, the wrapper around the trainer."""
     return build_slurm_script(config=config, remote_workdir=cluster.remote_workdir(run_id),
                               runner_command=["bash", "_fichero/resumable.sh", "--", *trainer_argv])
+
+
+def note_part(db, job_id: str, *, restart_count: int) -> None:
+    """Put `running (part N)` on the job's row (`part_words`)."""
+    from fichero_server.training import job
+
+    _state, detail = job._row(db, job_id)
+    job._save(db, job_id, detail, reason=part_words(restart_count))

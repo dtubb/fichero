@@ -107,3 +107,38 @@ def test_a_warning_is_requeued_only_if_the_trainer_stopped_cleanly_with_a_new_ch
         out, _ = proc.communicate(timeout=20)
         assert proc.returncode == 1 and "not re-queuing" in out, (name, out)
         assert not (tmp_path / "bin" / "requeued").exists(), name
+
+
+def test_the_row_reads_part_two_after_a_requeue(db, monkeypatch):
+    """The Activity row says which part runs: the scheduler's restart count goes on the row as `running (part N)`."""
+    from fichero_server.execution import jobs
+    from fichero_server.training import resumable
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)  # the row is only read, never run
+    job_id = jobs.enqueue_remote(db, "train-a-model", "training:t1", target="rorqual", detail="{}", reason="Waiting",
+                                 started_by="historian")
+    resumable.note_part(db, job_id, restart_count=1)
+    assert jobs.read_job(db, job_id)["reason"] == "running (part 2)"
+
+
+def test_the_lora_trainer_resumes_after_the_step_it_stopped_at_with_none_repeated(tmp_path):
+    """The LoRA trainer's own schedule: stopped after any step it saves `last.ckpt` (a file the wrapper can checksum),
+    and the next part skips exactly the steps done: epochs 1..3 of 4 steps, each once."""
+    from fichero_server.training import hf_vision_lora_train as t
+
+    def run(resume, stop_after=None):
+        done = []
+        for epoch in range(1, 4):
+            for step in range(1, 5):
+                if t.already_done(epoch, step, resume):
+                    continue
+                done.append((epoch, step))
+                if stop_after and len(done) == stop_after:
+                    t.write_state(tmp_path / "last.ckpt", epoch, step)
+                    return done
+        return done
+
+    first = run(None, stop_after=6)
+    second = run(t.read_state(tmp_path / "last.ckpt"))
+    assert first + second == [(e, s) for e in (1, 2, 3) for s in (1, 2, 3, 4)]
+    assert t.read_state(tmp_path / "absent.ckpt") is None

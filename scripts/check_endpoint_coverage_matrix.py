@@ -41,6 +41,8 @@ from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 
+import json
+
 from matrix_guardrail_common import (
     ROOT,
     HTTP_METHODS,
@@ -67,6 +69,17 @@ CLI_SOURCES = sorted(scan_rglob((ROOT / "fichero-cli" / "src" / "fichero_cli"), 
 KNOWN_GAPS = load_known_gaps(
     Path(__file__).with_name("check_endpoint_coverage_matrix_known_gaps.json")
 )
+# #7067: every route is named in a spec. Operations no spec named when this rule landed; it may only shrink.
+SPEC_UNNAMED_BASELINE = set(
+    json.loads(Path(__file__).with_name("check_endpoint_coverage_matrix_no_spec_baseline.json").read_text(encoding="utf-8"))
+)
+
+
+def spec_unnamed_failures(unnamed: list[str], baseline: set[str]) -> list[str]:
+    """Operations no spec names that are not in the baseline: a new route needs a spec line."""
+    return sorted(set(unnamed) - baseline)
+
+
 # SWIFT_OPERATION_WITNESSES is gone. It listed ten endpoints reached through the generated
 # client, whose path string therefore never appeared in Swift, and each had been added by hand
 # as the gap was noticed. Matching the generated operation name for EVERY operation covers all
@@ -170,6 +183,17 @@ def main() -> int:
         for endpoint in stale:
             print(f"      {endpoint}")
 
+    import report_engine_ux_coverage
+
+    _openapi_path, openapi = load_openapi()
+    unnamed = report_engine_ux_coverage.unnamed_operations(ROOT, openapi)
+    no_spec = spec_unnamed_failures(unnamed, SPEC_UNNAMED_BASELINE)
+    print(f"  operations no spec names: {len(unnamed)}; baseline: {len(SPEC_UNNAMED_BASELINE)}")
+    if no_spec:
+        print(f"\n  {len(no_spec)} route(s) no spec names (add a behaviour line naming the path or operation id, with its app plan):")
+        for endpoint in no_spec:
+            print(f"      {endpoint}")
+
     if new:
         print(f"\n  {len(new)} new endpoint wiring gap(s):")
         for endpoint in new:
@@ -178,6 +202,9 @@ def main() -> int:
                 f"      {endpoint}  <-  store={'Y' if row.store else 'N'}, "
                 f"cli={'Y' if row.cli else 'N'}"
             )
+        return 1
+
+    if no_spec:
         return 1
 
     if stale:

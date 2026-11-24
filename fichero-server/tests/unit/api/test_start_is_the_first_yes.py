@@ -158,3 +158,12 @@ def test_a_start_for_chosen_steps_runs_those_steps_and_nothing_after_them(client
     r = client.post("/api/recipes/project/start", json={"steps": ["lines"], "redo": ["lines"]})
     assert r.status_code == 200, r.text
     assert [w["steps"] for w in r.json()["workflows"]] == [["lines"]]
+
+
+def test_a_start_for_the_last_step_alone_runs_it_alone(client, db):
+    """#6744: the choice of one step is kept to the queued run, whichever step it is: the reader alone, not the lines before it."""
+    _pages(db)
+    _save(client, RECIPE)
+    r = client.post("/api/recipes/project/start", json={"steps": ["read"]})
+    assert r.status_code == 200, r.text
+    assert [w["steps"] for w in r.json()["workflows"]] == [["read"]]

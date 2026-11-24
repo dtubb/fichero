@@ -4612,6 +4612,14 @@ def fichero_knowledge_graph_unmerge_claims(
     return _rt.call("POST", "/api/kg/claims/unmerge", json=_rt.body({"audit_id": audit_id}))
 
 
+def fichero_knowledge_graph_list_comments(
+    *,
+    anchor_id: Annotated[str, Field(description='Anchor Id')],
+) -> Any:
+    'List Comments\n\nThe live comments on one node, oldest first; a reply carries its `parent_id`. Nothing is listed on a node the\ncaller may not read (a page the caller is denied, a claim or entity resting only on such pages).\n\nRoute: GET /api/kg/comments (toolset `knowledge-graph`; reads).'
+    return _rt.call("GET", "/api/kg/comments", params={"anchor_id": anchor_id})
+
+
 def fichero_knowledge_graph_delete_claim_rule(
     *,
     rule_id: Annotated[str, Field(description='Rule Id.')],
@@ -9159,13 +9167,14 @@ def fichero_training_start_vision_lora(
     not_for_release: Annotated[Optional[bool], Field(description='The trained model may not be released. Default: true.')] = None,
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages to go to Hugging Face. Default: false.")] = None,
     rank: Annotated[Optional[int], Field(description='Rank. Default: 16.')] = None,
+    recipe_file: Annotated[Optional[str], Field(description="The name of a LoRA recipe file in the project's `lora-recipes` folder (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above.")] = None,
     release_note: Annotated[Optional[str], Field(description='Release Note.')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.')],
     timeout: Annotated[Optional[str], Field(description='The Job\'s time limit; always sent. Default: "8h".')] = None,
 ) -> Any:
     "Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX\n\nQueue a `train-a-model` job on the vision-model card: the same training set as the Kraken\ncard, cut into line pictures with the line reader's own instruction and the teacher's answers; a\nLoRA on the bf16 base (Qwen2.5-VL 7B by default) on the cheapest GPU that fits; the merged model\nconverted to 4-bit MLX on this Mac and landed as `fichero-trained/<name>`, the adapter kept beside\nit. The same refusals as the Kraken card.\n\nRoute: POST /api/training/vision-lora (toolset `training`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/training/vision-lora", json=_rt.body({"all_lines": all_lines, "arm": arm, "base_licence": base_licence, "base_repo": base_repo, "display_name": display_name, "epochs": epochs, "flavor": flavor, "held_out_ids": held_out_ids, "keep_merged_here": keep_merged_here, "language": language, "max_trace_cer": max_trace_cer, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "rank": rank, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher, "timeout": timeout}))
+    return _rt.call("POST", "/api/training/vision-lora", json=_rt.body({"all_lines": all_lines, "arm": arm, "base_licence": base_licence, "base_repo": base_repo, "display_name": display_name, "epochs": epochs, "flavor": flavor, "held_out_ids": held_out_ids, "keep_merged_here": keep_merged_here, "language": language, "max_trace_cer": max_trace_cer, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "rank": rank, "recipe_file": recipe_file, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher, "timeout": timeout}))
 
 
 def fichero_triggers_list(
@@ -10224,6 +10233,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_knowledge_graph_merge_claims", "knowledge-graph", "POST", "/api/kg/claims/merge", fichero_knowledge_graph_merge_claims),
     GeneratedTool("fichero_knowledge_graph_prune_trivial_claims", "knowledge-graph", "POST", "/api/kg/claims/prune-trivial", fichero_knowledge_graph_prune_trivial_claims),
     GeneratedTool("fichero_knowledge_graph_unmerge_claims", "knowledge-graph", "POST", "/api/kg/claims/unmerge", fichero_knowledge_graph_unmerge_claims),
+    GeneratedTool("fichero_knowledge_graph_list_comments", "knowledge-graph", "GET", "/api/kg/comments", fichero_knowledge_graph_list_comments),
     GeneratedTool("fichero_knowledge_graph_delete_claim_rule", "knowledge-graph", "DELETE", "/api/kg/curation-rules/claim-rules", fichero_knowledge_graph_delete_claim_rule),
     GeneratedTool("fichero_knowledge_graph_list_claim_rules", "knowledge-graph", "GET", "/api/kg/curation-rules/claim-rules", fichero_knowledge_graph_list_claim_rules),
     GeneratedTool("fichero_knowledge_graph_create_claim_rule", "knowledge-graph", "POST", "/api/kg/curation-rules/claim-rules", fichero_knowledge_graph_create_claim_rule),

@@ -1576,13 +1576,16 @@ def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple
 
 def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None,
              catalogue: list[dict[str, Any]] = (), folders: int = 0, todo: dict[str, int] | None = None,
-             booked: dict[tuple[str, str, str], tuple[float, int]] | None = None) -> dict[str, Any]:
+             booked: dict[tuple[str, str, str], tuple[float, int]] | None = None,
+             speeds: dict[str, tuple[float, int]] | None = None) -> dict[str, Any]:
     """What Start would cost, before anything runs (`source.onboard.estimate-before-start`). `todo`: per job, the pages
     still to do (`done.todo_counts`, by step id); a run is priced on those, not on pages it has already done.
 
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
     assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`. `booked`: the median dollars a page this
     project has booked for a `(job, provider, model)` (`booked_cost.for_workflows`), which replaces the token assumption (#6294).
+    `speeds`: per local model, the median seconds a page took on this Mac and the finished pages that rests on
+    (`routes.measured_speeds`); a run with no entry says its time is unknown, never 0.
     """
     from fichero_server.recipes.review_profiles import lens_ids, review_passes
 
@@ -1618,7 +1621,9 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
         per_lens = _priced(w, 1) if review and calls is not None else None
         lenses = [{"lens": lens, "on": w.get("lenses") is None or lens in w["lenses"], "cost_per_page_usd": per_lens}
                   for lens in lens_ids()] if review else []
+        seconds, seconds_basis, seconds_words = _time_words((speeds or {}).get(w.get("model_override") or ""), pages)
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
+                     "seconds": seconds, "seconds_basis": seconds_basis, "seconds_words": seconds_words,
                      "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
                      "basis_kind": kind, "basis_words": words, "cost_per_page_usd": round(cost / pages, 6) if cost and pages else None,
                      "measured_pages": measured,
@@ -1633,11 +1638,21 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
             cost = estimate_cost(run.get("model") or "", folders * CATALOGUE_TOKENS_IN, folders * CATALOGUE_TOKENS_OUT,
                                  provider=run.get("provider") or "")
         rows.append({"workflow": "Catalogue", "steps": run["steps"], "where": run["runs_on"], "pages": folders,
+                     "seconds": None, "seconds_basis": "unknown", "seconds_words": "no time is given: a catalogue call's time is not measured",
                      "cost_usd": cost, "basis": "unpriced" if cost is None else "free on this Mac" if not str(run["runs_on"]).startswith("cloud") else "the model's listed rate",
                      "memory": None, "calls_per_page": 1, "lenses": [], "certainty_bar": None, "lines_to_send": None,
                      "lines_to_send_kind": None, "lines_basis": None})
         total = None if total is None or cost is None else total + cost
     return {"pages": all_pages, "runs": rows, "total_cost_usd": total}
+
+
+def _time_words(speed: tuple[float, int] | None, pages: int) -> tuple[float | None, str, str]:
+    """(seconds, `measured` | `unknown`, in words) of one run's time on `pages`: this Mac's median seconds a page times the pages;
+    no finished page of the model, or a cloud run, is unknown and gives no number."""
+    if speed is None:
+        return None, "unknown", "no time is given: this Mac has no finished page of this model yet"
+    per, n = speed
+    return round(per * pages, 1), "measured", f"{pages} pages × {per:g} s a page, the median of {n} finished pages on this Mac"
 
 
 def _basis_words(job: str | None, basis: str, cost: float | None, pages: int, calls: int | None,

@@ -1725,6 +1725,109 @@ def test_a_new_lane_does_not_start_under_the_disk_floor_and_the_row_says_why(sta
     assert fake.starts, "above the floor it starts"
 
 
+def test_a_falling_disk_holds_every_lane_with_one_alert_and_clearing_raises_one_more(state, monkeypatch):
+    """#6852: the figure moving under the floor is no new reason: one hold row a lane, one alert for the loop, one when it clears."""
+    lane(state)
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    fake = Fake()
+    free = [12.0]
+    fake.procs.free_gb = lambda: free[0]
+    monkeypatch.setattr(queue, "DISK_FLOOR_GB", [30.0])
+    tick = lambda: queue.tick(fake.procs, {}, workers_n=2, push=False, out=lambda s: None)  # noqa: E731
+    for gb in (12.0, 11.0, 10.0):  # three ticks, the figure falling each time
+        free[0] = gb
+        tick()
+    holds = [r for r in journal.read() if r.get("state") == "disk-hold"]
+    assert fake.starts == [] and sorted(r["lane"] for r in holds) == ["m1", "m2"], "one row a lane, not a row a figure"
+    (a,) = _alerts()
+    assert "m1" in a["what"] and "m2" in a["what"] and "30" in a["what"]
+    free[0] = 80.0
+    tick()
+    tick()
+    assert fake.starts, "over the floor the lanes start"
+    cleared = _alerts()[1:]
+    assert len(cleared) == 1 and "over the floor" in cleared[0]["what"]
+    assert not (journal.STATE / queue.DISK_FLOOR_MARK).exists()
+
+
+def test_the_disk_floor_check_reads_no_journal_while_nothing_is_held(state, monkeypatch):
+    """#6852: the tick checks one marker file; it never parses the journal for the floor's state."""
+    fake = Fake()
+    monkeypatch.setattr(journal, "read", lambda *a, **k: pytest.fail("the journal was read"))
+    queue.disk_floor_alerts(fake.procs)
+
+
+def test_a_park_stops_a_window_and_never_the_tmux_server():
+    """#6851: a cap park ends one worker's window; no code path of the loop or a run kills the server."""
+    import pathlib
+
+    for f in pathlib.Path(queue.__file__).parent.glob("*.py"):
+        assert "kill-server" not in f.read_text(), f.name
+
+
+def test_a_cap_that_parks_two_workers_is_one_alert_listing_both_lanes(state):
+    """#6851: the day cap parks every live worker in one tick; the manager reads one alert, not one a lane."""
+    lane(state)
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    fake = Fake()
+    fake.end = "parked"
+    queue.tick(fake.procs, {}, workers_n=2, push=False, out=lambda s: None)
+    handles = {"m1": "p1", "m2": "p2"}
+    fake.alive_now = False
+    queue.tick(fake.procs, handles, workers_n=2, push=False, out=lambda s: None)
+    (a,) = [r for r in _alerts() if r["step"] == "cap-park"]
+    assert "m1" in a["what"] and "m2" in a["what"]
+    assert not [r for r in _alerts() if r["step"] != "cap-park"], "no alert a lane"
+
+
+def _waiting(state):
+    """A worker whose end message is `WAITING: <question>`: the step row the run writes carries it."""
+    lane(state)
+    fake = Fake()
+    fake.procs.row = lambda ln: {"moved": False, "waiting": "which cap does the day cap replace?"} if ln["seq"] in fake.seqs else None
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    return fake
+
+
+def test_a_worker_that_ends_with_waiting_is_one_ask_alert_with_the_question_and_the_step_waits(state):
+    """#6855: no DONE, no unsaid commit: the question, the lane and the step in one alert, and the step is blocked behind it."""
+    fake = _waiting(state)
+    (a,) = _alerts()
+    assert "which cap does the day cap replace?" in a["what"] and a["lane"] == "m1" and a["step"] == "1.1" and "send-back" in a["actions"]
+    assert steps()["1.1"]["state"] == "blocked" and steps()["1.2"]["state"] == "queued" and fake.landed_calls == []
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    assert len(_alerts()) == 1, "the waiting step raises no second alert"
+
+
+def test_a_send_back_of_a_question_with_no_answer_is_refused_and_with_one_the_answer_reaches_the_session(state):
+    _waiting(state)
+    (a,) = _alerts()
+    rc, msg = queue.answer(a["id"], "send-back")
+    assert rc == 1 and "answer" in msg and steps()["1.1"]["state"] == "blocked"
+    rc, _ = queue.answer(a["id"], "send-back", text="the session cap goes; the day cap stays")
+    assert rc == 0 and steps()["1.1"]["state"] == "queued"
+    assert "the day cap stays" in open(steps()["1.1"]["resume_brief"]).read()
+
+
+def test_a_retry_of_a_question_clears_it_so_a_later_send_back_of_another_alert_needs_no_answer(state):
+    _waiting(state)
+    (a,) = _alerts()
+    assert queue.answer(a["id"], "retry")[0] == 0
+    assert "waiting" not in steps()["1.1"]
+    b = queue.alert("m1", "1.1", "a review's red rung", "ev", ["send-back", "retry"])
+    assert queue.answer(b, "send-back")[0] == 0, "the old question is not asked again"
+    assert console.status(journal.read(), queue.load(), today=time.strftime("%Y-%m-%d"))["open_questions"] == []
+
+
+def test_the_console_lists_each_open_question_with_its_lane_and_step(state):
+    _waiting(state)
+    st = console.status(journal.read(), queue.load(), today=time.strftime("%Y-%m-%d"))
+    assert st["open_questions"] == [{"lane": "m1", "step": "1.1", "question": "which cap does the day cap replace?"}]
+    (a,) = _alerts()
+    queue.answer(a["id"], "send-back", text="the session cap goes")
+    assert console.status(journal.read(), queue.load(), today=time.strftime("%Y-%m-%d"))["open_questions"] == [], "answered: not open"
+
+
 def test_removing_a_lanes_tree_drops_its_jcodemunch_index(state, tmp_path):
     fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
     dropped = []

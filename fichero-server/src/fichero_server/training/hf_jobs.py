@@ -303,7 +303,16 @@ def kraken_args(job_key: str, *, base_file: str | None, model_name: str, batch_s
 
 
 def lora_args(job_key: str, *, base_repo: str, epochs: int, rank: int, arm: str = "answer",
-              all_lines: bool = False) -> list[str]:
+              all_lines: bool = False, lr: float | None = None, merged: bool = False) -> list[str]:
+    """The LoRA trainer's arguments. The adapter always comes back; `merged` also asks for the merged model."""
     root = job_root(job_key)
     return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_repo,
-            "--epochs", str(epochs), "--rank", str(rank), "--arm", arm, *(["--all-lines"] if all_lines else [])]
+            "--epochs", str(epochs), "--rank", str(rank), "--arm", arm,
+            *(["--lr", str(lr)] if lr is not None else []), *(["--all-lines"] if all_lines else []),
+            *(["--merged"] if merged else [])]
+
+
+def package_args(job_key: str, *, trainer: str) -> list[str]:
+    """The Job's arguments for `one_trainer.py`, the image's "run a package" mode (`compute.tune.one-trainer-three-places`)."""
+    root = job_root(job_key)
+    return ["--data", f"{root}/data", "--out", f"{root}/out", "--trainer", trainer]

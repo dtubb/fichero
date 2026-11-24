@@ -156,7 +156,7 @@ extension SidebarItemRow {
     // beside it, matching Finder's sibling-drop behavior.
     @ViewBuilder
     private var bodyContent: some View {
-        if isExpandable && !SidebarPhone.rowExpandsInPlace(isPhone: SidebarPhone.isPhone) {
+        if SidebarPhone.showsDisclosure(isExpandable: isExpandable, isPhone: SidebarPhone.isPhone) {
             // #571 (restored): drop target and context menu sit on the OUTER
             // DisclosureGroup so the chevron/indent strip is part of the row's
             // drop and right-click surface — a refactor before the #1703 file

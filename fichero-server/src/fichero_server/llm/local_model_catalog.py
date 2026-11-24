@@ -215,8 +215,13 @@ def kraken_catalog_entries() -> list[Any]:
         )
     # Readers Fichero trained (#5398): landed from a training job, with where they came from. Listed
     # like any reader; never made a default by landing (`compute.tune.not-default-until-chosen`).
+    from fichero_server.training.evaluation import model_evaluations
+    from fichero_server.training.gate import NO_VERDICT
+
     for model_id, card in kr.trained_readers():
         release = "Not for release." if card.get("not_for_release") else ""
+        said = [(e.get("verdict") or {}).get("words") for e in model_evaluations(model_id, "kraken")]
+        verdict = next((f"Verdict: {w}." for w in reversed(said) if w), NO_VERDICT)
         problem = kr.recognition_model_problem(model_id)
         entries.append(
             _make_entry(
@@ -233,7 +238,7 @@ def kraken_catalog_entries() -> list[Any]:
                 unsupported_reason=problem,
                 # A card written before #5617 said "on 1 pages": its counts are said so they agree.
                 note=re.sub(r"\b1 (page|line|flagged line)s\b", r"1 \1",
-                            " ".join(filter(None, [str(card.get("summary") or ""), release]))),
+                            " ".join(filter(None, [str(card.get("summary") or ""), release, verdict]))),
                 tested_status="untested",
                 license_label="not for release" if card.get("not_for_release") else "user-managed",
                 source=_source(True),

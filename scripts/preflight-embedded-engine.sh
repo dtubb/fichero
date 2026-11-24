@@ -227,8 +227,9 @@ KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
 
 # MLX ships inside the engine too (#4973, ruled 2026-10-09): local vision, OCR, text and Whisper
 # models run on it, and the sandboxed app cannot build it after install. Same seam as Kraken.
+# The lock's constraints too: what the lock also knows (Ultralytics' matplotlib, polars, #6675) lands at its version.
 "$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/install_mlx_into_engine_bundle.py" \
-  "$ENGINE_APP/Contents/Resources/app_packages" || {
+  "$ENGINE_APP/Contents/Resources/app_packages" "$ENGINE_DIR/build/lock-constraints.txt" || {
     echo "error: could not install MLX into the staged engine." >&2
     echo "       Local MLX models (vision, OCR, text, Whisper) would be unusable in this build." >&2
     exit 1

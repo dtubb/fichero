@@ -94,7 +94,8 @@ def test_the_route_answers_the_list(client, db, monkeypatch):
     answer = client.get("/api/activity/models")
     assert answer.status_code == 200, answer.text
     assert any(m["provider"] == "Kraken" for m in answer.json()["models"])
-    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac", "account": "ready"}
+    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac", "account": "ready", "egress": "this-mac",
+                                              "calls_in_flight": None, "calls_cap": None, "credit": None}
 
 
 def test_this_mac_is_measured_or_says_it_is_not(client, db, monkeypatch):
@@ -330,3 +331,99 @@ def test_the_route_answers_the_new_columns(client, db, monkeypatch):
     assert {"fits_here", "needs_bytes", "fits_note", "unload_to_fit", "account", "licence", "using_now",
             "last_failed"} <= set(row)
     assert "gpu" in client.get("/api/activity/models").json()["this_mac"]
+
+
+def test_a_places_egress_comes_from_its_address_not_its_provider_type(app_db, monkeypatch):
+    """`models.place.egress-from-the-address` (#5582): a server off this Mac is "your machine" whatever the runtime it
+    speaks, a cloud provider is the provider's, a cluster the institution's, this Mac stays."""
+    from fichero_server.models import Provider, ProviderType
+
+    app_db.save_provider(Provider(id="p-remote", name="Studio", provider_type=ProviderType("ollama"),
+                                  api_base="http://studio.example:11434"))
+    app_db.save_provider(Provider(id="p-here", name="Local", provider_type=ProviderType("ollama"),
+                                  api_base="http://localhost:11434"))
+    app_db.save_provider(Provider(id="p-cloud", name="Claude", provider_type=ProviderType("anthropic")))
+    app_db.set_setting("hpc.clusters", json.dumps({"acenet": {"cluster_id": "acenet", "name": "ACENET"}}))
+    listed = activity_models.places(probe=lambda url: True)
+    egress = {p["provider"]: p["egress"] for p in listed}
+    assert egress["studio.example"] == "own-machine"
+    assert egress["Anthropic"] == "provider"
+    assert egress["ACENET"] == "institution"
+    assert egress["This Mac"] == "this-mac"
+    assert "Local" not in egress and "localhost" not in egress, "a server on this Mac is This Mac, not a place of its own"
+
+
+def test_a_cloud_place_says_its_calls_in_flight_and_the_credit_a_failure_named(db, app_db, monkeypatch):
+    """`models.row.credit-and-limits` (#6675): a cloud provider's place carries the calls in flight of its cap and, after a
+    no-credit failure on one of its models today, that failure's words and fix button; a place with none says null."""
+    from fichero_server.models import Provider, ProviderType
+    from fichero_server.workflows import circuit_breaker
+
+    app_db.save_provider(Provider(id="p-cloud", name="Claude", provider_type=ProviderType("anthropic")))
+    app_db.save_provider(Provider(id="p-or", name="OR", provider_type=ProviderType("openrouter")))
+    monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: "key")
+    monkeypatch.setattr(circuit_breaker, "calls_in_flight", lambda p: 2 if p == "anthropic" else 0)
+    monkeypatch.setattr(circuit_breaker, "provider_cap", lambda p: 3)
+    jobs._ensure(db)
+    call = {"provider": "anthropic", "model": "claude-sonnet", "place": "provider", "input_tokens": 1, "output_tokens": 1}
+    _job(db, "c1", kind="describe", model="anthropic:claude-sonnet", state="failed", detail=json.dumps({"usage": [call]}))
+    db.execute("UPDATE jobs SET reason = 'Out of credit at Anthropic' WHERE id = 'c1'")
+
+    listed = activity_models.places(probe=lambda url: True)
+    activity_models.add_credit(listed, activity_models.models(db, held=[], installed=[]))
+    place = {p["provider"]: p for p in listed}
+
+    assert place["Anthropic"]["calls_in_flight"] == 2 and place["Anthropic"]["calls_cap"] == 3
+    assert place["Anthropic"]["credit"]["kind"] == "no-credit" and place["Anthropic"]["credit"]["words"]
+    assert place["OpenRouter"]["credit"] is None
+    assert place["This Mac"]["calls_cap"] is None and place["This Mac"]["credit"] is None
+
+
+def test_hugging_face_jobs_is_a_place_with_its_tokens_state(app_db, monkeypatch):
+    """`models.place.hf-jobs` (#5398, #5740): Hugging Face Jobs is a cloud place whose account is its token's state."""
+    monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: "hf_x" if provider == "huggingface" else None)
+    found = next(p for p in activity_models.places(probe=lambda url: True) if p["provider"] == "Hugging Face Jobs")
+    assert (found["place"], found["account"], found["egress"]) == ("cloud", "ready", "provider")
+    monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: None)
+    found = next(p for p in activity_models.places(probe=lambda url: True) if p["provider"] == "Hugging Face Jobs")
+    assert found["account"] == "needs-key"
+
+
+def test_a_trained_model_is_a_row_under_this_mac_with_its_ground_truth_counts(client, db, monkeypatch):
+    """`models.trained.are-rows`, `models.ground-truth.counts` (#5439, #5119): a model trained in this project is a
+    "Trained here" row of the answer with its held-out scores, where it can run and the ground truth it learned from; a
+    set the card does not count says null, never 0."""
+    node = {"id": "kraken-trained-j1", "name": "Letters", "kind": "kraken-reader", "trained_at": "2026-11-20T10:00:00Z",
+            "trained_where": "this-mac", "scores": {"cer": {"strict": 0.04}, "pages": 12}, "size_bytes": 5,
+            "runs_on": [{"build": "kraken", "runs_on": "this Mac", "here": True}], "may_publish": False,
+            "training_set": {"pages": 40, "lines": 900, "lines_checked_by_a_person": 300, "held_out_pages": 8},
+            "lives": "project"}
+    bare = node | {"id": "fichero-trained/b", "name": "B", "training_set": None, "scores": None}
+    monkeypatch.setattr("fichero_server.training.model_nodes.model_nodes", lambda database: [node, bare])
+    monkeypatch.setattr(activity_models, "installed_on_this_mac", lambda: [])
+
+    trained = {t["id"]: t for t in client.get("/api/activity/models").json()["trained"]}
+
+    row = trained["kraken-trained-j1"]
+    assert row["name"] == "Letters" and row["place"] == "this-mac" and row["section"] == "Trained here"
+    assert row["scores"]["cer"] == {"strict": 0.04} and row["not_for_release"] is True
+    assert row["ground_truth"] == {"pages": 40, "lines": 900, "lines_checked_by_a_person": 300, "held_out_pages": 8}
+    assert trained["fichero-trained/b"]["ground_truth"] is None and trained["fichero-trained/b"]["scores"] is None
+
+
+def test_the_trained_models_are_read_once_a_minute_not_on_every_poll(db, monkeypatch):
+    """A poll every ten seconds must not read every trained card and walk every build each time: one library's trained
+    rows are kept for a minute, and read again after it."""
+    reads = []
+    monkeypatch.setattr("fichero_server.training.model_nodes.model_nodes", lambda database: reads.append(1) or [])
+    clock = [1000.0]
+    monkeypatch.setattr(activity_models.time, "monotonic", lambda: clock[0])
+    activity_models._trained_cache.clear()
+
+    activity_models.trained_rows(db)
+    clock[0] += 10
+    activity_models.trained_rows(db)
+    assert len(reads) == 1
+    clock[0] += 61
+    activity_models.trained_rows(db)
+    assert len(reads) == 2

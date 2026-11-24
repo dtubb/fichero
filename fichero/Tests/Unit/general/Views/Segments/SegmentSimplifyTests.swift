@@ -149,4 +149,24 @@ struct CutWordsTests {
         #expect(params["move_into_region"] as? Bool == true)
         #expect(params["expected_versions"] as? [String: Int] == ["a": 2, "b": 3])
     }
+
+    /// `segment-editor.simplify-always-answers`: the release is for the focused pane, in any mode (not only Edit Shape).
+    @Test("the slider's release is sent outside Edit Segments and only for the focused pane")
+    func releaseIsForTheFocusedPane() {
+        let window = WindowState(libraryId: UUID())
+        let focused = RegionSelection(), other = RegionSelection()
+        window.focusRegionSelection(focused)
+        window.isEditingSegments = false
+        #expect(window.simplifyReleaseIsFor(focused))
+        #expect(!window.simplifyReleaseIsFor(other))
+    }
+
+    @Test("the notice reads the engine's removed count, and says no points for none")
+    func noticeReadsTheEnginesCount() {
+        let answer: [String: (any Sendable)?] = ["segment_ids": [String](), "removed": 0]
+        #expect(ActionInvokeResult.integers(answer) == ["removed": 0])
+        #expect(SegmentEdit.simplifyNotice(removed: 0) == "Simplify removed no points")
+        #expect(SegmentEdit.simplifyNotice(removed: 7) == "Simplify removed 7 points")
+        #expect(SegmentEdit.simplifyNotice(removed: 1) == "Simplify removed 1 point")
+    }
 }

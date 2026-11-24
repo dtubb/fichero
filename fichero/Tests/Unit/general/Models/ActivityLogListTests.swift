@@ -66,3 +66,20 @@ struct ActivityLogListTests {
         #expect(marked == 2)
     }
 }
+
+/// `activity.log.person-reads-like-a-copy-history` (#5960): local time with no date, a date only where the day changes.
+struct ActivityLogTimeWordsTests {
+    private func date(_ day: Int, _ hour: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: 5)) ?? Date()
+    }
+
+    @Test("the same day says the time alone; the first line of a new day says its date too; no time says now")
+    func dayBoundary() {
+        let time = { (day: Int, hour: Int) in self.date(day, hour).formatted(date: .omitted, time: .standard) }
+        #expect(ActivityLogList.timeWords(date(15, 9), after: nil) == time(15, 9))
+        #expect(ActivityLogList.timeWords(date(15, 10), after: date(15, 9)) == time(15, 10))
+        let next = ActivityLogList.timeWords(date(16, 1), after: date(15, 23))
+        #expect(next.hasSuffix(time(16, 1)) && next.count > time(16, 1).count, "the new day carries its date")
+        #expect(ActivityLogList.timeWords(nil, after: date(15, 9)) == "now")
+    }
+}

@@ -420,6 +420,7 @@ function App() {
         return (q || a || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${a ? `${a} alert(s)` : ""}${a && q ? ", " : ""}${q ? `${q} lane(s) with a question` : ""}
           ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>`
           : html`<div class="banner"><span class="dot green"></span>Nothing needs you.</div>`; })()}
+      ${(st.open_questions || []).length > 0 && html`<h2>Questions</h2><div class="alerts">${st.open_questions.map(q => html`<div class="alert"><div><b class="mono">${q.lane} ${q.step}</b></div><div class="what">${q.question}</div></div>`)}</div>`}
       ${st.open_alerts.length > 0 && html`<h2>Alerts <button class="btn" onClick=${() => act("alert", { id: "all", action: "dismiss" })}>Dismiss all</button></h2><${Alerts} alerts=${st.open_alerts} />`}
       ${(st.resolved_alerts || []).length > 0 && html`<${Resolved} alerts=${st.resolved_alerts} />`}
       ${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release }[tab]

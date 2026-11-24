@@ -231,7 +231,7 @@ class LibraryManager {
         @ObservationIgnored lazy var icloudStore = ICloudPagesStore(client: ficheroClient)
 
         /// Import from IIIF and a bound folder's Refresh (#5671).
-        @ObservationIgnored lazy var iiifStore = IIIFImportStore(client: ficheroClient)
+        @ObservationIgnored lazy var iiifStore = IIIFImportStore(client: ficheroClient, folderImports: importService.folderImports)
 
         /// Whether this library's older results are being brought into the page model, and the
         /// report when they have been (#5222 part 3). One per library, shared by its windows.

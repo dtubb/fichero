@@ -14,6 +14,7 @@ struct SegmentVerbMenu: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(WindowState.self) private var windowState: WindowState?
 
     var body: some View {
         let segments = store?.workingSegments(documentId: documentId) ?? []
@@ -35,7 +36,7 @@ struct SegmentVerbMenu: View {
             Button("Lift Out of \(parent.map(InspectorPath.name(of:)) ?? "Region")") { move(into: nil) }
         }
         if ids.count >= 2 {
-            Button("Join") { run("Join Lines") { SegmentEdit.join($0) } }
+            Button("Join") { run("Join Lines", selectingJoined: true) { SegmentEdit.join($0) } }
         }
         if !ids.isEmpty {
             Divider()
@@ -63,19 +64,28 @@ struct SegmentVerbMenu: View {
     }
 
     private func run(
-        _ actionName: String, plan: @escaping ([Segment]) -> Result<SegmentEdit.Call, SegmentEdit.Refusal>
+        _ actionName: String, selectingJoined: Bool = false, plan: @escaping ([Segment]) -> Result<SegmentEdit.Call, SegmentEdit.Refusal>
     ) {
         guard let store, let actionsService = actionStore?.actionsService else { return }
         let segments = SegmentDeleter.segments(ids, documentId: documentId, store: store)
         let steps = windowSteps, documentId = documentId
-        let note = onNote
+        let note = onNote, windowState = windowState
+        // After each re-read (the join, its undo, its redo): the kept line, or the joined lines once undone.
+        let joined = segments.map(\.id)
+        let reselect: @MainActor () async -> Void = {
+            guard selectingJoined, let windowState else { return }
+            let live = Set(store.segments(documentId: documentId).map(\.id))
+            windowState.pickInReader(
+                SegmentEdit.selectionAfterJoin(joined: joined, live: live), documentId: documentId, store: store
+            )
+        }
         Task {
             switch plan(segments) {
             case .failure(let refusal): note(SegmentMover.problem(refusal))
             case .success(let call):
                 do {
                     try await SegmentEditRunner(actionsService: actionsService, store: store).run(
-                        call, documentId: documentId, actionName: actionName, steps: steps
+                        call, documentId: documentId, actionName: actionName, steps: steps, afterChange: reselect
                     )
                     note(nil)
                 } catch { note("That did not happen: \(error.localizedDescription)") }

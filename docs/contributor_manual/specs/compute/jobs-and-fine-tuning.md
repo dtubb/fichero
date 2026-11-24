@@ -638,12 +638,12 @@ needs them.
 
 ### Fine-tuning
 
-- `compute.tune.one-trainer-three-places` — **[GAP]** (#5119, #5397) a `train-a-model` job runs one engine
+- `compute.tune.one-trainer-three-places` — **[PARTIAL]** (#5119, #5397) *Built: `training/one_trainer.py` `run_package` is the one path (trainer, held-out score, log, model) and runs in this process or as the image's package entry with `hf_jobs.package_args`; a stub trainer gives byte-identical logs apart from timings and the same CER here and as the Job would run it; tested in `fichero-server/tests/unit/training/test_hf_trainer_in_the_image.py`. Not built: the Kraken trainer behind it, and the run in the cpu image.* a `train-a-model` job runs one engine
   code path wherever it runs: in the engine's process on this Mac, and in the image's "run a
   package" mode on Hugging Face Jobs or a cluster. The same training set gives a model, a log and
   a held-out score of the same form in all three. *Test:* a tiny Kraken set for two epochs on
   this Mac's CPU and in the cpu image yields loadable models and scores of the same shape.
-- `compute.tune.where-cheapest-first` — **[GAP]** (#5119, #4950) a train step runs on this Mac when its card's
+- `compute.tune.where-cheapest-first` — **[OK]** (#5119, #4950; built: `training/tune_places.py` `choose_place` with the reason, evidence shown for a costlier place; tested in `fichero-server/tests/unit/training/test_hf_trainer_in_the_image.py`. Not built: calling it from the start sheet; no training defaults to this Mac, so its answer is shown, never applied, `compute.tune.local-mlx-shown-never-default`) a train step runs on this Mac when its card's
   measured memory fits this Mac beside the resident embedder; otherwise on the project's bound
   `gpu-service` target, then its `cluster` target (`source.recipe.runs-on-binds-to-a-target`). A
   costlier place is chosen only when the A/B evidence on the project's pages (error rate, cost,
@@ -662,7 +662,7 @@ needs them.
   never the default route; only the person chooses it. Ruled 2026-10-04: nothing trains on this Mac by
   default, Kraken included; Kraken trains on Hugging Face or on Rorqual. This narrows
   `compute.tune.where-cheapest-first` and `compute.tune.on-this-mac`.
-- `compute.tune.proven-on-huggingface-first` — **[GAP]** (#5398) a training recipe is first run on Hugging Face
+- `compute.tune.proven-on-huggingface-first` — **[OK]** (#5398; built: `training/tune_places.py` `record_proof` and `cluster_offer`; tested in `fichero-server/tests/unit/training/test_hf_trainer_in_the_image.py`. Not built: the two real Hugging Face runs that fill a recipe's record, and the cluster offer reading it) a training recipe is first run on Hugging Face
   Jobs and counts as proven when two runs reach the same held-out CER within a stated noise
   band; the proof (dates, image digest, hardware, CER) is recorded on the recipe before it is run
   on a cluster. *Test:* the recipe file carries the proof record; a cluster run of an unproven
@@ -751,13 +751,13 @@ needs them.
   as a model card and passes the one gate on held-out pages (`distill.gate.one-rule`, `training.eval.layout-overlap`)
   before a recipe may use it. *Existing data:* earlier passes are untouched; the detector makes new passes. *Test:* a
   tiny set trains, returns, and finds boxes on one held-out page.
-- `compute.tune.lora` — **[PARTIAL]** (#5240) *Built for a vision model on Hugging Face Jobs (#5398): `hf_vision_lora_train.py` (transformers + peft, bf16, loss on the answer alone) on line pairs cut by the line reader's own crop with its own instruction; rank and epochs on the request, not yet a recipe file; QLoRA and the CPU tiny-model test are not built.* a `train-lora` job fine-tunes a base model named by card with LoRA
+- `compute.tune.lora` — **[PARTIAL]** (#5240) *Built for a vision model on Hugging Face Jobs (#5398): `hf_vision_lora_train.py` (transformers + peft, bf16, loss on the answer alone) on line pairs cut by the line reader's own crop with its own instruction; a recipe file (`training/lora_recipe.py`: rank, learning rate, epochs, prompt form) drives the Job's arguments through the request's `recipe_file` (tested in `fichero-server/tests/unit/training/test_hf_jobs_target.py`). Not built: QLoRA, and the CPU tiny-model test.* a `train-lora` job fine-tunes a base model named by card with LoRA
   (QLoRA when the card and the target's memory call for it), from a recipe file that names
   rank, learning rate, epochs and the prompt form, and returns the adapter, its log and scores.
   A recipe is a shareable file in the sense of `source.recipe.is-a-file` (→ #4950). *Test:* a
   tiny model and a tiny set, in automation on CPU for a few steps, yields an adapter that
   loads; the full path is a named-machine test. The base is the recipe's pick from the catalogue (`source.recipe.picks-the-tuning-base`, about 3B, #5442); today the request defaults to `Qwen/Qwen3-VL-8B-Instruct`. An adapter is the default for a vision or language model; training every weight instead is `distill.train.lora-or-full` (`compute/distillation.md`).
-- `compute.tune.survives-the-time-limit` — **[PARTIAL]** (#5240; the wrapper and sbatch are `training/resumable.py`, tested with a stub trainer that checkpoints on SIGUSR1 in `fichero-server/tests/unit/training/test_resumable_training.py`: two parts, steps 1..12 once each, `scontrol requeue` once; not yet wired to a real `ketos train` run or a cluster, and the Activity row's "running (part 2)" is `part_words`, not yet shown) a training job longer than its time limit saves a
+- `compute.tune.survives-the-time-limit` — **[PARTIAL]** (#5240; the wrapper and sbatch are `training/resumable.py`, tested with a stub trainer that checkpoints on SIGUSR1 in `fichero-server/tests/unit/training/test_resumable_training.py`: two parts, steps 1..12 once each, `scontrol requeue` once; the LoRA trainer now checkpoints on SIGUSR1 (`last.ckpt`) and `--resume` skips the steps done, tested in the same file; not yet wired to a real `ketos train` run or a cluster, and `resumable.note_part` puts "running (part 2)" on a row but nothing calls it from a cluster's restart count yet) a training job longer than its time limit saves a
   checkpoint on the scheduler's warning signal, is re-queued under the same job id, and resumes
   from the checkpoint; the job's row reads "running (part 2)". *Test:* fixture with a
   two-minute limit and a trainer stub: the run completes across two parts with no repeated
@@ -788,7 +788,7 @@ needs them.
   (`source.recipe.train-never-automatic`). *Test:* a better tiny model yields a proposed recipe
   version pinning its card; a worse one yields none.
 - `compute.tune.loop-is-one-visible-cycle` — **[GAP]** (#5941; owner vision 2026-10-20; after `compute.tune.adopted-by-the-recipe`, the `distill.licence.*` gates and `ai.where.one-egress-gate` #5368, since training sends pages out) the fine-tuning loop is one visible cycle in the recipe: a step shows, in one section, its teacher (local, cloud or batch), the training set made from its reads (lines, checked trust level), where it trains (Hugging Face first, ACENet later), the card that came back with its scores on landing, and whether the recipe adopted it. It runs both ways: a model trained locally can go up to Hugging Face (published or served there) and a model trained there comes back to run here. Test (to write): a recipe step with a fake teacher, set, training job and landed card reads back one cycle section with each stage's state, in order.
-- `compute.tune.adapter-always-returns` — **[PARTIAL]** (#5240) *Built (#5398): the adapter always returns and is kept beside the MLX model. The vision card also returns the merged model, because the MLX conversion needs it, and deletes it once converted; a choice to skip it is not built.* a `train-lora` job always returns the adapter. A
+- `compute.tune.adapter-always-returns` — **[OK]** (#5240; built: the trainer always writes the adapter and the merged model only with `--merged`, `lora_recipe.result_package` lists both choices; tested in `fichero-server/tests/unit/training/test_hf_jobs_target.py`. The vision card asks for the merged model because the MLX conversion needs it. Not built: needs a decision — landing an adapter-only vision model with no MLX conversion) a `train-lora` job always returns the adapter. A
   merged model is returned only when asked for, because it is as large as the base. *Test:*
   result package contents for both choices.
 - `compute.tune.convert-for-mlx` — **[PARTIAL]** (#5240) *Built, not yet run on a real model (#5398): `training/mlx_landing.py` runs `mlx_vlm.convert -q --q-bits 4` in the MLX runtime's Python on this Mac, on the local ML lane, and lands `fichero-trained/<name>` in the MLX store; the named-machine test (a merged model converts, loads and answers) is the maintainer's run.* a merged model fetched to the Mac can be converted and
@@ -879,7 +879,7 @@ needs them.
 
 #### Step 1.1 — one trainer in three places, proven on Hugging Face first, the token checked first (#5119, #5397, #5398)
 - Behaviours: `compute.tune.one-trainer-three-places`, `compute.tune.proven-on-huggingface-first`, `compute.tune.where-cheapest-first`
-- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_hf_training_preflight_to_spec.py, test_hf_trainer_in_the_image.py (not yet written)
+- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_hf_training_preflight_to_spec.py, test_hf_trainer_in_the_image.py
 - Size: M
 
 Built: Hugging Face Jobs as a place to train (`training/hf_jobs.py`: a private bucket of the person's account, the Job runs `hf_kraken_train.py` from the mounted bucket, the token passed to the client and nowhere else, an explicit time limit and the hardware price read first; `compute.tune.hf-token-checked-first` OK); Kraken training on this Mac (`training/local.py`, `POST /api/training/kraken/here`). Left: the `train-a-model` job as ONE code path wherever it runs (the engine's process here; the image's "run a package" mode on Hugging Face or a cluster) giving the same model, log and scores from the same set; the proof record on the recipe after two Hugging Face runs land within the noise band of each other; the place chosen cheapest-first (this Mac when the card's measured memory fits beside the resident embedder, else Hugging Face, else the cluster). Acceptance: the same training set run here (stub trainer) and through the fake Job gives byte-identical logs apart from timings and the same held-out CER; a recipe with two Hugging Face runs within the band carries the proof record (dates, image digest, hardware, CER) and one without is offered to a cluster as "not yet proven on Hugging Face"; a card whose memory fits this Mac trains here and one that does not goes to Hugging Face, each saying why.

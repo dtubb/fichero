@@ -112,7 +112,7 @@ second cropper.
   (`RegionCropUnavailable`, reused).
 - Making pictures is throttled background work when done in bulk (a training export), and
   bounded when done on request.
-- `economy_htr.crop_line_strips` **[GAP]** (#5045) (padded rectangles, per Apple Vision line box) is the existing
+- `economy_htr.crop_line_strips` **[OK]** (#5045; built at `fichero-server/src/fichero_server/workflows/tools/economy_htr.py:84`, tests `fichero-server/tests/unit/workflows/test_economy_htr.py`; its replacement is deferred, see the correction below) (padded rectangles, per Apple Vision line box) is the existing
   line cropper. It is **replaced by this function** where it is called — but **not in this
   slice**. Corrected 2026-09-26 (#5045): `crop_line_strips` runs INSIDE the HTR tool on Apple
   Vision line boxes, *before any segment row exists*, while `segment_picture` needs a `Segment`,

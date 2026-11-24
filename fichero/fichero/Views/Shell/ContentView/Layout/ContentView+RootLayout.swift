@@ -218,7 +218,7 @@ extension ContentView {
 
     private func focusModeChanged(_ focused: Bool) {
         #if os(macOS)
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        guard let window = windowState.hostWindow else { return }  // this view's window, not whichever is key
         let isFullScreen = window.styleMask.contains(.fullScreen)
         if focused {
             focusEnteredFullScreen = FocusMode.entersFullScreen(windowIsFullScreen: isFullScreen)

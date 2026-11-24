@@ -76,10 +76,9 @@ arm trains on (`distillation.md`, `distill.set.keeps-reasons`).
   excerpt.
 - `source.check.entities-card` — **[OK]** (#5404) an entities checker is shown each entity's name, type
   and other names, and the excerpts that mention it. *Test:* the prompt names them.
-- `source.check.run-is-a-job` — **[PARTIAL]** (#5404) a check run is one job in Activity over a scope, from
+- `source.check.run-is-a-job` — **[OK]** (#5404) a check run is one job in Activity over a scope, from
   the API, the CLI and MCP, with its counts in words (confirmed, corrected, rejected, unanswered), and
-  can be stopped; what was checked stays. *Built: API and MCP (`checking/job.py`, `api/routes/check.py`);
-  not built: a CLI command (the CLI client has the calls) and an Activity row of its own in the app.* *Test:* a run reports its counts; a stopped run checks no
+  can be stopped; what was checked stays. *Built: API and MCP (`checking/job.py`, `api/routes/check.py`) and the CLI (`fichero check start-run`, `run-status`, `cancel-run`, generated in `openapi_surface_generated.py`; names pinned by `fichero-cli/tests/test_cli_check_run_commands.py`). The run is one Activity job of kind `check`, named "Check" (`checking/job.py:3,196`), so it is listed with every other job; the app has no check-specific Activity row, and none is claimed.* *Test:* a run reports its counts; a stopped run checks no
   further proposals.
 - `source.check.person-checks-the-same-way` — **[OK]** (#5404) a person's verdict goes through the same
   action and is recorded at `person`; a person's *reject* of a statement is still taken through the

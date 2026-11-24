@@ -4,6 +4,11 @@ import Foundation
 /// `models.window.needs-you-badge`, `models.window.columns-and-verbs-are-activitys`, #6588): the sidebar's sections, the
 /// rows needing you counted and sorted first, and the row's one button.
 enum ModelsWindowModel {
+    /// The window's scene id: `openWindow(id: ModelsWindowModel.windowID)`.
+    static let windowID = "models-cluster"
+    /// The scene's title, which the Window menu lists.
+    static let windowTitle = "Models & Cluster"
+
     /// The sidebar's sections over the one list: This Mac, Places, Work.
     enum Section: String, CaseIterable, Sendable {
         case thisMac, places, work
@@ -32,6 +37,24 @@ enum ModelsWindowModel {
             }
         }
 
+        var title: String {
+            switch self {
+            case .thisMac: "This Mac"
+            case .place(let place): place.title
+            case .runningNow: "Running now"
+            case .failedToday: "Failed today"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .thisMac: "desktopcomputer"
+            case .place(let place): place.icon
+            case .runningNow: "play.circle"
+            case .failedToday: "exclamationmark.triangle"
+            }
+        }
+
         /// The accessibility id's last part: `models.sidebar.<item>`.
         var identifier: String {
             switch self {
@@ -49,6 +72,23 @@ enum ModelsWindowModel {
         (.places, [.place(.remote), .place(.cloud)]),
         (.work, [.runningNow, .failedToday])
     ]
+
+    /// One drawn sidebar item: the item, its words and the count of its rows needing you.
+    struct SidebarEntry: Equatable {
+        let item: Item
+        let title: String
+        let icon: String
+        let badge: Int
+    }
+
+    /// The sidebar over the one list: each section's items with their badges.
+    static func sidebar(_ models: [ActivityModelEntry]) -> [(section: Section, entries: [SidebarEntry])] {
+        items.map { group in
+            (group.section, group.items.map {
+                SidebarEntry(item: $0, title: $0.title, icon: $0.icon, badge: badge($0, in: models))
+            })
+        }
+    }
 
     /// The rows an item groups: This Mac's models, a place's, what is in flight now, what failed today.
     static func rows(_ item: Item, in models: [ActivityModelEntry]) -> [ActivityModelEntry] {
@@ -105,6 +145,11 @@ enum ModelsWindowModel {
         if accounts.contains(.notReachable) { return .notReachable }
         if accounts.contains(.needsKey) { return .needsKey }
         return accounts.isEmpty ? .unknown : .ready
+    }
+
+    /// The row the Inspector shows: the selected id among the item's listed rows; nil when none is selected or it is not listed.
+    static func selectedRow(_ id: ActivityModelEntry.ID?, in rows: [ActivityModelEntry]) -> ActivityModelEntry? {
+        id.flatMap { id in rows.first { $0.id == id } }
     }
 
     /// One labelled line of the Inspector.

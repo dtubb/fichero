@@ -1402,6 +1402,25 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
 _INGEST_BATCH_SIZE = 100
 
 
+def ensure_folder_document(db: "Database", folder: Path, parent_id: str | None) -> tuple[Document, bool]:
+    """The folder Document for a resolved folder path under ``parent_id``: the one already there, else a new one
+    (``made`` True). A folder import and the route that accepts it both call this, so the row the route answers at
+    once is the row the import fills (#7066)."""
+    existing = next(
+        (doc for doc in db.query(Document, parent_id=parent_id, name=folder.name)
+         if doc.doc_type == DocType.folder and doc.path == str(folder)),
+        None,
+    )
+    if existing is not None:
+        return existing, False
+    folder_doc = Document(name=folder.name, path=str(folder), doc_type=DocType.folder, status=Status.completed,
+                          parent_id=parent_id)
+    with db.transaction():
+        db.save(folder_doc)
+        _touch_ancestor_documents(db, folder_doc.parent_id)
+    return folder_doc, True
+
+
 def ingest_folder(
     folder: Path,
     mode: IngestMode = IngestMode.LINK,
@@ -1489,26 +1508,8 @@ def ingest_folder(
     # explicitly want files imported flat can pass `create_collection=False`.
     folder_id = parent_id
     if create_collection:
-        existing_roots = db.query(Document, parent_id=parent_id, name=folder.name)
-        folder_doc = next(
-            (
-                doc
-                for doc in existing_roots
-                if doc.doc_type == DocType.folder and doc.path == str(folder)
-            ),
-            None,
-        )
-        if folder_doc is None:
-            folder_doc = Document(
-                name=folder.name,
-                path=str(folder),
-                doc_type=DocType.folder,
-                status=Status.completed,
-                parent_id=parent_id,
-            )
-            with db.transaction():
-                db.save(folder_doc)
-                _touch_ancestor_documents(db, folder_doc.parent_id)
+        folder_doc, made = ensure_folder_document(db, folder, parent_id)
+        if made:
             notify_document(folder_doc)
         folder_id = folder_doc.id
         logger.info(

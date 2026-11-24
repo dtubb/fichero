@@ -479,12 +479,11 @@ every kept export. The Word transcript streams one folder at a time into the zip
   person marked incomplete; the workbook prints a person's values and canonical name forms and marks a
   machine's proposals, and `proposals: omitted` leaves them out; Tema holds the prototype's subject
   vocabulary with both labels. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
-- `catalogue.export.list-cells-follow-the-declaration` — **[PARTIAL]** (#6282) built: a list column is joined by the declaration's `join`
-  (tested in the EAP preset). Not built: printing a person by `name_order` from the entity's surnames and given names. Full text: a list column is joined by
+- `catalogue.export.list-cells-follow-the-declaration` — **[OK]** (#6282) built: a list column is joined by the declaration's `join` and a person is printed by `name_order` from the entity's `surnames` and `given_names` (`catalogue_sheet._by_name_order`, the one function `cell` prints through). Full text: a list column is joined by
   the declaration's `join` ("|" in the EAP preset) and people are printed by its `name_order` from the
   entity's surnames and given names ("Apellido, Nombre"); a name with no split surname prints as
   written; the table and the export print the same string. Test:
-  fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
+  fichero-server/tests/unit/export/test_catalogue_sheet_rows.py (`test_people_print_by_the_declarations_name_order_from_the_entitys_names`).
 - `catalogue.export.names-sheet-is-the-canonical-set` — **[OK]** (#6282, #6283) Nombres holds one row
   per entity of the scope that is not rejected and not merged away, read through the KG spec's scope
   function: canonical name, forms as written, type, confirmed or proposed, folders, maker; a resolved

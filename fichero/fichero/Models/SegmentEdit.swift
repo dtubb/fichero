@@ -200,6 +200,12 @@ enum SegmentEdit {
         ))
     }
 
+    /// The ids a Join leaves selected, given the ids it joined (the first kept) and the ids the store holds after a
+    /// re-read: the kept one alone once the others are gone, all of them once an undo has brought them back.
+    static func selectionAfterJoin(joined: [String], live: Set<String>) -> [String] {
+        joined.allSatisfy(live.contains) ? joined : Array(joined.prefix(1))
+    }
+
     /// Whether a Join merges regions (so their lines move into the kept one and the order is shown after).
     static func joinsRegions(_ segments: [Segment]) -> Bool {
         segments.count >= 2 && segments.allSatisfy { $0.kind.lowercased() == "region" }

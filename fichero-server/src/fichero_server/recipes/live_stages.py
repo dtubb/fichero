@@ -7,6 +7,7 @@ from typing import Any
 #: The states a stage shows as, most telling first (a stage several runs carry reads as its most telling one).
 _ORDER = ("failed", "running", "waiting", "partial", "not run", "done")
 THIS_RUNS_PACE = "this run's pace"
+KIND_PACE_BASIS = "the last 50 of this kind"
 
 
 def _state(states: list[str]) -> str:
@@ -38,12 +39,20 @@ def stage_counts(status: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def eta(status: dict[str, Any]) -> tuple[float | None, str | None]:
-    """(seconds left, its basis) for the running stage: the run account's own pace, so the basis is `this run's pace`; none until a page is done.
-    A kind's median per item (the basis for work with no pace of its own yet) is not worked out here."""
+def eta(status: dict[str, Any], per_item: dict[str, float] | None = None) -> tuple[float | None, str | None]:
+    """(seconds left, its basis) for the running stage: the run account's own pace (`this run's pace`); while no page is done, the median
+    seconds one page job of the stage's kind took (`per_item`, from `jobs.seconds_per_item`) times the pages left (`the last 50 of this
+    kind`); none when neither is known."""
     running = next((s for s in status.get("steps") or [] if s.get("state") == "running" and s.get("account") is not None), None)
-    left = running["account"].estimate_seconds_left if running else None
-    return (left, THIS_RUNS_PACE) if left is not None else (None, None)
+    if running is None:
+        return None, None
+    account = running["account"]
+    if account.estimate_seconds_left is not None:
+        return account.estimate_seconds_left, THIS_RUNS_PACE
+    pace = (per_item or {}).get(running.get("job"))
+    if pace and account.pages_left > 0:
+        return round(pace * account.pages_left, 1), KIND_PACE_BASIS
+    return None, None
 
 
 def cost_so_far(status: dict[str, Any]) -> float | None:

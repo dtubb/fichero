@@ -66,3 +66,16 @@ def test_a_persons_own_background_setting_with_the_mac_idle_stays_background(qos
                         lambda: {"priority": "background", "device": "auto"})
     assert kraken_runtime.set_page_priority(person=False) == ("background", "background", 4)
     assert qos == ["background"]
+
+
+def test_a_run_at_utility_with_the_mac_in_use_lowers_its_concurrency_and_never_drops_to_background(qos):
+    """`activity.run.utility-qos-bounded` (#5358): in use, an automatic page reads at utility QoS (never the background
+    class, ~18 times slower) on half the performance cores, and the plan's pages at once times their threads stays inside
+    that half, so the run is bounded and still reads every page."""
+    person = kraken_runtime.set_page_priority(person=True)
+    qos.clear()
+    priority, label, cores = kraken_runtime.set_page_priority(person=False)
+    assert label == "utility" and "background" not in qos  # the class, never the lowest
+    assert cores == person[2] // 2  # lowered: half of the person's cores
+    pages = min(cores, kraken_runtime.PAGES_AT_ONCE_GATE_5929)
+    assert pages >= 1 and pages * kraken_runtime.threads_each(cores, pages) <= cores

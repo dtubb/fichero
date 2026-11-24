@@ -39,7 +39,7 @@ def test_six_answers_and_unsupported_is_said():
 
 
 def test_claude_code_argv(tmp_path, monkeypatch):
-    write_rules(tmp_path, '[policy]\nrules = [{ re = "x", reason = "NO X" }]\n')
+    write_rules(tmp_path, '[policy]\nrules = [{ re = "x", reason = "NO X" }]\n[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
     wt = tmp_path / "wt"
     wt.mkdir()
     subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
@@ -49,7 +49,7 @@ def test_claude_code_argv(tmp_path, monkeypatch):
     argv = start_tool.prepare(tmp_path, wt, "do it", scratch)
     assert argv[:3] == ["sh", "-c", start_tool._READ_PROMPT] and argv[4] == str(scratch / "prompt.md") and argv[5] == "do it"
     text = (scratch / "prompt.md").read_text()
-    assert "NO X" in text and "Written-By: sonnet using Claude Code using Fichero Builder" in text and text not in " ".join(argv)  # a file, not the text
+    assert "NO X" in text and "Written-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder" in text and text not in " ".join(argv)  # a file, not the text
     assert argv[argv.index("--settings") + 1] == str(scratch / "settings.json")
     assert argv[argv.index("--setting-sources") + 1] == ""  # no user, project or local settings: only the generated file
     assert "--strict-mcp-config" in argv
@@ -75,3 +75,17 @@ def test_the_claude_code_adapter_answers_all_six_and_can_take_a_lane():
     cc = adapters.get("claude-code")
     assert not any(isinstance(cc.answer(q), adapters.Unsupported) for q in QUESTIONS)
     adapters.require_lane_capable(cc)
+
+
+def test_the_workers_tmpdir_and_pytest_basetemp_reach_the_session_command_not_the_tmux_servers_environment(tmp_path, monkeypatch):
+    """#6869: a window opened in a tmux server that is already running gets the server's environment, so the two variables go on the command."""
+    write_rules(tmp_path, '[policy]\nrules = []\n')
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "h"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
+    monkeypatch.setenv("TMPDIR", "/w/work-a/tmp")
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--basetemp=/w/work-a/tmp/pytest")
+    argv = start_tool.prepare(tmp_path, wt, "do it", tmp_path / "scratch", claude_bin="claude")
+    assert argv[6:10] == ["env", "TMPDIR=/w/work-a/tmp", "PYTEST_ADDOPTS=--basetemp=/w/work-a/tmp/pytest", "claude"]

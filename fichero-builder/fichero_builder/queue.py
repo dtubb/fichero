@@ -41,6 +41,8 @@ ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
 APPROVED_PINNED: list = [{}]  # [loop.approved_pinned] {path: blob sha}: a maintainer lane's pinned diff of exactly these blobs is approved by itself (#6466)
 DISK_FLOOR_GB: list = [0.0]  # [loop].disk_floor_gb: under this many free GB no new lane starts; 0 = off
+PARKED: list = []  # the lanes whose worker a cap or a provider refusal parked in this tick: one alert for them all
+DISK_HELD: list = []  # the lanes the floor held in this tick; `tick` turns them into one alert, and one more when the floor clears
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
@@ -217,6 +219,7 @@ class Procs:
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
+    live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
 
@@ -302,7 +305,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                                f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
         journal.append("queue", lane=lane["id"], step=s["step"], state=state if not err else "tell-refused", detail=err or note + str(f))
 
-    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False, red=False):
+    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False, red=False, quiet=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
         if red:  # a failed check only (#6506: a retry of the same head says so); a question block is not shown as red
@@ -318,7 +321,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                              note=f"sent back automatically ({s['auto_sb']} of {AUTO_SEND_BACKS}): {why.splitlines()[0][:200]}; findings in ")
             alert(lane["id"], s["step"], why, evidence or str(q), ["send-back", "retry", "park"])
             return False
-        alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
+        if not quiet:  # a cap park is the tick's one alert (`park_alert`), not one a lane
+            alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
         if lane.get("kind") == "external" and s.get("land_tree"):  # the lane fixes it on its branch: tell it where the findings are
             findings_to_lane(s, why, evidence, q)
         return False
@@ -392,7 +396,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         del handles[lane["id"]]
         h, lane["feed"], end = None, "", procs.end_of(lane)
         if end == "parked":
-            return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`")
+            PARKED.append(lane["id"])
+            return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
         if s["state"] == "sent":
             s["restarts"] += 1
             if s["restarts"] > RESTARTS:
@@ -403,6 +408,13 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
             handles[lane["id"]] = adopted
             journal.append("queue", lane=lane["id"], step=s["step"], state="adopted", detail="a restarted loop took over the lane's live tmux window")
+            return True
+        if wins := procs.live_windows(lane):  # #6850: a live session this loop cannot watch is told, never ended or started beside
+            if s.get("live_window_alert") != wins:
+                s["live_window_alert"] = wins
+                store(lane)
+                alert(lane["id"], s["step"], f"a live session runs in tmux window {', '.join(wins)} and this loop cannot watch it (no `builder run` on its feed): "
+                      "it is left running; `builder queue stop` ends it, then retry", str(journal.STATE / "journal.jsonl"), ["retry", "park"])
             return True
         procs.stop(lane)  # ponytail: it stops within its own tick and the new one starts one tick later; two workers never share a worktree for long
         lane["feed"] = ""
@@ -437,7 +449,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                     return True
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0]:
                     why = f"{free:.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts"
-                    if s.get("disk_held") != why:
+                    DISK_HELD.append(lane["id"])
+                    if not s.get("disk_held"):  # a row when the lane is first held, not at every figure the disk reads
                         s["disk_held"] = why
                         store(lane)
                         journal.append("queue", lane=lane["id"], step=s["step"], state="disk-hold", detail=why)
@@ -458,6 +471,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         row = procs.row(lane)
         if row is None:
             return True
+        if row.get("waiting"):  # #6855: the worker ended its turn with `WAITING: <question>`: one ask alert, and the step waits for an answer
+            s["waiting"] = row["waiting"]
+            return block(s, f"WAITING: {row['waiting']}", ("send-back", "retry", "park"))
         if not row.get("moved") and not procs.ahead_of_origin(lane):  # #6507: a retried batch's commits predate this session; the tree past origin counts
             return block(s, "the worker said DONE with no commit on this step")
         move(s, "done", "")
@@ -856,11 +872,13 @@ def close_alerts(lane_id: str, step: str, why: str) -> list[str]:
     return ids
 
 
-def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) -> str:
-    """One `alert` row: what failed in a line, where its evidence is, what the manager may answer (dev-workflows.run.loop-alerts)."""
+def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str], issues: list[int] | None = None) -> str:
+    """One `alert` row: what failed in a line, where its evidence is, what the manager may answer (dev-workflows.run.loop-alerts).
+    `issues` is for an alert with no queue step behind it (a review's owner question): `ask-owner` puts it on those issues."""
     n = sum(1 for r in journal.read() if r.get("event") == "alert") + 1
     aid = f"{lane_id.lstrip('-') or 'harness'}-{step}-{n}"  # the console refuses an id that starts with "-": a lane named "-" made Dismiss do nothing
-    journal.append("alert", id=aid, lane=lane_id, step=step, what=(why.strip().splitlines() or [""])[0][:300], evidence=evidence, actions=actions)
+    extra = {"issues": issues} if issues else {}
+    journal.append("alert", id=aid, lane=lane_id, step=step, what=(why.strip().splitlines() or [""])[0][:300], evidence=evidence, actions=actions, **extra)
     return aid
 
 
@@ -897,7 +915,7 @@ def _set_approval(s: dict, kind: str | None, approvals) -> None:
         s["maintainer"] = True  # the chain runs the check with --maintainer
 
 
-def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, str]:
+def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "") -> tuple[int, str]:
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
     rows = journal.read()
@@ -928,6 +946,10 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         (journal.STATE / DAILY).unlink(missing_ok=True)
         journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="the daily builds run at the next tick")
         return 0, f"{alert_id}: retry (the daily builds run at the next tick)"
+    if action == "ask-owner" and a.get("issues") and not any(x["id"] == a["lane"] and any(s["step"] == a["step"] for s in x["steps"]) for x in load()):
+        ask(a["issues"], f"{a['lane']} {a['step']}", f"{a['what']} (evidence: {a['evidence']})", gh=gh, cwd=cwd)  # a review's question: no step behind it
+        journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="")
+        return 0, f"{alert_id}: {action}"
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == a["lane"]), None)
@@ -938,6 +960,10 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         if s is None:
             journal.append("alert-answer", id=alert_id, action=action, ok=False, detail="the lane or step is gone")
             return 1, "REFUSED: the lane or step is gone"
+        if action == "send-back" and s.get("waiting") and a["what"].startswith("WAITING:") and not text.strip():  # #6855: a question's send-back is its answer; with none the session is asked the same thing
+            why = f"{a['lane']} {a['step']} asked: {s['waiting'][:200]}: send-back needs the answer (--text)"
+            journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)
+            return 1, f"REFUSED: {why}"
         if action == "dispatch":  # #6500: the loop runs this lane from now on, as [loop].dispatch would
             lane["dispatch"] = True
             save(lanes)
@@ -947,6 +973,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             again = "done" if action == "approve" or (action == "retry" and head_) else "queued"
             said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
+            s.pop("waiting", None)  # the question is answered, retried or approved past: it is not asked again by a later alert
             if action == "retry" and head_:  # the same head, the chain again from the failed rung: green rungs stand, no fresh session
                 s["head"], s["retry_rungs"] = head_, True
             if action == "retry":  # #6506: the retried head goes behind fresh dones; an unchanged head is said to be one
@@ -985,7 +1012,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
                         kinds.append(s["approve_kind"])
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
-                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n"))
+                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")))
                 s["resume_brief"] = str(fix)
             lane["paused"] = False
             save(lanes)
@@ -1429,8 +1456,43 @@ def clean_up(lane: dict, ref: str, on_removed: Callable[[str], None] = lambda tr
         _cleanup_row(lane, "", wt, "removed" if r.returncode == 0 else "kept", f"branch {branch} " + ("removed" if r.returncode == 0 else f"kept: {r.stderr.strip()[-200:]}"))
 
 
+def park_alert() -> None:
+    """#6851: a cap parks every running worker in the same tick; the alert is one row listing the lanes. Only `kill-window` ever
+    stops a worker here, so a park leaves the tmux server and the other sessions alone."""
+    lanes, PARKED[:] = sorted(set(PARKED)), []
+    if lanes:
+        alert("-", "cap-park", f"workers parked by a cap or a provider refusal: {', '.join(lanes)}; read the journal, then `builder queue resume`",
+              str(journal.STATE / "journal.jsonl"), [])
+
+
+DISK_FLOOR_MARK = "disk-floor.held"  # present while the floor holds lanes: survives a restart, costs one stat a tick (the journal is tens of MB)
+
+
+def disk_floor_alerts(procs: Procs) -> None:
+    """#6852: every lane held by the disk floor is one alert naming them, and the floor clearing is one more; the marker file
+    under the state dir says which of the two the loop is in, so a restart repeats neither."""
+    held, DISK_HELD[:] = sorted(set(DISK_HELD)), []
+    mark = journal.STATE / DISK_FLOOR_MARK
+    if not held and not mark.exists():
+        return
+    if held and not mark.exists():
+        why = f"{procs.free_gb():.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts ({', '.join(held)} held)"
+        mark.parent.mkdir(parents=True, exist_ok=True)
+        mark.write_text(why + "\n")
+        journal.append("loop", state="disk-floor", detail=why)
+        alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
+    elif not held and (not DISK_FLOOR_GB[0] or procs.free_gb is None or procs.free_gb() >= DISK_FLOOR_GB[0]):
+        mark.unlink(missing_ok=True)
+        if DISK_FLOOR_GB[0] and procs.free_gb is not None:
+            why = f"{procs.free_gb():.0f} GB free, over the floor of {DISK_FLOOR_GB[0]:g} GB: lanes start again"
+            journal.append("loop", state="disk-floor-clear", detail=why)
+            alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
+    DISK_HELD.clear()
+    PARKED.clear()
     for lane in sorted(filter(_ours, load()), key=_green_first):
         try:
             if manage(lane, procs):
@@ -1444,6 +1506,8 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
+    park_alert()
+    disk_floor_alerts(procs)
     daily_when_due(procs, chains)
     nightly_when_due(procs, chains)
     reconcile_when_due(procs, chains)
@@ -1869,6 +1933,13 @@ def worker_windows(j, name: str, with_command: bool = False) -> list:
     return hits if with_command else [i for i, _ in hits]
 
 
+def live_windows(j, lane: dict) -> list:
+    """#6850: the ids of the windows named for the lane that run more than an idle shell; [] with no jail user."""
+    if j is None or not j.user:
+        return []
+    return [wid for wid, cmd in worker_windows(j, lane["id"], with_command=True) if cmd and cmd.lstrip("-") not in SHELLS]
+
+
 def adopt_session(j, lane: dict):
     """#6589: a handle on the lane's live session, or None: its `builder run` still watches its feed and a window named for the lane
     runs something other than an idle shell. The seams are `run_alive` and `tmux_as_worker`."""
@@ -1951,7 +2022,10 @@ def real_procs(root) -> Procs:
                            *(("--role", role) if role else ()))
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
-        return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],
+        # #6869: the worker starts in a directory it made (the workroot is world-writable), and its TMPDIR and pytest's basetemp are inside it
+        own = q(str(Path(j.workroot) / f"work-{lane['id']}"))
+        env = f"export TMPDIR={own}/tmp PYTEST_ADDOPTS=--basetemp={own}/tmp/pytest"
+        return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"mkdir -p {own}/tmp && [ -d {own} ] && [ ! -L {own} ] && [ -O {own} ] && cd {own} && {env} && {cmd}"],
                                 stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
 
     def send(lane, text):
@@ -2079,6 +2153,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
+                 live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",

@@ -184,6 +184,8 @@ All paths below are under `fichero-server/src/fichero_server/`.
   text or a declared sign's id) describes one mark. `Hand` and `Allograph` are project records
   shared across sources. `DeclaredSign` (`models/signs.py:56`) is a sign in the project's sign list
   whose picture is a real segment on a real page (`picture_segment_id`).
+- **Knowledge-graph comments.** `KgComment` (`models/kg_comments.py`: `anchor_id`, `parent_id`) is a human comment on a claim, entity,
+  source or segment. A transfer does not carry comments: they stay in the project they were written in.
 - **Correction episodes** (VERIFIED at `99adaab9a`). The episode ledger is append-only JSONL inside
   the package, `<package>/episodes/YYYY-MM.jsonl` (`observability/episodes.py:65`), not a table. A
   record carries `episode_id`, `subject` (`document_id`, `document_ids`, `line_ids`, `artifact_id`,

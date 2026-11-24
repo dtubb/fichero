@@ -318,10 +318,11 @@ extension ZoomableImagePreview {
         guard onSegments else { return false }
         // Merged regions: their lines now read among the kept region's; the order shows for two seconds.
         let flash = SegmentEdit.joinsRegions(segments)
-        runSegmentEdit(SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments") { _ in
-            if flash { windowState?.flashOrderOverlay() }
-        }
-        regionSelection.clear()
+        runSegmentEdit(
+            SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments",
+            answered: { _ in if flash { windowState?.flashOrderOverlay() } },
+            afterReread: { selectAfterJoin(segments.map(\.id), documentId: documentId) }
+        )
         return true
     }
 
@@ -351,7 +352,8 @@ extension ZoomableImagePreview {
 
     func runSegmentEdit(
         _ planned: Result<SegmentEdit.Call, SegmentEdit.Refusal>, documentId: String, name: String,
-        answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in }
+        answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in },
+        afterReread: @escaping @MainActor () -> Void = {}
     ) {
         guard case .success(let call) = planned else {
             if case .failure(let refusal) = planned {
@@ -366,7 +368,7 @@ extension ZoomableImagePreview {
             do {
                 let result = try await runner.runAnswering(
                     call, documentId: documentId, actionName: name, steps: windowSteps,
-                    afterChange: { await loadOCRGeometry() }
+                    afterChange: { await loadOCRGeometry(); afterReread() }
                 )
                 answered(result)
             } catch {

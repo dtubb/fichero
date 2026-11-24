@@ -57,6 +57,8 @@ class TrainVisionLoraRequest(_TrainRequest):
                                  "its own reading of the line is within this CER of the checked one.")
     all_lines: bool = Field(False, description="Train an A/B arm on every line it has, not only the lines every "
                             "reasoning arm covers.")
+    recipe_file: str | None = Field(None, description="The name of a LoRA recipe file in the project's `lora-recipes` folder (`training.lora_recipe`) naming rank, learning "
+                                    "rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above.")
 
 
 class TrainKrakenHereRequest(_TrainRequest):

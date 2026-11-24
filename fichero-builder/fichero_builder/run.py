@@ -115,6 +115,7 @@ def real_procs(home, worktree) -> Procs:
     return Procs(start=_start, alive=_alive, stop=_stop, read=read, head=lambda: _head(worktree), tell=_tell, redeliver=_redeliver)
 
 
+WAITING = re.compile(r"^WAITING:[ \t]*(\S.*)$", re.M)  # #6855: a worker's end line when it needs an answer, not more work
 DONE = re.compile(r"^DONE ([0-9a-f]{7,40})\b", re.M)  # the brief's end line: DONE <short sha of the branch head>
 HANDOFF_READY = "HANDOFF READY"
 REDELIVER_S, REDELIVERIES = 60.0, 3  # a message with no turn started after this long is delivered again, up to this many times
@@ -297,6 +298,9 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         m = done.search(state.get("last_text", "")) if idle else None
         head = procs.head() if idle else ""
         said = bool(m and head and head.startswith(m.group(1)))
+        if idle and not m and feed is not None and (w := WAITING.search(state.get("last_text", ""))):
+            step_done(head, head != base, waiting=w.group(1)[:500])  # #6855: the queue raises the ask alert from this row; the session stays
+            continue
         unsaid = unsaid + 1 if head and head != base and not said else 0
         if unsaid == 2 and not nudged:
             words = f"Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE {head[:7]}"

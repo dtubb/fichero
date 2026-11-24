@@ -20,6 +20,16 @@ extension ZoomableImagePreview {
         regionSelection.select(index, artifactId: scope, documentId: documentId, in: boxes)
         windowState?.openForTextSegmentId = id
     }
+
+    /// After each re-read of a Join (it, its undo, its redo): the kept line is selected, or the joined lines once undone.
+    func selectAfterJoin(_ joined: [String], documentId: String) {
+        guard let store = segmentEditStore else { return }
+        let live = Set(store.segments(documentId: documentId).map(\.id))
+        InspectorPath.select(
+            segmentIds: SegmentEdit.selectionAfterJoin(joined: joined, live: live),
+            into: regionSelection, documentId: documentId, store: store
+        )
+    }
 }
 
 #endif

@@ -421,6 +421,12 @@ def r_since(repo: str, branch: str) -> str:
     return land_tool.resolve_branch(repo, branch) or branch
 
 
+def lane_diff(repo: str, since: str, head: str, *opts: str, paths: tuple = ()) -> str:
+    """git diff of what the lane changed: `since...head` compares with the merge-base, so a file the base moved and the lane did
+    not touch is no part of it (#6853: `since head` showed it reversed, and a pinned-checks refusal named it)."""
+    return _git(repo, "diff", *opts, f"{since}...{head}", *(["--", *paths] if paths else [])).stdout
+
+
 MOVES = 3  # ponytail: a busier landing branch than three moves in one chain is a row for a person
 
 
@@ -451,15 +457,30 @@ def _base_moved(a, branch: str, head: str) -> bool:
     return r.returncode == 1
 
 
+# The files a route change regenerates (the outputs of `[check].regen` and its sync script). Two batches that share only these do not
+# wait for each other: landing rebases and regenerates them, and the contract-current rung catches a stale one.
+GENERATED_CLASH_FREE = frozenset({
+    "docs/contributor_manual/api-reference/openapi.json",
+    "fichero-cli/src/fichero_cli/openapi_surface_generated.py",
+    "fichero-mcp/src/fichero_mcp/openapi_tools_generated.py",
+    "fichero-server/tests/contracts/endpoints.json",
+    "fichero-server/tests/contracts/openapi.json",
+    "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json",
+    "fichero/fichero-api-client/Sources/FicheroAPIClient/ContractIdentity.generated.swift",
+    "fichero-server/src/fichero_server/api/contract_identity_generated.py",
+    "fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
+})
+
+
 @contextlib.contextmanager
 def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
     """Speed 3 (manager 2026-11-02): up to n ladders at once ([check].parallel), never two whose batches share a file (an
     unknown file list shares every file). The slot's files sit beside its lock while it runs; a slot whose lock is free is
     not running, whatever file it left. A wait over Lock.WARN_S is one row, like the single lock's."""
-    t0, said, state = time.time(), False, Path(journal.STATE)
+    t0, said, clashed, state = time.time(), False, False, Path(journal.STATE)
     while True:
         with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
-            free, clash = None, ""
+            free, clash, shared = None, "", set()
             for slot in journal.ladder_slots(n):
                 lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
                 try:
@@ -470,8 +491,8 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
                         o = json.loads(other.read_text())
                     except (OSError, ValueError):
                         o = {"name": "?", "files": []}
-                    if not files or not o["files"] or set(files) & set(o["files"]):
-                        clash = o["name"]
+                    if not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE):
+                        clash, shared = o["name"], (both if files and o["files"] else {"(an unknown file list)"})
                     continue
                 if free is None:
                     free = (slot, lk)
@@ -480,6 +501,10 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
             if free and clash:
                 free[1].__exit__()
                 free = None
+                if not clashed:  # a slot was free and the batch still waited: one row, so the cost of the rule can be measured
+                    clashed = True
+                    journal.append("lock", state="clash", name="ladder", holder=clash, what=f"the check of {name}", pid=os.getpid(),
+                                   detail=f"a ladder slot is free, but its batch shares {', '.join(sorted(shared))} with the check of {clash}")
             if free:
                 (state / f"{free[0]}.files").write_text(json.dumps({"name": name, "files": files}))
         if free:
@@ -509,7 +534,7 @@ def pick_reviewer(a, repo: str, branch: str, head: str, full: str) -> str:
     fast = getattr(a, "reviewer_fast", "") or full
     if fast == full or getattr(a, "last_step", False):
         return full
-    names = _git(repo, "diff", "--name-only", r_since(repo, branch), head).stdout.split()
+    names = lane_diff(repo, r_since(repo, branch), head, "--name-only").split()
     return full if any(n.startswith(tuple(getattr(a, "opus_paths", OPUS_PATHS))) for n in names) else fast
 
 
@@ -545,7 +570,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             return no("error", f"could not fetch the worktree's branch into {repo}")
         try:
             since_now = r_since(repo, branch)
-            files = _git(repo, "diff", "--name-only", since_now, head).stdout.split()
+            files = lane_diff(repo, since_now, head, "--name-only").split()
         except (RuntimeError, OSError):
             since_now, files = "", []  # unknown: shares every file, so it runs alone
         kept = keep_green(repo, carry[0], carry[1], since_now, files, check_tool.load(a.pinned), carry[2], head) if carry else ""
@@ -593,7 +618,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     approvals = pinned_approvals(t)
                     paths = list(check_tool.load(a.pinned).check_paths) + [f":(glob)**/{g}" for g in check_tool.load(a.pinned).test_globs]
                     diff = state / f"pinned-{a.name}.diff"
-                    diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *paths).stdout)
+                    diff.write_text(lane_diff(repo, r_since(repo, branch), head, paths=tuple(paths)))
                     kind = "needs-maintainer" if "maintainer" in approvals else "weakened-tests" if "approve_weakened" in approvals else "pinned-new"
                     return {**no(kind, f"pinned-checks at {head[:9]}: {t[-300:]}", t, str(diff)), "approvals": approvals, "judged": head}
                 if r.get("failed") == "guards":
@@ -614,7 +639,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     if more:
                         union = sorted({*have, *more})
                         diff = state / f"guard-data-{a.name}.diff"
-                        diff.write_text(_git(repo, "diff", since_now, head, "--", *union).stdout)
+                        diff.write_text(lane_diff(repo, since_now, head, paths=tuple(union)))
                         widen = f" (the approval at this head named only {', '.join(have)}; widened to all of them)" if have else ""
                         return {**no("guard-data", f"guards red at {head[:9]} with guard data changed by the batch: {', '.join(union)}; approve lays HEAD's copy of "
                                      f"exactly these files under the pinned guards (the scripts stay pinned){widen}", _tail(r), str(diff)), "approvals": ["approve_guard_data"]}

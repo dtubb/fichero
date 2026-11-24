@@ -23,6 +23,7 @@ import argparse
 import json
 import os
 import random
+import signal
 import sys
 
 #: The parts of the language model the adapter learns. In the Qwen-VL families (Qwen2.5-VL, Qwen3-VL and
@@ -58,6 +59,25 @@ def select(pairs: list[dict], arm: str = "answer", *, all_lines: bool = False) -
     return chosen
 
 
+def already_done(epoch: int, step: int, resume: dict | None) -> bool:
+    """True for a step a checkpoint says was finished (`compute.tune.survives-the-time-limit`): the shuffle of an epoch
+    is seeded by its number, so skipping the first `step` pairs of epoch `resume["epoch"]` repeats nothing."""
+    return resume is not None and (epoch, step) <= (resume["epoch"], resume["step"])
+
+
+def write_state(path, epoch: int, step: int) -> None:
+    """The checkpoint file Slurm's wrapper checksums: the last finished step. Written after the adapter beside it."""
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump({"epoch": epoch, "step": step}, handle)
+
+
+def read_state(path) -> dict | None:
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def split(pairs: list[dict], aside: float = 0.02, seed: int = 0) -> tuple[list[dict], list[dict]]:
     """Training pairs and a few kept aside for a loss to watch; at least one aside when there are 50+."""
     shuffled = pairs[:]
@@ -87,6 +107,9 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--rank", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--merged", action="store_true", help="also write the merged model (as large as the base); "
+                        "the adapter is always written")
+    parser.add_argument("--resume", default=None, help="a last.ckpt a stopped part left (`compute.tune.survives-the-time-limit`)")
     parser.add_argument("--accumulate", type=int, default=8)
     parser.add_argument("--arm", default="answer", help="answer, why, thinking or review (a reasons set's arm)")
     parser.add_argument("--all-lines", action="store_true", help="an A/B arm on every line it has, not only "
@@ -113,6 +136,15 @@ def main() -> None:
     model = get_peft_model(model, LoraConfig(r=args.rank, lora_alpha=2 * args.rank, lora_dropout=0.05,
                                              target_modules=TARGET_MODULES, task_type="CAUSAL_LM"))
     model.print_trainable_parameters()
+    ckpt = os.path.join(args.out, "last.ckpt")  # Slurm's SIGUSR1 warning: finish the step, save, stop
+    stop = []
+    signal.signal(signal.SIGUSR1, lambda *_: stop.append(True))
+    resume = read_state(args.resume) if args.resume else None
+    if resume:
+        from peft import set_peft_model_state_dict
+        from safetensors.torch import load_file
+
+        set_peft_model_state_dict(model, load_file(os.path.join(args.resume + ".adapter", "adapter_model.safetensors")))
 
     def encode(pair: dict) -> dict:
         image = Image.open(os.path.join(args.data, pair["image"])).convert("RGB")
@@ -131,12 +163,22 @@ def main() -> None:
         random.Random(epoch).shuffle(train)
         running = 0.0
         for step, pair in enumerate(train, 1):
+            if already_done(epoch, step, resume):
+                continue
             loss = model(**encode(pair)).loss / args.accumulate
             loss.backward()
             running += loss.item()
             if step % args.accumulate == 0 or step == len(train):
                 optimizer.step()
                 optimizer.zero_grad()
+            if stop:
+                optimizer.step()
+                optimizer.zero_grad()
+                os.makedirs(args.out, exist_ok=True)
+                model.save_pretrained(ckpt + ".adapter")
+                write_state(ckpt, epoch, step)
+                print(f"stopped after epoch {epoch} step {step}; checkpoint {ckpt}", flush=True)
+                sys.exit(0)
             if step % 200 == 0:
                 print(f"epoch {epoch} step {step}/{len(train)} loss {running * args.accumulate / step:.4f}", flush=True)
         if aside:
@@ -146,10 +188,11 @@ def main() -> None:
             print(f"epoch {epoch} loss on {len(aside)} pairs kept aside: {held:.4f}", flush=True)
 
     model.save_pretrained(os.path.join(args.out, "adapter"))
-    merged = model.merge_and_unload()
-    merged.save_pretrained(os.path.join(args.out, "merged"), safe_serialization=True, max_shard_size="5GB")
-    processor.save_pretrained(os.path.join(args.out, "merged"))
-    print("saved adapter and merged model", flush=True)
+    if args.merged:
+        merged = model.merge_and_unload()
+        merged.save_pretrained(os.path.join(args.out, "merged"), safe_serialization=True, max_shard_size="5GB")
+        processor.save_pretrained(os.path.join(args.out, "merged"))
+    print("saved the adapter" + (" and the merged model" if args.merged else ""), flush=True)
 
 
 if __name__ == "__main__":

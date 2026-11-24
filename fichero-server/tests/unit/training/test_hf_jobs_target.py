@@ -5,12 +5,18 @@ answers, which is all Fichero owns.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from fichero_server.training import hf_jobs
+from fichero_server.training import job as training_job
 from fichero_server.training.hf_jobs import HfJobsTarget, NoHuggingFaceToken
+from tests.unit.training.test_training_job import (  # noqa: F401,F811  (fixtures)
+    FakeHub, _subject, full_size_notebook, isolated,
+)
+from tests.unit.training.test_kraken_training_set import TEACHER as TEACHERS
 
 
 class FakeApi:
@@ -167,3 +173,80 @@ def test_every_shard_of_one_job_is_seen_in_one_call_and_carries_its_label():
     seen = target.statuses("read-1")
     assert {k: v.state for k, v in seen.items()} == {"a": hf_jobs.DONE, "b": hf_jobs.FAILED}
     assert len(_called(api, "list_jobs")) == 1
+
+
+# --- a LoRA recipe file drives the Job; the adapter always returns, the merged model only when asked
+# (`compute.tune.lora`, `compute.tune.adapter-always-returns`; no Job is submitted, the Hub is replaced) ---
+
+def test_a_lora_recipe_file_drives_the_jobs_arguments(tmp_path):
+    from fichero_server.training import lora_recipe
+
+    path = tmp_path / "student.lora.json"
+    path.write_text('{"rank": 8, "learning_rate": 3e-05, "epochs": 3, "prompt_form": "why"}', encoding="utf-8")
+    recipe = lora_recipe.load(path)
+    args = hf_jobs.lora_args("job-9", base_repo="Qwen/Qwen3-VL-8B-Instruct", **recipe.job_options())
+    assert args[args.index("--rank") + 1] == "8" and args[args.index("--lr") + 1] == "3e-05"
+    assert args[args.index("--epochs") + 1] == "3" and args[args.index("--arm") + 1] == "why"
+    assert "--merged" not in args  # the adapter alone, unless the merged model is asked for
+    assert "--merged" in hf_jobs.lora_args("job-9", base_repo="x", epochs=1, rank=2, merged=True)
+    for bad, words in (('{"rank": 8}', "learning_rate"), ('{"rank": 8, "learning_rate": 0, "epochs": 1, "prompt_form": "answer"}', "learning_rate"),
+                       ('{"rank": 8, "learning_rate": 1e-4, "epochs": 1, "prompt_form": "poem"}', "prompt_form")):
+        path.write_text(bad, encoding="utf-8")
+        with pytest.raises(ValueError, match=words):
+            lora_recipe.load(path)
+
+
+@pytest.mark.usefixtures("project_says_yes")
+def test_the_recipe_file_reaches_the_submitted_job(db, full_size_notebook, tmp_path, monkeypatch):  # noqa: F811
+    from fichero_server.training import mlx_landing
+    from fichero_server.training.job import TrainVisionLoraRequest
+
+    folder = Path(db.path).parent / "lora-recipes"
+    folder.mkdir()
+    recipe = folder / "r.lora.json"
+    recipe.write_text('{"rank": 8, "learning_rate": 3e-05, "epochs": 3, "prompt_form": "answer"}', encoding="utf-8")
+    monkeypatch.setattr(mlx_landing, "land_vision_student", lambda *a, **k: "fichero-trained/x")
+    monkeypatch.setattr(training_job.jobs, "run_on_lane_blocking", lambda lib, kind, subject, *, model, fn: fn())
+    hub = FakeHub()
+    request = TrainVisionLoraRequest(scope_ids=[full_size_notebook.folder.id], teacher=TEACHERS, name="x", pages_may_leave=True,
+                                     held_out_ids=[full_size_notebook.test_page.id], recipe_file=recipe.name)
+    started = training_job.start(db, request, started_by="historian", target_factory=lambda: hub)
+    training_job.run(db, _subject(db, started["job_id"]), target=hub, sleep=lambda s: None)
+    args = hub.submitted[0]["script_args"]
+    assert args[args.index("--rank") + 1] == "8" and args[args.index("--lr") + 1] == "3e-05"
+    assert args[args.index("--epochs") + 1] == "3"
+    assert "--merged" in args  # the MLX conversion asks for the merged model
+
+
+def test_the_result_package_holds_the_adapter_and_the_merged_model_only_when_asked(tmp_path):
+    from fichero_server.training import lora_recipe
+
+    out = tmp_path / "out"
+    for part in ("adapter", "merged"):
+        (out / part).mkdir(parents=True)
+        (out / part / "w.safetensors").write_bytes(b"x")
+    (out / "train.log").write_text("log", encoding="utf-8")
+    assert lora_recipe.result_package(out, merged=False) == ["adapter/w.safetensors", "train.log"]
+    assert lora_recipe.result_package(out, merged=True) == ["adapter/w.safetensors", "merged/w.safetensors", "train.log"]
+    for gone in ("adapter",):
+        import shutil
+
+        shutil.rmtree(out / gone)
+    with pytest.raises(FileNotFoundError, match="adapter"):
+        lora_recipe.result_package(out, merged=False)
+
+
+def test_a_recipe_is_a_name_in_the_projects_folder_and_a_path_is_refused_when_queued(db, full_size_notebook, tmp_path):  # noqa: F811
+    from fichero_server.training.job import TrainVisionLoraRequest
+
+    outside = tmp_path / "secret.json"
+    outside.write_text('{"rank": 8}', encoding="utf-8")
+    folder = Path(db.path).parent / "lora-recipes"
+    folder.mkdir()
+    (folder / "link.json").symlink_to(outside)
+    for bad in (str(outside), "../secret.json", "link.json", "absent.json"):
+        request = TrainVisionLoraRequest(scope_ids=[full_size_notebook.folder.id], teacher=TEACHERS, name="x",
+                                         pages_may_leave=True, recipe_file=bad)
+        with pytest.raises(ValueError, match="LoRA recipe") as refused:
+            training_job.start(db, request, started_by="historian", target_factory=FakeHub)
+        assert str(tmp_path) not in str(refused.value) and "secret" not in str(refused.value)

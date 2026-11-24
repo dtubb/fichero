@@ -1213,12 +1213,36 @@ async def _step(what: str, step) -> None:
         logger.exception("Shutdown step '%s' failed; carrying on with the rest", what)
 
 
+QUIT_DEADLINE_SECONDS = 10.0
+
+
+def _arm_quit_deadline(seconds: float = QUIT_DEADLINE_SECONDS, *, exit=os._exit) -> threading.Timer:
+    """The engine ends within `seconds` of its shutdown starting whatever it still holds (#6813): a timer on its own thread kills
+    the processes the engine started (a forked embedder child, a model server) and exits with 70. `_teardown` cancels the timer when its last step ends."""
+    def hard_exit() -> None:
+        import signal
+        import subprocess
+
+        logger.error("Shutdown did not finish within %.0fs: killing the engine's children and exiting", seconds)
+        found = subprocess.run(["pgrep", "-P", str(os.getpid())], capture_output=True, text=True).stdout.split()
+        for pid in found:
+            with suppress(ProcessLookupError, ValueError):
+                os.kill(int(pid), signal.SIGKILL)
+        exit(70)  # EX_SOFTWARE; distinct from a clean shutdown's 0
+
+    timer = threading.Timer(seconds, hard_exit)
+    timer.daemon = True
+    timer.start()
+    return timer
+
+
 async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bonjour_started, tailnet_forward,
                     mcp_tools_started, warm_started, app_db_started=None) -> None:
     """The lifespan's shutdown, in the order a normal quit has always had: live runs paused and streams closed, the projects
     checkpointed and closed (first, straight after the last thing that writes to them), then the network and local-model steps."""
     from fichero_server.api.change_stream import signal_sse_shutdown
 
+    deadline = _arm_quit_deadline()
     await _step("signal the SSE streams", signal_sse_shutdown)
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
     # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for
@@ -1289,6 +1313,7 @@ async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bon
     await _step("unload local models", shutdown_managed_local_inference_services)
     # Anything that opened a project during the steps above is closed too (close_all is idempotent).
     await _step("close the projects again", db_manager.close_all)
+    deadline.cancel()  # every step ended: a process that goes on running (a test client, a second lifespan) is not killed 10 s later
 
 app = FastAPI(
     title="Fichero API",
@@ -2655,6 +2680,7 @@ from fichero_server.api.routes import (  # noqa: E402
 )
 from fichero_server.api.routes.kg import (  # noqa: E402
     claim_search as kg_claim_search,
+    comments as kg_comments,
     entity_curation as kg_entity_curation,
     graph as kg_graph,
     predictions as kg_predictions,
@@ -2920,6 +2946,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (document_inspector.router, "/api", ["documents"]),
     (entity_inspector.router, "/api", ["entities"]),
     (kg_search.router, "/api", ["knowledge-graph"]),
+    # kg.interact.comment (#4643): a human comment on a claim, entity, source or segment.
+    (kg_comments.router, "/api", ["knowledge-graph"]),
     (entities.router, "/api", ["entities"]),
     (export.router, "/api", ["export"]),
     (folders.router, "/api/folders", ["folders"]),

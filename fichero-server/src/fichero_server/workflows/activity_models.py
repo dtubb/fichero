@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
 #: The three places of the tree, in its order.
 THIS_MAC, REMOTE, CLOUD = "this-mac", "remote", "cloud"
+#: The place Hugging Face's paid Jobs (training, reading at scale) run on; its account is the Hugging Face token's state.
+HF_JOBS = "Hugging Face Jobs"
 PLACES = (THIS_MAC, REMOTE, CLOUD)
 #: A call's recorded place (`llm/places.py`) -> the tree's.
 _CALL_PLACE = {"this_mac": THIS_MAC, "own_machine": REMOTE, "provider": CLOUD}
@@ -153,8 +155,10 @@ def places(probe: Any = reachable) -> list[dict[str, Any]]:
     Mac, by its host), each cluster set up (by its name) and each cloud provider set up. (place, provider) pairs in the
     tree's order; the provider is the node under the place, as a model's provider is. Each carries its `account`
     (`models.row.account-from-a-probe`): another Mac's from `probe(its address)` ("ready" / "not-reachable"), a cloud provider's
-    from the key a call uses, app-supplied keys included ("ready" / "needs-key"); None where nothing probes (a cluster)."""
-    found: list[tuple[str, str, str | None]] = [(THIS_MAC, "This Mac", "ready")]
+    from the key a call uses, app-supplied keys included ("ready" / "needs-key"); None where nothing probes (a cluster). Each carries its `egress`, worked out from where it is
+    (`models.place.egress-from-the-address`): this-mac, own-machine (an address off this Mac), provider (a cloud provider), institution (a cluster)."""
+    found: list[tuple[str, str, str | None, str]] = [(THIS_MAC, "This Mac", "ready", "this-mac")]
+    kinds: dict[tuple[str, str], str] = {}  # a cloud place -> its provider id, the key its calls in flight are counted by
     to_probe: dict[int, str] = {}  # index in `found` -> address, probed together after the loop
     try:
         from fichero_server.db.app import get_app_db
@@ -172,28 +176,49 @@ def places(probe: Any = reachable) -> list[dict[str, Any]]:
             if info.is_local:
                 if row.api_base and not call_places.address_is_on_this_mac(row.api_base):
                     to_probe[len(found)] = row.api_base
-                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind), None))
+                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind), None, "own-machine"))
             else:
                 from fichero_server.llm import get_api_key
 
-                found.append((CLOUD, _provider_word(kind), "ready" if get_api_key(kind) else "needs-key"))
-        found.extend((REMOTE, name, None) for name in _cluster_names(app_db).values())
+                found.append((CLOUD, _provider_word(kind), "ready" if get_api_key(kind) else "needs-key", "provider"))
+                kinds[(CLOUD, _provider_word(kind))] = kind
+        found.extend((REMOTE, name, None, "institution") for name in _cluster_names(app_db).values())
+        from fichero_server.llm import get_api_key as _token
+
+        found.append((CLOUD, HF_JOBS, "ready" if _token("huggingface") else "needs-key", "provider"))
         if to_probe:  # all at once: a poll waits one timeout, not one per Mac
             from concurrent.futures import ThreadPoolExecutor
 
             with ThreadPoolExecutor(max_workers=len(to_probe)) as pool:
                 answers = dict(zip(to_probe, pool.map(probe, to_probe.values())))
             for index, answer in answers.items():
-                place, provider, _ = found[index]
-                found[index] = (place, provider, "ready" if answer else "not-reachable")
+                place, provider, _, egress = found[index]
+                found[index] = (place, provider, "ready" if answer else "not-reachable", egress)
     except Exception:  # noqa: BLE001 -- the tree still shows what ran; the places set up are an addition
         import logging
 
         logging.getLogger(__name__).warning("Activity models: could not read the places set up", exc_info=True)
     order = {place: index for index, place in enumerate(PLACES)}
-    unique = {(p, v): a for p, v, a in found}
-    return [{"place": p, "provider": v, "account": unique[(p, v)]}
+    unique = {(p, v): (a, e) for p, v, a, e in found}
+    from fichero_server.workflows import circuit_breaker
+
+    return [{"place": p, "provider": v, "account": unique[(p, v)][0], "egress": unique[(p, v)][1],
+             "calls_in_flight": circuit_breaker.calls_in_flight(kinds[(p, v)]) if (p, v) in kinds else None,
+             "calls_cap": circuit_breaker.provider_cap(kinds[(p, v)]) if (p, v) in kinds else None, "credit": None}
             for p, v in sorted(unique, key=lambda pv: (order[pv[0]], pv[1].lower()))]
+
+
+#: The failure kinds that say a provider cannot be used now, the words of `models.row.credit-and-limits`.
+_CREDIT_KINDS = ("no-credit", "key-refused", "rate-limited")
+
+
+def add_credit(listed: list[dict[str, Any]], found: list[dict[str, Any]]) -> None:
+    """Each cloud place's `credit`: the newest failure today of a kind in `_CREDIT_KINDS` on one of its models (its words,
+    kind and fix button), else None. The engine keeps no provider-wide dead mark between runs, so there are no seconds left."""
+    for place in listed:
+        failures = [m["last_failed"] for m in found if (m["place"], m["provider"]) == (place["place"], place["provider"])
+                    and m["last_failed"] and m["last_failed"]["kind"] in _CREDIT_KINDS]
+        place["credit"] = max(failures, key=lambda f: f["at"] or "") if failures else None
 
 
 def _fits_here(rows: list[dict[str, Any]], facts: dict[str, Any], physical_memory: int | None) -> None:
@@ -425,3 +450,36 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
             one["account"] = (accounts or {}).get((one["place"], one["provider"]))
     order = {place: index for index, place in enumerate(PLACES)}
     return sorted(rows.values(), key=lambda r: (order[r["place"]], r["provider"].lower(), r["name"].lower()))
+
+
+#: How long a library's trained rows are kept: reading them walks every trained card and build on this Mac, and the
+#: window asks every ten seconds; they change only when a training run finishes.
+#: ponytail: key by the cards' modification times so a finished training shows at once.
+_TRAINED_TTL_SECONDS = 60.0
+_trained_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+
+
+def trained_rows(db: "Database") -> list[dict[str, Any]]:
+    """Kept for `_TRAINED_TTL_SECONDS` per library. The models Fichero trained in this project as rows under This Mac › Trained here (`models.trained.are-rows`), each
+    with its newest held-out scores, where it can run, and the ground truth it was trained on
+    (`models.ground-truth.counts`): the card's own counts, None where the card has none. `not_for_release` is the
+    card's rule inverted: a card that does not say it may be published is not released."""
+    from fichero_server.training.model_nodes import model_nodes
+
+    key = str(db.path)
+    kept = _trained_cache.get(key)
+    if kept is not None and time.monotonic() - kept[0] < _TRAINED_TTL_SECONDS:
+        return kept[1]
+    out = []
+    for node in model_nodes(db):
+        truth = node.get("training_set")
+        out.append({
+            "id": node["id"], "name": node["name"], "kind": node["kind"], "place": THIS_MAC, "section": "Trained here",
+            "trained_at": node.get("trained_at"), "trained_where": node.get("trained_where"), "scores": node.get("scores"),
+            "size_bytes": node.get("size_bytes"), "runs_on": node.get("runs_on") or [], "lives": node.get("lives"),
+            "ground_truth": ({k: truth.get(k) for k in ("pages", "lines", "lines_checked_by_a_person", "held_out_pages")}
+                             if truth else None),
+            "not_for_release": not node.get("may_publish"),
+        })
+    _trained_cache[key] = (time.monotonic(), out)
+    return out

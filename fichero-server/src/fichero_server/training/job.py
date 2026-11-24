@@ -78,6 +78,35 @@ class PagesMayNotLeave(PermissionError):
     """No yes was given for the pages to leave this Mac."""
 
 
+class OverTheCap(PagesMayNotLeave):
+    """The most this training can cost does not fit the project's Hugging Face cap (a refusal like the others: 403)."""
+
+
+def _within_the_cap(db: Any, price: float | None, timeout: str) -> float:
+    """A training start is checked against the project's monthly Hugging Face cap as price an hour times the time
+    limit, on top of what this month's Jobs can already cost (`source.onboard.spend-cap`, #5769). A $0 cap, or a
+    hardware with no listed price, refuses: nothing is sent on a guess. Refused in words, with nothing queued.
+    Returns the most the training can cost, in US dollars."""
+    from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.project import read_project_setup
+    from fichero_server.recipes.train_offers import _hours, spend_this_month
+
+    cap = spend_cap(read_project_setup(Path(db.path).parent)["answers"])
+    if cap <= 0:
+        raise OverTheCap("This project's Hugging Face spend cap is $0, so training there is refused: set a cap above "
+                         "$0 in Set Up first.")
+    hours = _hours(timeout)
+    if price is None or hours is None:
+        raise OverTheCap("Hugging Face lists no price for this hardware (or the time limit is unreadable), so the most "
+                         f"this training can cost is unknown and it cannot be checked against the ${cap:.2f} cap.")
+    most = round(price * hours, 2)
+    spent = spend_this_month(db, cap=cap)["spent_at_most_usd"]
+    if spent + most > cap:
+        raise OverTheCap(f"This training can cost up to ${most:.2f} (${price:g} an hour for {timeout}); Hugging Face "
+                         f"this month is at most ${spent:.2f} of the ${cap:.2f} cap, so it does not fit.")
+    return most
+
+
 def _project_must_agree(db: Any, what: str) -> None:
     """The request's yes is not enough: the project's own rule must say yes too (`ai.where.batch-sends-ask-the-project`,
     #5368); both must. Refused in words, with nothing queued."""
@@ -152,6 +181,10 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
         raise ValueError("name the folders or pages to train on")
     if isinstance(request, TrainKrakenRequest) and request.base:
         resolve_recognition_model(request.base)  # not installed: refused here, by name
+    if isinstance(request, TrainVisionLoraRequest) and request.recipe_file:
+        from fichero_server.training import lora_recipe
+
+        lora_recipe.load(lora_recipe.resolve(Path(db.path).parent, request.recipe_file))  # a bad recipe: refused here
     target = (target_factory or _target_for(place))()  # no token (or key): refused here, by name
     target.check_token()  # a token that can't run Jobs: refused here, in words (#5526)
     from fichero_server.training.kraken_set import refuse_an_empty_set
@@ -159,15 +192,16 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
     refuse_an_empty_set(db, request)  # nothing to train on: refused here, with the preview's reason (#5699)
     flavor = (request.flavor or target.cheapest(LORA_FLAVORS)) if place == TARGET else ""  # a cluster: one GPU a job
     price = target.price_per_hour(flavor)
+    most = _within_the_cap(db, price, request.timeout) if place == TARGET else None  # a cluster is not bought by the hour
     batch = kraken_batch(flavor, request.batch_size) if isinstance(request, TrainKrakenRequest) else None
     detail = {"card": _card_of(request), "request": request.model_dump(), "flavor": flavor,
-              "price_per_hour_usd": price, "yes": {"by": started_by, "at": _now(), "to": place},
+              "price_per_hour_usd": price, "max_cost_usd": most, "yes": {"by": started_by, "at": _now(), "to": place},
               "phase": "waiting", "history": [{"phase": "waiting", "at": _now()}],
               **({"batch_size": batch} if batch else {})}
     job_id = jobs.enqueue_remote(db, KIND, f"training:{uuid.uuid4()}", target=place, detail=json.dumps(detail),
                                  reason=f"Waiting to send to {_place_words(target, place)}", started_by=started_by)
     return {"job_id": job_id, "flavor": flavor, "timeout": request.timeout, "price_per_hour_usd": price,
-            "batch_size": batch}
+            "max_cost_usd": most, "batch_size": batch}
 
 
 #: Phases after which the Job on Hugging Face is known to have ended (or never to have started).
@@ -231,6 +265,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     from fichero_server.training.hf_jobs import (
         LORA_TRAINER, TRAINER, cannot_reach, kraken_args, kraken_batch, lora_args, ran_out_of_gpu_memory,
     )
+    from fichero_server.training import lora_recipe
     from fichero_server.training.kraken_set import EmptyTrainingSet, export_training_set
     from fichero_server.training.line_pairs import write_line_pairs
 
@@ -239,6 +274,9 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     card_name = detail.get("card", "kraken")
     request = CARDS[card_name](**detail["request"])
     vision = isinstance(request, TrainVisionLoraRequest)
+    if vision and request.recipe_file:  # the recipe file names rank, epochs and the prompt form (`compute.tune.lora`)
+        recipe = lora_recipe.load(lora_recipe.resolve(Path(db.path).parent, request.recipe_file))
+        request = request.model_copy(update={"rank": recipe.rank, "epochs": recipe.epochs, "arm": recipe.prompt_form})
     flavor = detail.get("flavor", request.flavor)
     place = _place_of(request)
     if target is None:
@@ -277,8 +315,12 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             if not arms["arms"].get(request.arm):
                 raise EmptyTrainingSet(f"no line in scope has the {request.arm} arm: gather the palaeographer's "
                                        "reasons for the checked lines first (or check its readings, for review)")
-            script, args = LORA_TRAINER, lora_args(job_id, base_repo=request.base_repo, epochs=request.epochs,
-                                                   rank=request.rank, arm=request.arm, all_lines=request.all_lines)
+            options = {"rank": request.rank, "epochs": request.epochs, "arm": request.arm}
+            if request.recipe_file:
+                options["lr"] = recipe.learning_rate
+            # the MLX conversion on this Mac needs the merged model, so this card asks for it
+            script, args = LORA_TRAINER, lora_args(job_id, base_repo=request.base_repo, all_lines=request.all_lines,
+                                                   merged=True, **options)
         else:
             base_file = None
             if request.base:
@@ -345,7 +387,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         "display_name": request.display_name or f"{request.name} (taught by {taught_by(request.teacher)})",
         "summary": (f"{lessons(request.teacher, ts)}; {counted(len(request.held_out_ids), 'page')} held out as the test; "
                     f"{counted(ts.get('lines_left_out', 0), 'flagged line')} left out."),
-        "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []),
+        "teacher": request.teacher, "taught_by": taught_by(request.teacher), "training_set": ts, "held_out": ts.get("held_out", []),
         "target": place, "far_id": far_id, "flavor": flavor,
         "not_for_release": request.not_for_release,
         "release_note": request.release_note or (NOT_FOR_RELEASE_NOTE if request.not_for_release else None),
@@ -364,6 +406,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         model_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card={**card, "base": request.base},
                                         project=Path(db.path).parent)  # lands inside the project (#5539)
         detail["reader_id"] = model_id
+        detail["held_out_score"] = _score_at_landing(db, request, model_id, detail["yes"]["by"])
     done = f"Done: {model_id} is ready to read with"
     if hasattr(target, "remove"):  # a cluster: the set's copies stay only where the project said so (#5769)
         from fichero_server.remote_read.job import copies_left
@@ -371,6 +414,24 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         done += copies_left(db, target, job_id)
     _save(db, job_id, detail, phase="done", reason=done)
     return model_id
+
+
+def _score_at_landing(db: Any, request: _TrainRequest, reader_id: str, started_by: str) -> dict[str, Any]:
+    """Start the evaluation job on the held-out pages the reader was kept from (`distill.eval.job`): the score lands on
+    the reader's card when that job ends. Nothing to score, or no fair score possible, is recorded in words, never
+    raised: the reader is trained and paid for."""
+    from fichero_server.models.compute_requests import EvaluationCandidate, EvaluationRunRequest
+    from fichero_server.training import evaluation
+
+    if not request.held_out_ids:
+        return {"state": "not measured", "why": "no held-out corrected pages"}
+    asked = EvaluationRunRequest(candidates=[EvaluationCandidate(model=reader_id, reader="kraken")],
+                                 held_out_ids=request.held_out_ids)
+    try:
+        started = evaluation.start(db, asked, started_by=started_by)
+    except evaluation.EvaluationRefused as exc:
+        return {"state": "not measured", "why": str(exc)}
+    return {"state": "scoring", "evaluation_job_id": started["job_id"]}
 
 
 def _out_of_reach_if_running_there(db: Any, job_id: str, detail: dict[str, Any], exc: Exception) -> None:

@@ -104,6 +104,9 @@ extension WindowState {
         return (orderClicks, orderAfter)
     }
 
+    /// Whether a slider release is for the pane that owns `selection`: the focused one, in any mode.
+    func simplifyReleaseIsFor(_ selection: RegionSelection) -> Bool { focusedRegionSelection === selection }
+
     /// The slider let go at `tolerance`: the live preview goes and one Simplify is asked for.
     func letGoOfSimplifySlider(at tolerance: Double) {
         simplifyTolerance = nil

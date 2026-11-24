@@ -24,22 +24,29 @@ class Authority:
     uri: str
     uri_back: re.Pattern[str]
     gazetteer: bool = False
+    #: The entity types this authority describes; None: every type.
+    serves: frozenset[str] | None = None
 
     def canonical(self, identifier: str) -> str:
         return self.uri.format(id=identifier)
 
 
-def _authority(key, label, pattern, uri, back, gazetteer=False) -> Authority:
-    return Authority(key, label, re.compile(pattern), uri, re.compile(back), gazetteer)
+def _authority(key, label, pattern, uri, back, gazetteer=False, serves=None) -> Authority:
+    if gazetteer:
+        serves = ("location",)
+    return Authority(key, label, re.compile(pattern), uri, re.compile(back), gazetteer,
+                     None if serves is None else frozenset(serves))
 
 
 AUTHORITIES: dict[str, Authority] = {a.key: a for a in (
     _authority("wikidata", "Wikidata", r"Q[1-9]\d*", "http://www.wikidata.org/entity/{id}",
                r"https?://(?:www\.)?wikidata\.org/(?:entity|wiki)/(Q[1-9]\d*)/?"),
     _authority("viaf", "VIAF", r"[1-9]\d*", "https://viaf.org/viaf/{id}",
-               r"https?://viaf\.org/viaf/([1-9]\d*)/?"),
+               r"https?://viaf\.org/viaf/([1-9]\d*)/?",
+               serves=("person", "organization")),
     _authority("loc", "Library of Congress", r"(?:n[bor]?|sh)\d+", "https://id.loc.gov/authorities/{kind}/{id}",
-               r"https?://id\.loc\.gov/authorities/(?:names|subjects)/((?:n[bor]?|sh)\d+)/?"),
+               r"https?://id\.loc\.gov/authorities/(?:names|subjects)/((?:n[bor]?|sh)\d+)/?",
+               serves=("person", "organization", "concept")),
     # The gazetteers (ruled 2026-09-27: they live on the place ENTITY).
     _authority("pleiades", "Pleiades", r"[1-9]\d*", "https://pleiades.stoa.org/places/{id}",
                r"https?://pleiades\.stoa\.org/places/([1-9]\d*)/?", gazetteer=True),
@@ -50,6 +57,12 @@ AUTHORITIES: dict[str, Authority] = {a.key: a for a in (
     _authority("whg", "World Historical Gazetteer", r"[1-9]\d*", "https://whgazetteer.org/places/{id}",
                r"https?://whgazetteer\.org/places/([1-9]\d*)(?:/.*)?", gazetteer=True),
 )}
+
+
+def authorities_for(entity_type) -> list[str]:
+    """The keys of the authorities offered for an entity type: those that serve it, so no nonsensical lookup is suggested."""
+    value = getattr(entity_type, "value", entity_type)
+    return [a.key for a in AUTHORITIES.values() if a.serves is None or value in a.serves]
 
 
 class AuthorityIdRefused(ValueError):

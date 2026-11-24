@@ -163,6 +163,7 @@ struct WorkspacesMenuBody: View {
         case .segments: "Segments"
         case .activity: "Activity"
         case .activityGraphs: "Activity Graphs"
+        case .models: ModelsWindowModel.windowTitle
         }
     }
 }

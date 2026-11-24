@@ -218,6 +218,20 @@ def stages_the_run_takes(db: Any, run_id: str | None) -> set[str]:
         {NLP_KIND} if any(c.get("job") == "find-names-tag-words" for c in cards) else set())
 
 
+def stages_unfinished_runs_take(db: Any, document_ids: list[str]) -> dict[str, set[str]]:
+    """For each page, the import-time work an unfinished recipe run (waiting, running or paused) does itself at its end
+    (`stages_the_run_takes`). A run with no `documents` is over every page. The open's recovery of stranded pages reads it, so a
+    page the recipe will embed is not also queued an embed that the launch alert lists beside the run (#6807)."""
+    held: dict[str, set[str]] = {}
+    for row in jobs.find_jobs(db, kinds=[KIND], states=["waiting", "running", "paused"]):
+        detail = json.loads(row["detail"] or "{}")
+        taken = stages_the_run_takes(db, row["id"])
+        named = detail.get("documents")
+        for doc_id in document_ids if named is None else set(named) & set(document_ids):
+            held.setdefault(doc_id, set()).update(taken)
+    return held
+
+
 def _why_no_recipe_on_add(db: Any) -> str | None:
     """Why an import runs no recipe at all, in words; None when it runs the recipe's plan. The one gate
     `material_arrived` and `what_runs_by_itself` share."""
@@ -476,6 +490,20 @@ def _awaited_child(db: Any, job_id: str) -> str | None:
     return ((json.loads(row["detail"] or "{}")).get("awaiting") or {}).get("child")
 
 
+def _adopt_quit_paused_step(db: Any, job_id: str) -> str | None:
+    """A recipe the quit stopped holds no `awaiting` (only `_park` writes it). Its step's run the quit paused is recorded as the
+    run the recipe waits on, so Resume resumes it and the recipe adopts it instead of starting the step again (#6807)."""
+    child = jobs.running_child(db, job_id)
+    if child is None or jobs._job_row(db, child) != ("workflow", "paused"):
+        return None
+    detail = json.loads(jobs.read_job(db, job_id)["detail"] or "{}")
+    runs, steps = detail.get("runs") or [], detail.get("steps") or []
+    at = next((i for i, st in enumerate(steps) if st.get("state") == "running"), None)
+    detail["awaiting"] = {"card": runs[at].get("id") if at is not None and at < len(runs) else None, "child": child}
+    jobs.save_detail(db, job_id, json.dumps(detail))
+    return child
+
+
 def resume_capped_runs(db: Any) -> list[str]:
     """Resume, by the one Resume (`pause_recipe`), every recipe run whose step run is paused at a cap that is now higher than it was
     (`spend.raised_cap_stops`); a lowered or unchanged cap resumes nothing. Called after the caps change (`designer.budget.fix-during-the-run`)."""
@@ -509,7 +537,7 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         jobs.say_pausing(db, job_id)
         return "running"
     if not pause_requested(job_id):
-        awaited = _awaited_child(db, job_id)
+        awaited = _awaited_child(db, job_id) or _adopt_quit_paused_step(db, job_id)
         try:
             awaited_state = jobs._job_row(db, awaited)[1] if awaited is not None else None
         except KeyError:  # the job row is gone; the run may not be (pay-twice risk): the retake adopts it from its own state
@@ -536,6 +564,7 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
 
             forget_provider_pause(awaited)
             _resume_step_run(db, awaited, job_id)
+            jobs.pause_stored(db, job_id, False, state)  # a recipe the quit held is let go; a waiting one is untouched
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
             return jobs._job_row(db, job_id)[1]
@@ -2183,10 +2212,10 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
         step["note"] = card.get("note")  # Start's count of what was already done, kept on the run (#6091)
         step["counts"] = _step_counts(step)  # done / waiting / failed pages (#6673)
     for step in steps:
-        if (step["state"] == "running" and not step.get("child_id") and row["state"] == "running"
+        if (step["state"] == "running" and not step.get("child_id") and row["state"] in ("running", "paused")
                 and step.get("card") in _CARDS_WITH_A_JOB):
             # The step learns its job's id only when the job returns: while it runs, its job is the run's
-            # newest job not yet ended, so the status points at it (#5654).
+            # newest job not yet ended, so the status points at it (#5654); a run the quit stopped keeps it too (#6807).
             step["child_id"] = jobs.running_child(db, job_id)
         child = jobs.read_job(db, step["child_id"]) if step.get("child_id") else None
         if child is not None:
@@ -2214,7 +2243,7 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
     elif row["state"] == "waiting":
         ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]
         if ahead:
-            reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
+            reason = f"Waiting for the recipe run {_run_in_words(db, ahead[0])} to finish: recipe runs go one at a time"
     return {"job_id": job_id, "state": row["state"], "reason": reason, "documents": detail.get("documents"),
             "steps": steps, "awaited": detail.get("awaited") or [], "skipped": detail.get("skipped", []), "refusals": detail.get("refusals", []),
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
@@ -2224,6 +2253,16 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
             "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd"),
             "stopped_refusal": (capped or {}).get("refusal"), "once_words": once_words(detail)}
+
+
+def _run_in_words(db: Any, job_id: str) -> str:
+    """A run a person can place: the one on its folder, else the one started at its time (never its id, #6811)."""
+    from fichero_server.models import Document
+
+    row = jobs.read_job(db, job_id) or {}
+    folder = json.loads(row.get("detail") or "{}").get("folder_id")
+    document = db.get(Document, folder) if folder else None
+    return f"on {document.name}" if document else f"started at {row.get('created_at')}"
 
 
 def once_words(detail: dict[str, Any]) -> str | None:

@@ -10,4 +10,10 @@ final class SidebarPhoneRowsTests: XCTestCase {
     func testTheIPadAndTheMacKeepTheTree() {
         XCTAssertTrue(SidebarPhone.rowExpandsInPlace(isPhone: false))
     }
+
+    func testTheMacAndTheIPadShowTheChevronOnARowWithChildren() {
+        XCTAssertTrue(SidebarPhone.showsDisclosure(isExpandable: true, isPhone: false))
+        XCTAssertFalse(SidebarPhone.showsDisclosure(isExpandable: true, isPhone: true))
+        XCTAssertFalse(SidebarPhone.showsDisclosure(isExpandable: false, isPhone: false))
+    }
 }

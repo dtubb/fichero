@@ -127,6 +127,11 @@ def queue_derivatives(
         # again; queued at every open it failed again at every open.
         docs = [doc for doc in docs if "derivative_error" not in (doc.metadata or {})]
     taken: set[str] = set()
+    taken_by_page: dict[str, set[str]] = {}  # the recovery's: pages an unfinished run does the embed and names for itself
+    if not arrived and docs:
+        from fichero_server.recipes.runner import stages_unfinished_runs_take
+
+        taken_by_page = stages_unfinished_runs_take(db if db is not None else _library_db(library), [doc.id for doc in docs])
     if arrived and docs:
         # New material: after Start, a "just do it" project runs its recipe over it (`source.onboard.just-do-it`).
         # `arrived=False` is the library-open recovery of stranded pages, which are not new.
@@ -139,12 +144,14 @@ def queue_derivatives(
     ]
     # The run's Search embeds these pages once after reading (ruling 5, #6186): no per-page embed now.
     # A page with no text has nothing to embed: its thumbnail landing is what ends `pending` and counts it.
-    embed_queued = [] if EMBED_KIND in taken else [doc.id for doc in docs if needs_embedding(doc)]
+    embed_queued = [] if EMBED_KIND in taken else [
+        doc.id for doc in docs if needs_embedding(doc) and EMBED_KIND not in taken_by_page.get(doc.id, ())]
     # #4823: gated separately from thumbnails/embeds by the Settings ▸
     # General ▸ Ingestion toggle (default ON) -- OFF means not queued at
     # all, never a stage that runs and no-ops. The run's names stage takes it as Search takes the embed.
     nlp_queued = (
-        [doc.id for doc in docs if needs_nlp(doc)] if auto_nlp_enabled() and NLP_KIND not in taken else []
+        [doc.id for doc in docs if needs_nlp(doc) and NLP_KIND not in taken_by_page.get(doc.id, ())]
+        if auto_nlp_enabled() and NLP_KIND not in taken else []
     )
     futures: list[Future] = []
     if not queued and not nlp_queued:

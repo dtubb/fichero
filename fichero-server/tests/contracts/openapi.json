@@ -26034,6 +26034,49 @@
         }
       }
     },
+    "/api/kg/comments": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Comments",
+        "description": "The live comments on one node, oldest first; a reply carries its `parent_id`. Nothing is listed on a node the\ncaller may not read (a page the caller is denied, a claim or entity resting only on such pages).",
+        "operationId": "list_comments_api_kg_comments_get",
+        "parameters": [
+          {
+            "name": "anchor_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Anchor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/entities/bulk": {
       "post": {
         "tags": [
@@ -53241,6 +53284,14 @@
             "type": "array",
             "title": "Models"
           },
+          "trained": {
+            "items": {
+              "$ref": "#/components/schemas/TrainedModel"
+            },
+            "type": "array",
+            "title": "Trained",
+            "description": "the models trained in this project"
+          },
           "places": {
             "items": {
               "$ref": "#/components/schemas/ActivityPlace"
@@ -53282,6 +53333,35 @@
             "nullable": true,
             "title": "Account",
             "description": "from a probe or the key a call uses; null where nothing probes"
+          },
+          "egress": {
+            "type": "string",
+            "enum": [
+              "this-mac",
+              "own-machine",
+              "provider",
+              "institution"
+            ],
+            "title": "Egress",
+            "description": "where its data goes, from the address: this Mac, a machine of the person's own, the provider, the institution",
+            "default": "this-mac"
+          },
+          "calls_in_flight": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Calls In Flight",
+            "description": "calls to this cloud provider holding a slot now; null off the cloud"
+          },
+          "calls_cap": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Calls Cap",
+            "description": "how many calls to it may be in flight (lowered by an in-flight-budget answer); null off the cloud"
+          },
+          "credit": {
+            "$ref": "#/components/schemas/ModelFailure",
+            "nullable": true,
+            "description": "the newest no-credit, key-refused or rate-limited failure today on one of its models; null when none"
           }
         },
         "type": "object",
@@ -63727,6 +63807,32 @@
           "id"
         ],
         "title": "ColumnNote"
+      },
+      "CommentAnchorKind": {
+        "type": "string",
+        "enum": [
+          "claim",
+          "entity",
+          "source",
+          "segment"
+        ],
+        "title": "CommentAnchorKind"
+      },
+      "CommentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KgComment"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CommentListResponse"
       },
       "CompareFrame": {
         "properties": {
@@ -75548,12 +75654,18 @@
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id",
+            "description": "the folder the import fills, made before any canvas is read (#7066)"
           }
         },
         "type": "object",
         "required": [
           "job_id",
-          "url"
+          "url",
+          "folder_id"
         ],
         "title": "IIIFImportStarted"
       },
@@ -76521,6 +76633,12 @@
           "path": {
             "type": "string",
             "title": "Path"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "The folder the import fills, made before any file is copied (#7066), so the app shows its row at once. Absent for a corpus or a 1.0 archive, which build their own folders."
           }
         },
         "type": "object",
@@ -78505,6 +78623,57 @@
         ],
         "title": "KeywordCloudListResponse",
         "description": "Envelope for the keyword cloud list."
+      },
+      "KgComment": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "anchor_kind": {
+            "$ref": "#/components/schemas/CommentAnchorKind"
+          },
+          "anchor_id": {
+            "type": "string",
+            "title": "Anchor Id"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "anchor_kind",
+          "anchor_id",
+          "body"
+        ],
+        "title": "KgComment"
       },
       "KnowledgeClaim": {
         "properties": {
@@ -83205,6 +83374,14 @@
             "nullable": true,
             "title": "Documents",
             "description": "the run's pages when it covered some alone (a run an import started), as Start takes them back in `documents`; null: the scope is `folder_id`"
+          },
+          "redo": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Redo",
+            "description": "the steps the run read again; Start takes them back in `redo` with `documents`, so the offer reads the pages this run did not reach again, not the plain Start that finds every page done (#6811)"
           }
         },
         "type": "object",
@@ -102589,6 +102766,28 @@
             "title": "Cost Usd",
             "description": "0 on this Mac; null when the model has no price"
           },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds",
+            "description": "how long the run takes on these `pages`: this Mac's median seconds a page for the step's model times the pages (`recipes-run.timing.plan-says-time-from-measured-pages`); null when the model has no finished page here or the run is in the cloud, never 0"
+          },
+          "seconds_basis": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "unknown"
+            ],
+            "title": "Seconds Basis",
+            "description": "how `seconds` is known",
+            "default": "unknown"
+          },
+          "seconds_words": {
+            "type": "string",
+            "nullable": true,
+            "title": "Seconds Words",
+            "description": "`seconds` and its basis in words; the app words nothing itself"
+          },
           "basis": {
             "type": "string",
             "title": "Basis",
@@ -106093,6 +106292,12 @@
             "title": "All Lines",
             "description": "Train an A/B arm on every line it has, not only the lines every reasoning arm covers.",
             "default": false
+          },
+          "recipe_file": {
+            "type": "string",
+            "nullable": true,
+            "title": "Recipe File",
+            "description": "The name of a LoRA recipe file in the project's `lora-recipes` folder (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above."
           }
         },
         "type": "object",
@@ -106148,6 +106353,96 @@
         ],
         "title": "TrainWay",
         "description": "One way to train for a step: a fine-tune or a distillation, and where it can run."
+      },
+      "TrainedModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "place": {
+            "type": "string",
+            "const": "this-mac",
+            "title": "Place",
+            "default": "this-mac"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section",
+            "description": "the sidebar section it sits under: Trained here"
+          },
+          "trained_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Trained At"
+          },
+          "trained_where": {
+            "type": "string",
+            "nullable": true,
+            "title": "Trained Where",
+            "description": "where it was trained, as its card says"
+          },
+          "scores": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Scores",
+            "description": "its newest held-out evaluation; null when none was run"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Bytes"
+          },
+          "runs_on": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Runs On",
+            "description": "the builds it has and where each can run"
+          },
+          "lives": {
+            "type": "string",
+            "nullable": true,
+            "title": "Lives",
+            "description": "project, global or both"
+          },
+          "ground_truth": {
+            "additionalProperties": {
+              "type": "integer",
+              "nullable": true
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Ground Truth",
+            "description": "pages, lines, lines_checked_by_a_person and held_out_pages it was trained on; null when its card keeps none"
+          },
+          "not_for_release": {
+            "type": "boolean",
+            "title": "Not For Release",
+            "description": "its training data forbids publishing it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "section",
+          "not_for_release"
+        ],
+        "title": "TrainedModel",
+        "description": "A model trained in this project, a row under This Mac \u203a Trained here (`models.trained.are-rows`)."
       },
       "TrainedModelInspector": {
         "properties": {

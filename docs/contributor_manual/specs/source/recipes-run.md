@@ -395,7 +395,7 @@ replaces the Kraken figure before #6212 is coded.
   share of the budget (10% of physical memory, never under 1 GiB; the engine's own app and global databases take a
   slice, 5% of the budget or twice their file, in 32 MiB steps, 64 MiB at least and an equal share at most; the
   libraries split the rest, 256 MiB at least; below 12 GB of memory each instance runs 2 threads,
-  `fichero-server/tests/unit/core/test_duckdb_memory_budget.py`); a refused spill-directory switch
+  `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_four_open_databases_on_16_gib_stay_within_the_budget`); a refused spill-directory switch
   ("Cannot switch temporary directory after the current one has been used") is logged once and never
   skips the cap. Was: `apply_memory_limit` set the spill directory first, the instance that had already
   spilled refused, the exception skipped the cap, and the instance ran at DuckDB's default of 80% of RAM
@@ -431,12 +431,12 @@ replaces the Kraken figure before #6212 is coded.
   keeps two heavy models loaded: before a Kraken load it stops the served MLX model and before a served
   model it frees Kraken, whatever the free-memory reading says; the run's row says which model it swapped
   for and why. Built: one heavy job at a time while memory is tight (`activity.throttle.one-heavy-when-memory-tight`,
-  `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py`), the idle release of Kraken after
+  `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py::test_two_heavy_lanes_run_one_job_between_them_while_memory_is_busy`), the idle release of Kraken after
   120 s and the embedder after 600 s (`activity.lane.idle-unload`), the memory hold freeing idle models
-  (`fichero-server/tests/unit/jobs/test_memory_gate_frees_idle_models_6129.py`). The release of the served model
+  (`fichero-server/tests/unit/jobs/test_memory_gate_frees_idle_models_6129.py::test_a_memory_hold_asks_for_the_idle_models_to_be_freed_on_the_next_claim`). The release of the served model
   before a Kraken load (`_stop_local_model_server`, since 2026-10-21) and of Kraken before a served model are pinned at the
   lane by `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py::test_a_small_mac_frees_the_loaded_heavy_model_before_another_loads_whatever_memory_reads`
-  and at the server by `fichero-server/tests/unit/api/test_served_model_released_for_kraken.py`.
+  and at the server by `fichero-server/tests/unit/api/test_served_model_released_for_kraken.py::test_stop_served_models_stops_the_engine_started_running_servers_only`.
 - `recipes-run.memory.hold-when-paging` — **[PARTIAL]** (#6075; `activity.throttle.hold-when-swapping` (P)
   owns it) new heavy work is held, and Kraken reads one page at a time, while this Mac is paging NOW under
   memory pressure at warn or above (pageouts or swap grown by 64 MB within the last minute); static swap
@@ -536,7 +536,7 @@ replaces the Kraken figure before #6212 is coded.
   who stopped it (`test_a_stopped_run_says_who_stopped_it.py`).
 - `recipes-run.control.pause-and-resume` — **[PARTIAL]** (#5933; `activity.recipe-run.pause-reaches-its-step` (G)
   owns it) Pause on the run's row pauses the recipe at its next step and its step's run in flight, saying
-  so; a paused step is waiting, never failed; Resume carries on from the checkpoint. Built, its 13 tests green on
+  so; a paused step is waiting, never failed; Resume carries on from the checkpoint. Built, its 14 tests green on
   build/recipes-run (`fichero-server/tests/unit/recipes/test_recipe_pause_5933.py`); left: Pause and Resume on a real
   run on the M4.
 - `recipes-run.control.start-again-redoes-nothing` — **[OK]** (#5390; `source.recipe.done-is-not-redone` owns
@@ -547,7 +547,7 @@ replaces the Kraken figure before #6212 is coded.
 ### 11. Order of completion, and search once at the end
 
 - `recipes-run.order.folders-then-pages-queued` — **[OK]** (#5849; `source.recipe.pages-in-finder-order` owns
-  it; pinned by `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`) a run queues and
+  it; pinned by `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py::test_the_material_comes_in_natural_name_order`) a run queues and
   starts its pages folder by folder in sidebar order, pages in no folder first, each page in its natural
   name order. One exception, by design: a hosted reading step runs beside a local one when neither takes what the
   other gives (`_beside`, `recipes/runner.py`), so the two overlap, and the summary's timings count them as
@@ -559,7 +559,7 @@ replaces the Kraken figure before #6212 is coded.
   account serves `pages_done_in_order` (`workflows/run_account.py`, in the contract); a stage's counts say
   "first N in order" while a page finished ahead of a gap (`ActivityDetails.countsWords`, Swift compile owed); the page
   grid's read (`GET /api/activity/jobs/{id}/pages`) serves the pages in sidebar order (`Database.unit_of_work_ids`), so
-  the dots read in that order (fichero-server/tests/unit/api/test_run_page_states_5960.py). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
+  the dots read in that order (fichero-server/tests/unit/api/test_run_page_states_5960.py). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py (`test_a_page_finished_ahead_waits_for_the_gap_before_it`).
 - `recipes-run.order.search-entities-once-at-the-end` — **[OK]** (#6186; `activity.run.stages-before-search-do-not-embed`
   and `activity.lane.embed-after-reading` are its halves) for a recipe run, the search embedding and
   the names draft run ONCE after the last reading step of the batch, in batches of 64, and Activity says
@@ -633,7 +633,7 @@ replaces the Kraken figure before #6212 is coded.
   `_generate_image`), so the EXIF turn never copies the full-resolution image and a JPEG decodes reduced;
   thumbnails run on the images lane (`test_lanes_released_per_project.py`). Left: a reduced-size TIFF decode
   (Pillow decodes a TIFF whole) and the time beside a Kraken fan-out measured on the M4.
-  Test: fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py.
+  Test: fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py (`test_the_page_is_shrunk_before_it_is_turned`, `test_a_ten_megapixel_tiff_thumbnails_in_under_two_seconds`).
 
 ### 13. A step runs on a page only when what it needs is there (owner 2026-11-17, #6673)
 
@@ -740,7 +740,7 @@ What the figures were, beside what the run said:
 
 The behaviours this adds:
 
-- `recipes-run.restart.continue-adopts-the-paused-step` — **[BROKEN]** (#6584, → #6807) after a quit, the launch
+- `recipes-run.restart.continue-adopts-the-paused-step` — **[OK]** (#6584, → #6807) after a quit, the launch
   list names a recipe run ONCE: its step's run that the quit paused is part of it, never a second row, and the
   embeds the recipe will do at its end are not listed beside it; Continue resumes that step's run from its
   checkpoint and the recipe adopts it, as a person's Resume does (`_adopt_step_run`). Measured: the list held 5
@@ -750,10 +750,12 @@ The behaviours this adds:
   no reading", with no `missed` offer. Code: `execution/jobs.py` `stopped_at_quit`, `continue_after_quit`;
   `api/routes/system/activity.py` `list_stopped_at_quit`, `continue_after_quit` (adds the paused workflow runs);
   `recipes/runner.py` records the run a recipe waits on (`awaiting`) only in `_park`, a person's pause; a quit leaves none.
-- `recipes-run.restart.run-row-counts-pages-after-restart` — **[BROKEN]** (#6584, → #6807) after a restart the
+  *Built:* `fichero-server/tests/unit/recipes/test_continue_adopts_the_paused_step_6807.py`.
+- `recipes-run.restart.run-row-counts-pages-after-restart` — **[OK]** (#6584, → #6807) after a restart the
   run's row and its live row keep the page count they had: measured, the run's row read "4 of 5" before the
   kill and "5 of 11" after Continue (every step run's total added up), the live row "0 of 0", and the run's step
   list said Find Lines `running` while the run was paused.
+  *Built:* `fichero-server/tests/unit/recipes/test_continue_adopts_the_paused_step_6807.py`, the last test.
 - `recipes-run.order.embed-waits-for-kraken-never-fails` — **[OK]** (#6186, #6808;
   `fichero-server/tests/unit/jobs/test_embed_waits_for_kraken.py`) a page's embed that meets
   Kraken reading waits and runs afterwards; it never ends failed. Measured before the fix: 6 of 22 `make-a-vector`
@@ -783,7 +785,7 @@ The behaviours this adds:
   jobs (`embed_jobs` on the step) and `recipes/runner.py` `_run_embed` says "Making vectors for search: 2 of 3
   pages" on the run's row; Leave Out, which makes no job, keeps each run on the step (`spans`, from
   `recipes/leave_out.py` `run_step`) and `recipes/run_view.py` `_timings` times it from them.
-- `recipes-run.timing.plan-says-time-from-measured-pages` — **[GAP]** (#4951, #6052, → #6810) Start's plan says
+- `recipes-run.timing.plan-says-time-from-measured-pages` — **[PARTIAL]** (#4951, #6052, → #6810) Start's plan says
   how long each step will take on these pages once this Mac has finished pages of that step's model
   (`estimate.runs[].seconds`, with its basis), and the run keeps that figure beside what it measured
   (`designer.run.predicted-then-measured`). Today the plan carries cost alone (`recipes/start.py`); the run says
@@ -791,6 +793,13 @@ The behaviours this adds:
   pages read by the step's reader, `GET /api/recipes/routes` still said the time on this Mac was unknown:
   `recipes/routes.py` `default_models` passes the reader as the plan names it (`kraken-…`) and the job rows
   store it with its runtime (`kraken:kraken-…`), so `measured_seconds_per_page` finds no row.
+  *Built:* the routes read a reader named without its runtime (`execution/jobs.py` `finished_seconds` matches `model` or
+  `…:model`; `fichero-server/tests/unit/recipes/test_routes_for_the_volume.py`, `test_a_reader_named_without_its_runtime_finds_this_macs_measured_pages`).
+  *Built:* Start's plan carries `estimate.runs[].seconds`, `seconds_basis` (`measured` or `unknown`) and `seconds_words` for each
+  local step: this Mac's median seconds a page for the step's model times the pages, or null and `unknown` when the model has no
+  finished page here (`recipes/routes.py` `measured_speeds`; `fichero-server/tests/unit/recipes/test_plan_says_time_6810.py`).
+  *Left:* the plan gives no time for a cloud step or the Catalogue step, and the run does not keep the figure beside what it
+  measured (`designer.run.predicted-then-measured`).
 - `recipes-run.journey.run-one-step-on-a-folder-or-file` — **[PARTIAL]** (#7036) the historian picks one step of the
   recipe and runs only that step on the selected folder or on one file; the steps before it are not run again (what they
   wrote is what the step reads) and Activity shows the run as that one step. *Built (engine):* Start with `steps` and
@@ -799,26 +808,30 @@ The behaviours this adds:
   in words). *Built (app, compile owed):* "Run a Step Again on This Folder" and "Run a Step Again on the Selection" in the
   folder and file context menus send that Start (`RunRecipeOnFolderMenuItem`, `RunStepAgainOnSelectionMenu`). *Not built:*
   a control in the recipe's own step row in Set Up.
-- `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[BROKEN]** (#6744, #6170, → #6811) a Start on
+- `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[OK]** (#6744, #6170, → #6811) a Start on
   chosen pages (`documents`) answers with those pages' counts and the run's steps carry those pages' notes.
   Measured: a Start on 4 pages answered `pages: 10` and "runs again on all 10 pages"; while it read 3 pages its
   step's note said "already done on all 10 pages; nothing to run". `api/routes/system/recipes.py`
   `_action_start` plans the whole project (`_start_plan(db, params.folder_id, …)`) and hands the pages to
   `runner.enqueue` alone.
-- `recipes-run.journey.stopped-redo-says-what-it-left` — **[BROKEN]** (#6170, → #6811) a run that ran a step
+  *Built:* Start on `documents` plans over those pages (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.journey.stopped-redo-says-what-it-left` — **[OK]** (#6170, → #6811) a run that ran a step
   AGAIN and was stopped counts its own work: the summary says how many pages this run read again, and `missed`
   names the pages it did not reach, with an offer that reads them again. Measured: stopped after 2 of 4 pages,
   the summary said "Read 4 of 4 pages" (the older readings counted), `missed.words` "1 page not done" (2 were
   not), `missed.documents` all 4 pages, and the offer is a plain Start, which finds every page done and reads
   nothing.
-- `recipes-run.journey.start-with-nothing-to-run-is-refused` — **[BROKEN]** (#6744, → #6811) a Start whose plan
+  *Built:* a redo's summary counts its own pages and `missed` carries `documents` and `redo` (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.journey.start-with-nothing-to-run-is-refused` — **[OK]** (#6744, → #6811) a Start whose plan
   has nothing to run is refused in one sentence (the plan's own "already done on all N pages; nothing to run"),
   as the route's contract says; it queues no run. Measured: a Start on the Read step alone, all pages read,
   answered 200 and listed a run that ended `done` in 0.1 s.
-- `recipes-run.control.waiting-names-the-run-in-words` — **[BROKEN]** (#6091, → #6811) a run that waits for
+  *Built:* a Start with nothing to run answers 422 and queues no run; a redo is not refused (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.control.waiting-names-the-run-in-words` — **[OK]** (#6091, → #6811) a run that waits for
   another says which in a person's words (its folder or its start time). Measured: "Waiting for the recipe
   run <the run's id> to finish: recipe runs go one at a time".
-- `recipes-run.engine.runs-list-answers-while-a-run-goes` — **[BROKEN]** (#6178, → #6812) the list of runs and one
+  *Built:* the waiting words name the run by folder or start time (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.engine.runs-list-answers-while-a-run-goes` — **[PARTIAL]** (#6178, → #6812) the list of runs and one
   run's status answer inside a second while a run reads. Measured over 20 polls during a 5-page reading, 7 runs
   in the project: `GET /api/recipes/project/runs` median 1.3 s, a tenth of them 14 s or more, the worst 20.2 s;
   `GET /api/activity/jobs` 0.13 s, 0.39 s at worst; the engine logged "slow poll recipes.recipe_runs" up to
@@ -826,15 +839,18 @@ The behaviours this adds:
   once: the loop held 14.1 s by `get_document` waiting for the transaction gate on the loop
   (`api/routes/document/documents.py`), and once 30 s or more while Kraken's models were let go for the embedder
   (`release_resident_models`, the collection).
-- `recipes-run.engine.quits-when-asked` — **[BROKEN]** (#5357, → #6813) the engine ends within 10 s of a
+  *Built:* an ended run's timeline is read once and cached (`recipes/run_view.py` `_ENDED_TIMINGS`; `fichero-server/tests/unit/recipes/test_runs_list_stays_fast.py`). *Not built:* `get_document` off the loop.
+- `recipes-run.engine.quits-when-asked` — **[OK]** (#5357, → #6813) the engine ends within 10 s of a
   terminate signal whatever it holds. Measured: once in 6 s mid-step ("2 job thread(s) still finishing"), and once
   not at all after 45 s, idle after a run, with a forked child of 1.6 GB still there; both had to be killed.
-- `recipes-run.engine.not-sure-does-not-starve-the-import` — **[BROKEN]** (#6078, #6193, → #6814) Set Up's "Not
+  *Built:* teardown arms a 10 s deadline that kills children and exits 70 (`api/main.py` `_arm_quit_deadline`; `fichero-server/tests/unit/api/test_engine_quits_when_asked_6813.py`).
+- `recipes-run.engine.not-sure-does-not-starve-the-import` — **[PARTIAL]** (#6078, #6193, → #6814) Set Up's "Not
   sure" (the language worked out from three pages by a quick read, `recipes/language_guess.py`) answers in
   seconds, or is a job with a row and words, and the import's thumbnails go on beside it. Measured: the assemble
   call took 169 s with nothing shown; the 10 thumbnails queued at the same moment took 107 s each for the first
   two and 3 min 13 s in all (1.2 to 5 s each later), and Activity warned "Processing imported pages stalled at 0
   of 10" (`importers/derivatives.py`, no completion in 60 s). The guess itself was right.
+  *Built:* the quick read works on a 1600 px picture and gives up after 20 s a page (`recipes/language_guess.py` `_quick_read`; `fichero-server/tests/unit/recipes/test_not_sure_guess_is_bounded.py`). *Not built:* the guess as a job row with words.
 
 Left by the review and the 2026-11-19 runner measure, filed by the audit of 2026-11-21:
 

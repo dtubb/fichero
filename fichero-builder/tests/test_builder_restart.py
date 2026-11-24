@@ -92,3 +92,33 @@ def test_a_rules_edit_alone_is_not_a_re_exec_and_a_changed_package_is_even_with_
     busy = types.SimpleNamespace(done=lambda: False)
     assert not queue.restart_due(mark, state, {"pool": object(), "m1": busy}), "a running check still holds it off"
     assert not queue.restart_due(mark, state, None, [types.SimpleNamespace(is_alive=lambda: True)]), "so does a dev build"
+
+
+def test_a_live_window_the_loop_cannot_adopt_is_one_alert_with_its_id_and_is_never_stopped(state):
+    """#6850: a window that runs more than a shell is never ended by the lost-track branch, and never queued again beside itself."""
+    lane(state)
+    fake = Fake()
+    fake.procs.adopt = lambda ln: None
+    fake.procs.live_windows = lambda ln: ["@7"]
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)  # the old loop starts the session
+    fake.seqs.clear()  # the session has said nothing yet
+    handles: dict = {}  # the restarted loop has no handle
+    for _ in range(3):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert fake.stops == [] and steps()["1.1"]["state"] == "sent", "the session is left running and the step keeps its state"
+    (a,) = [r for r in journal.read() if r["event"] == "alert"]
+    assert "@7" in a["what"] and a["lane"] == "m1" and a["step"] == "1.1", "one alert, with the window's id, lane and step"
+
+
+def test_a_step_that_was_checking_before_a_restart_still_gets_the_automatic_split(state):
+    """#6850: the restarted loop has no handle for the lane; a red on the file bound still splits the step."""
+    lane(state)
+    over = {"ok": False, "kind": "red", "why": "red", "findings": "failed rung: diff-bound\ndiff bound: 40 files, over 25"}
+    fake = Fake(chains={"1.1": [over]})
+    fake.procs.push_part2 = lambda the_lane, branch: (0, "abc1234 the rest")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)  # the old loop starts the session
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="checking", head="h1.1")  # it was checking when the loop went down
+    queue.save(lanes)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # the restarted loop: no handles
+    assert "1.1-part2" in steps() and "m1-part2" in fake.sent[-1] + "".join(fake.sent)

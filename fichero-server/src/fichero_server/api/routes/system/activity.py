@@ -503,14 +503,14 @@ def workflow_block(job: "BackgroundJob", model: Optional[str] = None, where: Opt
 
 
 def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Optional[str],
-                 model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
+                 model: Optional[str] = None, where: Optional[str] = None, per_item: Optional[dict[str, float]] = None) -> LiveBlock:
     """A recipe run: its recipe, the stage running now and the workflow of that stage, the pages of that stage's account."""
     steps = status.get("steps") or []
     running = next((st for st in steps if st.get("state") == "running"), None) \
         or next((st for st in steps if st.get("state") in ("waiting", "paused")), None)
     from fichero_server.recipes import live_stages
 
-    seconds_left, eta_basis = live_stages.eta(status)
+    seconds_left, eta_basis = live_stages.eta(status, per_item)
     account = (running or {}).get("account")
     waiting = status.get("reason") if status.get("state") == "waiting" else status.get("waiting_for")
     if job.reason:
@@ -588,7 +588,12 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
                 logger.warning("activity summary: no workflow run %s: %s", running["child_id"], exc)
                 run = None  # the block stands without its workflow's name
         model, where = await _stage_where_and_model(db, running["child_id"]) if running else (None, None)
-        blocks.append(recipe_block(job, status, run.workflow_name if run else None, model, where))
+        from fichero_server.execution import jobs as job_queue
+
+        page_kinds = sorted({st["job"] for st in status.get("steps", []) if st.get("state") == "running" and st.get("job")})
+        per_item = await asyncio.to_thread(
+            lambda: {k: p for k in page_kinds if (p := job_queue.seconds_per_item(db, k)) is not None})
+        blocks.append(recipe_block(job, status, run.workflow_name if run else None, model, where, per_item))
     for j in jobs:
         if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned:
             blocks.append(workflow_block(j, *await _stage_where_and_model(db, j.id)))
@@ -1401,6 +1406,28 @@ def problem_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     return [line for line in lines if line.level in _PROBLEM_LEVELS]
 
 
+def event_page(metadata: Optional[dict[str, Any]]) -> Optional[str]:
+    """The page an activity event is about (`document_id`, else `file_path`), None for an event about no page."""
+    meta = metadata or {}
+    return meta.get("document_id") or meta.get("file_path") or None
+
+
+def one_event_per_page(events: list[Any]) -> list[Any]:
+    """The events a person's log keeps (`activity.log.one-line-per-page`, #5960): an event about a page is one line for a (node, page,
+    level), however many times the lanes wrote it; an event about no page is kept as it is. Order is kept."""
+    seen: set[tuple[Optional[str], str, str]] = set()
+    kept = []
+    for event in events:
+        page = event_page(event.metadata)
+        if page is not None:
+            key = (event.node_id, str(page), str(getattr(event.level, "value", event.level)))
+            if key in seen:
+                continue
+            seen.add(key)
+        kept.append(event)
+    return kept
+
+
 def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     """The person's log (`activity.log.persons-log`): only person lines, and no sentence twice for the same row."""
     seen: set[tuple[str, str]] = set()
@@ -1569,7 +1596,7 @@ async def get_job_log(
     rows = {node["id"] for node in _walk(found)}
     tracker = get_activity_tracker(str(db.path))
     for thread, steps in wanted.items():
-        for event in await tracker.query(ActivityFilter(thread_id=thread, limit=_JOB_LOG_LIMIT)):
+        for event in one_event_per_page(await tracker.query(ActivityFilter(thread_id=thread, limit=_JOB_LOG_LIMIT))):
             if steps is not None and event.node_id not in steps:
                 continue
             when = event.timestamp
@@ -1738,6 +1765,12 @@ class ActivityPlace(BaseModel):
     provider: str
     account: Optional[Literal["ready", "needs-key", "not-reachable"]] = Field(
         default=None, description="from a probe or the key a call uses; null where nothing probes")
+    egress: Literal["this-mac", "own-machine", "provider", "institution"] = Field(
+        default="this-mac", description="where its data goes, from the address: this Mac, a machine of the person's own, the provider, the institution")
+    calls_in_flight: Optional[int] = Field(default=None, description="calls to this cloud provider holding a slot now; null off the cloud")
+    calls_cap: Optional[int] = Field(default=None, description="how many calls to it may be in flight (lowered by an in-flight-budget answer); null off the cloud")
+    credit: Optional[ModelFailure] = Field(
+        default=None, description="the newest no-credit, key-refused or rate-limited failure today on one of its models; null when none")
 
 
 class LaneLoad(BaseModel):
@@ -1756,8 +1789,28 @@ class ThisMac(BaseModel):
     lanes: list[LaneLoad] = Field(default_factory=list)
 
 
+class TrainedModel(BaseModel):
+    """A model trained in this project, a row under This Mac › Trained here (`models.trained.are-rows`)."""
+
+    id: str
+    name: str
+    kind: str
+    place: Literal["this-mac"] = "this-mac"
+    section: str = Field(description="the sidebar section it sits under: Trained here")
+    trained_at: Optional[str] = None
+    trained_where: Optional[str] = Field(default=None, description="where it was trained, as its card says")
+    scores: Optional[dict[str, Any]] = Field(default=None, description="its newest held-out evaluation; null when none was run")
+    size_bytes: Optional[int] = None
+    runs_on: list[dict[str, Any]] = Field(default_factory=list, description="the builds it has and where each can run")
+    lives: Optional[str] = Field(default=None, description="project, global or both")
+    ground_truth: Optional[dict[str, Optional[int]]] = Field(
+        default=None, description="pages, lines, lines_checked_by_a_person and held_out_pages it was trained on; null when its card keeps none")
+    not_for_release: bool = Field(description="its training data forbids publishing it")
+
+
 class ActivityModelsResponse(BaseModel):
     models: list[ActivityModel] = Field(default_factory=list)
+    trained: list[TrainedModel] = Field(default_factory=list, description="the models trained in this project")
     places: list[ActivityPlace] = Field(default_factory=list, description="every place set up, used or not")
     this_mac: Optional[ThisMac] = None
 
@@ -1767,11 +1820,13 @@ async def activity_models(db: Database = Depends(get_library_database)) -> Activ
     """The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this
     project used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,
     loaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up."""
-    from fichero_server.workflows.activity_models import models, places, this_mac
+    from fichero_server.workflows.activity_models import add_credit, models, places, this_mac, trained_rows
 
     listed = await asyncio.to_thread(places)
     found = await asyncio.to_thread(lambda: models(db, accounts={(p["place"], p["provider"]): p["account"] for p in listed}))
+    add_credit(listed, found)
     return ActivityModelsResponse(models=[ActivityModel(**m) for m in found],
+                                  trained=[TrainedModel(**t) for t in await asyncio.to_thread(trained_rows, db)],
                                   places=[ActivityPlace(**p) for p in listed],
                                   this_mac=ThisMac(**await asyncio.to_thread(this_mac, db)))
 
@@ -2228,8 +2283,9 @@ async def list_stopped_at_quit(db: Database = Depends(get_library_database)) -> 
 
     items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(job_queue.stopped_at_quit, db)]
     store = get_activity_tracker(str(db.path)).store
+    listed = {i.id for i in items}
     for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
-        if run.error == QUIT_PAUSED_ERROR:
+        if run.error == QUIT_PAUSED_ERROR and await asyncio.to_thread(job_queue.parent_of, db, run.thread_id) not in listed:
             items.append(StoppedAtQuitItem(id=run.thread_id, kind="workflow", name=run.workflow_name or "Workflow run",
                                            started_at=_utc(run.started_at)))
     return StoppedAtQuitResponse(items=items, count=len(items))
@@ -2260,7 +2316,9 @@ async def continue_after_quit(
     wanted = None if params.all else list(params.ids or [])
     continued = await asyncio.to_thread(job_queue.continue_after_quit, db, wanted)
     store = get_activity_tracker(str(db.path)).store
-    runs = [r.thread_id for r in await store.list_workflow_runs(statuses=["paused"], limit=500)]
+    # A run under a row of the list is that row's own step: its row's Continue resumes it (`pause_recipe`), never this.
+    runs = [r.thread_id for r in await store.list_workflow_runs(statuses=["paused"], limit=500)
+            if await asyncio.to_thread(job_queue.parent_of, db, r.thread_id) is None]
     continued += await resume_quit_paused_runs(store, db, runs if wanted is None else [i for i in wanted if i in runs])
     return ContinueAfterQuitResponse(continued_ids=continued, count=len(continued))
 

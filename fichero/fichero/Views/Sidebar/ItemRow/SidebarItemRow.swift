@@ -217,7 +217,14 @@ struct SidebarItemRow: View {
     /// The per-item spinner, now only for a document that is itself the
     /// subject of work. A container with busy children shows the aggregate.
     var documentIsProcessing: Bool {
-        containerActivity.showsLeafSpinner
+        containerActivity.showsLeafSpinner || importingFolder?.isImporting == true
+    }
+
+    /// What the import filling this folder row says (#7066): importing, or failed with its reason.
+    var importingFolder: (isImporting: Bool, error: String?)? {
+        guard case .document(let doc) = item.itemType, let tracker = importService?.folderImports else { return nil }
+        let error = tracker.error(for: doc.id)
+        return tracker.isImporting(doc.id) || error != nil ? (tracker.isImporting(doc.id), error) : nil
     }
 
     var workflowProgress: Double? {

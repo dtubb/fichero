@@ -129,6 +129,7 @@ def project_says_yes(test_package):
     path.parent.mkdir(exist_ok=True)
     answers = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None) or {}
     answers["cloud_allowed"] = True
+    answers.setdefault("hf_spend_cap_usd", 100)  # a training start is checked against the cap (a $0 cap refuses it)
     path.write_text(yaml.safe_dump(answers), encoding="utf-8")
 
 

@@ -143,10 +143,20 @@ extension ContentView {
     /// itself. The measured-width feedback loop is Mac window behavior only (iOS I1).
     var shellCollapseWidth: Double {
         #if os(macOS)
-        measuredWindowWidth
+        Self.shellCollapseWidth(
+            measured: measuredWindowWidth,
+            inspectorFrameWidth: windowState.paneFrames[UIPane.inspector.frameKey].map { Double($0.width) }
+        )
         #else
         0
         #endif
+    }
+
+    /// The whole window width. The width reader sits outside `.inspector`, so it reads the window minus the Inspector
+    /// column while that is shown; adding the column's recorded frame back (nil once it is hidden) keeps the collapse
+    /// rule from reading its own result, which showed and hid the Inspector forever in full screen (#7065).
+    nonisolated static func shellCollapseWidth(measured: Double, inspectorFrameWidth: Double?) -> Double {
+        measured + (inspectorFrameWidth ?? 0)
     }
 
     var shellCollapsePolicy: ShellCollapsePolicy {

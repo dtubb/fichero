@@ -9735,6 +9735,20 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("list-comments")
+    def kg_list_comments_get(
+        ctx: typer.Context,
+        anchor_id: str = typer.Option(..., '--anchor-id', help='Anchor Id.'),
+    ) -> None:
+        """List Comments (GET /api/kg/comments)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/comments"
+            params = {
+                "anchor_id": anchor_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("delete-claim-rule")
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,
@@ -19301,6 +19315,7 @@ def register_generated_openapi_commands(
         not_for_release: Optional[bool] = typer.Option(None, '--not-for-release/--no-not-for-release', help='The trained model may not be released. Default: true.'),
         pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages to go to Hugging Face. Default: false."),
         rank: Optional[int] = typer.Option(None, '--rank', help='Rank. Default: 16.'),
+        recipe_file: Optional[str] = typer.Option(None, '--recipe-file', help="The name of a LoRA recipe file in the project's `lora-recipes` folder (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above."),
         release_note: Optional[str] = typer.Option(None, '--release-note', help='Release Note.'),
         scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose teacher-read lines are the lessons. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         teacher: str = typer.Option(..., '--teacher', help='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.'),
@@ -19326,6 +19341,7 @@ def register_generated_openapi_commands(
                 "not_for_release": not_for_release,
                 "pages_may_leave": pages_may_leave,
                 "rank": rank,
+                "recipe_file": recipe_file,
                 "release_note": release_note,
                 "scope_ids": scope_ids,
                 "teacher": teacher,
@@ -19346,6 +19362,7 @@ def register_generated_openapi_commands(
                 "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained model may not be released.', 'default': True, 'x-cli-required': False},
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
                 "rank": {'type': 'integer', 'maximum': 256.0, 'minimum': 2.0, 'title': 'Rank', 'default': 16, 'x-cli-required': False},
+                "recipe_file": {'type': 'string', 'nullable': True, 'title': 'Recipe File', 'description': "The name of a LoRA recipe file in the project's `lora-recipes` folder (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above.", 'x-cli-required': False},
                 "release_note": {'type': 'string', 'nullable': True, 'title': 'Release Note', 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines are the lessons.', 'x-cli-required': True},
                 "teacher": {'type': 'string', 'title': 'Teacher', 'description': 'The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.', 'x-cli-required': True},

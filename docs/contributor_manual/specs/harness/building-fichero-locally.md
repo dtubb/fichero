@@ -270,15 +270,18 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
   `window = 200000`, `handoff_at = 0.85` and `handoff_tokens = 175000`, chosen for Sonnet. Each model in the slate
   declares its usable window on this machine (a local model's is bounded by memory and by how slowly it re-reads a
   long prompt, not only by its trained length), and the 85 % rule applies to that. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.worker-sandboxed` [GAP] (#6116) — the Pi worker process starts inside a sandbox profile as well as in the worker
   account: it may write only its worktree and scratch, read its own install and the checkout, and reach only the
   model endpoint, the package registries and read-only GitHub. The checks and the review already run outside the
   worker's session, so the profile does not have to admit them. Pi has no permission system of its own, so this and
   the policy extension (`pi/policy.ts`, which blocks any tool call not answered ALLOW) are the limits. The start
   probes prove the wall before each worker runs. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.handoff-measured` [GAP] (#6116) — the bake-off scores a model on handoffs as well as steps: whether the successor
   carries on correctly from the handoff file, redoes finished work, or loses the thread. A model that builds one step
   well and cannot survive a handoff does not pass. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.xcode-worker` [GAP] (#6116) — a Swift step goes to an Xcode worker: a Pi worker with Xcode's own tools, reached
   through Xcode's MCP server (`xcrun mcpbridge`, with "Allow external agents to use Xcode tools" on). It builds,
   reads structured build errors, runs named tests and renders SwiftUI previews through Xcode, not through a bare
@@ -288,26 +291,33 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
   Xcode inside one user's session. Rendered previews and test results are attached for the reviewer, who today sees
   only the diff. Also try the other direction once: Xcode 27 accepts outside agents through the Agent Client
   Protocol; record whether Pi can be brought in that way and which works better. Serves: builds Fichero, reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.escalation-by-handoff` [GAP] (#6116) — escalating a step to another tier ends the session through the same handoff
   path: the next tier starts from the handoff file plus the failed diff, the ladder output and the findings. When the
   step lands, the lane's own worker resumes from a fresh handoff. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 
 - `local.target` [GAP] (#6116) — every role (builder, reviewer, manager, helper) names a local provider it can run on; a role
   that works only with a cloud model is a named exception with its reason and what would remove it. The weekly report
   lists the exceptions. Serves: local.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.memory-budget` [GAP] (#6116) — `harness.toml` states the machine's model budget (85 GB on the 128 GB Studio) and each
   model's loaded size; a slate that does not fit beside the gate and a build is refused at start. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.interim-16gb` [GAP] (#6116) — until the Studio arrives the 16 GB M1 Pro is the main machine and the helpers
   (`[check].remote`, the nightly runners) stay as `harness.toml` has them: no local model server; lanes capped to
   what the machine holds; engine tests, guards and scans also run on GitHub's hosted runners so the Pro is not the
   only place they run; the full nightly check (budgeted at 14 GB) stays on its remote runner. Swift steps stay with
   the cloud builder until `dev-workflows.run.swift-tests` is green. Nothing built now is machine-specific: moving to
   the Studio is config, and `pool.*` is retired only then. Serves: builds Fichero.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.bridge-openrouter` [GAP] (#6116) — OpenRouter is a Pi provider; the key comes from the environment and is written
   nowhere; the model id, the serving provider and its quantization are recorded per run. Serves: local.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.compressed-is-the-measure` [GAP] (#6116) — a decision to adopt a model cites runs on the compressed build on Mac
   hardware, not only the hosted full-precision one. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - Absorbed: `agent-profiles.adapter.interface` [OK], `agent-profiles.adapter.claude-code` [OK],
   `agent-profiles.adapter.pi` [PARTIAL] (#6631), `dev-workflows.models.by-config` [PARTIAL],
   `agent-profiles.worker.small` [GAP], `dev-workflows.worker.handoff` [PARTIAL] (the handoff follows the model's
@@ -328,42 +338,76 @@ With no stronger model on call, quality is whatever the gates enforce. These are
 - `local.resources-measured` [GAP] (#6116) — every batch records peak memory during the checks, the size of the state
   folder and of the test database before and after, and disk free; each has a budget in `harness.toml`; over budget
   is a red rung once enforcement is on. No model judges these. Absorbs `perf-sweep.output.row`. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### B2. Specs are checked before anything is built from them
 
 - `local.spec-lint` [GAP] (#6116) — a script refuses a spec for approval unless every behaviour has a unique id, a tag, a
   named test or an owed-test note, a size, and a "serves" line; it lists every sentence that contradicts another
   spec's ruling by id. Absorbs what `spec-pipeline.md` asks of the spec ↔ issues ↔ tests check. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.spec-sceptical-read` [GAP] (#6116) — before approval a model that did not write the spec reads it against the code
   and writes a review file beside it: what is claimed built and is not, what cannot be tested as written, what is
   missing. `performance-sweep-REVIEW.md` is the pattern: that read found two rungs reporting green without running.
   Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+
+- `local.spec-screen-evidence` — **[OK]** (#7067) a screen is done only when it exists: a spec behaviour tagged [OK] or [BUILT]
+  whose text after the tag contains the word `app` (matched as a whole word, so "application" does not count) must cite a Swift test file under fichero/Tests (a UI test included);
+  citing only pytest files fails as "engine done, the screen is not". Offenders at landing are in
+  `scripts/check_spec_app_evidence_baseline.json`, which fails when a listed line now passes. Wired by the `check_spec_*.py`
+  glob in CI. Test: `fichero-server/tests/unit/scripts/test_check_spec_app_evidence.py::test_an_ok_app_behaviour_citing_only_pytest_is_engine_done_the_app_part_is_not`,
+  `test_a_swift_test_path_or_a_ui_test_satisfies_it_and_a_non_app_or_gap_line_is_not_judged`,
+  `test_a_new_offender_fails_a_baselined_one_passes_and_a_listed_line_that_now_passes_fails`.
+- `local.spec-ux-section` — **[OK]** (#7067) a spec file with a behaviour that contains the word `app` (any live tag) has a "What the person sees" (or "UX")
+  section that says, for each screen, where the person opens it (menu, window, pane or shortcut), what it shows, its controls,
+  the empty, loading and error states with how each is tested, and an acceptance line; a spec without one is in the same
+  shrinking baseline. Test: `fichero-server/tests/unit/scripts/test_check_spec_app_evidence.py::test_a_spec_with_app_behaviours_needs_a_ux_section_naming_opener_states_and_acceptance`.
+- `local.engine-ux-coverage-report` — **[OK]** (#7067) `scripts/report_engine_ux_coverage.py` prints, for the operations frozen in
+  `check_endpoint_coverage_matrix_known_gaps.json`, how many no spec names, how many a spec names with no `app` behaviour, how
+  many have an `app` behaviour still [GAP], and how many `app` features have no UX section, with the first 20 of each. First run
+  (2026-11-23): 221 / 58 / 33 / 111. Test: `fichero-server/tests/unit/scripts/test_report_engine_ux_coverage.py::test_each_known_gap_lands_in_one_bucket_no_spec_no_app_behaviour_or_app_behaviour_still_gap`,
+  `test_the_report_prints_the_three_counts_the_ux_count_and_the_top_twenty`.
+- `local.new-route-has-a-spec` — **[OK]** (#7067) `check_endpoint_coverage_matrix.py` fails a route whose path or operation id no spec
+  names, unless it is in `check_endpoint_coverage_matrix_no_spec_baseline.json` (694 at landing). Test:
+  `fichero-server/tests/unit/scripts/test_report_engine_ux_coverage.py::test_the_matrix_fails_a_route_no_spec_names_unless_it_is_baselined`.
+- `local.review-screen-lens` — **[OK]** (#7067) the reviewer prompt's third lens (`review_lenses.APP_SCREEN`) makes a step whose
+  behaviours contain the word `app` NOT READY when the diff adds no Window/openWindow id, menu command or pane kind reaching the feature.
+  Test: `fichero-builder/tests/test_perf_sweep.py::test_the_reviewer_refuses_an_app_step_whose_diff_adds_no_screen_reaching_the_feature`.
 
 ### C. The manager and escalation
 
 - `local.escalation-tiers` [GAP] (#6116) — tiers are config: local builder → second local model → PARKED. During the build
   a cloud tier may sit above; it is removed at handover. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.escalation-triggers` [GAP] (#6116) — only mechanical triggers escalate: two failed fix rounds, the same rung red
   twice, a false DONE, a turn cap with no commit, repeated tool-call failures. The worker's opinion is not a trigger.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.pre-routing` [GAP] (#6116) — the brief routes a step before any attempt: size L, routes, entitlements, pinned or
   judging files, and any step kind whose recorded local failure rate is over half go to the tier that can do them.
   The rules are rewritten weekly from the escalation rows.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.escalation-row` [GAP] (#6116) — one journal row per escalation: step, kind, trigger, from, to, cost. A daily dollar
   cap; past it, steps park.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.must-escalate` [GAP] (#6116) — a weakened or deleted test, an excused red-on-base, any change to a pinned file, a
   guard, the ladder or `harness.toml`, anything on routes or entitlements, a step blocked twice, spend over cap.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 - `local.question-list` [GAP] (#6116) — scripts decide what is a question (the escalation triggers, a refused start, a
   contradiction the lint found); a model only drafts the wording and a proposed answer. Questions sit in one list on
   the console, each with its proposed answer, its risk and a deadline. A low-risk question takes its proposed answer
   when its deadline (24 hours) passes and says so in the journal; a risky one (anything in `local.must-escalate`) waits.
   Absorbs `dev-workflows.node.human-question` [PARTIAL]. Serves: builds Fichero.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### D. Review
 
 - `local.reviewer-differs` [GAP] (#6116) — the reviewer is never the builder's model. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.judging-files-reviewed` [GAP] (#6116) — a change to the harness's own judging files is reviewed by the strongest
   model available, and after handover needs the owner.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### E0. Issues and milestones stay current, on GitHub
 
@@ -372,9 +416,11 @@ Issues and milestones live on GitHub; the spec is their source and `builder` is 
 - `local.push-or-nothing-closes` [GAP] (#6116) — `builder landed` refuses a commit `origin` lacks, so a loop that does not
   push blocks every step and closes nothing. The owner said yes to this on 2026-11-18, so the loop runs
   with the push enabled; the report still shows any step waiting on a push.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.drift-is-reported` [GAP] (#6116) — the weekly report lists every disagreement between the spec, GitHub and the
   code: an [OK] behaviour with an open issue, a closed issue whose behaviour is not [OK], an issue with no milestone,
   a landed commit that closed nothing.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### E. Nightly, CI and release
 
@@ -383,6 +429,7 @@ Issues and milestones live on GitHub; the spec is their source and `builder` is 
   2026.10.30. The release script drafts the entry from the landed issues since the last tag (their titles and
   `type:` labels, grouped by area, in plain words for a user), writes `RELEASE_NOTES.md`, `CHANGELOG.md` and
   `docs/_latest.md`, and refuses to tag if any of the three is stale. Serves: builds Fichero.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.release-channels` [GAP] (#6116) — four channels: dev, alpha, beta, release. Dev is automatic (`dev-workflows.run.nightly-build`).
   A promotion to alpha, beta or release is prepared by script and approved by the owner: the script checks that the
   build's nightly was green at every stage, the smoke test passed on a clean machine, no escalation is open, no check
@@ -391,6 +438,7 @@ Issues and milestones live on GitHub; the spec is their source and `builder` is 
   On his yes the release script runs, with one journal row. Signing keys are used only by that script. Absorbs
   `pipeline.weekly-release` [PARTIAL]; `release-channels-and-feature-tiers.md` stays the source for what each
   channel means. Serves: builds Fichero, reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 ### F. State and reporting
 
@@ -399,11 +447,15 @@ Issues and milestones live on GitHub; the spec is their source and `builder` is 
 
 - `local.rulings-become-rules` [GAP] (#6116) — each escalation the supervising manager answers also files the guard, rule or
   routing entry that would have decided it. An escalation answered twice is a defect.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.promotions-stay-with-owner` [GAP] (#6116) — handover changes nothing about promotions: alpha, beta and release
   stay the owner's yes.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.handover` [GAP] (#6116) — the supervising manager is done when, for two consecutive weeks: no escalation reached it,
   the parked list stayed short, shadow agreement held, and no check was relaxed. It writes a handover note and stops.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.freeze` [GAP] (#6116) — after handover the harness takes fixes only; a new harness feature needs the owner.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 ### H. The loop moves onto LangGraph
 
@@ -415,16 +467,20 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   landed, blocked, parked, escalated) runs as a LangGraph graph with its state saved in SQLite. The jail, the worker
   sessions, the handoff, the ladder, the GitHub writes and the release script stay the Builder's own code, called
   from the graph. The JSONL journal stays the record: every state change still writes a row. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.migration-one-lane-first` [GAP] (#6116) — the move is made one lane at a time, the first beside the current loop
   on the same steps. A lane has moved when the existing crash, restart and resume tests pass unchanged against it,
   and a worker that runs for hours and hands off at its mark carries on correctly. The old loop is deleted only when
   every lane has moved. If the long-running worker or the handoff cannot be kept, stop and report: that design
   outranks the library. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.pinned-dependency` [GAP] (#6116) — the package version is pinned and recorded with the rules; an upgrade is a step
   like any other, with the full ladder. The Builder still does not import the engine it judges. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.new-orchestration-on-the-graph` [GAP] (#6116) — escalation, the manager's moves, parked-step retries, the question
   list and the reviewers (binding, shadow, bug hunt) are built as graph nodes and pauses, never as more hand-written
   state code. LangChain is not adopted for this: it assembles model calls, and the Builder runs whole agents.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 ### I. What the night of 2026-11-19 taught (#6589)
 
@@ -438,10 +494,12 @@ Spec-change: owner 2026-11-20.
   with a warning when it cannot see the text leave the input box, and the loop moves the step to `sent` either way.
   Acceptance: a step whose message was not seen submitted stays undelivered, and a DONE row older than the delivery is
   not read as that step's. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.undelivered-is-redelivered` [GAP] (#6589) — a message with no proof of delivery is kept and delivered again, to
   whichever session holds the lane next: a managed worker, an external session, or a new pane after a restart. It is
   dropped only when the step ends or is parked, with a row. Acceptance: a brief, a finding and a LANDED note sent to a
   pane that did not submit are each delivered once to the lane's next session, in order. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.no-commit-is-never-landed` [PARTIAL] (#6589) — a step with no commit of its own never reads `landed`. Built: a
   DONE from a tree with nothing past the land branch is blocked as a DONE with no commit
   (`fichero-builder/fichero_builder/queue.py`; test
@@ -451,6 +509,7 @@ Spec-change: owner 2026-11-20.
   `fichero-builder/tests/test_loop.py::test_a_worker_step_with_no_commits_over_origin_is_blocked_never_landed`.
   Left: a worker step whose own commits are all on the land branch by patch is not yet told apart from one that made
   none. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.approve-remembered-per-head-and-reason` [PARTIAL] (#6589) — an approve is remembered for the head and the reason
   it was given, so the same head is not blocked again for the same reason. Built: the content bindings of
   `dev-workflows.ladder.approve-is-fingerprinted` and `dev-workflows.run.loop-approval-by-diff`; for red-on-base,
@@ -461,6 +520,7 @@ Spec-change: owner 2026-11-20.
   Left: every other refusal kind, which asks again each time it is raised. Acceptance: an approved refusal raised again at
   the same head with the same reason is one `auto-approve` row and no alert the first time; a new head or a new reason is
   an alert as before. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.already-built-is-declared` [PARTIAL] (#6589) — a test that already passes on the base is declared, never slipped
   in: the commit holds tests only and its message carries `Already built: #N path::test`. Built: the red-on-base rung
   owes such a file no red and refuses it when it fails on base (`fichero-builder/fichero_builder/check_tool.py`), the
@@ -468,11 +528,13 @@ Spec-change: owner 2026-11-20.
   it (`fichero-builder/fichero_builder/brief_tool.py`). Left: the common prompt (`fichero-builder/agents/common/common.md`)
   does not say it; the fix brief sent after a NOT RED ON BASE refusal does not say it; and the rung does not check that
   the declaring commit touches tests only. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.diff-bound-splits-the-step` [GAP] (#6589) — a batch over the diff bound is split by the loop, not sent back to a
   person: a core that fits the bound stays the step, and the rest becomes a new step `<lane>-part2` queued behind it on
   the same lane, each with its own tests. Today `check_tool.diff_bound` only refuses with the count. Acceptance: a
   batch of two commits whose sum is over the bound becomes two steps that each pass the bound; one commit over the
   bound alone is a question for the manager, never a silent pass. Serves: reliable, with little supervision.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.removed-tree-is-not-a-moved-tree` [OK] (#6589) — the check that no tree outside a step's own moved reads a tree
   that was removed since the step started (a landed lane's cleanup) as removed, and says nothing: `queue.tree_check` skips
   a path that no longer exists, and a landed lane's tree is not snapshotted (tests
@@ -486,12 +548,14 @@ Spec-change: owner 2026-11-20.
   tests). Left: on 2026-11-19 a dismissed alert parked a step whose session was at work on the finding; no test covers
   an alert whose step has since been sent back or retried, or a blocked step with a live session. Acceptance: Dismiss
   and Dismiss All leave such a step where it is and say so in the row. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.restart-resumes-the-night` [PARTIAL] (#6589) — after a crash or a restart of the machine the loop starts by
   itself and carries on: steps keep their state, a live session is adopted, and a session that was lost is queued again
   from its tree. Built: the LaunchAgents of `dev-workflows.run.loop-launchd`, and for a managed lane the adopt-or-queue
   rule in `fichero-builder/fichero_builder/queue.py` (`dev-workflows.run.restart-adopts-live-window`). Left: an external
   lane whose session died gets one alert a day and waits (`dev-workflows.run.loop-no-session`); a chain, a check or a
   release stage that was running at the crash has no test that it starts again. Serves: reliable, with little supervision.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.network-outage-is-infra` [PARTIAL] (#6589) — a network outage during a fetch, a rebase, a check or a GitHub call
   is infra: the step waits and the call is tried again until the network is back, with one row. It is never a conflict,
   a red or an alert for a person. Built: the rebase tries once more after 20 seconds on a network error
@@ -499,6 +563,7 @@ Spec-change: owner 2026-11-20.
   (`fichero-builder/fichero_builder/check_tool.py`). Left: an outage longer than that one retry blocks the step with the
   git error as if it were a conflict. Acceptance: with the remote unreachable for ten ticks a step in rebase stays in
   one `infra-wait` state with one row and no alert, and goes on by itself when the remote answers. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 #### Workers and scale: what ten workers showed
 
@@ -512,11 +577,13 @@ steps and disk use, not landings.
   a lane more landed more. Today the counts are fixed numbers in `harness.toml` (`[queue] workers`, `[loop] lanes`,
   `[check] parallel`). Acceptance: the nightly report gives landings an hour beside the lane count, and a lane count
   that did not raise the rate over a night is named in it. Serves: reliable, with little supervision.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.checks-run-on-other-macs` [PARTIAL] (#6589) — the checks are carried by check runners on other Macs so the
   loop's Mac keeps its processor and disk for the workers: one runner keeps its trees on an external disk, another is
   a desktop Mac. Built: `harness.toml` `[check] remote` lists the runners in order, a runner under
   `remote_min_free_gb` is skipped, and the nightly names its own `check_runner`. Left: which rung goes to which Mac is
   the list's order, not a placement by capability (`dev-workflows.pool.placement-and-fallback`). Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### J. What the day of 2026-11-21 showed (#6589)
 
@@ -536,8 +603,15 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   stop marker, ends the lane's windows and queues the step again ("stopping the session this loop lost track of"). On
   2026-11-21 that row was written fourteen times, five of them within two minutes of one re-exec while the sessions were
   at work, and no `adopted` row was written all day. The lane does not record its window id or its process id at start.
+  **Built** 2026-11-23, the half that ends no session: a window that runs more than a shell is never ended by the
+  lost-track branch (`procs.live_windows`); one alert names the window id, the lane and the step, and the step keeps its
+  state. A step that was `checking` before a restart still gets the file-bound split. Tests
+  `fichero-builder/tests/test_builder_restart.py::test_a_live_window_the_loop_cannot_adopt_is_one_alert_with_its_id_and_is_never_stopped`,
+  `fichero-builder/tests/test_builder_restart.py::test_a_step_that_was_checking_before_a_restart_still_gets_the_automatic_split`.
+  Left: the window id and process id recorded at start, and a watcher started again on the same feed.
   Test (owed): `test_builder_restart.py`, a re-exec with five live windows and no watcher adopts five and stops none; a
   live process id with a renamed window is adopted; a lane with neither is queued once. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.run.drain-expired-one-row` [BROKEN] (#6589) — when the wait for a re-exec passes its limit, the loop says so once
   for each lane and head, and the re-exec then happens at the first tick with no chain running, before another chain
   starts. Today the branch after `DRAIN_MAX_S` in `queue.tick_lane` appends a `drain-expired` row every time it is
@@ -545,6 +619,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   725 `drain-expired` rows on 2026-11-21 against 9 `drain-held`, and about 35 minutes of them before the re-exec.
   Test (owed): `test_loop_survives.py`, ten ticks past the limit write one row a lane and head, and the loop re-execs
   after the running chain ends with a second batch still waiting. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.run.sent-needs-a-live-session` [GAP] (#6589) — a step is `sent` only while a session is at work on it. At every
   tick the loop checks each `sent` step: the window runs more than a shell, and the session file has changed within
   `[spend].silent_s` or the session is idle after a delivered message. A `sent` step that fails the check for two ticks
@@ -554,6 +629,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   reaches `procs.row(lane) is None` in `queue.tick_lane` and returns, tick after tick, with no row; one step sat `sent`
   that way for hours on 2026-11-21. Test (owed): `test_loop.py`, a `sent` step whose window runs a shell is queued again
   after two ticks with one row; a quiet `sent` step past the limit alerts once. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.run.turn-ended-without-done-alerts` [GAP] (#6589) — a worker whose turn ends after a delivered message with no
   DONE line and no handoff line is noticed within one tick, whether or not its branch moved. The watcher writes one
   `watch` row `turn-ended-no-done` with the last 300 characters the worker wrote. When that text ends in a question, it
@@ -568,6 +644,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   has no such hook falls back to the window. Test (owed): `test_dry_run.py`, an idle worker with an unmoved
   branch and a last line ending in a question mark is one alert in one tick; one with no question is nudged, then
   alerted. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.disk.thin-snapshots-before-holding` [GAP] (#6589) — before the loop holds a new lane for disk, it frees what
   the system's local backup snapshots pin and measures again. On macOS, space freed by a sweep stays held by local Time
   Machine snapshots until they are thinned. Once in a low-disk episode, and at most once an hour, the loop runs
@@ -578,6 +655,27 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   run by hand freed 10 to 14 GB twice. Test (owed): `test_loop.py`, a fake thin that frees space lets the lane start
   with one `disk-thinned` row; one that frees nothing holds; a second low reading within the hour does not thin again.
   Serves: reliable, with little supervision.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.run.waiting-is-one-ask-alert` [OK] (#6855) — a worker whose last line is `WAITING: <question>` is one ask alert
+  for the manager. The step row records `waiting=<question>`, the step is `blocked` with that one alert, and
+  `console.status()["open_questions"]` lists each open question with its lane and step (a Questions section in the
+  console page). Only the WAITING alert's send-back with no `--text` is refused; a retry, an approve or a send-back clears the
+  question, so a later alert on the step never asks it again. With text, the answer goes into a
+  `sendback-<id>.txt` resume brief and the step is `queued` again; a live session gets it as its next message, and a new session reads it otherwise. Tests
+  `fichero-builder/tests/test_loop.py::test_a_worker_that_ends_with_waiting_is_one_ask_alert_with_the_question_and_the_step_waits`,
+  `fichero-builder/tests/test_loop.py::test_a_send_back_of_a_question_with_no_answer_is_refused_and_with_one_the_answer_reaches_the_session`,
+  `fichero-builder/tests/test_loop.py::test_the_console_lists_each_open_question_with_its_lane_and_step`,
+  `fichero-builder/tests/test_loop.py::test_a_retry_of_a_question_clears_it_so_a_later_send_back_of_another_alert_needs_no_answer`,
+  `fichero-builder/tests/test_dry_run.py::test_a_waiting_end_message_is_one_step_row_with_the_question_and_the_session_stays`.
+  Serves: reliable, with little supervision.
+- `local.run.worker-starts-in-its-own-directory` [OK] (#6869) — a queued lane's worker command starts in
+  `<workroot>/work-<lane>`, which the worker makes itself and which must be a directory, not a link, that it owns (the
+  workroot is world-writable), and `TMPDIR` and pytest's `--basetemp` (through `PYTEST_ADDOPTS`) point inside it at
+  `tmp/`. `start_tool.prepare` also puts `env TMPDIR=… PYTEST_ADDOPTS=…` in front of claude's argv, because a window
+  opened in a running tmux server gets the server's environment, not the starter's. Tests
+  `fichero-builder/tests/test_lane_role.py::test_a_workers_command_starts_in_a_directory_it_made_with_tmpdir_and_pytest_basetemp_inside_it`,
+  `fichero-builder/tests/test_adapters.py::test_the_workers_tmpdir_and_pytest_basetemp_reach_the_session_command_not_the_tmux_servers_environment`.
+  Serves: reliable.
 - `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
@@ -588,12 +686,14 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   Test (owed): `test_queue_verb.py`, a second step on the same text is refused with the first step's name; with
   `--continues` and `--left` the kept brief ends with the landed commits and the left text; `--continues` with no
   `--left` is refused. Serves: builds Fichero, reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.queue.drop-takes-a-queued-step` [GAP] (#6589) — `builder queue drop --lane L --step S --text WHY` removes a step
   that has not started: `queued` with no round, no head and no session, at the cursor or behind it. It writes the same
   `dropped` row as for a parked step. A step in flight, blocked or landed is refused as before. Today `queue.reorder`
   takes `drop` for a `parked` step only, so a step queued by mistake has to be parked first. Test (owed):
   `test_queue_verb.py`, a queued step that never started is dropped with its reason in the row; a `sent` one is
   refused. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.run.recorded-move-is-not-a-stray-write` [GAP] (#6589) — the check that no tree outside a step's own moved
   excuses a move the loop or the manager made and recorded. A tree is excused when a `landed` row for the jail root, or
   a `tree-moved` row naming the tree, the old head and the new head, was written since the step's snapshot; and the
@@ -605,6 +705,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   alerts, one for each live step. Test (owed): `test_loop.py`, a jail root fast-forwarded to origin's tip raises
   nothing; a `tree-moved` row excuses its tree; a dirty or off-origin jail root is one alert for three steps.
   Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.autofix.loop-applies-the-printed-fix` [GAP] (#6589) — where a check prints the exact fix, the loop applies it
   to a managed lane, commits and checks again; no worker is asked. The classes are opted in by name in
   `[check].autofix` (an unknown name refuses the rules file). The fix runs in the lane's worktree as the worker, the
@@ -618,6 +719,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `test_autofix.py`, a red with a fix of a named class is one commit, one `autofix` row and a second check with no
   message to the worker; a class not named, a second red at the fixed head, and an external lane each go the old
   way. Serves: builds Fichero, reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.autofix.classes` [GAP] (#6589) — the four first classes, each decided by the check's own output and nothing
   else. `known-gaps-now-clean`: `scripts/check_endpoint_coverage_matrix.py` says entries of its known-gaps list are now
   clean; the loop removes exactly those entries. `ratchet-baseline-lower`: a ratchet prints a count below its baseline;
@@ -628,6 +730,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   one up; with none in the brief the red is a question for the manager, not a fix brief. Test (owed):
   `test_autofix.py`, one fixture red for each class gives the expected one-file commit; a baseline that would rise, an
   entry the check did not name, and an acceptance red with no line in the brief change nothing. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.models.effort-per-role` [GAP] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
   and the worker, reviewer or spec writer started on that role runs at that level: low for lint and mechanical
   batches, medium for workers, high for reviewers and spec writers. The adapter passes it in the form its harness
@@ -639,6 +742,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `start_tool` builds the Claude Code command with `--model` alone. Test (owed): `test_model_config.py` and
   `test_adapters.py`, a row with `effort = "low"` puts the level in the start command; no row leaves the command
   unchanged; `effort = "max"` refuses. Serves: builds Fichero (the same work for fewer tokens).
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 
 ### K. Small models: cheaper and faster, and as reliable (owner 2026-11-21)
@@ -664,6 +768,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   and the `cost` row in `fichero-builder/fichero_builder/run.py` carries the task and the model. Test (owed):
   `test_queue_verb.py`, a brief naming two test files is `tests`; one naming a spec and a source file is `feature`; the
   kind is on the cost row. Serves: local, builds Fichero.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.small.kind-has-its-lane-and-role` [GAP] (#6116) — a kind can be given to a cheaper role, by measurement. A
   `[models.kinds]` row names a role for a kind; `builder milestone` and `builder steps` then place steps of that kind on
   the kind's own lane, whose worker runs on that role. The worker stays one long-running session for its lane (§ A):
@@ -676,6 +781,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   (`lane["role"]` in `queue.add`) and is chosen by hand with `--role`. Test (owed): `test_queue_verb.py` and
   `test_milestone_verb.py`, a `tests` step goes to the kind lane on its role; a trial takes one in five; a kind with no
   `kind-passed` row is never past trial; a step red twice at one rung returns. Serves: local, builds Fichero.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.small.worker-prechecks-before-done` [GAP] (#6116) — a managed worker ends a step with one command, not a line it
   composes. The brief's DONE instruction names it. Run in the worker's own tree, inside the jail, with no network, it
   checks in under a minute: the trailer on each new commit, the pinned ready lint, the role's diff bound, the linter
@@ -686,6 +792,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   managed worker has only the brief's sentence about the DONE line. Test (owed): `test_presubmit.py`, a tree with a bad
   trailer prints the finding and no DONE line; a clean tree prints the line with its head; the command opens no
   socket. Serves: reliable, local.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.small.fix-brief-has-one-form` [GAP] (#6116) — every finding sent to a worker has the same fields in the same
   order: `RUNG`, `HEAD`, `FILE:LINE`, `SAID` (at most 20 lines of the check's own output), `FIX` (the exact command,
   when the check printed one), `RERUN` (the command that shows it green) and `END` (the command of
@@ -694,6 +801,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   finding. Today the fix briefs the loop writes in `queue.py` (the step's `resume_brief`) are the check's tail and a
   sentence, different for each kind of red. Test (owed): `test_loop.py`, a guards red, a build red and a NOT READY each
   become blocks with every field in order; a 200-line output is cut to the cap and names its file. Serves: reliable.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.small.brief-carries-the-symbols` [PARTIAL] (#6116) — a step brief gives a small model its place in the code, so
   it does not search for it. For each file the brief names, the brief lists the symbols the step's spec bullets cite
   and the tests named, each with its first and last line from the code map, 40 lines at most; a brief queued by hand
@@ -705,6 +813,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   Left: the symbols the spec bullets cite come first, the spans, the list on a hand-queued brief, and the measure in
   the report; an owed test in `test_codemap.py` (a step citing two functions lists both with spans; the list never
   passes the cap). Serves: local.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.spend.metered-provider-needs-a-cap` [GAP] (#6116) — no session starts on a provider that bills by use unless
   that provider has a cap. `[spend].metered` lists such providers (OpenRouter is the first) and `[spend.week_usd]`
   gives each a weekly figure in USD; a listed provider with no figure refuses the rules file, and a role on it
@@ -715,6 +824,67 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   person to watch. Test (owed): `test_watcher.py` and `test_model_config.py`, a metered provider with no figure
   refuses; a session parks when the week's rows reach the figure; a subscription session is not counted.
   Serves: reliable (no spend without a cap), local.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+
+### L. A review is a step kind (owner 2026-11-21, #6847)
+
+On 2026-11-20 and 21 the manager ran area reviews by hand: one session read an area's code and specs, measured it, wrote
+a report and spec changes on a branch, and the manager then filed the issues, mapped the `#NEW-n` tags, added the
+milestone to `build-order.md`, gave the spec a Build order and queued its steps. The audit of 2026-11-21 found what a
+hand does badly: a tag with no number mapped by order, ranked fixes with no issue (four reports: #6863 to #6866), owner
+questions left in the report, and "existing issues that gained evidence" never commented. `builder review` does the
+steps a program can do and leaves the judgement (the review, the owner's answers) where it was. The review rules a
+session reads are `fichero-builder/prompts/review-common.md`. A report has these headings (a number before the title
+is allowed, the case is not checked): **What exists**, **Measured**, **Ranked fixes** (a numbered list; each item cites
+the issue it belongs to as `NEW-n` or `#N`, and its spec step as `[1.2]` when the spec's Build order has it),
+**Issues to file** (a list: `NEW-n title (behaviour ids)`), **Open questions** (a numbered list, or the word "none"),
+and optionally **Existing issues that gained evidence** (a list: `#N text`). Spec-change: owner 2026-11-21 a review incorporates itself.
+
+- `local.review.start-queues-a-session` [OK] (#6847) — `builder review start <area> --repo-dir R --written-by TEXT
+  [--base REF] [--scope TEXT]` makes the review worktree `<[jail].workroot>/wt-review-<area>` on branch `review-<area>` from the base
+  (default `origin/<[land].branch>`), writes the brief (the review rules, the area, the report path
+  `review-<area>.md` in the worktree, kept out of the commits by `.git/info/exclude`) and queues it as the one step
+  `review` of lane `review-<area>`, so the loop runs it like any step. An area that is not a word of letters, digits and
+  dashes, whose worktree or branch exists, or with no `--written-by`, is refused. Test: `fichero-builder/tests/test_review_verb.py`, on a scratch repo: the
+  worktree, the branch, the exclude line, the queued step and the brief text; a second start is refused.
+  Serves: local, builds Fichero.
+- `local.review.report-is-checked` [OK] (#6847) — `builder review check <area>` reads the report and refuses one that
+  lacks a heading above, whose Issues list is empty, whose `NEW-n` run has a gap or a repeat, or in which a ranked fix
+  cites neither a listed `NEW-n` nor a `#N`. It names each fault with its heading or fix number and exits 1. Test:
+  `fichero-builder/tests/test_review_verb.py`, one report per fault, and one whole report passes. Serves: reliable.
+- `local.review.approve-files-and-maps` [OK] (#6847) — `builder review approve <area> --milestone M --spec FILE
+  --written-by TEXT`
+  runs the check first, then files one issue per `NEW-n` in milestone M through `gh` (title `[M] title`, the behaviour
+  ids and the report's text in the body) and writes the map `NEW-n -> #N` to `<state>/review-<area>-issues.json` after
+  each issue, so a second run files only what the map lacks. It rewrites the spec's tags: `#NEW-n` and `#NEW-Sn` become
+  the filed number; a bare `#NEW` is mapped by the behaviour id of the bullet it is on, through the issue's behaviour
+  ids, never by its place in the file; a bare tag on a bullet whose id no issue names, or two issues name, refuses the
+  whole approve before anything is filed. Test: `fichero-builder/tests/test_review_verb.py`, on a fake `gh` that numbers from 7000: the
+  map, the idempotent second run, `NEW-S2`, a bare tag mapped by id, and an unmapped bare tag refused with nothing
+  filed. Serves: reliable.
+- `local.review.every-fix-has-an-issue` [OK] (#6847) — the spec's Build order keeps the steps the review wrote; each
+  step heading that a ranked fix cites as `[N.M]` takes `(#N, #M)` of the issues that fix cites. A fix whose step the
+  spec lacks, and a step no fix cites, are listed and refuse the approve (a step with no issue is how #6863 to #6866
+  were missed). The approve adds the milestone's line to `build-order.md` under `## In order` (after `--after
+  <milestone>`, else last) with its `Spec:` path, or sets the `Spec:` path of the line that is there. Test:
+  `fichero-builder/tests/test_review_verb.py`: headings take their numbers; a fix pointing at a missing step refuses; the line is added once.
+  Serves: reliable.
+- `local.review.evidence-and-questions` [OK] (#6847) — each "existing issues that gained evidence" item becomes a
+  comment on that issue, once. Each owner question becomes an `alert` row on lane `review-<area>`, step `question-n`,
+  answered by `ask-owner` (the question goes as a `needs-your-decision` comment on the first filed issue) or `park`;
+  a question already alerted is not alerted twice. Test: `fichero-builder/tests/test_review_verb.py` and `fichero-builder/tests/test_alerts_clear.py`: the
+  comments on the fake `gh`, the alert rows, `ask-owner` on a lane-less alert. Serves: reliable.
+- `local.review.approve-lands-then-enqueues` [OK] (#6847) — the approve commits the spec and `build-order.md` in the
+  review worktree (message from a file; the trailers `Written-By` and `Spec-change`), writes
+  `<state>/review-<area>-issue-list.txt` (number, milestone, title of each filed issue) for the landing step to be
+  given, and prints the sha: a landing step needs no `gh` in the jail. `builder review approve <area> --enqueue` runs
+  after that commit has landed (it is an ancestor of `origin/<[land].branch>`; else refused) and calls `builder
+  milestone M --spec FILE --enqueue`. Test: `fichero-builder/tests/test_review_verb.py`: the commit holds only the spec and
+  `build-order.md`; `--enqueue` before the land is refused; after it, the lane has a step. Serves: local.
+- `local.review.tests-touch-nothing-real` [OK] (#6847) — the review tests run on a scratch repo, a scratch state
+  directory and a fake `gh` that records its calls and numbers its issues; no test reads the real git config, the
+  real journal or the real issues. Test: `fichero-builder/tests/test_review_verb.py` sets `GIT_CONFIG_GLOBAL` and `HOME` to the scratch
+  directory and asserts the fake `gh` is the only issue client called. Serves: reliable.
 
 
 ### From `dev-workflows.md` — Behaviours
@@ -1139,7 +1309,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   `[spend]`, a missing cap or an unknown price refuses, decisions park, handoff, alert from a session state). Not yet: the
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
   The caps in `harness.toml [spend]` are owner settings (8 USD a session, 250 USD a day as of 2026-11-16 evening). `[spend].window` is 200000 and
-  `[models].builder` is plain `sonnet` (owner 2026-11-02: every turn under 200k, handoffs often, cheap and reliable), because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
+  `[models].builder` is plain `sonnet` (owner 2026-11-02: every turn under 200k, handoffs often, cheap and reliable; Opus 2026-11-20, back to Sonnet 2026-11-21 11:20 after the burn; the test pins exactly this value), because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
 - `dev-workflows.run.loop` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
   person is a defect) — `builder loop` runs indefinitely: `builder queue run --lanes N --push` ticking forever, one `loop` heartbeat
   row a tick. It runs as the owner (a LaunchAgent with KeepAlive), because check rows, verdicts, the push and `gh` are the owner's
@@ -1224,12 +1394,12 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
 - `dev-workflows.quality.bug-review-stream` [GAP] (#6391; owner 2026-11-07, the fourth stream; #6389 the ponytail lens) — automated module-by-module bug reviews file deduped issues, update the spec, and Sonnet fixes a group of related ones per batch. Built on what exists and nothing else: **the reviewer** is `scripts/harness_review.py`'s restricted reviewer (`claude -p --restricted`, Read, Grep and Glob only, no MCP, an empty owner-only cwd) pointed at ONE module's files instead of a diff, its lens `docs/contributor_manual/review-checklist.md` plus the module's spec bullets and the ponytail lens of #6389; each finding names `file:line`, the spec bullet it breaks (or "no bullet", a spec gap), and a test that would fail. **Filing** goes through the log watcher's filer (`builder watch`, #6369): its dedupe key (one issue per distinct finding, with a count) and its caps (at most 3 issues a pass and 10 a day, the rest into one rolling issue); a bug review is one more source for that filer, not a second filer. **Placing:** `builder triage --move N --to <milestone>` puts each issue in its spec's milestone with a reason comment, and `builder steps` / `builder milestone` puts it under a build step, so related issues group into one batch. **Fixing:** the stream's lane takes one group per batch, tests to the spec first (red on base), the normal ladder and an Opus review; where the code was right and the spec wrong the spec line is changed with a `Spec-change` trailer. **Order:** one module per pass in a fixed rotation named here: `fichero-server/src/fichero_server/recipes/`, `execution/jobs.py` and `execution/throttle.py`, `api/routes/ingest/`, `llm/kraken_runtime.py`, then the app's `Views/Onboarding/`, `Views/Sidebar/`, `Services/`, `Models/`, then round again; the FIRST pass is a single module (`recipes/`, the most churn this month) as a trial after the Monday build, and the measure is findings per module, how many held up under the Opus review, and how many fixes landed. Acceptance: a pass over one module writes at most 3 new issues and one rolling issue, each finding with `file:line`, a bullet or "no bullet" and a failing test named; a second pass over the same module with nothing changed files nothing new and raises the counts; each issue sits in its spec's milestone with the reason comment and under a step; the trial's three figures are in the digest.
   Phase 0 amendment (owner 2026-11-17/18, from the cut `dev-workflows.quality.bug-review-stream`): run when a milestone's last step lands and before any release, never per step: a model other than the builder reads the milestone's changes together for faults between steps; each finding is an issue with a failing test owed.
 - `dev-workflows.quality.perf-method` [OK] (#6600; owner 2026-11-14: proper tools, not ad-hoc timers; the standing rule: adopt tools, never write our own) — one method for every measured figure the `perf` rung and the sweep produce, and it is `scripts/perf_trial.py`'s, already written down and tested (`fichero-server/tests/unit/scripts/test_perf_trial.py`), reused as the decider and extended with the new measurement kinds rather than copied: the FIRST run is cold and discarded; the figure is the MEDIAN of the runs that follow (three a batch, five a night); the thermal state (`thermal_state`, read from `ProcessInfo` in the app and `pmset -g therm` on the runner) and whether the machine was idle are recorded, and a run under `fair` or worse is VOID, neither pass nor fail; runs that disagree by more than a tenth of their median are INCONCLUSIVE and re-run once, never best-of; a result with no machine model, no thermal state or too few runs is REFUSED (a gate that cannot read its input fails, it never passes quietly). Every figure is keyed by `machine.model` (the M4's, the Air's and the iMac's figures never compare with each other) and by scenario (as `slow-path-ratchet` keys by scenario). Tolerances are STATED per measure, in the baseline file beside the figure, not in code: wall time and CPU time 5% (pytest-benchmark's `--benchmark-compare-fail=median:5%` and XCTest's per-metric "max deviation" are the same rule in the two tools), peak RSS 3%, body-evaluation counts, hang count, leak count and the disk left behind EXACTLY (zero tolerance, like the other ratchets); a baseline may only fall, and a better median is printed as the figure to lower the file to (`baseline-falls-every-batch`). **Where it runs:** on `[check].build_remote` or the first `[check].remote` runner that declares the capability (`pool.machines-declare-capabilities`; the app measures need `xcode` and a GUI session, the engine measures need `python`), never on the manager's Mac (`pool.hold-holds-one-machine`), behind the heavy lock (one measurement at a time: two concurrent runs are noise). **Budget (per batch, wall, on the M4):** the engine perf rung and the security rung together under 6 minutes and the app perf rung under 5, each timed out at twice that and a timeout one `alert` row naming the rung, never a red; a batch whose diff touches no path under `fichero-server/`, `fichero-cli/`, `fichero-mcp/` or `pipeline/` skips the engine rung and one touching none under `fichero/` skips the app rung, each as a "not required" row like `red-on-base`'s; a docs-only batch runs neither. A rung's alert (a report-only red, a timeout, an unreachable runner) is a queue-shaped row the console can answer: id `harness-rung-<name>-<n>`, lane `harness`, step `rung-<name>`, `what`, action `dismiss`; while one with the same text is open the same rung adds no other (#6589, 2026-11-15: 69 id-less rows sat on the console that no answer could reach; rows with no id are never listed as open; test `fichero-builder/tests/test_alerts_clear.py::test_a_rung_alert_has_an_id_says_itself_once_and_dismisses`). **Nightly** (the quality lane's schedule, after `check.daily_builds`): the five-run form of every figure, the full Instruments templates and memray, which are too slow for a batch, and the release-size ratchet (`scripts/release_size_baseline.json`, which already holds the app binary, the bundle and the DMG) read from the daily build. Acceptance (`perf_trial.py`, no machine): a results file with one cold and three warm runs under `nominal` and idle passes against a baseline within tolerance; the same with the cold run included in the median is REFUSED by shape; `fair` is VOID; runs at 100, 100 and 130 ms are INCONCLUSIVE; a file for `Mac16,10` is never compared to a baseline keyed `Mac14,2`; a tolerance missing from the baseline file is REFUSED naming the measure. Test: `fichero-server/tests/unit/scripts/test_perf_trial.py::test_the_rung_s_measures_follow_the_trial_method_cold_discarded_median_thermal_void_keyed_by_machine_and_tolerance_from_the_file`. Built: the decider and `scripts/perf_baseline.json` (tolerances, no figures yet: they are written from real runs on the M4). Open: the budget is not yet measured, and the nightly form is not wired.
-- `dev-workflows.quality.perf-rung-engine` [PARTIAL] (#6600) — the ladder gains a `perf` rung after `build` (`RUNGS` in `check_tool.py`; a measurement runs on code that compiles) whose engine half runs ONE standard engine run under three industry tools and compares the figures to `scripts/perf_baseline.json` by `perf-method`. **The run:** `fichero-server/tests/perf/` under **pytest-benchmark** (`pytest fichero-server/tests/perf -p pytest_benchmark --benchmark-json=<out> --benchmark-compare=<baseline> --benchmark-compare-fail=median:5% --benchmark-warmup=on --benchmark-min-rounds=3`; the seven perf tests there, the cold start, the dense page, the document pipeline, the entity list and detail, the hundred-page recipe run and the editor's edit-undo, become its benchmarks with their method unchanged, and a new hot path gets a benchmark beside them, never a timer in a test), with the whole pytest process under **pyinstrument** for the time profile (`pyinstrument -r json -o <out>.json --` the pytest line: in-process, statistical, no root; py-spy is NOT used for the rung because attaching on macOS needs root and the runner has none, it stays a hand tool for a live hang) and under `/usr/bin/time -l` for the **peak RSS** (`maximum resident set size`, the honest zero-overhead peak; **memray** `run --native` then `stats --json` is the nightly form, since its allocation tracking slows the run a third and sees the DuckDB and numpy allocations tracemalloc misses, and tracemalloc, stdlib, stays where tests already use it: `test_engine_memory.py`, `test_remove_background_memory_6384.py`). **The figures held:** per benchmark the median wall time (pytest-benchmark's own compare is the judge, its JSON the record), the process's peak RSS, the top ten self-time frames from pyinstrument (a new frame in the top ten that is ours, not a library's, is a finding printed with the rung, not a red: it names what to look at), the **DuckDB figures** the engine already logs (`db/busy_evidence.py`'s spill MiB and old-row-version MiB, read from the run's log), and the **disk left behind**: `du -sk` of the scratch library, the engine's cache dir, its log dir and the models dir before and after, the delta held exactly (a run that leaves files behind is a leak; the fixture library's own growth is subtracted by the run's declared outputs). The **query-count ratchet** (#4443, per endpoint, exact) already runs in the pytest rung and is named here as the N+1 measure: it is not duplicated. **Red** names the benchmark or measure, the baseline figure and the measured one, and the machine; green prints every figure that fell. The engine's standard reading run (`bench_reading.py --pages 20`, the `slow-path-ratchet`'s run) stays post-landing and nightly as #6391 says: it is minutes of Kraken on its own and does not fit a batch. Acceptance (fixtures, no engine): a pytest-benchmark JSON with one benchmark 8% over its baseline median is red naming the test, both medians and `Mac16,10`; one 4% over is green; a `time -l` output with a peak RSS 5% over is red; a `du` pair whose delta is 40 KiB with no declared output is red naming the directory; a pyinstrument JSON whose top ten gains a frame under `fichero_server/` prints a finding line and stays green; a raised baseline in the batch's diff is refused (`ratchets-held-exactly`). Test: `test_perf_rung.py::test_the_engine_half_reads_benchmark_rss_disk_and_profile_and_reds_only_a_worse_figure` and `test_the_rung_skips_unconfigured_unrequired_and_runnerless_batches_and_stays_green_while_report_only` in fichero-builder/tests/. Built: the readers, the rung in `RUNGS`, `scripts/perf_engine_run.py`, `[check.perf]` (report-only). Open: the seven perf tests are not converted to pytest-benchmark (they run about 50 minutes, over the budget), and the rung has not run on the M4.
+- `dev-workflows.quality.perf-rung-engine` [PARTIAL] (#6600) — the ladder gains a `perf` rung after `build` (`RUNGS` in `check_tool.py`; a measurement runs on code that compiles) whose engine half runs ONE standard engine run under three industry tools and compares the figures to `scripts/perf_baseline.json` by `perf-method`. **The run:** `fichero-server/tests/perf/` under **pytest-benchmark** (`pytest fichero-server/tests/perf -p pytest_benchmark --benchmark-json=<out> --benchmark-compare=<baseline> --benchmark-compare-fail=median:5% --benchmark-warmup=on --benchmark-min-rounds=3`; the seven perf tests there, the cold start, the dense page, the document pipeline, the entity list and detail, the hundred-page recipe run and the editor's edit-undo, become its benchmarks with their method unchanged, and a new hot path gets a benchmark beside them, never a timer in a test), with the whole pytest process under **pyinstrument** for the time profile (`pyinstrument -r json -o <out>.json --` the pytest line: in-process, statistical, no root; py-spy is NOT used for the rung because attaching on macOS needs root and the runner has none, it stays a hand tool for a live hang) and under `/usr/bin/time -l` for the **peak RSS** (`maximum resident set size`, the honest zero-overhead peak; **memray** `run --native` then `stats --json` is the nightly form, since its allocation tracking slows the run a third and sees the DuckDB and numpy allocations tracemalloc misses, and tracemalloc, stdlib, stays where tests already use it: `test_engine_memory.py`, `test_remove_background_memory_6384.py`). **The figures held:** per benchmark the median wall time (pytest-benchmark's own compare is the judge, its JSON the record), the process's peak RSS, the top ten self-time frames from pyinstrument (a new frame in the top ten that is ours, not a library's, is a finding printed with the rung, not a red: it names what to look at), the **DuckDB figures** the engine already logs (`db/busy_evidence.py`'s spill MiB and old-row-version MiB, read from the run's log), and the **disk left behind**: `du -sk` of the scratch library, the engine's cache dir, its log dir and the models dir before and after, the delta held exactly (a run that leaves files behind is a leak; the fixture library's own growth is subtracted by the run's declared outputs). The **query-count ratchet** (#4443, per endpoint, exact) already runs in the pytest rung and is named here as the N+1 measure: it is not duplicated. **Red** names the benchmark or measure, the baseline figure and the measured one, and the machine; green prints every figure that fell. The engine's standard reading run (`bench_reading.py --pages 20`, the `slow-path-ratchet`'s run) stays post-landing and nightly as #6391 says: it is minutes of Kraken on its own and does not fit a batch. Acceptance (fixtures, no engine): a pytest-benchmark JSON with one benchmark 8% over its baseline median is red naming the test, both medians and `Mac16,10`; one 4% over is green; a `time -l` output with a peak RSS 5% over is red; a `du` pair whose delta is 40 KiB with no declared output is red naming the directory; a pyinstrument JSON whose top ten gains a frame under `fichero_server/` prints a finding line and stays green; a raised baseline in the batch's diff is refused (`ratchets-held-exactly`). Test: `test_perf_rung.py::test_the_engine_half_reads_benchmark_rss_disk_and_profile_and_reds_only_a_worse_figure` and `test_the_rung_skips_unconfigured_unrequired_and_runnerless_batches_and_stays_green_while_report_only` in fichero-builder/tests/. Built: the readers, the rung in `RUNGS`, `scripts/perf_engine_run.py`, `[check.perf]` (report-only). Open: the seven perf tests are not converted to pytest-benchmark (they run about 50 minutes, over the budget), and the rung has not run on the M4. **Added 2026-11-23 (#6600, owner: profile every batch):** the run also records `written_kib` (the net growth in KiB of the watched directories, `du`, not block-output operations), and the report says each figure's change against the base in % (`change: <scenario>: v vs base b (+x%)`, or `no base yet`); a perf run that could not measure (REFUSED, not run, no PERF-RESULT line, exit != 0) is red even while report-only, which forgives a slow number and never a missing one; the reviewer's performance lens names RAM, disk and time risks in the diff. Tests: `test_perf_rung.py::test_the_result_carries_bytes_written_and_says_each_figures_change_against_the_base_in_percent`, `test_a_perf_run_that_could_not_measure_is_red_even_report_only_but_a_slow_number_is_not`, `test_perf_sweep.py::test_the_performance_lens_names_ram_disk_and_time_risks_in_the_diff`.
 - `dev-workflows.quality.perf-rung-runs` [PARTIAL] (#6589, #6600) — the perf rung actually runs. Acceptance: with `[check].remote_python` empty the perf argv starts with the gate venv's python (`<gate dir>/venv/bin/python`, the one `_gate_python` default the other remote rungs share), never the system `python3`; `pytest-benchmark==5.3.1` and `pyinstrument==5.1.3` are pinned in the server's `dev` extra and installed into the gate venv by `scripts/install_security_tools.sh`; a run whose baseline has no figures WRITES them (`scripts/perf_engine_run.py` stores them in the baseline file, the rung prints `recorded (report-only…)` lines to commit) and does not fail. Test: `test_perf_rung.py::test_perf_argv_uses_the_gate_venv_python_when_remote_python_is_empty` and `test_perf_rung.py::test_a_run_with_no_baseline_figures_records_them_and_does_not_fail`. Open: the gate venv has not been refreshed on the M4.
 - `dev-workflows.quality.perf-remote-crash` [PARTIAL] (#6589, #6600) — an unreachable runner and a remote crash are two rows: `_remote_build` returns None only when ssh or the sync fails ("not run: the build runner is unreachable"); a perf run that exits non-zero there returns a row carrying its stderr tail ("not run: the perf run crashed on <host> (exit N): <stderr>"), never "unreachable". Test: `test_perf_rung.py::test_a_remote_crash_is_a_not_run_row_with_its_stderr_never_unreachable`.
 - `dev-workflows.quality.rung-not-run-is-truthful` [PARTIAL] (#6589, #6600) — a rung that was skipped, REFUSED or could not run is "not run" on the ladder and the console (a `not_run` flag on the rung row and its `activity` event; the console pill reads "not run", never green). Test: `test_perf_rung.py::test_a_refused_or_skipped_rung_is_not_run_never_green`. Not built (#6658 #6659): `check_swiftlint_warning_ratchet.py` (no `swiftlint` binary, plain and `--since`) and `check_engine_imports_bundled.py` (no staged `app_packages`) now print `not run: ...` and exit 0, but a guard's `not run:` line does not yet set the rung's `not_run` flag, so on a runner without swiftlint a `--since` check reads green with only that line in its output; `preflight-embedded-engine.sh` checks the staged directory itself and still fails on a missing bundle. Tests: `test_check_swiftlint_warning_ratchet.py::TestGoingBlind::test_swiftlint_missing_from_path_is_a_not_run_row`, `test_check_engine_imports_bundled.py::test_an_absent_bundle_is_a_not_run_row`.
 - `dev-workflows.quality.security-pins-installed` [PARTIAL] (#6589, #6600) — the bandit, semgrep and gitleaks pins in `harness.toml [check.security]` are written by `scripts/install_security_tools.sh --write-pins` on the M4 from the versions it confirms (never typed by hand); until that run the pins are empty and the rung says REFUSED and "not run". Built 2026-11-15 on the M4: `--write-pins` wrote bandit 1.9.4, semgrep 1.185.0, gitleaks 8.30.1 and osv-scanner 2.7.1. The security rung runs on `[check].build_remote` through `_remote_build` (never on the manager's Mac): the remote command puts `[check.security].path` (default `/opt/homebrew/bin` and `~/.local/bin`, set in code) on PATH (a leading `~/` expands to the runner's `$HOME`) (the runner's ssh PATH is only the system dirs), runs `scripts/install_security_tools.sh --check`, then the scan over the batch's tree shipped with its `.git`; an unreachable runner or none configured is the not-run row with the reason. Test: `fichero-builder/tests/test_security_rung.py`. Open: the iMac has no scanners installed, so a security rung that runs there refuses.
-- `dev-workflows.quality.perf-rung-app` [GAP] (#6600; owner 2026-11-14: the SwiftUI views that re-rendered thirty times must not come back) — the `perf` rung's app half runs ONE XCTest performance plan, `FicheroPerfTests`, on the build machine's GUI session (`m4-smoke-needs-a-gui-session`: the console user is another user; this half waits on `run.swift-tests`, Step 2.8, for the scheme and the session, and until that lands it runs nightly only), with **XCTest's own metrics and baselines** as the ratchet: each test is a `measure(metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric(), XCTStorageMetric(), XCTOSSignpostMetric(subsystem: "app.fichero.fichero", category: "LaunchProfile", name: "launch")])` block around one scripted action (launch to the first library row, a sidebar click, opening the Reader on a 20-page document, the Library grid's first scroll, the Activity table with 200 rows), the baselines are Xcode's `.xcbaseline` plists committed beside the test target with their per-metric max deviation (5% time and CPU, 3% memory, exact storage), and `xcodebuild test -only-testing:FicheroPerfTests -resultBundlePath <out>.xcresult` fails the test itself when a metric exceeds its baseline, so the rung reads the xcresult (`xcrun xcresulttool get test-results summary`) and writes no judge of its own. The signposts are the ones that exist (`LaunchProfile.swift`'s and `InteractionProfile.swift`'s `OSSignposter` intervals; `LaunchPerformanceUITests.swift` already measures the launch with `XCTOSSignpostMetric`, and is the pattern), and a new hot path gets a signpost interval, not a timer. **Body-evaluation counts** for the named hot views (`ContentView`, `SidebarView`, the Activity row, the Reader page view, the Library grid cell) come from the counter that exists, `RenderDiagnostics.BodyCount` (`FICHERO_PRINT_CHANGES=1`, which logs one line per run-loop turn under the `BodyCount` category): the test launches the app with that environment and the rung reads the counts from the unified log (`log show --style json --predicate 'subsystem == "app.fichero.fichero" AND category == "BodyCount"' --start <t0>`), sums them per view per action, and holds them EXACTLY against `scripts/body_count_baseline.json` keyed by view and action, by `perf-method`; a view evaluated more often than its baseline is red naming the view, the action and both counts (the sidebar's thirty re-renders of #6547 are what this catches). **Nightly** (not a batch: minutes each) the quality lane records the same scripted actions under Instruments through `xcrun xctrace record --template '<T>' --launch -- <app path> --env FICHERO_PRINT_CHANGES=1 --output <out>.trace` for `Time Profiler`, `Allocations`, `Leaks`, `Hangs` and `SwiftUI`, exports the tables with `xcrun xctrace export --input <out>.trace --xpath '/trace-toc/run/data/table[@schema="<schema>"]'` (`potential-hangs` is what `scripts/check_hang_ratchet.py` already reads and holds, count, total and worst stall, and that script is the hang judge unchanged; `leaks` holds at zero, no baseline; `allocations` persistent bytes at the end of the scenario held to 3%; the SwiftUI template's view-body table cross-checks `BodyCount`), and `xcodebuild analyze` is NOT used for performance: it is the clang analyzer and sees no Swift. Acceptance (fixtures, no Xcode): an xcresult summary with one failed perf metric is red naming the test and the metric; a log export with `SidebarView` at 31 against a baseline of 4 for `sidebar-click` is red naming all three; a trace export with one `leaks` row is red; a `potential-hangs` export runs through the hang ratchet unchanged; a batch touching nothing under `fichero/` prints "not required". Test (to write): `test_perf_rung.py::test_the_app_half_reads_xcresult_metrics_body_counts_and_the_nightly_trace_tables` in fichero-builder/tests/.
+- `dev-workflows.quality.perf-rung-app` [GAP] (#6600; owner 2026-11-14: the SwiftUI views that re-rendered thirty times must not come back) — the `perf` rung's app half runs ONE XCTest performance plan, `FicheroPerfTests`, on the build machine's GUI session (`m4-smoke-needs-a-gui-session`: the console user is another user; this half waits on `run.swift-tests`, Step 2.8, for the scheme and the session, and until that lands it runs nightly only), with **XCTest's own metrics and baselines** as the ratchet: each test is a `measure(metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric(), XCTStorageMetric(), XCTOSSignpostMetric(subsystem: "app.fichero.fichero", category: "LaunchProfile", name: "launch")])` block around one scripted action (launch to the first library row, a sidebar click, opening the Reader on a 20-page document, the Library grid's first scroll, the Activity table with 200 rows), the baselines are Xcode's `.xcbaseline` plists committed beside the test target with their per-metric max deviation (5% time and CPU, 3% memory, exact storage), and `xcodebuild test -only-testing:FicheroPerfTests -resultBundlePath <out>.xcresult` fails the test itself when a metric exceeds its baseline, so the rung reads the xcresult (`xcrun xcresulttool get test-results summary`) and writes no judge of its own. The signposts are the ones that exist (`LaunchProfile.swift`'s and `InteractionProfile.swift`'s `OSSignposter` intervals; `LaunchPerformanceUITests.swift` already measures the launch with `XCTOSSignpostMetric`, and is the pattern), and a new hot path gets a signpost interval, not a timer. **Body-evaluation counts** for the named hot views (`ContentView`, `SidebarView`, the Activity row, the Reader page view, the Library grid cell) come from the counter that exists, `RenderDiagnostics.BodyCount` (`FICHERO_PRINT_CHANGES=1`, which logs one line per run-loop turn under the `BodyCount` category): the test launches the app with that environment and the rung reads the counts from the unified log (`log show --style json --predicate 'subsystem == "app.fichero.fichero" AND category == "BodyCount"' --start <t0>`), sums them per view per action, and holds them EXACTLY against `scripts/body_count_baseline.json` keyed by view and action, by `perf-method`; a view evaluated more often than its baseline is red naming the view, the action and both counts (the sidebar's thirty re-renders of #6547 are what this catches). **Nightly** (not a batch: minutes each) the quality lane records the same scripted actions under Instruments through `xcrun xctrace record --template '<T>' --launch -- <app path> --env FICHERO_PRINT_CHANGES=1 --output <out>.trace` for `Time Profiler`, `Allocations`, `Leaks`, `Hangs` and `SwiftUI`, exports the tables with `xcrun xctrace export --input <out>.trace --xpath '/trace-toc/run/data/table[@schema="<schema>"]'` (`potential-hangs` is what `scripts/check_hang_ratchet.py` already reads and holds, count, total and worst stall, and that script is the hang judge unchanged; `leaks` holds at zero, no baseline; `allocations` persistent bytes at the end of the scenario held to 3%; the SwiftUI template's view-body table cross-checks `BodyCount`), and `xcodebuild analyze` is NOT used for performance: it is the clang analyzer and sees no Swift. Acceptance (fixtures, no Xcode): an xcresult summary with one failed perf metric is red naming the test and the metric; a log export with `SidebarView` at 31 against a baseline of 4 for `sidebar-click` is red naming all three; a trace export with one `leaks` row is red; a `potential-hangs` export runs through the hang ratchet unchanged; a batch touching nothing under `fichero/` prints "not required". Test (to write): `test_perf_rung.py::test_the_app_half_reads_xcresult_metrics_body_counts_and_the_nightly_trace_tables` in fichero-builder/tests/. **Interim, built 2026-11-23 (#6600):** `perf()` also runs a Swift half when a changed path is under `fichero/` and `[check.perf].swift_test` is set (it is left unset in `harness.toml` until `run.swift-tests` gives the build remote a GUI session for the ssh user, because a UI test with no session exits non-zero and that is red even report-only; the candidate is `FicheroUITests/LaunchPerformanceUITests`): the test runs under `/usr/bin/time -l` on `[check].build_remote`, recording wall seconds and peak memory in one `Swift perf:` line; a non-zero exit or no readable figure is red. The reported peak memory is the largest process `/usr/bin/time` waited on (the build tool or the runner, not the app) and the seconds include any incremental build; the app's own figures come from the xcresult metrics above. With no `swift_test`, which is the state today, the row says "Swift perf: no workload yet (#6600)" and one alert is journalled per day. Tests: `test_perf_rung.py::test_a_swift_only_batch_runs_the_app_perf_test_on_the_remote_and_reports_time_and_memory`, `test_a_swift_batch_with_no_swift_test_says_no_workload_yet_and_alerts_once_a_day`, `test_an_engine_and_swift_batch_runs_both_halves`.
 - `dev-workflows.quality.security-scan-rung` [PARTIAL] (#6600; owner 2026-11-14: every batch is checked for security issues in the code) — the ladder gains a `security` rung beside `guards` (same lock, same runner, same remote form as `remote_guards = "auto"`: no git, no build), which runs five existing scanners over the batch and reports ONLY what is new against the base, each scanner by its own diff or baseline feature, never a wrapper of ours. **Python (`fichero-server/src`, `fichero-cli/src`, `fichero-mcp/src`, `fichero-builder/`, `scripts/`):** `bandit -r <dirs> -f json -o <out> -b scripts/bandit_baseline.json --severity-level medium --confidence-level medium` (bandit's own `-b` baseline: only findings absent from the baseline are reported); `semgrep scan --config p/python --config p/secrets --config .semgrep/ --baseline-commit <since> --json -o <out> --metrics=off <dirs>` (semgrep's own `--baseline-commit`: only findings introduced by the range). **Swift (`fichero/`):** `semgrep scan --config p/swift --config .semgrep/ --baseline-commit <since> --json --metrics=off fichero/` (the repo rules under `.semgrep/` hold what the generic sets lack and the security lens names: `Process()` with a shell, `NSAllowsArbitraryLoads`, `NSKeyedUnarchiver` without secure coding, a path joined from a client string); `xcodebuild analyze` is not run: the clang analyzer analyses C and Objective-C only, and the Swift compiler's own warnings are already the compiler-warning ratchet of Step 2.20. **Dependencies:** `osv-scanner scan --lockfile fichero-server/uv.lock --lockfile fichero/fichero.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved --lockfile fichero/fichero-api-client/Package.resolved --config osv-scanner.toml --format json --output <out>` (one tool for both ecosystems; `pip-audit`, which the release doc already names, stays the release-time cross-check over `uv export --format requirements-txt`, since it does not read `uv.lock`). **Secrets:** `gitleaks git --log-opts="<since>..<head>" --redact --report-format json --report-path <out> --baseline-path scripts/gitleaks_baseline.json` over the batch's own commits, messages included (the land step's public-boundary grep stays as the last line, since it also catches home paths and pair links). The rung's output is one table, scanner, rule, severity, `file:line` (redacted for gitleaks), and the same table goes into the review prompt under "SECURITY SCAN" so the lens reads the code the scanner pointed at. Any scanner missing on the runner is REFUSED by name (never a quiet green, rule 0), and a run over the budget in `perf-method` is an `alert`, not a red. None of the five is installed on the Mac today (checked 2026-11-14: only `swiftlint` is on the PATH; `pip-audit` appears once in a release doc, `py-spy` and `tracemalloc` in tests and design notes, `xctrace` in the hang ratchet), so the first batch of the step installs them on the runner by brew and uv (`brew install semgrep gitleaks osv-scanner`, `uv tool install bandit pip-audit`) and pins each version in `harness.toml [check.security]` with the rung refusing a version it did not pin. Acceptance (fixtures, no scanner binaries: the JSON outputs are the fixtures): a bandit JSON with one `B602` not in the baseline is red naming the file and line; the same finding present in the baseline is green; a semgrep JSON of a baseline-commit run with one `ERROR` is red; an osv-scanner JSON with one vulnerability of CVSS 8 is red naming the package and the id; a gitleaks JSON with one finding is red with the secret redacted; a runner without `semgrep` prints REFUSED naming it; the table in the prompt matches the rung's table. Test: `test_security_rung.py::test_each_scanner_s_new_findings_red_the_rung_a_baselined_one_does_not_and_a_missing_scanner_refuses` and `test_the_rung_skips_unconfigured_and_unrequired_batches_and_stays_green_while_report_only` in fichero-builder/tests/, and `test_the_security_rung_s_table_is_in_the_prompt_under_security_scan_exactly_as_the_rung_made_it` in fichero-server/tests/unit/scripts/test_harness_review_lenses.py. Built: the readers, the rung, `scripts/security_scan_run.py`, `scripts/install_security_tools.sh`, `[check.security]` (report-only, pins empty). Open: osv stays off until lane deps-security clears the Dependabot alerts. Was (2026-11-16, #6589): the rung now runs on `[check].build_remote` through `_remote_build`, never on the manager's Mac, and unlike `remote_guards = "auto"` it ships git: the batch's head is pushed to a persistent bare repo `security.git` on the runner (only the objects it lacks travel, no clone a run, done before the build lock) and checked out as a worktree in its own `security-tree` folder (the build rung's tree is untouched), under the scan's own `[check.security].timeout_s`, so semgrep `--baseline-commit` and gitleaks read history; the "no git" and "runs in the scratch tree (the remote form is open)" wording above is superseded. Built: the remote form, with `[check.security].path` (default `/opt/homebrew/bin`, `~/.local/bin`); tests `test_the_security_tree_on_the_runner_holds_the_history_and_a_second_run_pushes_without_cloning` and `test_the_security_scan_times_out_at_its_own_budget_not_the_build_timeout`.
   Phase 0 amendment (owner 2026-11-17/18, from the cut `dev-workflows.quality.security-scan-rung`): the security rung enforces after one clean week; the perf rung stays report-only until budgets and noise bands exist, and the report says so on every run.
 - `dev-workflows.quality.scan-thresholds-and-waivers` [PARTIAL] (#6600) — what counts, and how a false positive is set aside, in writing, for every scanner in `security-scan-rung`. **Thresholds, red:** bandit HIGH severity at MEDIUM confidence or better; semgrep `ERROR`; osv-scanner any advisory with CVSS 7.0 or above, or any in CISA's known-exploited list however scored, or any with a fix version available for a direct dependency; gitleaks any finding (a secret is never tolerated by severity). **Reported, not red:** bandit MEDIUM and semgrep `WARNING` go into the rung's table and the review prompt for the lens to judge, and into one rolling `Security - scan noise` issue through the watcher's filer with its dedupe and caps (`bug-review-stream`'s filer, one more source); osv-scanner advisories under 7.0 with no fix are the same rolling issue's lines until a fix exists. **Waivers** use each tool's own mechanism, never a wrapper file of ours, and every waiver carries a written reason and an issue number, or the presubmit refuses the batch: bandit `# nosec B602 -- <reason> (#N)` (a bare `# nosec` is refused by a presubmit lint, `presubmit-lints`), semgrep `// nosemgrep: <rule-id> -- <reason> (#N)` or `# nosemgrep: ...`, osv-scanner an `[[IgnoredVulns]]` entry in `osv-scanner.toml` with `id`, `reason` and `ignoreUntil` no more than 90 days out, gitleaks an `[allowlist]` entry in `.gitleaks.toml` by `regexes` or `paths` with a `description` carrying the reason, never a whole-file stop. **Baselines** (`scripts/bandit_baseline.json`, `scripts/gitleaks_baseline.json`, and semgrep's baseline is the base commit itself) are the repo's known-finding files, like `check_*_known_gaps.json` and `swiftlint_warning_baseline.json`: held exactly, may only shrink (`ratchets-held-exactly`), a raised one refused in a batch, and the count of in-code waivers per tool is itself a ratchet in the same files (a batch that adds a waiver without removing one is red unless the waiver names an issue labelled `security-waiver-approved`, which only the owner or the manager applies). The first run over the whole tree writes the two baselines (`bandit ... -o scripts/bandit_baseline.json` and `gitleaks git --report-path scripts/gitleaks_baseline.json` from the root commit) in their own batch, each finding in them a line in a `Security - <area>` issue the sweep works down. Acceptance: a `# nosec` with no reason is refused by the presubmit naming the line; one with a reason and `(#1234)` passes; a bandit baseline with more entries than on base is refused; a diff adding a third `nosemgrep` with two on base and no approved issue is red; an `[[IgnoredVulns]]` with `ignoreUntil` 200 days out is refused; a MEDIUM bandit finding is in the table and the prompt and the rung is green. Test: `fichero-builder/tests/test_security_rung.py::test_thresholds_red_what_they_say_and_every_waiver_carries_a_reason_an_issue_and_a_held_count`, and `test_the_waiver_lints_judge_a_real_diff`, `test_a_third_nosemgrep_is_red_unless_its_issue_is_approved`, `test_a_raised_baseline_is_red_and_a_shrunk_one_is_not` (a real git repo) in fichero-builder/tests/. Open: the two baselines are not written (the scanners are not installed), and the lints run in the rung, report-only, not yet as a presubmit lint.
@@ -1386,7 +1556,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   ie-batch2). Test `fichero-builder/tests/test_loop.py::test_a_head_whose_every_commit_is_on_origin_by_patch_is_never_taken`.
   Speed 2 (built 2026-11-02): the review starts in a thread once every rung before the build is green (after `since-guards`, `check_tool.ON_RUNG`; manager 2026-11-04: started after red-on-base, reviews 199, 207, 263 and 275 read no guard results and answered 'no guards ran'), with a
   partial ladder holding every guard's result, only the build running beside it; a later red kills it before any verdict; a green check takes its result (tests `fichero-builder/tests/test_work_verb.py::test_the_review_starts_once_red_on_base_is_green_and_its_verdict_is_used`, `::test_a_later_red_rung_kills_the_early_review`). The partial ladder names the rungs still running (`pending`, in the ladder's order), and the reviewer's ladder summary says they run beside it and must not be judged or called missing (reviews 199 and 207, 2026-11-03, answered NOT READY 'no guards ran'; tests `::test_the_early_review_is_told_which_rungs_still_run_beside_it`, `fichero-server/tests/unit/workflows/test_review_wrapper.py::test_an_early_reviews_ladder_names_the_rungs_still_running_so_they_are_not_judged`).
-  Speed 3 (manager 2026-11-02): `[check].parallel` (default 2) ladders run at once, each in a ladder slot (`ladder`, `ladder-2`, ...) taken under a pick lock, and never two whose batches share a file (an unknown file list shares every file); a waiting chain says why after 30 s. Rung hooks and the activity lane are per thread, the guard cache is written atomically, and a landing holds every ladder slot before it removes the older pinned copies. Tests `fichero-builder/tests/test_work_verb.py::test_two_disjoint_batches_check_at_once_and_a_batch_sharing_a_file_waits`, `::test_a_ladders_rung_hook_and_key_are_its_own_threads`, `fichero-builder/tests/test_landed_verb.py::test_a_check_in_the_second_ladder_slot_keeps_the_older_pinned_copies`.
+  Speed 3 (manager 2026-11-02): `[check].parallel` (default 2) ladders run at once, each in a ladder slot (`ladder`, `ladder-2`, ...) taken under a pick lock, and never two whose batches share a file (an unknown file list shares every file); a waiting chain says why after 30 s. The generated contract files (`work.GENERATED_CLASH_FREE`: the openapi.json copies, the CLI and MCP generated modules, the contract identity files, the engine embed file list) are left out of that comparison, because landing rebases and regenerates them and the contract-current rung catches a stale one (#6589, 2026-11-23); a chain that waits on a clash while a slot is free writes one `lock` row, state `clash`, naming the shared file. Rung hooks and the activity lane are per thread, the guard cache is written atomically, and a landing holds every ladder slot before it removes the older pinned copies. Tests `fichero-builder/tests/test_work_verb.py::test_two_disjoint_batches_check_at_once_and_a_batch_sharing_a_file_waits`, `::test_batches_sharing_only_generated_contract_files_get_two_slots_and_one_sharing_a_source_file_waits_with_a_row`, `::test_a_ladders_rung_hook_and_key_are_its_own_threads`, `fichero-builder/tests/test_landed_verb.py::test_a_check_in_the_second_ladder_slot_keeps_the_older_pinned_copies`.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief
@@ -1718,7 +1888,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
 
 - `agent-profiles.trailer.one-line` [PARTIAL] (#6622) (owner 2026-11-05: one `Written-By:`; 2026-11-16: its shape) — every
   commit a worker makes carries exactly one trailer, the last line: `Written-By: <MODEL> using <HARNESS> using Fichero
-  Builder`, MODEL the display name from `[models]` (`Claude Sonnet 4.6`, `Qwen3-Coder-Next`), e.g. `Written-By:
+  Builder`, MODEL the display name that `harness.toml` `[models.display]` gives the alias the worker was started with (`sonnet` is `Claude Sonnet 5.5`; a name not listed, such as `Qwen3-Coder-Next`, passes through unchanged; test: `fichero-builder/tests/test_profiles.py::test_the_trailer_names_the_model_by_its_display_name_from_models_display_and_an_unknown_name_passes_through`), e.g. `Written-By:
   Qwen3-Coder-Next using opencode using Fichero Builder`. No `Co-Authored-By`, no `Directed-By`, no second trailer. The
   commit-msg hook (`fichero-builder/fichero_builder/policy_hook.py`, installed by `start_tool.prepare`) refuses any other shape on new
   commits, including a bare `Written-By: <model>` and the old `Directed-By: the maintainer`; it is the one enforcement
@@ -2660,6 +2830,8 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `pipeline/tests/test_checks.py` (its test `test_checks_cwd_is_the_worktree` is owed: not in that file today),
   `pipeline/tests/test_checks.py::test_a_coder_sitecustomize_cannot_green_the_guards`,
   `pipeline/tests/test_core.py::test_rewriting_own_acceptance_in_the_spec_needs_maintainer`.
+  The Builder compares with the merge-base (`since...head`, `work.lane_diff`): a pinned file only the base moved is no part of the lane's diff, and the lane
+  stays green. Test: `fichero-builder/tests/test_pinned_merge_base.py`. Spec-change: manager 2026-11-21 pinned checks compare with the merge-base.
 - `pipeline.cost-cap` [OK] — the runner sums `message.usage.cost.total` from Pi's session JSONL per
   task while the coder runs and stops the SESSION at `cost_cap_usd` (US$5 per coder or reviewer window; the page
   shows dollars per issue, the session's cost over the issues it finished — step 1.2 cost US$6.40 over four rounds,
@@ -3704,60 +3876,91 @@ scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick r
   green; the base run of red-on-base is never retried, and the first reachable runner counts as the first. Today
   `check_tool._run` retries any red whenever the first-listed runner did not run it. Test: an owed test in
   fichero-builder/tests/test_remote_list.py. (#6589) → #6872
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.red-on-base-one-base-run` [GAP] — the base tree runs every changed test file in one pytest command per
   runner and the result is read per file. Today `check_tool.red_on_base` runs one command per file. Test: an owed test
   in fichero-builder/tests/test_build_check.py (three files, one command, a per-file verdict). (#6589) → #6873
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.guards-alongside-red-on-base` [GAP] — the guards rung runs at the same time as red-on-base (they read
   different scratch trees); the first red still ends the ladder. Test: an owed test in
   fichero-builder/tests/test_build_check.py. (#6589) → #6873
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.cheap-rungs-at-done` [GAP] — at a worker's DONE the loop runs pinned-checks, ready and diff-bound before
   any chain starts; a red is told to the live session in the same tick, with no alert and no ladder slot. Test: an owed
   test in fichero-builder/tests/test_loop.py (a DONE with a bad trailer gets its finding in the same tick). (#6589)
   → #6874
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.verdict-remembered` [GAP] — a ladder verdict is kept for its base, head, pinned copy and approvals; the
   same four start no second ladder, and a DONE at an unchanged red head gets the old finding. Today
   `check_tool.ladder_over` refuses only an empty range. Test: an owed test in fichero-builder/tests/test_loop.py.
   (#6589) → #6875
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.rungs-keyed-by-tree` [GAP] — a rung that reads only the tree keeps its result by the tree's hash, so an
   amend that changes only commit messages re-runs `ready` alone. Test: an owed test in
   fichero-builder/tests/test_build_check.py (same tree, new sha, one rung runs). (#6589) → #6876
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.pinned-checks-own-commits` [BROKEN] — pinned-checks judges the lane's own commits (from its merge base
   with the land branch), and a commit pushed by hand moves the pinned copy like a landing does. Today a base commit
   that changed the rules file reds every lane behind it. Test: an owed test in fichero-builder/tests/test_presubmit.py.
   → #6853
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.approve-survives-rebase` [BROKEN] — an approve is bound to the test file and its change, and holds at the
   next head and after a rebase while that change is the same. Today it is bound to one head. Test: an owed test in
   fichero-builder/tests/test_approve_resume.py. (#6589) → #6877
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.ladder-slots-follow-runners` [GAP] — ladders run as many at once as there are reachable runners, and two
   batches that share a file take turns only on the build rung. Today the count is a fixed setting and sharing a file
   serialises the whole ladder. Test: an owed test in fichero-builder/tests/test_heavy_lock.py. (#6589) → #6878
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.every-wait-is-a-row` [GAP] — a queued step that does not start writes one row saying why (no worker slot
   and who holds them, paused, no chain slot), and a session whose step is blocked or checking holds no start slot.
   Today `queue.tick_lane` returns without a row in two of those cases. Test: an owed test in
   fichero-builder/tests/test_step_state.py. (#6589) → #6879
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.disk-floor-one-alert-sweeps-first` [BROKEN] — under the disk floor the loop sweeps first, then raises one
   alert naming the free space and the lanes held, and writes one row an hour. Today it writes a row per lane each time
   the figure changes and raises no alert (699 rows in one night). Test: an owed test in
   fichero-builder/tests/test_loop.py. → #6852
+  **Built** 2026-11-23, the alert half only (the sweep before it and the row an hour stay owed): the floor is
+  `[loop].disk_floor_gb`, re-read every tick; each held lane gets one `disk-hold` row when first held, one alert names the
+  free space and every lane held, and one more is raised when the disk is back over the floor. A marker file in the state
+  dir (`disk-floor.held`) says which of the two the loop is in, so a restart repeats neither and a tick reads no journal.
+  Spec-change: manager 2026-11-21 one alert in and out. Tests
+  `fichero-builder/tests/test_loop.py::test_a_falling_disk_holds_every_lane_with_one_alert_and_clearing_raises_one_more`,
+  `fichero-builder/tests/test_loop.py::test_the_disk_floor_check_reads_no_journal_while_nothing_is_held`.
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.perf.cap-park-is-one-alert` [OK] — when a cap or a provider refusal parks the workers of several lanes in one
+  tick, the loop raises one alert listing the lanes, not one a lane; a park stops only the worker's own tmux window, never
+  the tmux server. **Built** 2026-11-23, Spec-change: manager 2026-11-21 one alert for a cap park. Tests:
+  `fichero-builder/tests/test_loop.py::test_a_cap_that_parks_two_workers_is_one_alert_listing_both_lanes`,
+  `fichero-builder/tests/test_loop.py::test_a_park_stops_a_window_and_never_the_tmux_server`. → #6851
 - `local.perf.remote-run-leaves-no-scratch` [BROKEN] — a test run sent to a runner makes no scratch dir on the builder's
   machine. Today `check_tool._remote_run` builds a local env, which makes a home dir and a base dir, drops both keys and
   removes neither. Test: an owed test in fichero-builder/tests/test_no_home_litter.py. (#6589) → #6880
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.landed-lane-litter-removed` [GAP] — when a lane's last step has landed and its patches are kept, its
   scratch dir, its derived data and any pytest base temp dir older than the retain time are listed, then removed. Test:
   an owed test in fichero-builder/tests/test_scratch_sweep.py. (#6589) → #6881
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.reviewer-spend-recorded` [GAP] — each review writes one cost row (model, tokens, cost, seconds, head).
   Today the reviewer runs with no session file and no row. Test: an owed test in
   fichero-builder/tests/test_status_page.py. (#6379) → #6882
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.successor-brief-names-its-place` [GAP] — a successor's brief carries the last commit, the files in flight
   with line numbers and the open findings, and a started session lists the code-index tool or the prompt does not name
   it. Today `run.successor_brief` points at the handoff file only. Test: an owed test in
   fichero-builder/tests/test_codemap.py. (#6589) → #6883
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.tick-rows-out-of-journal` [BROKEN] — the loop's heartbeat is one small file rewritten each tick, not a
   journal row listing every lane, and a reader that needs one kind of event does not parse the whole journal. Test: an
   owed test in fichero-builder/tests/test_journal.py. (#6589) → #6884
-- `local.perf.start-sets-no-global-git-config` [BROKEN] — a worker start sets its git identity and its trust of the
-  worktree for that worktree only, so two starts in one tick cannot meet on one lock. Today `start_tool.prepare` writes
-  the worker user's global config. Test: an owed test in fichero-builder/tests/test_jail_git.py. → #6854
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.perf.start-sets-no-global-git-config` [OK] — a worker start sets its git identity for that worktree only
+  (`git config --worktree`, its own `config.worktree` file, no lock) and its trust of the worktree through
+  `GIT_CONFIG_*` in the worker's environment; the one write to the repo's shared config (`extensions.worktreeConfig`) is made
+  once per repo, under a lock named for that repo, so two starts in one tick do not meet on one lock and `start_tool.prepare`
+  never writes a global config. Test: `fichero-builder/tests/test_codemap.py::test_two_starts_at_once_set_each_worktrees_identity_and_leave_the_global_config_alone`. → #6854
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### Targets for a good week
 
@@ -3888,23 +4091,27 @@ Sessions and the wall:
   `sudo -u` on the loop's own Mac and every path is local. Test: an owed test in
   fichero-builder/tests/test_jail_home.py (a fake ssh: a start on a second host, a message delivered, a DONE row
   read back, the head fetched). (#6589) → #6885
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.every-host-has-the-wall` [GAP] — a session host or a check runner with no jail user, a failed read
   probe or no worker login is refused with a row, and nothing falls back to that Mac's own user; a test run sent to a
   runner runs as the jail user there. Today `check_tool._remote_run` runs worker-written tests as the ssh user, on Macs
   that hold that user's own account. Test: an owed test in fichero-builder/tests/test_jail_home.py (a host with no
   jail user refuses; the remote command line starts as the jail user). (#6589) → #6886
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.host-capacity-is-declared` [GAP] — each machine declares how many sessions, how many check slots and
   whether it builds; a start past the count, or on a host whose free memory is under its floor, waits with a row naming
   the host. Today `[machines]` holds an ssh name, a dir and a disk floor, and the counts are `[queue] workers`,
   `[loop] lanes` and `[check] parallel` for the whole pool. Test: an owed test in
   fichero-builder/tests/test_heavy_lock.py (a third session on a host of two waits with a row; a host under its
   memory floor starts none). (#6356) → #6887
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.checks-go-to-the-least-busy-runner` [GAP] — a rung sent away goes to the runner with a free check slot
   and the fewest running, and a machine runs as many heavy jobs at once as it declares. Today `check_tool._run` takes
   the first reachable runner in the list and `_remote_heavy` holds one lock per machine, so red-on-base ran for 23 h
   of its 79 h of wall. A second machine may be a build runner, each with its own derived data. Test: an owed test in
   fichero-builder/tests/test_remote_list.py (two runs at once land on two runners; a runner of two slots runs two). This
   extends `local.perf.ladder-slots-follow-runners`. (#6356) → #6887
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 Landing:
 
@@ -3914,21 +4121,25 @@ Landing:
   `work.after_run` lands each lane by itself and `landed.fast_forward` refuses any head the base moved under. Test: an
   owed test in fichero-builder/tests/test_landed_verb.py (three green lanes, one ladder, one push, three landed rows).
   (#6589) → #6888
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.train-ladder-judges-the-difference` [GAP] — the train's ladder runs every guard and every package suite
   on the combined head, and a test or guard that is red on the train's base too is inherited: one row and one issue,
   never a red train. Today the suites and the skipped guards run only after a milestone, and that run was red all eight
   times in the week. Test: an owed test in fichero-builder/tests/test_landed_verb.py (a test red on base and head does not
   red the train and is named once). (#6589) → #6888
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.red-train-halves` [GAP] — a red train is split in two and each half runs as its own train until the
   member that reds it is alone; that member goes back to its worker with the finding and the others land. Test: an owed
   test in fichero-builder/tests/test_landed_verb.py (four members, the third red: three land, one fix brief).
   (#6589) → #6889
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.lane-check-keeps-its-base` [GAP] — a lane's own check runs on the base the lane was built on and is not
   run again because the land branch moved; only the train rebases. A READY verdict carries onto the train when the
   member's commits have the same diff and message hashes and nothing landed since touches its files; otherwise the train
   reviews the rebased range. Today `land_tool.range_key` holds the base, so every move is a new check and a new review
   (96 in the week). Test: an owed test in fichero-builder/tests/test_landed_verb.py (a disjoint base move keeps the verdict;
   an overlapping one asks for a review). (#6589) → #6889
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.generated-files-are-made-at-compose` [PARTIAL] — a conflict that lies only in generated files is never
   a person's: the train takes the base's copy, and regenerates every generated file once on the combined head. Built:
   `work.do_rebase` re-bakes the two contract identity files named in `[check] generated`, and `work.regen` runs
@@ -3936,11 +4147,13 @@ Landing:
   engine embed list) still abort a rebase, and regeneration runs once per lane, not once per train. Test: an owed test
   in fichero-builder/tests/test_landed_verb.py (two members that each add a route compose without a conflict).
   (#4705) → #6891
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.exclusive-areas` [GAP] — the rules file names areas by path, and marks some exclusive (the rules file,
   the docs nav, a spec that many lanes edit); a lane names its areas when it is queued, and two lanes that share an
   exclusive area do not run at once: the second waits with a row. Test: an owed test in
   fichero-builder/tests/test_loop.py (two lanes on one exclusive area: one starts, one row says why the other waits).
   (#6589) → #6892
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 Cadence:
 
@@ -3948,11 +4161,13 @@ Cadence:
   nightly) and the table above is the default. Today `check_tool._run_ladder` runs every rung at every check. Test: an
   owed test in fichero-builder/tests/test_build_check.py (a rung set to train does not run in a lane check and runs in
   the train's). (#6589) → #6890
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.later-red-finds-its-landing` [GAP] — each train writes one row naming its members and their commit
   ranges in order; a red at a daily or nightly cadence is bisected over the trains since the last green, then over that
   train's members, running only the red rung or test, and the member's lane gets one fix step. Nothing is reverted
   without the manager. Test: an owed test in fichero-builder/tests/test_landed_verb.py (a red planted in the fifth of eight
   trains is found in at most six runs). (#6589) → #6890
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 The manager:
 
@@ -3964,11 +4179,13 @@ The manager:
   outside-tree, and 236 answers of `retry`. Acceptance: alerts per landing is in the nightly report, with a target of
   0.5. Test: an owed test in fichero-builder/tests/test_loop.py (each class leaves a row and no alert).
   (#6589) → #6893
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.scale.inherited-red-blocks-no-lane` [GAP] — a test the lane did not change that is red on its base and on its
   head is not the lane's: the check goes on, the test is put on a known-reds list with one issue, and the entry ends
   when the land branch is green for it. Today one red test on the land branch reds every lane's green run. Test: an
   owed test in fichero-builder/tests/test_build_check.py (a base-red test in an unchanged file leaves the lane green
   and one known-red row). (#6856) → #6894
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 Cheap models:
 
@@ -3980,6 +4197,7 @@ Cheap models:
   `[models] builder` serves every step. Test: an owed test in fichero-builder/tests/test_model_config.py (a kind maps
   to its role and bound; two reds move the step up a tier). This needs `agent-profiles.worker.small` and
   `local.perf.cheap-rungs-at-done`. (#6625) → #6895
+  Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### Judged not worth building
 

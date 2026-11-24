@@ -28,7 +28,8 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
 
     func testActivityIsOneWindowThePanePlusTheInspector() throws {
         // `activity.one-window` (#6441): ONE Activity window, the pane plus the Inspector; no detail window.
-        let appSource = try Self.appSource("FicheroApp.swift")
+        // The Models & Cluster scene lives in its own file (#6588); its scene line and File-menu replacement count here.
+        let appSource = try Self.appSource("FicheroApp.swift") + "\n" + Self.appSource("Views/ModelsWindow/ModelsWindowScene.swift")
         let monitorSource = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
 
         // #4524: the Window menu entry is the Activity scene's AUTOMATIC item
@@ -63,12 +64,12 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         let newItemReplaced = appSource
             .components(separatedBy: "CommandGroup(replacing: .newItem)").count - 1
         XCTAssertEqual(
-            removedCount, sceneCount - 3,
-            "every scene but main, seed and Activity monitor removes its commands (#4331)"
+            removedCount, sceneCount - 4,
+            "every scene but main, seed, Activity monitor and Models & Cluster removes its commands (#4331)"
         )
         XCTAssertEqual(
-            newItemReplaced, 3,
-            "the three surviving scenes replace the default new-item commands instead (#4331/#4524)"
+            newItemReplaced, 4,
+            "the four surviving scenes replace the default new-item commands instead (#4331/#4524)"
         )
         // The replacements MERGE with one winner app-wide, so every one of
         // them must supply the SAME File menu — an empty `{}` replacement won
@@ -84,6 +85,9 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"
         ))
+        // Models & Cluster is one `Window`, never a group (#6588).
+        XCTAssertTrue(appSource.contains("Window(\"Models & Cluster\", id: ModelsWindowModel.windowID)"))
+        XCTAssertFalse(appSource.contains("WindowGroup(\"Models & Cluster\""))
         XCTAssertFalse(appSource.contains("Window(\"Activity Detail\""))
         XCTAssertFalse(appSource.contains("detailWindowID"))
         // The window is the pane plus the Inspector showing the selected row, not a view tree of its own.
