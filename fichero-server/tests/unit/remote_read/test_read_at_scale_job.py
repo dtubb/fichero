@@ -230,7 +230,8 @@ def test_a_stop_lands_the_shards_the_far_side_finished_and_cancels_only_the_rest
     assert hub.cancelled == []
     detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])
     states = {s["state"] for s in detail["shards"].values()}
-    assert states == {"landed"}, states
+    # at most 3 shards are out at once: those are landed, any beyond them were never sent and stay pending
+    assert "landed" in states and states <= {"landed", "pending"}, states
     landed = detail["landing"]["landed"]
     assert landed > 0 and sum(len(v) for v in _passes(db, archive).values()) == landed
 
