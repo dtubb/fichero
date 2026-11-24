@@ -210,7 +210,7 @@ twelve hours or costs more than its estimate.
   brought back first) and never sends it again. Not yet: the plan (batches, stages, places) stored on the row at start.
   *Test:* the same file.
 - `compute.recipe.stop-keeps-what-landed` — **[PARTIAL]** (#5642) Stop cancels queued and running tasks and keeps
-  everything landed, landing results that arrive after it; Pause submits nothing new. *Built:* a Stop on a read at scale
+  everything landed, landing results that arrive after it; Pause submits nothing new. *Test (to write):* the same file. Built: a Stop on a read at scale
   (`remote_read/job.py` `run`) asks the far side once more and lands every shard it had finished before cancelling the
   rest, so none is lost; shards landed earlier stay. Not built: a result that arrives after the cancel was sent is not
   fetched, and the cloud-batch and local steps are not covered. Tests:
