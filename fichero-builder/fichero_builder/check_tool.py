@@ -138,6 +138,9 @@ AUTO_RULES = {
     "red-on-base-timeout-only": "a changed test file whose diff touches ONLY timeout numbers (`timeout...=N`, `pytest.mark.timeout(N)`), "
                                 "whole `pytest.mark.timeout` lines or comments owes no red on base: a time bound proves nothing there; any "
                                 "other changed line keeps the red owed (manager 2026-11-05)",
+    "red-on-base-tests-only": "a batch that changes no file under [check].red_paths (a deletion or rename too) owes no red on base for its tests: "
+                              "there is no source change for a red to prove, and every changed test still runs green on head; with red_paths "
+                              "unset every file counts as source, so it never applies",
     "red-on-base-trim-only": "a changed test file whose diff adds no assert and no new test function (a renamed one is a rename) "
                              "owes no red on base: it can only have lost checks, and it still runs green on head",
     "weakened-tests-of-a-deleted-module": "a changed test file whose head is its base with whole top-level tests removed, each of which "
@@ -2055,6 +2058,12 @@ def _needs_red(names: list[str], tests: list[str], cfg: Config) -> bool:
     return not cfg.red_paths or bool(tests) or any(n.startswith(cfg.red_paths) for n in names)
 
 
+def tests_only(root, since: str, head: str, cfg: Config) -> bool:
+    """`red-on-base-tests-only`: the rule is on, red_paths is set, and no changed path (any status) is under it."""
+    return ("red-on-base-tests-only" in cfg.auto and bool(cfg.red_paths)
+            and not any(f.startswith(cfg.red_paths) for _s, _m, f in _changes(root, since, head)))
+
+
 def _whole_tests(names: list[str], cfg: Config) -> tuple:
     """Tests dirs the green run takes whole: a changed source can break an old test its own new test never imports."""
     return tuple(sorted({d for p, v in cfg.whole_tests.items() if any(n.startswith(p) for n in names)
@@ -2112,10 +2121,14 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,
                   "stdout_tail": (noted + "\n" if noted else "") + f"checks from the pinned copy over {head}", "stderr_tail": ""}
+        green_only = HEAD_GREEN_ONLY[0] or tests_only(root, since, head, cfg)
+        if tests and not HEAD_GREEN_ONLY[0] and green_only:
+            journal.append("auto", rule="red-on-base-tests-only", head=head, file=",".join(tests[:5]),
+                           detail="no changed path is under [check].red_paths: no red owed; the tests run green on head")
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
-            ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if HEAD_GREEN_ONLY[0]
+            ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if green_only
              else red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
              else _no_red_row(own, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),
