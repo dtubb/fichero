@@ -96,8 +96,15 @@ def main(argv=None) -> int:
     ms.add_argument("--gh", default="gh")
     ms.add_argument("--enqueue", action="store_true", help="queue each step brief in the milestone's lane (worktree <[jail].workroot>/wt-<lane>), in build order")
     ms.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
-    rv = sub.add_parser("review", help="a review is a step kind: start (a session in a review worktree), check (the report), approve (file the issues, land the spec, queue the steps)")
-    rv.add_argument("action", choices=["start", "check", "approve"]), rv.add_argument("area", help="a word of letters, digits and dashes")
+    rv = sub.add_parser("review", help="a review is a step kind: start (a session in a review worktree), check (the report), approve (file the issues, land the spec, queue the steps); "
+                                       "add, set, list: the owner's review page (what to test in each build, a verdict per item)")
+    rv.add_argument("action", choices=["start", "check", "approve", "add", "set", "list"])
+    rv.add_argument("area", nargs="?", help="start, check, approve: a word of letters, digits and dashes; add, set: the item's id")
+    rv.add_argument("--title", help="add: the item's title"), rv.add_argument("--where", default="", help="add: the item's area (Mac · import)"), rv.add_argument("--build", default="", help="add: the build to test")
+    rv.add_argument("--how", action="append", default=[], help="add: one step to try (repeat)"), rv.add_argument("--why", default="", help="add: why it is on the list")
+    rv.add_argument("--issue", default="", help="add: the issue URL"), rv.add_argument("--order", type=int, help="add: higher lists first (default: above the highest)")
+    rv.add_argument("--status", help="add (default to-test), set: to-test | works | polish | bug | n/a"), rv.add_argument("--note", help="set: the verdict's note")
+    rv.add_argument("--changed-since", help="list: only items whose verdict was set after this ts (2026-11-24T10:00:00)")
     rv.add_argument("--repo-dir", default=str(Path.cwd())), rv.add_argument("--report", help="check: the report file (default review-<area>.md in the review worktree)")
     rv.add_argument("--base", help="start: the commit the review worktree is made from (default origin/<[land].branch>)"), rv.add_argument("--scope", default="", help="start: what the review covers, in the brief")
     rv.add_argument("--milestone", help="approve: the milestone the issues are filed in"), rv.add_argument("--spec", help="approve: the review's spec, relative to the worktree")
@@ -571,6 +578,13 @@ def main(argv=None) -> int:
         from fichero_builder import review
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
+        if a.action in ("add", "set", "list"):
+            from fichero_builder import review_page
+
+            return review_page.main(a)
+        if not a.area:
+            print(f"REFUSED: review {a.action} needs an area")
+            return 1
         return review.main(a)
     if a.cmd == "landed":
         from fichero_builder import landed

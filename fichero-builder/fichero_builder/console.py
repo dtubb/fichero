@@ -20,7 +20,7 @@ import time
 import tomllib
 from pathlib import Path
 
-from fichero_builder import journal, queue
+from fichero_builder import journal, queue, review_page
 
 ROOT = Path.cwd()  # set by main: the checkout whose harness.toml the verbs read
 TOKEN = secrets.token_urlsafe(24)
@@ -929,8 +929,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if not self._host_ok():
             return _json(self, 403, {"error": "a loopback Host only"})
-        if path == "/":
-            b = PAGE.read_text().replace("__TOKEN__", TOKEN).encode()
+        if path in ("/", "/review"):  # /review is the same page opened on its Review tab
+            b = PAGE.read_text().replace("__TOKEN__", TOKEN).replace("__TAB__", "review" if path == "/review" else "lanes").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(b)))
@@ -966,6 +966,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, {"ts": None, "ahead": None, "commits": [], "tag": "", "prs": []})
         if path == "/api/worktrees":
             return _json(self, 200, worktrees_cached(ROOT))
+        if path == "/api/review":
+            try:
+                return _json(self, 200, review_page.load())
+            except ValueError as e:
+                return _json(self, 500, {"error": str(e)})
         if path == "/api/builds":
             return _json(self, 200, {"builds": dev_builds(journal.read())})
         if path.startswith("/download/"):
@@ -1037,6 +1042,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             r = act("order", {"file": str(req)}, f"{getpass.getuser()}@console")
             r.pop("thread", None)
             return _json(self, 200 if r["ok"] else 400, r)
+        if self.path.split("?")[0] == "/api/review":  # one verdict: a status and a note on one item
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                item_id, status, note = str(body["id"]), body.get("status"), body.get("note")
+                if status is None and note is None:
+                    raise KeyError("status")
+            except (ValueError, KeyError, TypeError):
+                return _json(self, 400, {"ok": False, "error": "review needs {id, status, note}"})
+            who = f"{getpass.getuser()}@console"
+            try:
+                item = review_page.set_item(item_id, status, note)
+            except ValueError as e:
+                journal.append("console", who=who, verb=f"review {item_id} {status}", ok=False, state="refused", detail=str(e))
+                return _json(self, 404 if str(e).startswith("no review item") else 400, {"ok": False, "error": str(e)})
+            journal.append("console", who=who, verb=f"review {item_id} {item['status']}", ok=True, state="ended", rc=0, detail=item.get("note", "")[-500:])
+            return _json(self, 200, {"ok": True, "item": item})
         if self.path.split("?")[0] == "/api/refresh":
             refresh(f"{getpass.getuser()}@console")
             return _json(self, 200, {"ok": True, "started": "refresh"})
