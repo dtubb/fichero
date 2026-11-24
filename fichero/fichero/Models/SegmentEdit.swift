@@ -81,6 +81,8 @@ enum SegmentEdit {
         case script(String)
         /// The region type a person chose, written to `kind_raw` (`source.editor.region-type-is-seen-and-set`).
         case type(String)
+        /// A region's line progression (ltr, rtl, ttb, btt).
+        case lineProgression(String)
     }
 
     /// The directions the engine accepts (`language_policy.DIRECTIONS`), in the menu's order.
@@ -155,6 +157,7 @@ enum SegmentEdit {
             case .language(let language): update.language = language
             case .script(let script): update.script = script
             case .type(let type): update.kindRaw = type
+            case .lineProgression(let progression): update.lineProgression = progression
             }
             updates.append(update)
         }
@@ -348,10 +351,12 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
     var script: String?
     /// The region type a person chose; the engine keeps the model's label in the version history.
     var kindRaw: String?
+    /// A region's line progression (ltr, rtl, ttb, btt).
+    var lineProgression: String?
 
     enum CodingKeys: String, CodingKey {
         case segmentId = "segment_id", expectedVersion = "expected_version", kind
-        case isFurniture = "is_furniture", direction, language, script
+        case isFurniture = "is_furniture", direction, language, script, lineProgression = "line_progression"
         case kindRaw = "kind_raw"
     }
 
@@ -360,11 +365,12 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
         try container.encode(segmentId, forKey: .segmentId)
         try container.encode(expectedVersion, forKey: .expectedVersion)
         try container.encodeIfPresent(kind, forKey: .kind)
+        try container.encodeIfPresent(kindRaw, forKey: .kindRaw)
+        try container.encodeIfPresent(lineProgression, forKey: .lineProgression)
         try container.encodeIfPresent(isFurniture, forKey: .isFurniture)
         try container.encodeIfPresent(direction, forKey: .direction)
         try container.encodeIfPresent(language, forKey: .language)
         try container.encodeIfPresent(script, forKey: .script)
-        try container.encodeIfPresent(kindRaw, forKey: .kindRaw)
     }
 }
 
