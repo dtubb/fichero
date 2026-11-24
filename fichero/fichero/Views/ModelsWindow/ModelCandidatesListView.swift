@@ -20,7 +20,7 @@ struct ModelCandidatesListView: View {
                 if let verb = ModelCandidateRules.verb(store.facts(card)) {
                     Button(verb) { Task { await store.press(card) } }
                         .frame(width: 130)
-                        .accessibilityIdentifier("models.candidate.verb")
+                        .accessibilityIdentifier("models.row.\(card.id).button")
                 } else {
                     Color.clear.frame(width: 130, height: 1)
                 }
