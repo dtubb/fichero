@@ -1654,6 +1654,50 @@ async def bookmark_candidate(request: BookmarkRequest) -> dict[str, str]:
     return {"key": request.key}
 
 
+class AddModelRequest(BaseModel):
+    """What a person typed to add a model: a Hugging Face id or address, a Zenodo address or DOI."""
+
+    model_config = ConfigDict(extra="forbid")
+    address: str = Field(description="a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model")
+
+
+async def _fetch_hub_model(repo: str) -> Optional[dict]:
+    """The Hub's listing of one model, or None when the Hub does not know it."""
+    import httpx
+
+    async with httpx.AsyncClient() as client:
+        found = await client.get(f"https://huggingface.co/api/models/{repo}", timeout=20.0, follow_redirects=True)
+    return found.json() if found.status_code == 200 else None
+
+
+async def _fetch_hub_card(repo: str) -> Optional[str]:
+    from fichero_server.recipes import discovery
+
+    return await discovery._fetch_card_text(repo)
+
+
+@router.post("/candidates/add")
+async def add_candidate_by_address(request: AddModelRequest) -> dict[str, str]:
+    """Add a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card filled in from its source,
+    the key the bookmark routes take. 422 for an address no model is named by, 404 for a model its source does not know, 403 while
+    this engine works offline (a Hub model is read over the network)."""
+    from fichero_server.recipes import discovery
+
+    try:
+        kind, ident = discovery.parse_model_address(request.address)
+        model = card = None
+        if kind == "hugging-face":
+            if not discovery.egress_allowed():
+                raise HTTPException(status_code=403, detail="Offline: a Hugging Face model cannot be looked up")
+            model, card = await _fetch_hub_model(ident), await _fetch_hub_card(ident)
+        key = discovery.add_by_address(request.address, fetch_model=lambda _: model, fetch_card=lambda _: card)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"key": key}
+
+
 @router.delete("/candidates/bookmark")
 async def remove_candidate_bookmark(
     request: BookmarkRequest, library_path: Optional[str] = Depends(optional_library_path),

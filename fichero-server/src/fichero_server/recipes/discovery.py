@@ -1609,21 +1609,26 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
             if not row["found_for"] and not row.get("bookmarked"):  # a bookmarked card outlives the search (#5460)
                 del found[repo]
     for card in cards:
-        key, repo = _hub_key(card), _hub_repo(card)
-        before = found.get(key) or {}
-        # A TrOCR card pins `trocr` and a Kraken repository card `kraken_hf`: their row keeps the id, pin and jobs so the offline
-        # cache gives the same card back (`hub_cards`), not a plain `hf` reader.
-        own = {} if "hf" in card.pin else {"id": card.id, "pin": dict(card.pin), "jobs": sorted(card.jobs)}
-        found[key] = {**own, "repo": repo, "languages": sorted(card.languages) if card.languages else None,
-                       "scripts": sorted(card.scripts) if card.scripts else None,
-                       "material": sorted(card.material), "licence": card.licence, "note": card.note,
-                       "offered_because": card.offered_because, "size_gb": card.size_gb,
-                       "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
-                       "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now,
-                       **({"bookmarked": True} if before.get("bookmarked") else {})}
+        key = _hub_key(card)
+        found[key] = _hub_row(card, found.get(key) or {}, languages, now)
     left = dict(data.get("left_out") or {})
     left[_languages_key(languages)] = left_out
     _write_hub({"found": found, "left_out": left})
+
+
+def _hub_row(card: Card, before: dict[str, Any], languages: frozenset[str], now: str) -> dict[str, Any]:
+    """The kept-list row of a card, beside what an earlier search kept of it (its languages and its bookmark)."""
+    repo = _hub_repo(card)
+    # A TrOCR card pins `trocr` and a Kraken repository card `kraken_hf`: their row keeps the id, pin and jobs so the offline
+    # cache gives the same card back (`hub_cards`), not a plain `hf` reader.
+    own = {} if "hf" in card.pin else {"id": card.id, "pin": dict(card.pin), "jobs": sorted(card.jobs)}
+    return {**own, "repo": repo, "languages": sorted(card.languages) if card.languages else None,
+            "scripts": sorted(card.scripts) if card.scripts else None,
+            "material": sorted(card.material), "licence": card.licence, "note": card.note,
+            "offered_because": card.offered_because, "size_gb": card.size_gb,
+            "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
+            "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now,
+            **({"bookmarked": True} if before.get("bookmarked") else {})}
 
 
 def _write_hub(data: dict[str, Any]) -> None:
@@ -1662,6 +1667,73 @@ def remove_bookmark(key: str, recipe: dict[str, Any] | None) -> None:
     if not row.get("found_for"):
         del found[key]
     _write_hub({**data, "found": found})
+
+
+_HF_ID = re.compile(r"^[A-Za-z0-9][\w.-]*/[\w.-]+$")
+
+
+def parse_model_address(text: str) -> tuple[str, str]:
+    """What a person typed to add a model (`models.manage.add-by-id-or-url`, #6588): ("hugging-face", "org/name") for a Hub id or
+    URL, ("zenodo", "10.5281/zenodo.N") for a Zenodo record URL or DOI, ("provider", "provider:model") for a provider's model id.
+    ValueError, in words, for anything else."""
+    from urllib.parse import urlparse
+
+    text = text.strip()
+    if not text:
+        raise ValueError("Type a Hugging Face id or address, a Zenodo address or DOI, or a provider:model id")
+    if text.startswith(("http://", "https://")):
+        url = urlparse(text)
+        host, parts = (url.hostname or "").lower(), [p for p in url.path.split("/") if p]
+        if host in ("huggingface.co", "hf.co") and len(parts) >= 2:
+            return "hugging-face", f"{parts[0]}/{parts[1]}"
+        if host.endswith("zenodo.org") and len(parts) >= 2 and parts[0] in ("record", "records") and parts[1].isdigit():
+            return "zenodo", f"10.5281/zenodo.{parts[1]}"
+        if host in ("doi.org", "dx.doi.org") and re.fullmatch(r"10\.5281/zenodo\.\d+", "/".join(parts)):
+            return "zenodo", "/".join(parts)
+        raise ValueError(f"{text} is not a Hugging Face or Zenodo address")
+    if re.fullmatch(r"10\.5281/zenodo\.\d+", text):
+        return "zenodo", text
+    if _HF_ID.match(text):
+        return "hugging-face", text
+    if re.fullmatch(r"[a-z][a-z0-9_-]*:[^\s/][^\s]*", text):
+        return "provider", text
+    raise ValueError(f"{text} is not a Hugging Face id, a Zenodo address or a provider:model id")
+
+
+def add_by_address(address: str, *, fetch_model: Callable[[str], dict[str, Any] | None],
+                   fetch_card: Callable[[str], str | None]) -> str:
+    """Add the model an address names as a BOOKMARKED card filled in from its source (`models.manage.add-by-id-or-url`): a Hub
+    model from its listing (`fetch_model`) and its README (`fetch_card`: licence, languages, a CER the card states); a Zenodo
+    record from Kraken's kept repository listing. Returns the key the bookmark routes take. LookupError for a model its source
+    does not know; ValueError for an address no model is named by, and for a provider's model id (added on the provider's page)."""
+    kind, ident = parse_model_address(address)
+    if kind == "provider":
+        raise ValueError(f"{ident} is a provider's model: add it on that provider's page under Keys, Defaults & Downloads")
+    if kind == "hugging-face":
+        model = fetch_model(ident)
+        if model is None:
+            raise LookupError(f"{ident} was not found on Hugging Face")
+        model = {**model, "modelId": ident}
+        card = _hf_card(model, "A model you added", "added by you by its Hugging Face id", frozenset())
+        text = fetch_card(ident)
+        read = parse_card_text(text) if text else None
+        from dataclasses import replace
+
+        card = replace(card, offered_because="; ".join([card.offered_because, card_words(read)]),
+                       cer_published=(read or {}).get("cer"), licence=card.licence or ((read or {}).get("licence") or ""),
+                       languages=card.languages or _tags((read or {}).get("languages")))
+    else:
+        row = repository_record(ident)
+        if row is None:
+            raise LookupError(f"{ident} is not in Kraken's model repository listing (refresh the listing and try again)")
+        card = repository_cards([row], ())[0]
+    key = _hub_key(card)
+    data = _hub_file()
+    found = cached_hub()
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    found[key] = {**_hub_row(card, found.get(key) or {}, frozenset(), now), "bookmarked": True}
+    _write_hub({**data, "found": found})
+    return key
 
 
 def steps_using_model(model_id: str, recipe: dict[str, Any] | None) -> list[str]:
