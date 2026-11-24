@@ -176,7 +176,6 @@ extension ZoomableImagePreview {
                 },
                 pointer: pointerFeed,
                 onMoveCommit: { index, bbox in commitRegionMove(index: index, bbox: bbox) },
-                onResizeCommit: { resizeSegments($0) },
                 onPromote: { name, index in
                     promoteMarquees(named: name, onlyIndex: index)
                 },
@@ -188,6 +187,7 @@ extension ZoomableImagePreview {
                 onDrawRegionBox: { box in
                     drawSegmentShape(.polygon, points: SegmentShapes.corners(ofRect: box), selectingResult: true)
                 },
+                onResizeCommit: { resizeSegments($0) },
                 onKnifeCommit: { stroke in knifeCut(stroke) },
                 onMarkerCommit: { stroke, closed in drawMarkerStroke(stroke, closed: closed) },
                 onPaintCommit: { stroke, width in drawPaintStroke(stroke, widthPixels: width) },
