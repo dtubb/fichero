@@ -891,12 +891,31 @@ See section 7.2 below for what exists. The design:
 
 ## Keyboard and gesture map
 
+- `segment-editor.draw-a-line` — **[OK]** (→ #7083; app) the tool row has a New Line tool (⌘⌥⇧L): click the corners of a line, click the
+  first point or double-click to close it. The new segment is a line, in the region that holds most of it; outside every region it
+  is a line with no region and the page says "This line is in no region". The new segment is selected, and ⌘Z removes it.
+  *Tests:* `SegmentDrawLevelTests.swift` (`polygonAtALevel`, `parents`, `noRegionNotice`). Needs an on-screen check.
+- `segment-editor.draw-kind-picker` — **[OK]** (→ #7083; app) beside the tools a Makes picker says what the polygon and rectangle tools
+  draw: Region, Line or Word, kept for the window; Follow Selection (the default, until one is chosen) draws a line when a region is
+  selected and a word when a line is selected, else a region. A word goes into the line that holds most of it. Before this every
+  polygon was a region. *Tests:* `SegmentDrawLevelTests.swift` (`levelFollowsSelection`, `defaultIsRegion`, `polygonAtALevel`).
+  Needs an on-screen check.
+- `segment-editor.add-line-and-add-word` — **[OK]** (→ #7083; app) with one region selected, Add Line (Edit › Segments ▸, the
+  Preview's context menu and the Inspector's head) arms the polygon tool at the Line level; with one line selected, Add Word does
+  the same at the Word level; the shape drawn inside the selection goes into it. Neither is offered for any other selection.
+  *Tests:* `SegmentDrawLevelTests.swift` (`addVerbs`, `parents`). Needs an on-screen check.
+- `segment-editor.change-kind` — **[OK]** (→ #7083; app) Change Kind (Edit › Segments ▸, the Preview's context menu and the
+  Inspector's head) makes the selected regions lines or the selected lines regions: one `segment.convert_level`, one ⌘Z. It is
+  not offered for words. *Tests:* `SegmentDrawLevelTests.swift` (`changeKind`); the call is `SegmentEdit.convertLevel`
+  (`SegmentEditTests.swift`). Needs an on-screen check.
+
 Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across the app):
 
 | Action | Key |
 |---|---|
 | Select tool / leave mode / clear | V / Esc |
 | Brush select, Knife, Marker, Paintbrush, Order, Shape | B, K, M, P, O, S (hold B/K/M for one stroke) |
+| New Line tool | ⌥⇧⌘L |
 | Brush size down / up | [ / ] |
 | Pan while held | Space |
 | Add to / remove from selection | ⇧-click, ⇧-drag |
