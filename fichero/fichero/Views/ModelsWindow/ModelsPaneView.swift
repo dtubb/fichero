@@ -12,6 +12,8 @@ struct ModelsPaneView: View {
     @State private var store: ModelsWindowStore?
     @State private var selection: ActivityModelEntry.ID?
     @State private var showsInspector = true
+    @State private var addsModel = false
+    @State private var addressText = ""
 
     /// The derived lists are worked out when the answer or the item changes, not on each redraw.
     @State private var rows: [ActivityModelEntry] = []
@@ -43,17 +45,54 @@ struct ModelsPaneView: View {
                     .accessibilityIdentifier("models.toolbar.searchOnline")
             }
             ToolbarItem {
+                Button { addsModel = true } label: { Label("Add by id or URL…", systemImage: "plus") }
+                    .disabled(store == nil)
+                    .accessibilityIdentifier("models.toolbar.add")
+            }
+            ToolbarItem {
                 Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                     .accessibilityIdentifier("models.toolbar.inspector")
             }
         }
         .searchable(text: $search, prompt: "Search models")
+        .sheet(isPresented: $addsModel) { addSheet }
         .task { await ModelsAnswerStore.shared.watch(libraryManager) }
         .task { await openStore() }
         .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { refresh() }
         .onChange(of: item) { refresh() }
         .onChange(of: search) { refresh() }
         .accessibilityIdentifier("models.pane")
+    }
+
+    // MARK: Add by id or URL
+
+    /// One field for a Hugging Face id or address (or a Zenodo address); the engine reads it and keeps the card.
+    private var addSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Add a model by id or URL").font(.headline)
+            TextField("Hugging Face id or address, or a Zenodo address", text: $addressText)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("models.add.address")
+            if let message = store?.errorMessage { Text(message).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { addsModel = false }
+                Button("Add") {
+                    Task {
+                        if await store?.addByAddress(addressText) == true {
+                            addressText = ""
+                            addsModel = false
+                            item = .bookmarked
+                        }
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(ModelsWindowModel.addAddress(addressText) == nil)
+                .accessibilityIdentifier("models.add.confirm")
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
     }
 
     // MARK: Sidebar

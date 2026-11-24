@@ -194,6 +194,17 @@ enum ModelsWindowModel {
         return row.modelType != nil && row.modelId != nil ? "Delete" : nil
     }
 
+    /// The address a person typed into Add by id or URL, trimmed; nil when it is blank (nothing is sent).
+    static func addAddress(_ typed: String) -> String? {
+        let trimmed = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// What the window says when the engine refuses an address: the engine's own words, else the status.
+    static func addRefusal(code: Int, engineWords: String?) -> String {
+        engineWords ?? "The engine could not add this model (HTTP \(code))."
+    }
+
     /// A failure's first action in the verbs' words; nil for an action the window has no word for.
     static func fixWords(_ action: String?) -> String? {
         switch action {

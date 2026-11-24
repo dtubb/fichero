@@ -68,6 +68,35 @@ final class ModelsWindowStore {
         }
     }
 
+    /// Add a model by its Hugging Face id or address (`models.manage.add-by-id-or-url`): the engine keeps it as a bookmarked card
+    /// filled in from its source, then the list reloads. True when it was added; else `errorMessage` has the engine's words.
+    @discardableResult
+    func addByAddress(_ typed: String) async -> Bool {
+        guard let address = ModelsWindowModel.addAddress(typed) else { return false }
+        do {
+            let response = try await client.api.addCandidateByAddressApiRecipesCandidatesAddPost(
+                body: .json(.init(address: address)))
+            switch response {
+            case .ok:
+                errorMessage = nil
+                await finder.reload()
+                return true
+            case .unprocessableContent:
+                errorMessage = ModelsWindowModel.addRefusal(code: 422, engineWords: nil)
+            case .undocumented(let code, let payload):
+                errorMessage = ModelsWindowModel.addRefusal(code: code, engineWords: await Self.engineWords(payload.body))
+            }
+        } catch {
+            if let clientError = error as? ClientError, let body = clientError.responseBody {
+                errorMessage = ModelsWindowModel.addRefusal(
+                    code: clientError.response?.status.code ?? 0, engineWords: await Self.engineWords(body))
+            } else {
+                errorMessage = "Could not add \(address): \(error.localizedDescription)"
+            }
+        }
+        return false
+    }
+
     /// Press a row's one button: Unload frees the idle models; Delete asks first.
     func press(_ row: ActivityModelEntry) async {
         switch ModelsWindowModel.button(for: row) {
