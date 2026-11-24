@@ -216,16 +216,16 @@ targets are at least 44 pt.
   reason; when nothing joins the action is refused with that and writes no step. After it answers, the joined lines are selected
   (`segment-editor.join-selects-the-joined-segment`'s seam). Edit › Segments ▸ Join Lines in the Same Row, the segment menu and the
   Preview's context menu offer it. *Tests:* `fichero-server/tests/unit/api/test_segment_join_rows.py` (`TestRowGrouping`, `TestJoinRows`:
-  groups, left alone, one undo and redo, a stale version refuses all); `SegmentJoinRowsTests.swift` (one `segment.join_rows`, lines only, the notice, the selection after). Needs an on-screen check.
-- `segment-editor.join-rows-keeps-parts-as-words` — **[OK]** (→ #7071-2; engine + app) a part of a joined row that held no
+  groups, left alone, one undo and redo, a stale version refuses all); `fichero/Tests/Unit/general/Views/Segments/SegmentJoinRowsTests.swift` (one `segment.join_rows`, lines only, the notice, the selection after). Needs an on-screen check.
+- `segment-editor.join-rows-keeps-parts-as-words` — **[OK]** (→ #7071-2; engine) a part of a joined row that held no
   words becomes one word of the joined line, with the part's outline and its reading; a part that already held words keeps them
   (`segment.merge` moves them to the joined line), and gets no extra word. The undo removes the words the join made. *Tests:*
-  `test_segment_join_rows.py` (`TestPartsAsWords`).
+  `fichero-server/tests/unit/api/test_segment_join_rows.py` (`TestPartsAsWords`).
 - `segment-editor.join-rows-says-what-it-will-do` — **[OK]** (→ #7071-2; engine + app) before and while the command is offered, the
   page says what it would do: `GET /api/segments/document/{doc_id}/join-rows-preview?segment_ids=…` answers the groups (the kept id
   and the lines in reading order), the lines left alone with the reason, and one sentence ("Joins 5 lines into 2 lines; leaves 1 line
   alone."), and writes nothing. The Preview's Join Lines in the Same Row item shows that sentence as its help, and after the join
-  the notice says what was done. *Tests:* `test_segment_join_rows.py` (`TestThePreview`: names the groups, writes no version). Needs an on-screen check for the item's help text.
+  the notice says what was done. *Tests:* `fichero-server/tests/unit/api/test_segment_join_rows.py` (`TestThePreview`: names the groups, writes no version); `fichero/Tests/Unit/general/Views/Segments/SegmentJoinRowsTests.swift` (`pageLines`: the lines the preview asks about). Needs an on-screen check for the item's help text.
 - `segment-editor.join-selects-the-joined-segment` — **[OK]** (→ #7068; app) after a Join answers, the selection is the
   kept segment (the first picked), so the Inspector shows the joined line; after ⌘Z it is the segments that were joined,
   after ⇧⌘Z the kept one again. The Preview's Join and the segment menu's Join both do it, once the store has re-read the
@@ -915,20 +915,20 @@ See section 7.2 below for what exists. The design:
 - `segment-editor.draw-a-line` — **[OK]** (→ #7083; app) the tool row has a New Line tool (⌘⌥⇧L): click the corners of a line, click the
   first point or double-click to close it. The new segment is a line, in the region that holds most of it; outside every region it
   is a line with no region and the page says "This line is in no region". The new segment is selected, and ⌘Z removes it.
-  *Tests:* `SegmentDrawLevelTests.swift` (`polygonAtALevel`, `parents`, `noRegionNotice`). Needs an on-screen check.
+  *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`polygonAtALevel`, `parents`, `noRegionNotice`). Needs an on-screen check.
 - `segment-editor.draw-kind-picker` — **[OK]** (→ #7083; app) beside the tools a Makes picker says what the polygon and rectangle tools
   draw: Region, Line or Word, kept for the window; Follow Selection (the default, until one is chosen) draws a line when a region is
   selected and a word when a line is selected, else a region. A word goes into the line that holds most of it. Before this every
-  polygon was a region. *Tests:* `SegmentDrawLevelTests.swift` (`levelFollowsSelection`, `defaultIsRegion`, `polygonAtALevel`).
+  polygon was a region. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`levelFollowsSelection`, `defaultIsRegion`, `polygonAtALevel`).
   Needs an on-screen check.
 - `segment-editor.add-line-and-add-word` — **[OK]** (→ #7083; app) with one region selected, Add Line (Edit › Segments ▸, the
   Preview's context menu and the Inspector's head) arms the polygon tool at the Line level; with one line selected, Add Word does
   the same at the Word level; the shape drawn inside the selection goes into it. Neither is offered for any other selection.
-  *Tests:* `SegmentDrawLevelTests.swift` (`addVerbs`, `parents`). Needs an on-screen check.
+  *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`addVerbs`, `parents`). Needs an on-screen check.
 - `segment-editor.change-kind` — **[OK]** (→ #7083; app) Change Kind (Edit › Segments ▸, the Preview's context menu and the
   Inspector's head) makes the selected regions lines or the selected lines regions: one `segment.convert_level`, one ⌘Z. It is
-  not offered for words. *Tests:* `SegmentDrawLevelTests.swift` (`changeKind`); the call is `SegmentEdit.convertLevel`
-  (`SegmentEditTests.swift`). Needs an on-screen check.
+  not offered for words. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`changeKind`); the call is `SegmentEdit.convertLevel`
+  (`fichero/Tests/Unit/general/Views/Preview/SegmentConvertLevelTests.swift`). Needs an on-screen check.
 
 Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across the app):
 
