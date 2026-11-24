@@ -52,9 +52,9 @@ struct PreviewImageGeometry: Equatable {
         Self.near(visible, other.visible, 1e-6) && Self.near(drawnFrame, other.drawnFrame, 0.01)
     }
 
-    private static func near(_ a: CGRect, _ b: CGRect, _ tolerance: CGFloat) -> Bool {
-        abs(a.minX - b.minX) <= tolerance && abs(a.minY - b.minY) <= tolerance
-            && abs(a.width - b.width) <= tolerance && abs(a.height - b.height) <= tolerance
+    private static func near(_ lhs: CGRect, _ rhs: CGRect, _ tolerance: CGFloat) -> Bool {
+        abs(lhs.minX - rhs.minX) <= tolerance && abs(lhs.minY - rhs.minY) <= tolerance
+            && abs(lhs.width - rhs.width) <= tolerance && abs(lhs.height - rhs.height) <= tolerance
     }
 }
 
