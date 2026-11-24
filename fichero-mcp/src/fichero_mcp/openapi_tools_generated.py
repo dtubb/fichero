@@ -8199,6 +8199,14 @@ def fichero_segments_text_layer(
     return _rt.call("POST", f"/api/segments/document/{doc_id}/text-layer")
 
 
+def fichero_segments_list_region_types(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "List Region Types\n\nThe region types the editor's Type menu and the Inspector's Type row offer for this page. Reads, writes nothing.\n\nRoute: GET /api/segments/document/{doc_id}/types (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/types")
+
+
 def fichero_segments_validate_document(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -10621,6 +10629,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),
     GeneratedTool("fichero_segments_text_layer", "segments", "POST", "/api/segments/document/{doc_id}/text-layer", fichero_segments_text_layer),
+    GeneratedTool("fichero_segments_list_region_types", "segments", "GET", "/api/segments/document/{doc_id}/types", fichero_segments_list_region_types),
     GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),

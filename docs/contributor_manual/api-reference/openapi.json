@@ -5822,6 +5822,49 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/types": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "List Region Types",
+        "description": "The region types the editor's Type menu and the Inspector's Type row offer for this page. Reads, writes nothing.",
+        "operationId": "list_region_types_api_segments_document__doc_id__types_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionTypes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}/doubtful": {
       "get": {
         "tags": [
@@ -93352,6 +93395,57 @@
         "title": "RegionEditOp",
         "description": "A closed vocabulary \u2014 an enum in the schema, never a bare str (rule 4)."
       },
+      "RegionType": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "zone": {
+            "type": "string",
+            "nullable": true,
+            "title": "Zone",
+            "description": "The SegmOnto zone of a known label; none for a label the page brought."
+          },
+          "subtype": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subtype"
+          },
+          "on_page": {
+            "type": "boolean",
+            "title": "On Page",
+            "description": "Some live segment of the page already carries this label."
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "on_page"
+        ],
+        "title": "RegionType"
+      },
+      "RegionTypes": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/RegionType"
+            },
+            "type": "array",
+            "title": "Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "types"
+        ],
+        "title": "RegionTypes"
+      },
       "RegisteredActionInfo": {
         "properties": {
           "name": {
@@ -98592,6 +98686,11 @@
             "type": "string",
             "nullable": true,
             "title": "Direction"
+          },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
           }
         },
         "additionalProperties": false,

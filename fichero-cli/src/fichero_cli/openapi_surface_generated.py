@@ -17293,6 +17293,18 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-region-types")
+    def segments_list_region_types_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """List Region Types (GET /api/segments/document/{doc_id}/types)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/types"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("validate-document")
     def segments_validate_document_get(
         ctx: typer.Context,
