@@ -11869,6 +11869,22 @@
         "response_model": "DerivedText"
       },
       {
+        "method": "GET",
+        "path": "/segments/inspect",
+        "operation_id": "inspect_segments_api_segments_inspect_get",
+        "summary": "Inspect Segments",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "segment_ids",
+            "required": true,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SegmentInspectRead"
+      },
+      {
         "method": "POST",
         "path": "/segments/matches",
         "operation_id": "propose_match_api_segments_matches_post",

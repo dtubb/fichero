@@ -38,6 +38,7 @@ from fichero_server.api.routes.document.segment_conversion import (
     is_converted,
 )
 from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.routes.document.segment_inspect_rows import SegmentInspectRead, inspect_selection
 from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_documents
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
@@ -2544,6 +2545,8 @@ class SegmentAttributeUpdate(BaseModel):
     segment_id: str
     expected_version: int
     kind: Optional[str] = None
+    #: A person's chosen region type, kept beside `kind` (`kind` stays "region"; version history keeps the model's label).
+    kind_raw: Optional[str] = None
     is_furniture: Optional[bool] = None
     #: With `is_furniture` true: why a RULE left the line out ("too small"), kept on the line (`designer.clean.leaves-out-non-text`).
     left_out_reason: Optional[str] = Field(default=None, max_length=60)
@@ -2552,6 +2555,8 @@ class SegmentAttributeUpdate(BaseModel):
     direction: Optional[str] = None
     #: The region type a person chose (`source.editor.region-type-is-seen-and-set`); the version history keeps the model's.
     kind_raw: Optional[str] = None
+    #: A region's lines-or-columns succession (ltr, rtl, ttb, btt); refused on any other kind.
+    line_progression: Optional[str] = None
 
 
 class SegmentUpdateManyParams(BaseModel):
@@ -2703,6 +2708,17 @@ def _put_entries_back(db: Database, entries: list[SegmentOrderEntryParams]) -> l
     return was
 
 
+def _set_line_progression(row: Segment, value: str) -> None:
+    """A region's line progression: one of the four directions a succession can take, on a region only."""
+    from fichero_server.api.routes.document.segment_inspect_rows import LINE_PROGRESSIONS
+
+    if row.kind != "region":
+        raise HTTPException(status_code=422, detail=f"line_progression is a region's fact; segment {row.id!r} is a {row.kind}")
+    if value not in LINE_PROGRESSIONS:
+        raise HTTPException(status_code=422, detail=f"unknown line progression {value!r}; allowed: " + ", ".join(LINE_PROGRESSIONS))
+    row.line_progression = value
+
+
 @action(
     "segment.update_many",
     SegmentUpdateManyParams,
@@ -2736,6 +2752,8 @@ def _action_segment_update_many(db: Database, params: SegmentUpdateManyParams, c
             row.doc_kind = f"{row.document_id}:{row.kind}"
         if item.kind_raw is not None:
             row.kind_raw = item.kind_raw
+        if item.line_progression is not None:
+            _set_line_progression(row, item.line_progression)
         if item.is_furniture is not None:
             _mark_furniture(row, item.is_furniture, item.left_out_reason)
         # The cascade's facts through the SAME writer `segment.update` uses, so a
@@ -6543,6 +6561,26 @@ async def carry_across_match(
     )
     result = registry.invoke(db, "segment.carry", params.model_dump(mode="json"), ctx)
     return result.result
+
+
+@router.get("/inspect", response_model=SegmentInspectRead)
+@off_loop
+def inspect_segments(
+    request: Request,
+    segment_ids: list[str] = Query(min_length=1, max_length=500, description="The selection."),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    db: Database = Depends(get_library_database),
+) -> SegmentInspectRead:
+    """`GET /api/segments/inspect?segment_ids=...` -- the Inspector's form for a selection: the rows of its level, each with
+    its state across the selection (set, inherited, mixed, none) and its choices (`source.editor.inspector-form-comes-from-the-engine`).
+    An id that is not found, is deleted, or is on a page the caller may not read is left out and counted in `withheld`."""
+    ids = list(dict.fromkeys(segment_ids))
+    found = [row for row in (db.get(Segment, i) for i in ids) if row is not None and row.deleted_at is None]
+    readable = set(readable_documents(request, x_fichero_library_path, sorted({r.document_id for r in found})))
+    rows = [r for r in found if r.document_id in readable]
+    if not rows:
+        raise HTTPException(status_code=404, detail="None of the segments is live and readable")
+    return inspect_selection(db, rows, withheld=len(ids) - len(rows))
 
 
 class SegmentReferenceResponse(BaseModel):

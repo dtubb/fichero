@@ -906,6 +906,13 @@ A `reading` is carried only across a **one-to-one** match (accepted
 matches only) — a many-to-many match carries no reading and reports why in
 `not_carried`. Its inverse, `segment.uncarry`, removes exactly the copies.
 
+`GET /api/segments/inspect?segment_ids=...` answers the Inspector's form for a selection (#7074): the level
+(`region`, `line`, `word`, or `mixed`), and one row per fact that level lets a person change (`type`,
+`furniture`, `language`, `script`, `direction`, `line_progression`), each with its `state` across the selection
+(`set`, `inherited`, `mixed`, `none`), its value or values, the level an inherited value came from, and its
+choices. An id not found, deleted or on a page the caller may not read is counted in `withheld`. The rows are
+changed through `segment.update_many`, which takes `kind_raw` and `line_progression` (a region's only).
+
 `GET /api/segments/{segment_id}/reference` returns a citable string,
 `fichero:segment/<library_uuid>/<document_id>/<segment_id>`, worked out on
 request (never stored). It resolves through the EXISTING `POST

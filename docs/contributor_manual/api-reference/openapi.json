@@ -6832,6 +6832,56 @@
         }
       }
     },
+    "/api/segments/inspect": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Inspect Segments",
+        "description": "`GET /api/segments/inspect?segment_ids=...` -- the Inspector's form for a selection: the rows of its level, each with\nits state across the selection (set, inherited, mixed, none) and its choices (`source.editor.inspector-form-comes-from-the-engine`).\nAn id that is not found, is deleted, or is on a page the caller may not read is left out and counted in `withheld`.",
+        "operationId": "inspect_segments_api_segments_inspect_get",
+        "parameters": [
+          {
+            "name": "segment_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 500,
+              "description": "The selection.",
+              "title": "Segment Ids"
+            },
+            "description": "The selection."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentInspectRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/{segment_id}/reference": {
       "get": {
         "tags": [
@@ -76904,6 +76954,93 @@
         "title": "InputMapping",
         "description": "Maps a node input port to a data source.\n\nAllows referencing output from ANY previous node, not just\nthe immediately preceding one in the graph.\n\nExamples:\n    source_path=\"$.nodes.transcribe.text\"\n    source_path=\"$.nodes.entities.people | join:', '\"\n    source_path=\"$.inputs.language\"\n    source_path=\"$.files\""
       },
+      "InspectChoice": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "InspectChoice"
+      },
+      "InspectRow": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "toggle"
+            ],
+            "title": "Kind"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "set",
+              "inherited",
+              "mixed",
+              "none"
+            ],
+            "title": "State"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Values",
+            "default": []
+          },
+          "inherited_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Inherited From"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/InspectChoice"
+            },
+            "type": "array",
+            "title": "Choices",
+            "default": []
+          },
+          "free_text": {
+            "type": "boolean",
+            "title": "Free Text",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "kind",
+          "state"
+        ],
+        "title": "InspectRow"
+      },
       "IntakeRequest": {
         "properties": {
           "on": {
@@ -98661,6 +98798,11 @@
             "nullable": true,
             "title": "Kind"
           },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
+          },
           "is_furniture": {
             "type": "boolean",
             "nullable": true,
@@ -98687,10 +98829,10 @@
             "nullable": true,
             "title": "Direction"
           },
-          "kind_raw": {
+          "line_progression": {
             "type": "string",
             "nullable": true,
-            "title": "Kind Raw"
+            "title": "Line Progression"
           }
         },
         "additionalProperties": false,
@@ -98998,6 +99140,37 @@
         ],
         "title": "SegmentForwarding",
         "description": "Append-only forwarding note left by a merge, split, delete or\nrestore (`source.segment.forwarding-notes`). No action ever updates or\ndeletes a row here; undoing a merge writes a NEW `restored` row beside\nthe original."
+      },
+      "SegmentInspectRead": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/InspectRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "count",
+          "rows"
+        ],
+        "title": "SegmentInspectRead"
       },
       "SegmentListResponse": {
         "properties": {
@@ -99553,6 +99726,17 @@
             "type": "string",
             "nullable": true,
             "title": "Direction"
+          },
+          "line_progression": {
+            "type": "string",
+            "nullable": true,
+            "title": "Line Progression"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Updated At"
           },
           "source_artifact_id": {
             "type": "string",

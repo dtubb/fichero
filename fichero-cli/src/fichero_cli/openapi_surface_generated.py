@@ -17341,6 +17341,20 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("inspect")
+    def segments_inspect_get(
+        ctx: typer.Context,
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The selection. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Inspect Segments (GET /api/segments/inspect)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/inspect"
+            params = {
+                "segment_ids": _list_values(segment_ids),
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("propose-match")
     def segments_propose_match_post(
         ctx: typer.Context,

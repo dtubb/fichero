@@ -8228,6 +8228,14 @@ def fichero_segments_get_document_text(
     return _rt.call("GET", f"/api/segments/document/{document_id}/text", params={"include_furniture": include_furniture, "kind": kind, "order": order, "pass_id": pass_id})
 
 
+def fichero_segments_inspect(
+    *,
+    segment_ids: Annotated[list[str], Field(description='The selection.')],
+) -> Any:
+    "Inspect Segments\n\n`GET /api/segments/inspect?segment_ids=...` -- the Inspector's form for a selection: the rows of its level, each with\nits state across the selection (set, inherited, mixed, none) and its choices (`source.editor.inspector-form-comes-from-the-engine`).\nAn id that is not found, is deleted, or is on a page the caller may not read is left out and counted in `withheld`.\n\nRoute: GET /api/segments/inspect (toolset `segments`; reads)."
+    return _rt.call("GET", "/api/segments/inspect", params={"segment_ids": segment_ids})
+
+
 def fichero_segments_propose_match(
     *,
     certainty: Annotated[Optional[float], Field(description='How sure the proposer is, 0 to 1.')] = None,
@@ -10633,6 +10641,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_list_region_types", "segments", "GET", "/api/segments/document/{doc_id}/types", fichero_segments_list_region_types),
     GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
+    GeneratedTool("fichero_segments_inspect", "segments", "GET", "/api/segments/inspect", fichero_segments_inspect),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),
     GeneratedTool("fichero_segments_accept_match", "segments", "POST", "/api/segments/matches/{match_id}/accept", fichero_segments_accept_match),
     GeneratedTool("fichero_segments_reject_match", "segments", "POST", "/api/segments/matches/{match_id}/reject", fichero_segments_reject_match),

@@ -87,6 +87,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/reading_orde
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/renditions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/rights.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_conversion.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_inspect_rows.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_pictures.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_readings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segments.py
