@@ -176,7 +176,7 @@ extension ZoomableImagePreview {
             selectSameKind: { selectSameKind() },
             nextDoubtful: { selectNextDoubtful() },
             delete: { deleteSelectedRegions() }, join: { combineSelectedRegions() },
-            joinRows: { joinLinesInTheSameRow() }, joinRowsHelp: windowState?.joinRowsSentence,
+            joinRows: { joinLinesInTheSameRow() }, joinRowsHelp: joinRowsSentence,
             selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
             splitAtPoint: { splitSelectedLineAtLastPoint() },
             simplify: { simplifySelectedSegments() },

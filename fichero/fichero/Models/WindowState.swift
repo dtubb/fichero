@@ -141,7 +141,6 @@ class WindowState {
     /// polygon or baseline clicked point by point. Outside Edit Segments the tool always drags a box.
     var shapeKind: SegmentShapes.DrawKind = .box
     var drawnLevel: SegmentShapes.DrawnLevel?  // the kind picker's choice, kept; nil follows the selection (#7083)
-
     /// The shape point last pressed in Edit Segments: the arrow keys nudge it (1 px, ⇧ 10) instead of
     /// paging. A press anywhere else lets it go.
     var selectedShapePoint: SegmentShapes.PointRef?
@@ -211,7 +210,6 @@ class WindowState {
     /// held (nil otherwise). The page asks the engine what Simplify would make at it and draws that (`simplifyPreview`,
     /// paths in the page's fractions); nothing is written until the slider is let go (`simplifyRelease`).
     var simplifyTolerance: Double?
-    var joinRowsSentence: String?  // the engine's sentence on what Join Lines in the Same Row would do
     var simplifyPreview: [[[Double]]] = []
     /// The slider let go: the page sends ONE `segment.simplify` at this tolerance. A new value each release.
     var simplifyRelease: SimplifyRelease?

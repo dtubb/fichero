@@ -138,15 +138,14 @@ extension ZoomableImagePreview {
 
     /// Ask the engine what Join Lines in the Same Row would do now, for the item's help; nil when it cannot be asked.
     func refreshJoinRowsSentence() {
-        guard let windowState else { return }
-        guard let documentId, let segmentService else { windowState.joinRowsSentence = nil; return }
+        guard let documentId, let segmentService else { joinRowsSentence = nil; return }
         let ids = rowJoinCandidates(documentId).map(\.id)
-        guard ids.count >= 2 else { windowState.joinRowsSentence = nil; return }
+        guard ids.count >= 2 else { joinRowsSentence = nil; return }
         Task {
             do {
-                windowState.joinRowsSentence = try await segmentService.joinRowsPreview(documentId: documentId, segmentIds: ids)
+                joinRowsSentence = try await segmentService.joinRowsPreview(documentId: documentId, segmentIds: ids)
             } catch {
-                windowState.joinRowsSentence = nil
+                joinRowsSentence = nil
                 Self.logger.error("Join rows preview failed: \(error.localizedDescription, privacy: .public)")
             }
         }

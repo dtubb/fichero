@@ -149,6 +149,8 @@ struct ZoomableImagePreview: View {
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
     // drag; `pendingAnnotationTool` carries the tool kind into the saved box.
     @State var isDrawingRegion = false
+    /// The engine's sentence on what Join Lines in the Same Row would do now (the item's help); nil until asked.
+    @State var joinRowsSentence: String?
     /// The note being typed/edited INLINE at its anchor (Daniel, 2026-09-04:
     /// no popover). Set by the canvas's save path and by tapping a note mark;
     /// cleared when the inline field commits or cancels.
