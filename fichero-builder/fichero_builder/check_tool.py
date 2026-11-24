@@ -976,16 +976,21 @@ def _remote_arg(path: str) -> str:
     return "~/" + shlex.quote(path[2:]) if path.startswith("~/") else shlex.quote(path)
 
 
-_BUILD_ENV_REDS = {"n": 0, "last": ""}  # consecutive env-reds of the remote build in this process; a build that ran resets it
 BUILD_ENV_RED_ALERT_AFTER = 3
+_BUILD_RAN = {"build-remote-env-red": False, "build-remote-crash": False, "build-remote": True}  # journal state -> did the build run there
 
 
 def _build_env_red(host: str, name: str, why: str) -> None:
-    """An env-red of the remote build: the third in a row raises one alert naming the runner and the last error (the build then runs
-    here, as before, but no longer quietly)."""
-    _BUILD_ENV_REDS["n"] += 1
-    _BUILD_ENV_REDS["last"] = why
-    if _BUILD_ENV_REDS["n"] == BUILD_ENV_RED_ALERT_AFTER:
+    """Called just after the env-red's journal row is written. The count is read from the journal (each ladder is its own process), the
+    consecutive env-reds of that runner since its last build that ran: the third raises one alert naming the runner and the last error
+    (the build then runs here, as before, but no longer quietly)."""
+    states = [r["state"] for r in journal.read() if r.get("event") == "check" and r.get("runner") == host and r.get("state") in _BUILD_RAN]
+    run = 0
+    for st in reversed(states):
+        if _BUILD_RAN[st]:
+            break
+        run += 1
+    if run == BUILD_ENV_RED_ALERT_AFTER:
         _rung_alert("build-remote", f"the remote {name} on {host} env-red {BUILD_ENV_RED_ALERT_AFTER} times in a row; last error: {why}")
 
 
@@ -1085,7 +1090,6 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
         _build_env_red(host, name, (r.get("stderr_tail") or "")[-200:])
         return {"ok": False, "skipped": False, "remote_env_red": True, "remote": host, "results": [r]}  # the row stays: its stderr says why
     r["remote"] = host
-    _BUILD_ENV_REDS["n"] = 0  # the build ran over there (green, or red on the code's own error)
     if r["ok"] and name in WARNING_PLATFORMS and not keep_git:
         _warning_ratchet(Path(src), host, bundle, name, r)
     journal.append("check", state="build-remote", rung=name, runner=host, ok=r["ok"], seconds=r.get("seconds"))

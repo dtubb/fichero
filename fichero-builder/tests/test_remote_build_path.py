@@ -19,7 +19,6 @@ class Fake:
     def __init__(self, monkeypatch, tmp_path, red=None):
         self.ssh_scripts, self.argvs, self.red = [], [], red
         monkeypatch.setattr(journal, "STATE", tmp_path / "state")
-        monkeypatch.setattr(check_tool, "_BUILD_ENV_REDS", {"n": 0, "last": ""})
         monkeypatch.setattr(check_tool, "_stable_build_tree", lambda root, cfg: str(root))
         monkeypatch.setattr(check_tool, "_ssh", self.ssh)
         monkeypatch.setattr(check_tool, "run_command", self.run)
@@ -66,11 +65,27 @@ def test_three_env_reds_in_a_row_raise_one_alert_naming_the_runner_and_the_last_
     assert "imac" in alerts[0]["what"] and "defined in both (3)" in alerts[0]["what"]
 
 
-def test_a_green_build_resets_the_env_red_count(tmp_path, monkeypatch):
+def test_env_reds_of_earlier_ladders_count_because_the_count_is_read_from_the_journal(tmp_path, monkeypatch):
+    """Each ladder is its own process: two env-reds journalled by earlier processes plus this one make three."""
+    fake = Fake(monkeypatch, tmp_path, red="module defined in both")
+    for _ in range(2):
+        journal.append("check", state="build-remote-env-red", rung="build", runner="imac", detail="earlier process")
+    check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)
+    alerts = [x for x in journal.read() if x.get("event") == "alert"]
+    assert len(alerts) == 1 and "imac" in alerts[0]["what"] and "module defined in both" in alerts[0]["what"]
+    assert fake.argvs  # nothing in this process held the count
+
+
+def test_a_build_that_ran_over_there_resets_the_count_and_another_runner_does_not_count(tmp_path, monkeypatch):
     fake = Fake(monkeypatch, tmp_path, red="boom")
+    journal.append("check", state="build-remote-env-red", rung="build", runner="air", detail="another runner")
+    journal.append("check", state="build-remote-env-red", rung="build", runner="imac", detail="old")
+    journal.append("check", state="build-remote", rung="build", runner="imac", ok=True, seconds=1)  # it ran: the old red is forgotten
     for _ in range(2):
         check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)
-    assert check_tool._BUILD_ENV_REDS["n"] == 2
+    assert [x for x in journal.read() if x.get("event") == "alert"] == []
     fake.red = None
     check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)
-    assert check_tool._BUILD_ENV_REDS["n"] == 0
+    fake.red = "boom"
+    check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)
+    assert [x for x in journal.read() if x.get("event") == "alert"] == []
