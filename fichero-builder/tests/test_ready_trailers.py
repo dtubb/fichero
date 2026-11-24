@@ -16,7 +16,7 @@ def _ready(tmp_path, message, empty=False):
     _git(repo, "init", "-q")
     _git(repo, "config", "user.email", "noreply@anthropic.com")
     _git(repo, "config", "user.name", "Claude")
-    (repo / "harness.toml").write_text('[check]\nmax_commits = 100\n[models.display]\nsonnet = "Claude Sonnet 5.5"\nopus = "Claude Opus 5.5"\n')
+    (repo / "harness.toml").write_text('[check]\nmax_commits = 100\n[models.display]\nsonnet = "Claude Sonnet 5.5"\nopus = "Claude Opus 5.5"\nclaude-sonnet-5-5 = "Claude Sonnet 5.5"\n')
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "base")
     _git(repo, "update-ref", "refs/remotes/origin/integration", "HEAD")
@@ -36,9 +36,16 @@ def test_one_written_by_with_a_display_model_and_an_optional_spec_change_is_read
     assert rc == 0, out
 
 
-def test_a_model_not_in_models_display_is_refused_naming_it(tmp_path):
+def test_an_alias_id_of_models_display_is_refused_naming_it(tmp_path):
     rc, out = _ready(tmp_path, "fix: x (#6589)\n\nWritten-By: claude-sonnet-5-5 using Claude Code using Fichero Builder\n")
-    assert rc == 1 and "claude-sonnet-5-5" in out and "[models.display]" in out, out
+    assert rc == 1 and "alias 'claude-sonnet-5-5'" in out, out
+
+
+def test_a_non_claude_workers_unlisted_model_name_passes_through_but_a_bare_name_does_not(tmp_path):
+    rc, out = _ready(tmp_path / "a", "fix: x (#6589)\n\nWritten-By: Qwen3-Coder-Next using opencode using Fichero Builder\n")
+    assert rc == 0, out
+    rc, out = _ready(tmp_path / "b", "fix: x (#6589)\n\nWritten-By: Qwen3-Coder-Next\n")
+    assert rc == 1 and "using Fichero Builder" in out, out
 
 
 def test_two_written_by_lines_or_two_spec_change_lines_are_refused(tmp_path):

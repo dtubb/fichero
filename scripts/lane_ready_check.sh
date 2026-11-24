@@ -64,14 +64,13 @@ check() {  # check <rev> -> prints FAIL lines, returns count
   if git ls-tree -r --name-only "$rev" -- "docs/user_manual/002 documents" "docs/user_manual/010 Prototypes" | grep -q .; then
     echo "FAIL: private docs/user_manual folders are tracked"; fails=$((fails+1)); fi
   # 3. every commit authored by the agent and citing an issue
-  local display  # the model names the Written-By trailer may carry: [models.display] values of the harness.toml in the tree
-  display=$(awk '/^\[/{s=($0=="[models.display]")} s && /^[A-Za-z0-9._-]+[[:space:]]*=/{sub(/^[^=]*=[[:space:]]*"/,""); sub(/".*/,""); print}' harness.toml)
-  [ -n "$display" ] || { echo "FAIL: no [models.display] names in harness.toml"; fails=$((fails+1)); }
+  local aliases  # the alias ids [models.display] maps to a display name (agent-profiles.trailer.one-line): a trailer must carry the display name, not these
+  aliases=$(awk '/^\[/{s=($0=="[models.display]")} s && /^[A-Za-z0-9._-]+[[:space:]]*=/{sub(/[[:space:]]*=.*/,""); print}' harness.toml)
   while IFS=$'\t' read -r sha email subj; do
     [ "$email" = "noreply@anthropic.com" ] || { echo "FAIL: $sha author is $email, not the agent"; fails=$((fails+1)); }
     git log -1 --format=%B "$sha" | grep -qE '#[0-9]{3,5}' || { echo "FAIL: $sha cites no issue: $subj"; fails=$((fails+1)); }
     # trailers and empty commits are judged here, in 3 s, not by the review (a 13-min ladder was spent on each refusal): exactly one
-    # `Written-By: <model> using ...` whose model is a [models.display] value, at most one `Spec-change:`, a commit that changes a file
+    # `Written-By: <model> using ...` of the form `<model> using <harness> using Fichero Builder`, the model not an alias id of [models.display] (an unlisted name passes through), at most one `Spec-change:`, a commit that changes a file
     local msg wb sc model
     msg=$(git log -1 --format=%B "$sha")
     wb=$(printf '%s\n' "$msg" | grep -c '^Written-By: ')
@@ -79,8 +78,9 @@ check() {  # check <rev> -> prints FAIL lines, returns count
     if [ "$wb" -eq 0 ]; then echo "FAIL: $sha has no 'Written-By: <model>' trailer: $subj"; fails=$((fails+1))
     elif [ "$wb" -gt 1 ]; then echo "FAIL: $sha has more than one Written-By trailer: $subj"; fails=$((fails+1))
     else
+      printf '%s\n' "$msg" | grep -qE '^Written-By: .+ using .+ using Fichero Builder$' || { echo "FAIL: $sha Written-By is not '<model> using <harness> using Fichero Builder': $subj"; fails=$((fails+1)); }
       model=$(printf '%s\n' "$msg" | sed -n 's/^Written-By: //p' | sed 's/ using .*//')
-      printf '%s\n' "$display" | grep -qxF -- "$model" || { echo "FAIL: $sha Written-By names '$model', which is not a [models.display] name: $subj"; fails=$((fails+1)); }
+      ! printf '%s\n' "$aliases" | grep -qxF -- "$model" || { echo "FAIL: $sha Written-By names the alias '$model': use its [models.display] name: $subj"; fails=$((fails+1)); }
     fi
     [ "$sc" -le 1 ] || { echo "FAIL: $sha has more than one Spec-change trailer: $subj"; fails=$((fails+1)); }
     [ -n "$(git diff-tree -m --no-commit-id --name-only -r "$sha")" ] || { echo "FAIL: $sha is an empty commit: $subj"; fails=$((fails+1)); }
