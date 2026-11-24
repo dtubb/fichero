@@ -55,3 +55,27 @@ def test_a_crashing_child_fails_fast_naming_the_signal_and_is_not_retried(monkey
         asyncio.run(vb._apple_vision_call(segfault, "p1", "en"))
     assert "Apple Vision's worker crashed (SIGSEGV)" in str(raised.value)
     assert not page_retry.is_passing_cause(str(raised.value)), "the same page would crash the same way"
+
+
+def test_a_default_call_forks_nothing(monkeypatch):
+    """Pins the fix itself: with every way to fork made to raise, a default call through the public path still returns."""
+    import multiprocessing
+
+    from fichero_server.db import embed_process
+
+    def no_fork(*args, **kwargs):
+        raise AssertionError("Apple Vision forked a child (#7084)")
+
+    real_get_context = multiprocessing.get_context
+
+    def no_fork_context(method=None):
+        if method == "fork":
+            no_fork()
+        return real_get_context(method)
+
+    before = worker.WORKER.starts
+    monkeypatch.setattr(os, "fork", no_fork)
+    monkeypatch.setattr(embed_process, "fork_from_seed", no_fork, raising=False)
+    monkeypatch.setattr(multiprocessing, "get_context", no_fork_context)
+    assert asyncio.run(vb._apple_vision_call(os.getpid)) == os.getpid()
+    assert worker.WORKER.starts == before
