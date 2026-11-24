@@ -8,7 +8,7 @@ from pipeline import checks, config
 from pipeline.tests.conftest import git
 
 
-TRAILER = "\n\nWritten-By: Claude"  # lane_ready_check.sh refuses an agent commit without it (owner 2026-11-05)
+TRAILER = "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder"  # lane_ready_check.sh wants one, its model a [models.display] name (scratch fixture)
 
 
 def lane(scratch, name, files, author="noreply@anthropic.com", msg="work (Fixes #1001)"):
@@ -236,8 +236,8 @@ def test_ready_check_fails_a_wrong_author_and_no_issue(scratch):
 
 
 def test_ready_check_fails_an_agent_commit_with_no_written_by_trailer_and_takes_the_new_or_the_old_one(scratch):
-    """dev-workflows.run.presubmit-lints (owner 2026-11-05): ONE trailer, `Written-By: <model>`; a commit made before the ruling may carry
-    the old `Directed-By: the maintainer`, so nothing queued goes red; no trailer at all is named (it cost two ladders, 2026-11-03/04)."""
+    """dev-workflows.run.presubmit-lints (owner 2026-11-05): ONE trailer, `Written-By: <model>`, the model a `[models.display]` name; the old
+    `Directed-By: the maintainer` and an unlisted model are refused too; no trailer at all is named (it cost two ladders, 2026-11-03/04)."""
     wt = lane(scratch, "trailer", REAL_FIX)
     git(wt, "commit", "-q", "--amend", "-m", "work (Fixes #1001)")
     r = checks.run_all(wt, scratch["cfg"])[1]
@@ -246,7 +246,9 @@ def test_ready_check_fails_an_agent_commit_with_no_written_by_trailer_and_takes_
     for msg in ("work (Fixes #1001)\n\nWritten-By: Qwen3 Coder", "work (Fixes #1001)\n\nDirected-By: the maintainer"):
         git(wt, "commit", "-q", "--amend", "-m", msg)
         r = checks.run_all(wt, scratch["cfg"])[1]
-        assert "Written-By: <model>" not in r["text"], (msg, r["text"][-400:])
+        assert not r["ok"] and "Written-By" in r["text"], (msg, r["text"][-400:])
+    git(wt, "commit", "-q", "--amend", "-m", "work (Fixes #1001)" + TRAILER)
+    assert "Written-By" not in checks.run_all(wt, scratch["cfg"])[1]["text"]
 
 
 def test_an_approved_check_change_runs_the_coders_copy_not_the_pinned_one(scratch):

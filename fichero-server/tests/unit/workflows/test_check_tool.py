@@ -1206,6 +1206,7 @@ def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_
     w = tmp_path / "w"
     (w / "scripts").mkdir(parents=True)
     shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    (w / "harness.toml").write_text('[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
     (w / "pipeline" / "projects").mkdir(parents=True)
     (w / "pipeline" / "projects" / "fichero.toml").write_text('[repo]\npython_path = "."\n[[ladder]]\nname = "fast-guards"\nskip = []\n')
     for i in range(20):
@@ -1219,7 +1220,7 @@ def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_
     g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base #1234")
     g("update-ref", "refs/remotes/origin/integration", "HEAD")
     (w / "notes.txt").write_text("x\n")
-    g("add", "."), g("commit", "-qm", "docs: a note #1234\n\nDirected-By: the maintainer")
+    g("add", "."), g("commit", "-qm", "docs: a note #1234\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
     run = lambda *a: subprocess.run(["bash", "scripts/lane_ready_check.sh", *a], cwd=w, capture_output=True, text=True, env=env)  # noqa: E731
     bare = run("HEAD")
     assert bare.returncode == 1 and "check_red.py" in bare.stdout, bare.stdout

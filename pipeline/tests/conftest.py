@@ -88,6 +88,7 @@ def scratch(tmp_path, monkeypatch):
     (repo / "fichero-builder" / "fichero_builder").mkdir(parents=True)
     shutil.copy(ROOT / "fichero-builder" / "fichero_builder" / "lint.py", repo / "fichero-builder" / "fichero_builder" / "lint.py")
     (repo / "scripts" / "check_no_bad.py").write_text(GUARD)
+    (repo / "harness.toml").write_text('[models.display]\nsonnet = "Claude Sonnet 5.5"\n')  # the ready check reads the Written-By model names from it
     (repo / "specs").mkdir()
     (repo / "specs" / "s.md").write_text("- `demo.one` [MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py\n")
     git(repo, "add", ".")

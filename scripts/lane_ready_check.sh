@@ -83,7 +83,7 @@ check() {  # check <rev> -> prints FAIL lines, returns count
       printf '%s\n' "$display" | grep -qxF -- "$model" || { echo "FAIL: $sha Written-By names '$model', which is not a [models.display] name: $subj"; fails=$((fails+1)); }
     fi
     [ "$sc" -le 1 ] || { echo "FAIL: $sha has more than one Spec-change trailer: $subj"; fails=$((fails+1)); }
-    [ -n "$(git diff-tree --no-commit-id --name-only -r "$sha")" ] || { echo "FAIL: $sha is an empty commit: $subj"; fails=$((fails+1)); }
+    [ -n "$(git diff-tree -m --no-commit-id --name-only -r "$sha")" ] || { echo "FAIL: $sha is an empty commit: $subj"; fails=$((fails+1)); }
   done < <(git log --format=$'%h\t%ae\t%s' "$base..$rev")
   # 4. lint the changed files
   local py sw
