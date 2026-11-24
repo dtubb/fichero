@@ -1888,7 +1888,7 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
 
 - `agent-profiles.trailer.one-line` [PARTIAL] (#6622) (owner 2026-11-05: one `Written-By:`; 2026-11-16: its shape) — every
   commit a worker makes carries exactly one trailer, the last line: `Written-By: <MODEL> using <HARNESS> using Fichero
-  Builder`, MODEL the display name from `[models]` (`Claude Sonnet 4.6`, `Qwen3-Coder-Next`), e.g. `Written-By:
+  Builder`, MODEL the display name that `harness.toml` `[models.display]` gives the alias the worker was started with (`sonnet` is `Claude Sonnet 5.5`; a name not listed, such as `Qwen3-Coder-Next`, passes through unchanged; test: `fichero-builder/tests/test_profiles.py::test_the_trailer_names_the_model_by_its_display_name_from_models_display_and_an_unknown_name_passes_through`), e.g. `Written-By:
   Qwen3-Coder-Next using opencode using Fichero Builder`. No `Co-Authored-By`, no `Directed-By`, no second trailer. The
   commit-msg hook (`fichero-builder/fichero_builder/policy_hook.py`, installed by `start_tool.prepare`) refuses any other shape on new
   commits, including a bare `Written-By: <model>` and the old `Directed-By: the maintainer`; it is the one enforcement
