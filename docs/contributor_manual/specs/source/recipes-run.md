@@ -806,8 +806,13 @@ The behaviours this adds:
   `folder_id` or `documents` runs only those steps on those pages
   (`fichero-server/tests/unit/recipes/test_run_one_step_on_a_folder_or_a_file_7036.py`; a step the recipe lacks is refused
   in words). *Built (app, compile owed):* "Run a Step Again on This Folder" and "Run a Step Again on the Selection" in the
-  folder and file context menus send that Start (`RunRecipeOnFolderMenuItem`, `RunStepAgainOnSelectionMenu`). *Not built:*
-  a control in the recipe's own step row in Set Up.
+  folder and file context menus send that Start (`RunRecipeOnFolderMenuItem`, `RunStepAgainOnSelectionMenu`). (#7087) The
+  menu is named Run Step ▸ and acts on exactly what is selected, a folder meaning its pages: in the Items list the pages
+  come from the pane's own rows as well as the sidebar's loaded ones, and an outline row counts as its document; the
+  sidebar's folder and page rows carry it (`RecipeFolderScope.runStepTargets`, `knownDocuments`; `RedoScopeTests`,
+  Swift uncompiled). *Not built:* each step's model and Choose Model… in the menu; the menu in the Source, the Reader, the
+  segment editor and the menu bar; a key to run the last step again; Activity naming how many items a run covers; a control in
+  the recipe's own step row in Set Up.
 - `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[OK]** (#6744, #6170, → #6811) a Start on
   chosen pages (`documents`) answers with those pages' counts and the run's steps carry those pages' notes.
   Measured: a Start on 4 pages answered `pages: 10` and "runs again on all 10 pages"; while it read 3 pages its
