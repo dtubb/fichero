@@ -8155,6 +8155,15 @@ def fichero_segments_doubtful_lines(
     return _rt.call("GET", f"/api/segments/document/{doc_id}/doubtful")
 
 
+def fichero_segments_preview_join_rows(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    segment_ids: Annotated[list[str], Field(description='The lines whose rows would be joined.')],
+) -> Any:
+    'Preview Join Rows\n\nWhat `segment.join_rows` would do to these lines, written nowhere.\n\nRoute: GET /api/segments/document/{doc_id}/join-rows-preview (toolset `segments`; reads).'
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/join-rows-preview", params={"segment_ids": segment_ids})
+
+
 def fichero_segments_list_document_matches(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -10608,6 +10617,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_delete", "segments", "POST", "/api/segments/delete", fichero_segments_delete),
     GeneratedTool("fichero_segments_list_document", "segments", "GET", "/api/segments/document/{doc_id}", fichero_segments_list_document),
     GeneratedTool("fichero_segments_doubtful_lines", "segments", "GET", "/api/segments/document/{doc_id}/doubtful", fichero_segments_doubtful_lines),
+    GeneratedTool("fichero_segments_preview_join_rows", "segments", "GET", "/api/segments/document/{doc_id}/join-rows-preview", fichero_segments_preview_join_rows),
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),

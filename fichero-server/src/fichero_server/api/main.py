@@ -2740,6 +2740,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     renditions,
     templates as document_templates,
     notes,
+    segment_join_rows as document_segment_join_rows,
     segment_pictures as document_segment_pictures,
     segment_readings as document_segment_readings,
     page_export as document_page_export,
@@ -2849,6 +2850,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # module because it is all images; same `/segments` prefix, so it reads as
     # one resource to every client (source.segment.picture-by-shape).
     (document_segment_pictures.router, "/api", ["segments"]),
+    # `segment-editor.join-lines-in-the-same-row`: the read-only preview of Join Lines in the Same Row.
+    (document_segment_join_rows.router, "/api", ["segments"]),
     # Source-model slice 8 (#4934/#4929/#4932): a segment's readings and the
     # page's derived text. Same `/segments` prefix again; the READ answers from
     # the representation table AND from the artifacts the engine's text still

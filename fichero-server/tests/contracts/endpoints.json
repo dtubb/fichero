@@ -11737,6 +11737,24 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/join-rows-preview",
+        "operation_id": "preview_join_rows_api_segments_document__doc_id__join_rows_preview_get",
+        "summary": "Preview Join Rows",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "segment_ids",
+            "required": true,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{doc_id}/matches",
         "operation_id": "list_document_matches_api_segments_document__doc_id__matches_get",
         "summary": "List Document Matches",

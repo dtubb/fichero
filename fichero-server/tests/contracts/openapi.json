@@ -7237,6 +7237,66 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/join-rows-preview": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Preview Join Rows",
+        "description": "What `segment.join_rows` would do to these lines, written nowhere.",
+        "operationId": "preview_join_rows_api_segments_document__doc_id__join_rows_preview_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "segment_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "description": "The lines whose rows would be joined.",
+              "title": "Segment Ids"
+            },
+            "description": "The lines whose rows would be joined."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Preview Join Rows Api Segments Document  Doc Id  Join Rows Preview Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/{segment_id}/readings": {
       "get": {
         "tags": [

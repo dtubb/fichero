@@ -17219,6 +17219,21 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("preview-join-rows")
+    def segments_preview_join_rows_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The lines whose rows would be joined. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Preview Join Rows (GET /api/segments/document/{doc_id}/join-rows-preview)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/join-rows-preview"
+            params = {
+                "segment_ids": _list_values(segment_ids),
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document-matches")
     def segments_list_document_matches_get(
         ctx: typer.Context,

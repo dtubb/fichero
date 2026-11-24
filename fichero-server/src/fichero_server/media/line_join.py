@@ -60,6 +60,49 @@ def _along(direction: str | None) -> tuple[float, float]:
     return (1.0, 0.0)
 
 
+#: Two lines are in one row when they overlap across the line direction by more than this share of the thinner one
+#: and by no more than `_ROW_ALONG_OVERLAP` of the shorter one along it (lines stacked in a column are not a row).
+_ROW_SHARE = 0.5
+_ROW_ALONG_OVERLAP = 0.25
+
+
+def rows(boxes: list[tuple[float, float, float, float]], direction: str | None) -> list[list[int]]:
+    """The lines that share a row (`segment-editor.join-lines-in-the-same-row`): groups of two or more indexes into
+    `boxes` (x0, y0, x1, y1), each in reading order, the groups in the order of their first line. A line that
+    overlaps no other across the reading direction is in no group. Lines chain: A beside B beside C is one row."""
+    vertical = direction in ("ttb", "btt")
+    across = (lambda b: (b[0], b[2])) if vertical else (lambda b: (b[1], b[3]))
+    along = (lambda b: (b[1], b[3])) if vertical else (lambda b: (b[0], b[2]))
+
+    def overlap(one: tuple[float, float], two: tuple[float, float]) -> float:
+        return min(one[1], two[1]) - max(one[0], two[0])
+
+    parent = list(range(len(boxes)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, first in enumerate(boxes):
+        for j in range(i + 1, len(boxes)):
+            second = boxes[j]
+            thin = min(across(first)[1] - across(first)[0], across(second)[1] - across(second)[0])
+            short = min(along(first)[1] - along(first)[0], along(second)[1] - along(second)[0])
+            if overlap(across(first), across(second)) > _ROW_SHARE * thin \
+                    and overlap(along(first), along(second)) <= _ROW_ALONG_OVERLAP * short:
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(len(boxes)):
+        groups.setdefault(find(i), []).append(i)
+    ordered = []
+    for members in groups.values():
+        if len(members) > 1:
+            ordered.append([members[k] for k in reading_order([boxes[m] for m in members], direction=direction)])
+    return sorted(ordered, key=lambda group: min(group))
+
+
 def _cells(points: list[Point]) -> np.ndarray:
     return np.array([[round(p[0] * _GRID), round(p[1] * _GRID)] for p in points], dtype=np.int32)
 
