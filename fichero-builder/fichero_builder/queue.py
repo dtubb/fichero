@@ -164,11 +164,6 @@ def store(lane: dict, expect: tuple | None = None) -> bool:
             for k in ("pane", "hold", "maintainer"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
                 if k in fresh:
                     lane[k] = fresh[k]
-            theirs = {s["step"]: s for s in fresh["steps"]}
-            for s in lane["steps"]:  # a part `add` joined to a step still queued while this copy was out: the file's issues stand
-                f = theirs.get(s["step"])
-                if f and s["state"] == f["state"] == "queued" and not s.get("head") and not s["rounds"]:
-                    s["issues"] = f["issues"]
             have = {s["step"] for s in lane["steps"]}
             lane["steps"] += [s for s in fresh["steps"] if s["step"] not in have]
         save([lane if x["id"] == lane["id"] else x for x in lanes])
@@ -370,6 +365,20 @@ def end_session(lane: dict, s: dict, handles: dict, procs: Procs) -> None:
     journal.append("queue", lane=lane["id"], step=s["step"], state="session-fresh", detail=why)
 
 
+def claim(lane: dict, s: dict) -> bool:
+    """The step goes `sent` in the queue file under the queue lock, with the issues the file holds (a part `add` joined before this
+    point is in them and in the brief). False when the file no longer has the step queued."""
+    with journal.Lock("queue"):
+        lanes = load()
+        fresh = next((x for x in lanes if x["id"] == lane["id"]), None)
+        f = next((x for x in fresh["steps"] if x["step"] == s["step"]), None) if fresh else None
+        if f is None or f["state"] != "queued":
+            return False
+        f["state"], s["state"], s["issues"] = "sent", "sent", f["issues"]
+        save(lanes)
+    return True
+
+
 def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out, chains: dict | None = None) -> bool:
     """One pass over one lane. False when it can do nothing more without a person: finished, blocked or paused."""
     def move(s, state, detail="", only_head=None):
@@ -520,15 +529,6 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s.pop("held", None)
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
-            bp = Path(s.get("resume_brief") or s["brief"])
-            # alert 544: a brief written for the owner's session, made the worker's. SECURITY: only the owner's hand-written brief may
-            # inline from [jail].inline_paths; a resume brief carries findings (the worker's own words) and inlines nothing
-            fixed, notes = brief_tool.for_worker(bp.read_text(), lane["id"], allow=() if s.get("resume_brief") else procs.inline_paths)
-            if notes:
-                bp.write_text(fixed)  # in place, so a fix round appends to the same text
-                journal.append("queue", lane=lane["id"], step=s["step"], state="brief-inlined", detail="; ".join(notes)[:300])
-            if bad := brief_preflight(fixed, lane["id"], procs.jail_gh):  # #6495: before a session is spent
-                return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
             if h is None:
                 if len(handles) >= workers_n:
                     return True
@@ -541,6 +541,18 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                         journal.append("queue", lane=lane["id"], step=s["step"], state="disk-hold", detail=why)
                     return False
                 s.pop("disk_held", None)
+            if not claim(lane, s):  # sent in the file, under the queue lock, BEFORE the brief is read: `queue add` joins only a queued step
+                return True
+            bp = Path(s.get("resume_brief") or s["brief"])
+            # alert 544: a brief written for the owner's session, made the worker's. SECURITY: only the owner's hand-written brief may
+            # inline from [jail].inline_paths; a resume brief carries findings (the worker's own words) and inlines nothing
+            fixed, notes = brief_tool.for_worker(bp.read_text(), lane["id"], allow=() if s.get("resume_brief") else procs.inline_paths)
+            if notes:
+                bp.write_text(fixed)  # in place, so a fix round appends to the same text
+                journal.append("queue", lane=lane["id"], step=s["step"], state="brief-inlined", detail="; ".join(notes)[:300])
+            if bad := brief_preflight(fixed, lane["id"], procs.jail_gh):  # #6495: before a session is spent
+                return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
+            if h is None:
                 lane["seq"] += 1
                 handles[lane["id"]] = procs.start(lane, s)
                 s["session"], lane["session_steps"] = "fresh", 0

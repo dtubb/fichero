@@ -198,14 +198,10 @@ def test_a_managed_lanes_worker_is_stopped_when_its_last_step_lands(state):
     assert handles == {} and fake.stops.count("m1") >= 1 and lane["feed"] == ""
 
 
-def test_a_part_joined_while_the_tick_holds_its_copy_of_the_lane_survives_the_ticks_store(state):
+def test_a_join_after_the_tick_marked_the_step_sent_becomes_a_new_step(state):
     add(state, "s1", "a", 7)
-    add(state, "s2", "b", 9)  # the lane's cursor step s1 is the one joined; make a second step to join to
-    queue.add("m1", "/w/m1", "s3", str(state / "bc"), [10], batch=True, alone=True)
-    lanes = queue.load()
-    lanes[0]["cursor"], lanes[0]["steps"][0]["state"] = 1, "landed"
-    queue.save(lanes)
-    held = queue.load()[0]  # the tick's copy, taken before the add
-    queue.add("m1", "/w/m1", "s4", str(state / "bd"), [11], batch=True)
-    assert queue.store(held)
-    assert next(s for s in steps() if s["step"] == "s3")["issues"] == [10, 11]
+    held = queue.load()[0]  # the tick's copy
+    assert queue.claim(held, held["steps"][0])
+    add(state, "s2", "b", 9)
+    assert [(s["step"], s["state"], s["issues"]) for s in steps()] == [("s1", "sent", [7]), ("s2", "queued", [9])]
+    assert Path(steps()[0]["brief"]).read_text() == "brief a"
