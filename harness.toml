@@ -387,13 +387,15 @@ check_xcode_registration = ["fichero/fichero", "fichero/fichero.xcodeproj", "scr
 FICHERO_FEATURE_TIER = "dev"
 OMP_NUM_THREADS = "2"
 
-[check.perf]
-# #6600 Step 2.30: the engine perf rung (REPORT-ONLY until real batches have measured the budget). Runs on [check].build_remote, never on
-# the manager's Mac; figures judged against scripts/perf_baseline.json. A timeout is one alert row, never a red.
-enforce = false
-timeout_s = 360   # the 6-minute budget
-# swift_test = "FicheroUITests/LaunchPerformanceUITests"   # #6600: left unset until run.swift-tests gives the build remote a GUI session; set, the app half runs it under /usr/bin/time -l on build_remote
-
+# manager 2026-11-24: [check.perf] off until builder-fixes perf-json lands: the engine perf tests use no pytest-benchmark fixture, so no
+# benchmark JSON is written, and since per-batch profiling a perf run that measured nothing is red: every ladder failed on perf.
+#OFF [check.perf]
+#OFF # #6600 Step 2.30: the engine perf rung (REPORT-ONLY until real batches have measured the budget). Runs on [check].build_remote, never on
+#OFF # the manager's Mac; figures judged against scripts/perf_baseline.json. A timeout is one alert row, never a red.
+#OFF enforce = false
+#OFF timeout_s = 360   # the 6-minute budget
+#OFF # swift_test = "FicheroUITests/LaunchPerformanceUITests"   # #6600: left unset until run.swift-tests gives the build remote a GUI session; set, the app half runs it under /usr/bin/time -l on build_remote
+#OFF 
 [check.security]
 # #6600 Step 2.30: the security rung (REPORT-ONLY). Reads only what is NEW in the batch. Runs in the scratch tree because semgrep
 # --baseline-commit and gitleaks need git history. osv-scanner stays OFF until lane deps-security clears the Dependabot alerts.
