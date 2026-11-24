@@ -1984,6 +1984,9 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   window reads (`ActivityTableTests` `testActivityPopoverSummary_saysWhatRunsWhatWaitsAndWhyAndTheLastThreeErrors`,
   `testActivityPopoverSummary_pausedBackgroundWorkIsSaidFirst`,
   `testActivityPopoverSummary_nothingHeldBackWhenNothingWaitsOnTheMac`). Not yet seen in the app.
+  Toggle (#7090): the Activity button opens the popover on one click and closes it on the next
+  (`ActivityStatusToolbarItem.popoverAfterClick`, pinned by `ActivityToolbarPopoverClickTests`); a
+  click never leaves a second popover up.
   The engine serves the Mac's own state (2026-10-04): `GET /api/activity/jobs` carries `machine`
   (memory pressure normal/warn/critical, thermal state nominal/fair/serious/critical, on battery,
   in use, and `why_wait`, the throttle's current reason heavy work is held back), read through

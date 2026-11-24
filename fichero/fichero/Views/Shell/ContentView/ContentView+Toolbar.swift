@@ -423,7 +423,7 @@ extension ContentView {
             // the Inspector toggle (`contentPaneToolbarContent`, #7090).
             ToolbarItem(id: ContentToolbarID.engineStatus, placement: Self.islandNeighbourPlacement) {
                 EngineStatusToolbarItem()
-                .padding(.horizontal, 5)
+                    .padding(.horizontal, 5)
             }
         }
     }

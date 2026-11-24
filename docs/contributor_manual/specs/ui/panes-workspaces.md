@@ -291,6 +291,10 @@ starting a new one.
   `EngineStatusToolbarItem` and `ActivityStatusToolbarItem` — each with its own Liquid Glass
   section and popover, leaving `StatusIslandToolbarItem` for the message/selection line only
   (`StatusIslandToolbarItem.swift:1-13`, its own doc comment records the 2026-08-23 split).
+  Placement (#7090): the engine item stays in the centre; the Activity item is its own toolbar
+  item at the far right, after Workspaces and beside the Inspector toggle (the place macOS apps use
+  for status and activity). It has no saved layout entry, so a saved toolbar layout takes its
+  declared place. Pinned: `ToolbarGroupingTests`, `StatusIslandToolbarTests.engineAndActivityAreSeparateItems`.
   Still missing: a distinct "remote connections" indicator and a "who else is connected"
   indicator — multi-user/agent-session presence has no toolbar surface yet.
 - `panes.status-island.message-budget` — **[PARTIAL]** (implemented and tested; #4366 still
