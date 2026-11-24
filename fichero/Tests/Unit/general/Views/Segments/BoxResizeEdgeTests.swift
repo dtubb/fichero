@@ -51,4 +51,25 @@ final class BoxResizeEdgeTests: XCTestCase {
         XCTAssertEqual(BoxResize.cursor(overHandle: 0), .diagonal)
         XCTAssertEqual(BoxResize.cursor(overHandle: 7), .diagonal)
     }
+
+    /// The owner's report: a corner drag moved the box. A press on each corner grabs that corner, the drag resizes with
+    /// the opposite corner fixed, and only a press inside the box (clear of the edges) grabs nothing, so it moves.
+    func testACornerDragResizesWithTheOppositeCornerFixed() {
+        let corners: [(handle: Int, press: [Double], fixed: [Double])] = [
+            (0, [0.2, 0.3], [0.6, 0.35]), (2, [0.2, 0.35], [0.6, 0.3]),
+            (5, [0.6, 0.3], [0.2, 0.35]), (7, [0.6, 0.35], [0.2, 0.3])
+        ]
+        for corner in corners {
+            XCTAssertEqual(BoxResize.grab(at: corner.press, of: box, reach: reach), corner.handle)
+            let target = [corner.press[0] + (corner.press[0] < 0.4 ? -0.05 : 0.05), corner.press[1] + (corner.press[1] < 0.325 ? -0.05 : 0.05)]
+            let grown = BoxResize.resized(box, handle: corner.handle, to: target)
+            let opposite = [corner.fixed[0] == grown[0] ? grown[0] : grown[0] + grown[2],
+                            corner.fixed[1] == grown[1] ? grown[1] : grown[1] + grown[3]]
+            XCTAssertEqual(opposite[0], corner.fixed[0], accuracy: 1e-9, "handle \(corner.handle): opposite x stays")
+            XCTAssertEqual(opposite[1], corner.fixed[1], accuracy: 1e-9, "handle \(corner.handle): opposite y stays")
+            XCTAssertEqual(grown[2], box[2] + 0.05, accuracy: 1e-9)
+            XCTAssertEqual(grown[3], box[3] + 0.05, accuracy: 1e-9)
+        }
+        XCTAssertNil(BoxResize.grab(at: [0.4, 0.325], of: box, reach: reach), "inside: a move, not a resize")
+    }
 }
