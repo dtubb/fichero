@@ -191,7 +191,7 @@ targets are at least 44 pt.
 ### Structure: merge, split, reassign
 
 - `segment-editor.merge-lines` — **[OK]** (→ #4941; app + engine; builds on `source.editor.join-is-easy`, #6182) two or
-  more selected lines and ⌘J become one line: the first picked keeps its id; the outlines are
+  more selected lines and ⌥⌘J become one line: the first picked keeps its id; the outlines are
   joined into one polygon (their union, hulled across the gap when they do not touch); the
   baselines are joined end to end in the page's reading order; the readings join with the
   script's separator; the result sits where the first line sat in every order; the others
@@ -510,6 +510,18 @@ targets are at least 44 pt.
   first nine carry menu shortcuts with a modifier, ⌃⌥1 … ⌃⌥9. **Never bare number keys**
   (owner 2026-11-13). The menu shows each kind's shortcut as menus do. *Built:*
   `SegmentEditCommand.plan` for `kind`. *Not built:* the menu, its shortcuts, the project list.
+- `source.editor.region-type-is-seen-and-set` — **[PARTIAL]** (#7073-3a; app + engine; refines `segment-editor.type-by-key`)
+  a region's type is seen in the Inspector (a Type row at the top of the Details group) and set from a **Type**
+  submenu of the Segment menu, on every selected segment at once; the first nine types carry ⌃⌥1 … ⌃⌥9. A person's
+  choice is written to the segment's `kind_raw` in ONE audited `segment.update_many` with one undo, and the version
+  history keeps the model's label; segments get no tag fact. The list comes from the engine: the labels it knows
+  (DocLayNet's, each with its SegmOnto zone) and any other label a live segment of the page carries.
+  *Built:* `segment.update_many` takes `kind_raw`; `GET /api/segments/document/{id}/types` answers the list;
+  `SegmentEdit.Attribute.type`, the Type submenu in the Inspector's Segment menu, the Inspector's Type row. *Not built:*
+  the menu bar's Segment menu and the Preview's context menu do not yet get the list (so ⌃⌥1 … ⌃⌥9 work only while
+  the Inspector is open); the Inspector's list of notes anchored to a segment; the Swift tests were not run in the
+  worker. *Tests:* `fichero-server/tests/unit/api/test_segment_update_many.py`;
+  `fichero/Tests/Unit/general/Models/SegmentEditTests.swift`.
 
 ### Words and characters
 
