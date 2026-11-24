@@ -1004,7 +1004,12 @@ def _save_artifact_sync(
     if ocr_geometry is not None and ocr_geometry.boxes:
         from fichero_server.maintenance.project_conversion import convert_new_results
 
-        convert_new_results(db, resolved_doc_id, run_id=task_id)
+        if convert_new_results(db, resolved_doc_id, run_id=task_id) == "converted":
+            # Lines a Kraken reader read with character positions get their words in the same pass (#7091).
+            from fichero_server.llm.working_lines import cut_words_of_converted_lines
+
+            cut_words_of_converted_lines(db, resolved_doc_id, artifact_id, ocr_geometry,
+                                         run_id=task_id, library_path=library_path)
     else:
         # A page read whole is tied to the page's lines at once (#5558, "Every output comes into the
         # page"): queued as background work on the local model lane, never run here.
