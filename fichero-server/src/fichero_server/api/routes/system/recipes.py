@@ -1662,11 +1662,11 @@ class AddByAddressRequest(BaseModel):
 
 
 async def _fetch_hub_model(repo: str) -> Optional[dict]:
-    """The Hub's listing of one model, or None when the Hub does not know it."""
+    """The Hub's listing of one model, or None when the Hub does not know it (a redirect is not followed: it is not a listing)."""
     import httpx
 
     async with httpx.AsyncClient() as client:
-        found = await client.get(f"https://huggingface.co/api/models/{repo}", timeout=20.0, follow_redirects=True)
+        found = await client.get(f"https://huggingface.co/api/models/{repo}", timeout=20.0, follow_redirects=False)
     return found.json() if found.status_code == 200 else None
 
 

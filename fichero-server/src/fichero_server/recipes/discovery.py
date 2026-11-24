@@ -1672,6 +1672,12 @@ def remove_bookmark(key: str, recipe: dict[str, Any] | None) -> None:
 _HF_ID = re.compile(r"^[A-Za-z0-9][\w.-]*/[\w.-]+$")
 
 
+def _hub_id(text: str) -> str | None:
+    """`text` when it is exactly `org/name` (no dot-only segment, no escape), else None: it is put into the Hub's URLs."""
+    ok = _HF_ID.fullmatch(text) and not any(part.strip(".") == "" for part in text.split("/"))
+    return text if ok else None
+
+
 def parse_model_address(text: str) -> tuple[str, str]:
     """What a person typed to add a model (`models.manage.add-by-id-or-url`, #6588): ("hugging-face", "org/name") for a Hub id or
     URL, ("zenodo", "10.5281/zenodo.N") for a Zenodo record URL or DOI, ("provider", "provider:model") for a provider's model id.
@@ -1685,7 +1691,10 @@ def parse_model_address(text: str) -> tuple[str, str]:
         url = urlparse(text)
         host, parts = (url.hostname or "").lower(), [p for p in url.path.split("/") if p]
         if host in ("huggingface.co", "hf.co") and len(parts) >= 2:
-            return "hugging-face", f"{parts[0]}/{parts[1]}"
+            repo = _hub_id(f"{parts[0]}/{parts[1]}")
+            if repo is None:
+                raise ValueError(f"{text} does not name a Hugging Face model (org/name)")
+            return "hugging-face", repo
         if host.endswith("zenodo.org") and len(parts) >= 2 and parts[0] in ("record", "records") and parts[1].isdigit():
             return "zenodo", f"10.5281/zenodo.{parts[1]}"
         if host in ("doi.org", "dx.doi.org") and re.fullmatch(r"10\.5281/zenodo\.\d+", "/".join(parts)):
@@ -1693,7 +1702,7 @@ def parse_model_address(text: str) -> tuple[str, str]:
         raise ValueError(f"{text} is not a Hugging Face or Zenodo address")
     if re.fullmatch(r"10\.5281/zenodo\.\d+", text):
         return "zenodo", text
-    if _HF_ID.match(text):
+    if _hub_id(text):
         return "hugging-face", text
     if re.fullmatch(r"[a-z][a-z0-9_-]*:[^\s/][^\s]*", text):
         return "provider", text

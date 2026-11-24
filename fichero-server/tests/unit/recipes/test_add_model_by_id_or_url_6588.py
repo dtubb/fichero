@@ -24,7 +24,9 @@ def test_an_address_is_read_as_hub_zenodo_or_a_provider_id(text, expected):
     assert discovery.parse_model_address(text) == expected
 
 
-@pytest.mark.parametrize("text", ["", "   ", "just words", "https://example.com/a/b", "a/b/c"])
+@pytest.mark.parametrize("text", ["", "   ", "just words", "https://example.com/a/b", "a/b/c",
+                                  "https://huggingface.co/../x", "https://huggingface.co/acme/..", "https://huggingface.co/acme/%2e%2e",
+                                  "https://huggingface.co/acme/name%3Fx", "https://hf.co/acme/na%2Fme", "acme/..", "./name"])
 def test_an_address_that_names_no_model_is_refused(text):
     with pytest.raises(ValueError):
         discovery.parse_model_address(text)
