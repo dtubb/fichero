@@ -354,18 +354,18 @@ targets are at least 44 pt.
   each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
   same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
   *Tests:* `test_segment_group_lines.py`; `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
-  *Not built:* the new region open for its type (it is selected afterwards, `segment-editor.make-region-selects-the-region`); the "replace the old region when every line of it
+  *Not built:* the new region open for its type; the "replace the old region when every line of it
   is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
 - `segment-editor.make-region-in-every-menu` — **[OK]** (#6737, #7070; app) Make Region from Lines (two or more selected
   segments) and Ungroup Region (a selected region) are in every menu that lists the verbs: the Segment menu, the page's
   context menu and `SegmentVerbMenu` (the Order list's row menu and the Reader's line menu); a verb that cannot apply is
   absent. Join and Delete in the Preview's menus say what is selected ("Join 3 Segments", "Delete 2 Segments").
-  *Tests:* `SegmentVerbMenuTests.swift` (what the menu offers for two lines, one line, a region; the titles).
+  *Tests:* `fichero/Tests/Unit/general/Views/Preview/SegmentVerbMenuTests.swift` (what the menu offers for two lines, one line, a region; the titles).
 - `segment-editor.make-region-selects-the-region` — **[OK]** (#6737, #7070; app) after Make Region from Lines the new
   region is the selection, read from the `region_id` the engine answers (`segment.group_lines`), in the Preview and in the
   lists; a re-read after the answer shows it selected, and an answer with no `region_id` leaves the selection alone.
-  *Tests:* `SegmentVerbMenuTests.swift` (`selectionAfterGroup`, the answer's strings).
+  *Tests:* `fichero/Tests/Unit/general/Views/Preview/SegmentVerbMenuTests.swift` (`selectionAfterGroup`, the answer's strings).
 - `segment-editor.vertices` — **[PARTIAL]** (→ #4941; app + engine) a click on a side adds a point; ⌥-click a
   point removes it (built); ⌫ with a pressed point removes it; **Simplify** (⌘⌥S, and a slider
   in the Shape popover) asks the engine for a simpler outline, `segment.simplify` with a
