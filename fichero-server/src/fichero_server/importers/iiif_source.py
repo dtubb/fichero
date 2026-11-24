@@ -121,9 +121,9 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
 
 def start(db: Any, url: str, *, folder_id: str | None, started_by: str, max_manifests: int | None = None
           ) -> tuple[str, str, bool]:
-    """Make (or find) the destination folder, then queue the import (or refresh) as one job in Activity. Returns the job
-    id, the folder id and whether this call made the folder, all before any manifest is read or canvas made (#7066). A new folder is named for the URL's
-    host until the manifest's label is known."""
+    """Make (or find) the destination folder, then queue the import (or refresh) as one job in Activity. Returns the
+    job id, the folder id and whether this call made the folder, all before any manifest is read or canvas made
+    (#7066). A new folder is named for the URL's host until the manifest's label is known."""
     import json
     import uuid
     from urllib.parse import urlparse

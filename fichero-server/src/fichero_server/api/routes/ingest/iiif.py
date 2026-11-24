@@ -832,7 +832,7 @@ def _action_import(db: Database, params: IIIFImportRequest, ctx: ActionContext) 
     from fichero_server.importers.iiif_source import start
 
     job_id, folder_id, made = start(db, params.url, folder_id=params.folder_id, started_by=started_by_for(ctx),
-                              max_manifests=params.max_manifests)
+                                     max_manifests=params.max_manifests)
     return {"job_id": job_id, "url": params.url, "folder_id": folder_id}, ChangeSpec(
         domains=["document"], target_ids=[job_id, folder_id], emit_type="document.created" if made else None,
         document_ids=[folder_id] if made else [],
