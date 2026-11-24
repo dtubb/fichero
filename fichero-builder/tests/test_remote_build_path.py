@@ -89,3 +89,13 @@ def test_a_build_that_ran_over_there_resets_the_count_and_another_runner_does_no
     fake.red = "boom"
     check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)
     assert [x for x in journal.read() if x.get("event") == "alert"] == []
+
+
+def test_a_streak_already_longer_than_three_on_disk_alerts_once_and_not_again_in_the_same_streak(tmp_path, monkeypatch):
+    Fake(monkeypatch, tmp_path, red="module defined in both")
+    for _ in range(5):
+        journal.append("check", state="build-remote-env-red", rung="build", runner="imac", detail="before this change")
+    check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)  # the 6th red
+    assert len([x for x in journal.read() if x.get("event") == "alert"]) == 1
+    check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)  # the 7th: still one alert for the streak
+    assert len([x for x in journal.read() if x.get("event") == "alert"]) == 1

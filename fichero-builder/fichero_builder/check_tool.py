@@ -984,14 +984,14 @@ def _build_env_red(host: str, name: str, why: str) -> None:
     """Called just after the env-red's journal row is written. The count is read from the journal (each ladder is its own process), the
     consecutive env-reds of that runner since its last build that ran: the third raises one alert naming the runner and the last error
     (the build then runs here, as before, but no longer quietly)."""
-    states = [r["state"] for r in journal.read() if r.get("event") == "check" and r.get("runner") == host and r.get("state") in _BUILD_RAN]
-    run = 0
-    for st in reversed(states):
-        if _BUILD_RAN[st]:
-            break
-        run += 1
-    if run == BUILD_ENV_RED_ALERT_AFTER:
-        _rung_alert("build-remote", f"the remote {name} on {host} env-red {BUILD_ENV_RED_ALERT_AFTER} times in a row; last error: {why}")
+    rows = journal.read()
+    start, run = 0, 0  # `start`: where this runner's streak began (after its last build that ran); `run`: its env-reds since
+    for i, r in enumerate(rows):
+        if r.get("event") == "check" and r.get("runner") == host and r.get("state") in _BUILD_RAN:
+            start, run = (i + 1, 0) if _BUILD_RAN[r["state"]] else (start, run + 1)
+    already = any(r.get("event") == "alert" and r.get("step") == "rung-build-remote" and f" on {host} " in r.get("what", "") for r in rows[start:])
+    if run >= BUILD_ENV_RED_ALERT_AFTER and not already:  # a streak already past three (older rows) alerts now, once per streak
+        _rung_alert("build-remote", f"the remote {name} on {host} env-red {run} times in a row; last error: {why}")
 
 
 def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse: bool = True, timeout_s: float | None = None) -> dict | None:
