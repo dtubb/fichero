@@ -64,12 +64,26 @@ check() {  # check <rev> -> prints FAIL lines, returns count
   if git ls-tree -r --name-only "$rev" -- "docs/user_manual/002 documents" "docs/user_manual/010 Prototypes" | grep -q .; then
     echo "FAIL: private docs/user_manual folders are tracked"; fails=$((fails+1)); fi
   # 3. every commit authored by the agent and citing an issue
+  local display  # the model names the Written-By trailer may carry: [models.display] values of the harness.toml in the tree
+  display=$(awk '/^\[/{s=($0=="[models.display]")} s && /^[A-Za-z0-9._-]+[[:space:]]*=/{sub(/^[^=]*=[[:space:]]*"/,""); sub(/".*/,""); print}' harness.toml)
+  [ -n "$display" ] || { echo "FAIL: no [models.display] names in harness.toml"; fails=$((fails+1)); }
   while IFS=$'\t' read -r sha email subj; do
     [ "$email" = "noreply@anthropic.com" ] || { echo "FAIL: $sha author is $email, not the agent"; fails=$((fails+1)); }
     git log -1 --format=%B "$sha" | grep -qE '#[0-9]{3,5}' || { echo "FAIL: $sha cites no issue: $subj"; fails=$((fails+1)); }
-    # owner 2026-11-05: ONE trailer naming who wrote the code, `Written-By: <model>`; a commit made before the ruling, or already queued,
-    # may carry the old `Directed-By: the maintainer` instead (review rounds 2026-11-03/04: a missing trailer cost a whole ladder)
-    git log -1 --format=%B "$sha" | grep -qE '^(Written-By: .+|Directed-By: the maintainer)$' || { echo "FAIL: $sha has no 'Written-By: <model>' trailer: $subj"; fails=$((fails+1)); }
+    # trailers and empty commits are judged here, in 3 s, not by the review (a 13-min ladder was spent on each refusal): exactly one
+    # `Written-By: <model> using ...` whose model is a [models.display] value, at most one `Spec-change:`, a commit that changes a file
+    local msg wb sc model
+    msg=$(git log -1 --format=%B "$sha")
+    wb=$(printf '%s\n' "$msg" | grep -c '^Written-By: ')
+    sc=$(printf '%s\n' "$msg" | grep -c '^Spec-change: ')
+    if [ "$wb" -eq 0 ]; then echo "FAIL: $sha has no 'Written-By: <model>' trailer: $subj"; fails=$((fails+1))
+    elif [ "$wb" -gt 1 ]; then echo "FAIL: $sha has more than one Written-By trailer: $subj"; fails=$((fails+1))
+    else
+      model=$(printf '%s\n' "$msg" | sed -n 's/^Written-By: //p' | sed 's/ using .*//')
+      printf '%s\n' "$display" | grep -qxF -- "$model" || { echo "FAIL: $sha Written-By names '$model', which is not a [models.display] name: $subj"; fails=$((fails+1)); }
+    fi
+    [ "$sc" -le 1 ] || { echo "FAIL: $sha has more than one Spec-change trailer: $subj"; fails=$((fails+1)); }
+    [ -n "$(git diff-tree --no-commit-id --name-only -r "$sha")" ] || { echo "FAIL: $sha is an empty commit: $subj"; fails=$((fails+1)); }
   done < <(git log --format=$'%h\t%ae\t%s' "$base..$rev")
   # 4. lint the changed files
   local py sw
@@ -101,7 +115,7 @@ if [ "${1:-}" = "--self-test" ]; then
   tmp=$(echo "no issue here" | GIT_AUTHOR_EMAIL=someone@example.com GIT_COMMITTER_EMAIL=someone@example.com \
         git commit-tree "$(git rev-parse origin/integration^{tree})" -p origin/integration)
   out=$(check "$tmp")
-  for want in "not the agent" "cites no issue" "Written-By: <model>"; do
+  for want in "not the agent" "cites no issue" "Written-By: <model>" "empty commit"; do
     echo "$out" | grep -q "$want" || { echo "self-test FAIL: '$want' not caught"; exit 1; }; done
   # a scratch commit that breaks check_folder_organization (a new Swift dumping-ground folder) must be NOT READY
   wt=$(mktemp -d); git worktree add -q --detach "$wt" origin/integration || { echo "self-test FAIL: no scratch tree"; exit 1; }
