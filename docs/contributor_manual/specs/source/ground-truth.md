@@ -109,7 +109,7 @@ model's verdict never overrules it. Imported transcriptions (PAGE, ALTO, TEI) ar
   things in the kind's own view. *Test (to write):* a seeded project with three marked lines shows Lines (3); marking a
   fourth updates the count through the change stream. Not built: needs the sidebar smart-folder mechanism (`search.smart-folders-as-sidebar-folders`, #4114); no engine search filter `ground_truth` exists.
 - `truth.sidebar.count-is-the-offers-count` — **[GAP]** (#5440) the Lines folder's count equals the number the Train
-  offer names and the bake-off's "N corrected lines on M pages" (`recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`). Not built: needs the Lines folder (`truth.sidebar.smart-folders-per-kind`); the offer's count is `bakeoff.ground_truth`.
+  offer names and the bake-off's "N corrected lines on M pages" (`recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`). Not built: needs the Lines smart folder in the sidebar; the offer's count is `bakeoff.ground_truth`.
 - `truth.feeds.training-and-the-bake-off` — **[PARTIAL]** (#4947, #5894; built: the person set for Kraken, the bake-off's
   reference, the evaluation's held-out pages; not built: the bake-off's reads as training lines
   (`compute.tune.bakeoff-reads-become-training-lines` [GAP]), names and statements sets) every training set's person
