@@ -250,3 +250,16 @@ def test_an_engine_and_swift_batch_runs_both_halves(tmp_path, monkeypatch):
     r = check_tool.perf(tmp_path, "a", [*_SWIFT, "fichero-server/src/x.py"], cfg)
     assert len(seen) == 2 and seen[0][0] != "/usr/bin/time" and seen[1][0] == "/usr/bin/time"
     assert "Swift perf: T/U" in r["stdout_tail"]
+
+
+def test_the_result_line_survives_the_runners_4000_character_tail_with_many_figures(tmp_path):
+    """#6600: a first run records every benchmark; the line grew past the 4000-character tail, lost its start and the rung read no PERF-RESULT."""
+    from fichero_builder import check_tool
+    names = [f"fichero-server/tests/perf/test_some_long_scenario_name_{i}.py::test_scenario_{i}" for i in range(25)]
+    verdict = {"ok": True, "reds": [], "findings": [], "falls": [], "void": "",
+               "recorded": {f"wall_ms|{n}|Mac16,10": {"median": 123.456} for n in names},
+               "changes": [f"wall_ms {n}: 123.456 (no base yet)" for n in names]}
+    line = perf_rung.result_line(verdict)
+    assert len(line) > 1000 and len(line) <= perf_rung.RESULT_LIMIT
+    m = check_tool.PERF_LINE.search(("x" * 5000 + "\n" + line + "\n")[-4000:])
+    assert m and json.loads(m.group(1))["ok"] and len(json.loads(m.group(1))["recorded"]) == 25
