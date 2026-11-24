@@ -340,10 +340,13 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
     var direction: String?
     var language: String?
     var script: String?
+    /// The region type a person chose; the engine keeps the model's label in the version history.
+    var kindRaw: String?
 
     enum CodingKeys: String, CodingKey {
         case segmentId = "segment_id", expectedVersion = "expected_version", kind
         case isFurniture = "is_furniture", direction, language, script
+        case kindRaw = "kind_raw"
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -355,6 +358,7 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
         try container.encodeIfPresent(direction, forKey: .direction)
         try container.encodeIfPresent(language, forKey: .language)
         try container.encodeIfPresent(script, forKey: .script)
+        try container.encodeIfPresent(kindRaw, forKey: .kindRaw)
     }
 }
 
