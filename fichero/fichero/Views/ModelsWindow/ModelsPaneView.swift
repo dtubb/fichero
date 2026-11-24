@@ -26,11 +26,11 @@ struct ModelsPaneView: View {
     var body: some View {
         NavigationSplitView {
             sidebarList
-                .alert("Delete this model?", isPresented: deleting, presenting: store?.pendingDelete) { _ in
-                    Button("Delete", role: .destructive) { Task { await store?.confirmDelete() } }
-                    Button("Cancel", role: .cancel) { store?.pendingDelete = nil }
+                .alert("Delete this model?", isPresented: deleting, presenting: store?.pendingDelete) { row in
+                    Button("Delete", role: .destructive) { Task { await store?.confirmDelete(row) } }
+                    Button("Cancel", role: .cancel) { store?.pendingDelete = nil; store?.deleteWarning = nil }
                 } message: { row in
-                    Text("\(row.name) is removed from this Mac. A step that uses it keeps it.")
+                    Text(store?.deleteWarning ?? "\(row.name) is removed from this Mac.")
                 }
         } detail: {
             content
@@ -133,9 +133,9 @@ struct ModelsPaneView: View {
                 Text(row.lastFailed?.words ?? "—")
             }
             TableColumn("") { row in
-                if let button = ModelsWindowModel.button(for: row) {
+                if let button = ModelsWindowModel.button(for: row), ModelsWindowStore.handles(button) {
                     Button(button) { Task { await store?.press(row) } }
-                        .accessibilityIdentifier("models.row.button")
+                        .accessibilityIdentifier("models.row.\(row.id).button")
                 }
             }
         }

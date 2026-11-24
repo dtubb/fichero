@@ -1,5 +1,6 @@
 import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import Observation
 
 /// The Models & Cluster window's verbs over the engine's routes (`models.manage.*`, `models.search.is-the-finder`,
@@ -12,6 +13,8 @@ final class ModelsWindowStore {
     let finder: ModelFinderStore
     /// The installed row Delete was pressed on, waiting for the person's yes.
     var pendingDelete: ActivityModelEntry?
+    /// The engine's 409 words naming the steps that use the row Delete was pressed on; set, the next yes deletes anyway.
+    var deleteWarning: String?
     var errorMessage: String?
 
     private let client: FicheroClient
@@ -60,27 +63,46 @@ final class ModelsWindowStore {
     func press(_ row: ActivityModelEntry) async {
         switch ModelsWindowModel.button(for: row) {
         case "Unload": await unloadIdle()
-        case "Delete": pendingDelete = row
+        case "Delete":
+            deleteWarning = nil
+            pendingDelete = row
         default: break
         }
     }
 
-    /// The person said yes to Delete: the engine removes the model, or answers 409 naming the steps that use it.
-    func confirmDelete() async {
-        guard let row = pendingDelete, let type = row.modelType, let id = row.modelId else { return }
+    /// The person said yes to Delete. The first call carries no `confirm`: a model a step of the open project uses comes back 409
+    /// naming the steps, which the alert then shows; the second yes sends `confirm=true`.
+    func confirmDelete(_ row: ActivityModelEntry) async {
+        guard let type = row.modelType, let id = row.modelId else { return }
+        let anyway = deleteWarning != nil
         pendingDelete = nil
+        deleteWarning = nil
         do {
             let response = try await client.api.deleteModelApiLocalModelsModelTypeModelIdDelete(
-                path: .init(modelType: type, modelId: id), query: .init(confirm: true))
+                path: .init(modelType: type, modelId: id), query: .init(confirm: anyway ? true : nil))
             switch response {
             case .ok: errorMessage = nil
             case .unprocessableContent: errorMessage = "The engine would not delete \(row.name)."
-            case .undocumented(let code, _): errorMessage = "\(row.name) was not deleted (HTTP \(code)): a step may use it."
+            case .undocumented(let code, let payload):
+                if code == 409, !anyway, let words = await Self.engineWords(payload.body) {
+                    deleteWarning = words
+                    pendingDelete = row
+                } else {
+                    errorMessage = "\(row.name) was not deleted (HTTP \(code))."
+                }
             }
         } catch {
             errorMessage = "Could not delete \(row.name): \(error.localizedDescription)"
         }
     }
+
+    private static func engineWords(_ body: HTTPBody?) async -> String? {
+        guard let body, let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
+        return EngineErrorDetail.message(from: data)
+    }
+
+    /// The buttons this store acts on; the window draws no other.
+    static func handles(_ button: String) -> Bool { button == "Unload" || button == "Delete" }
 
     /// Unload the models nothing is using. ponytail: the engine has no per-model unload (`models.manage.load-and-unload`).
     private func unloadIdle() async {
