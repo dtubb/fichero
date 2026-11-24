@@ -252,7 +252,7 @@ extension ZoomableImagePreview {
             }
             if !selection.isEmpty {
                 // The Segment menu (#5157): kind, direction, text or furniture, on the selection.
-                SegmentAttributeMenu(apply: { setSelectedSegments($0) })
+                SegmentAttributeMenu(apply: { setSelectedSegments($0) }, types: shownRegionTypes)
                 if selectionHasBaselines {
                     Button("Redraw Outline from Baseline") { redrawSelectedOutlines() }
                 }

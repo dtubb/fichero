@@ -24,6 +24,8 @@ final class SegmentStore {
     private(set) var passesByDocument: [String: [SegmentPassValue]] = [:]
     /// Each page's resolved line directions (segment id -> direction), for the on-image labels (#5199).
     private(set) var directionsByDocument: [String: [String: String]] = [:]
+    /// Each page's region types (`source.editor.region-type-is-seen-and-set`), for the Type submenus everywhere.
+    private(set) var regionTypesByDocument: [String: [RegionTypeChoice]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
     /// The pass a person picked to see on each page (#6670, `source.editor.pass-shown-is-picked`), while the app runs.
     /// Not a promotion: the engine's working pass is unchanged, and stays the default.
@@ -93,6 +95,7 @@ final class SegmentStore {
             segmentsByDocument[documentId] = result.segments
             // Best effort: a page whose text cannot be read still draws, its labels isolated but unoriented.
             directionsByDocument[documentId] = (try? await service.lineDirections(documentId: documentId)) ?? [:]
+            regionTypesByDocument[documentId] = (try? await service.regionTypes(documentId: documentId)) ?? []
             if force || moved { revisions[documentId, default: 0] += 1 }
             if let generation { loadedAtArtifactRevision[documentId] = generation }
         } catch {

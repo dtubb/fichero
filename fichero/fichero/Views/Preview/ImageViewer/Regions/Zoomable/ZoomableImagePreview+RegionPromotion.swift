@@ -167,6 +167,11 @@ extension ZoomableImagePreview {
     /// a headless host reads, it does not edit.
     var isEditingSegments: Bool { windowState?.isEditingSegments ?? false }
 
+    /// The region types the engine offers for this page; empty until the page's segments are read.
+    var shownRegionTypes: [RegionTypeChoice] {
+        documentId.flatMap { segmentEditStore?.regionTypesByDocument[$0] } ?? []
+    }
+
     /// What the menu bar's Segment menu acts on (#5229): this pane's own verbs, nothing new.
     var segmentMenuTarget: SegmentMenuTarget {
         SegmentMenuTarget(
@@ -191,6 +196,7 @@ extension ZoomableImagePreview {
             hasBrokenWords: windowState?.brokenWords.isEmpty == false,
             joinBrokenWords: { joinBrokenWords() },
             addBaseline: { addBaselineToSelectedLines() },
+            types: shownRegionTypes,
             apply: { setSelectedSegments($0) }
         )
     }

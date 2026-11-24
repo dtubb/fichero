@@ -49,7 +49,7 @@ struct SegmentVerbMenu: View {
             Divider()
             SegmentAttributeMenu.Items(apply: { attribute in
                 run("Set Segment") { SegmentEdit.set(attribute, on: $0) }
-            })
+            }, types: store?.regionTypesByDocument[documentId] ?? [])
         }
     }
 

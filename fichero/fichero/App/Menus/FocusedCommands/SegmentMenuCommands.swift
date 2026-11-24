@@ -42,6 +42,8 @@ struct SegmentMenuTarget {
     var joinBrokenWords: () -> Void = {}
     /// Add Baseline: a proposed baseline on each selected line that has none.
     var addBaseline: () -> Void = {}
+    /// The region types the engine offers for the shown page, for the Type submenu.
+    var types: [RegionTypeChoice] = []
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -119,7 +121,7 @@ struct SegmentMenuContent: View {
         Button("Join Broken Words") { target?.joinBrokenWords() }
             .disabled(target?.hasBrokenWords != true)
         Divider()
-        SegmentAttributeMenu.Items(apply: { target?.apply($0) })
+        SegmentAttributeMenu.Items(apply: { target?.apply($0) }, types: target?.types ?? [])
             .disabled(count == 0)
     }
 
