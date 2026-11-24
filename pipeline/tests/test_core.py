@@ -594,6 +594,13 @@ def test_the_brief_rule_is_generic_and_the_trailer_line_names_the_workers_own_mo
     assert a.split("# Issue #")[0] == b.split("# Issue #")[0] and "Sonnet" not in a.split("# Issue #")[0]
 
 
+def test_a_worker_started_on_a_full_anthropic_id_signs_with_its_display_name():
+    from pipeline import ROOT, config
+    for wid, name in (("claude-sonnet-5-5", "Claude Sonnet 5.5"), ("claude-haiku-5-5", "Claude Haiku 5.5"), ("claude-opus-5-5", "Claude Opus 5.5")):
+        w = {"provider": "anthropic", "model": wid}
+        assert config.written_by(w, str(ROOT), "Fichero Builder") == f"Written-By: {name} using pi using Fichero Builder"
+
+
 def test_the_writeup_commit_is_signed_by_the_worker_that_wrote_it(scratch, issues, fake_coder, monkeypatch):
     approve_spec(scratch)
     fc = fake_coder()

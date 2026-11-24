@@ -47,4 +47,4 @@ def written_by(worker: dict, repo: str, tool: str) -> str:
     toml = Path(repo) / "harness.toml"
     names = (tomllib.loads(toml.read_text()) if toml.is_file() else {}).get("models", {}).get("display", {})
     model = pi_model_id(worker)
-    return f"Written-By: {names.get(model) or names.get(worker['model']) or model} using pi using {tool}"
+    return f"Written-By: {names.get(model) or names.get(model.removeprefix('anthropic/')) or names.get(worker['model']) or model} using pi using {tool}"

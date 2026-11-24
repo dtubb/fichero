@@ -65,7 +65,7 @@ check() {  # check <rev> -> prints FAIL lines, returns count
     echo "FAIL: private docs/user_manual folders are tracked"; fails=$((fails+1)); fi
   # 3. every commit authored by the agent and citing an issue
   local aliases  # the alias ids [models.display] maps to a display name (agent-profiles.trailer.one-line): a trailer must carry the display name, not these
-  aliases=$(awk '/^\[/{s=($0=="[models.display]")} s && /^[A-Za-z0-9._-]+[[:space:]]*=/{sub(/[[:space:]]*=.*/,""); print}' harness.toml)
+  aliases=$(awk '/^\[/{s=($0=="[models.display]")} s && /^"?[A-Za-z0-9._\/-]+"?[[:space:]]*=/{sub(/[[:space:]]*=.*/,""); gsub(/"/,""); print}' harness.toml)
   while IFS=$'\t' read -r sha email subj; do
     [ "$email" = "noreply@anthropic.com" ] || { echo "FAIL: $sha author is $email, not the agent"; fails=$((fails+1)); }
     git log -1 --format=%B "$sha" | grep -qE '#[0-9]{3,5}' || { echo "FAIL: $sha cites no issue: $subj"; fails=$((fails+1)); }
