@@ -516,7 +516,7 @@ targets are at least 44 pt.
   choice is written to the segment's `kind_raw` in ONE audited `segment.update_many` with one undo, and the version
   history keeps the model's label; segments get no tag fact. The list comes from the engine: the labels it knows
   (DocLayNet's, each with its SegmOnto zone) and any other label a live segment of the page carries.
-  *Built:* `segment.update_many` takes `kind_raw`; `GET /api/segments/document/{id}/types` answers the list;
+  *Built:* `segment.update_many` takes `kind_raw`; `GET /api/segments/document/{doc_id}/types` (`list_region_types`) answers the list;
   `SegmentEdit.Attribute.type`, the Type submenu in the Inspector's Segment menu, the Inspector's Type row. *Not built:*
   the menu bar's Segment menu and the Preview's context menu do not yet get the list (so ⌃⌥1 … ⌃⌥9 work only while
   the Inspector is open); the Inspector's list of notes anchored to a segment; the Swift tests were not run in the
