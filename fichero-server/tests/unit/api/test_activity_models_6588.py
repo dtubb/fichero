@@ -441,3 +441,15 @@ def test_an_installed_row_says_the_type_and_id_the_delete_and_download_routes_ta
     _job(db, "j1", kind="read-a-line", model="openai:gpt-x", state="done")
     cloud = [m for m in activity_models.models(db, held=[], installed=[]) if m["place"] == "cloud"]
     assert cloud and all(m["model_type"] is None and m["model_id"] is None for m in cloud)
+
+
+def test_apple_intelligence_is_a_provider_and_a_model_on_a_mac_that_has_it(db):
+    """`models.window.providers-and-models-in-the-sidebar` (#6588): the on-device model is a This Mac row under its own
+    provider when the engine can run it, and no row when it cannot."""
+    jobs._ensure(db)
+    on = {(m["place"], m["provider"], m["name"]): m
+          for m in activity_models.models(db, held=[], installed=[], apple_intelligence=True)}
+    row = on[("this-mac", "Apple Intelligence", "Foundation Models")]
+    assert not row["loaded"] and row["licence"] == "Apple" and row["account"] is None
+    off = activity_models.models(db, held=[], installed=[], apple_intelligence=False)
+    assert not [m for m in off if m["provider"] == "Apple Intelligence"]
