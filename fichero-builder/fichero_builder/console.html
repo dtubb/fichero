@@ -158,7 +158,7 @@ function Lanes({ lanes: all }) {
       </tr>
       ${open[l.lane] && html`
         ${l.steps.map((s, i) => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span></td><td><${Pill} state=${s.state} /></td>
-          <td colspan="5">${s.issues.map(n => "#" + n).join(", ")} <span class="muted">${s.why}</span></td>
+          <td colspan="5">${s.issues.map(n => "#" + n).join(", ")} <span class="muted">${s.issues.length > 1 ? s.issues.length + " parts · " : ""}${s.session ? "session " + s.session + " · " : ""}${s.why}</span></td>
           <td><div class="actions">${(l.queued || []).some(q => q.step === s.step) && html`
             ${["queued", "parked"].includes(s.state) && html`<button class="btn" title="earlier in the queue" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: i - 1 })}>↑</button>
               <button class="btn" title="later in the queue" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: i + 1 })}>↓</button>`}

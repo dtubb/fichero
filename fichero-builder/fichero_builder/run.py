@@ -118,6 +118,7 @@ def real_procs(home, worktree) -> Procs:
 WAITING = re.compile(r"^WAITING:[ \t]*(\S.*)$", re.M)  # #6855: a worker's end line when it needs an answer, not more work
 DONE = re.compile(r"^DONE ([0-9a-f]{7,40})\b", re.M)  # the brief's end line: DONE <short sha of the branch head>
 HANDOFF_READY = "HANDOFF READY"
+PART_LEFT = re.compile(r"(?m)^PART (\d+) left:[ \t]*(\S.*)$")  # a batch's end lines for parts the worker did not finish: PART 2 left: why
 REDELIVER_S, REDELIVERIES = 60.0, 3  # a message with no turn started after this long is delivered again, up to this many times
 
 
@@ -234,7 +235,8 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
 
     def step_done(sha: str, moved: bool, **more) -> None:
         nonlocal outstanding, base, unsaid, nudged
-        journal.append("step", task=name, seq=seq, sha=sha, moved=moved, **more)
+        journal.append("step", task=name, seq=seq, sha=sha, moved=moved, context=state.get("context", 0), window=spend.window, model=model,
+                       **({"left": [{"part": int(n), "why": w[:300]} for n, w in PART_LEFT.findall(state.get("last_text", ""))]} if PART_LEFT.search(state.get("last_text", "")) else {}), **more)
         out(f"{name}: step {seq} {'done at ' + sha[:9] if moved else 'ended with no commit'}")
         outstanding, base, unsaid, nudged = False, sha, 0, False
     while True:

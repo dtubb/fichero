@@ -522,3 +522,15 @@ def test_a_waiting_end_message_is_one_step_row_with_the_question_and_the_session
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed) == "lane-done"
     rows = [r for r in journal.read() if r["event"] == "step"]
     assert len(rows) == 1 and rows[0]["waiting"] == "which of the two caps does the day cap replace?" and rows[0]["moved"] is False
+
+
+def test_a_done_step_row_carries_the_sessions_context_model_window_and_the_parts_left(root):
+    """The queue decides to keep a session from the step row: the latest prompt size, the model and window, and `PART n left: why` lines."""
+    feed = root / "inbox"
+    feed.mkdir()
+    text = "Parts 1 and 3 are in.\nPART 2 left: needs a design call\nDONE aaaa111"
+    fake = Fake([{**HEALTHY, "idle": True, "turns": 2, "context": 12345, "last_text": text}], heads=("aaaa111",))
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed, model="sonnet") == "gone"
+    (row,) = [r for r in journal.read() if r["event"] == "step"]
+    assert row["context"] == 12345 and row["model"] == "sonnet" and row["window"] > 0
+    assert row["left"] == [{"part": 2, "why": "needs a design call"}]

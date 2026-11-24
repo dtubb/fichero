@@ -570,7 +570,7 @@ def steps_on_origin(lane: dict, tip: str) -> list[dict]:
         state = s["state"]
         if state == "landed" and not on_origin(lane["worktree"], s.get("head", ""), tip):
             state = NOT_LANDED
-        out.append({"step": s["step"], "state": state, "issues": s["issues"], "why": s["why"][:300]})
+        out.append({"step": s["step"], "state": state, "issues": s["issues"], "parts": s["issues"], "session": s.get("session", ""), "why": s["why"][:300]})
     return out
 
 

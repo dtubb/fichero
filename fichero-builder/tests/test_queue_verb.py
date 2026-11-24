@@ -81,7 +81,7 @@ def test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_ses
     assert fake.stops == ["m1"], "the lane is finished: the session ends"
     rows = [(r["step"], r["state"]) for r in journal.read() if r["event"] == "queue"]
     assert rows == [("1.1", "queued"), ("1.2", "queued"),
-                    ("1.1", "sent"), ("1.1", "done"), ("1.1", "checking"), ("1.1", "reviewing"), ("1.1", "landed"),
+                    ("1.1", "sent"), ("1.1", "done"), ("1.1", "checking"), ("1.1", "reviewing"), ("1.1", "session-kept"), ("1.1", "landed"),
                     ("1.2", "sent"), ("1.2", "done"), ("1.2", "checking"), ("1.2", "reviewing"), ("1.2", "landed")]
 
 
