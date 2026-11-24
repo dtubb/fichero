@@ -20,20 +20,16 @@ struct SegmentInspectorView: View {
     @Environment(WindowState.self) private var windowState: WindowState?
     @State private var level: Level = .selection
     @State private var text: InspectorText?
-    @State private var language: [InspectorLanguage.Row] = []
-    /// The Segment menu's Language… / Script… prompt (#5157).
-    @State private var askingFor: SegmentAttributeMenu.CodeKind?
-    /// The types the engine offers for this page (`source.editor.region-type-is-seen-and-set`).
-    @State private var regionTypes: [RegionTypeChoice] = []
-    @State private var code = ""
+    /// The form the engine words for the inspected segment, or for the whole selection (`GET /api/segments/inspect`).
+    @State private var form: InspectorForm?
+    /// Bumped after a form edit so the form is read again.
+    @State private var formRevision = 0
     /// Edit… (#5201): the words being edited, with the reading they correct; nil when not editing.
     @State private var editing: (reading: InspectorText.Reading, words: String)?
     /// Why the last Edit… did not land.
     @State private var editNote: String?
     /// Why the last Delete did not happen (`source.editor.delete-selected-lines`); nil after one did.
     @State private var deleteNote: String?
-    /// Why a multi-selection's language, script and direction are not shown (too many lines, or a read failed).
-    @State private var multiNote: String?
     /// The inspected segment's resolved direction (the engine's cascade), which the editor lays out in.
     @State private var direction: String?
     /// The sections that hold nothing, hidden behind the head's Add menu (#6413), and those the person asked for.
@@ -67,8 +63,8 @@ struct SegmentInspectorView: View {
     /// (Mixed where they differ); the per-line sections wait for one line (`source.inspector.multi-selection`).
     private var isMulti: Bool { selectedIds.count > 1 && level == .selection }
 
-    /// The most lines whose settings are compared at once.
-    private static let multiCap = 200
+    /// The segments the form describes: the whole selection, or the one inspected; none at page level.
+    private var formIds: [String] { isMulti ? selectedIds : (inspected.map { [$0] } ?? []) }
 
     private var inspected: String? {
         switch level {
@@ -108,13 +104,13 @@ struct SegmentInspectorView: View {
                     if selectedIds.count > 1, level == .selection {
                         Text(countsLine).font(.caption).foregroundStyle(.secondary)
                     }
+                    if let form {
+                        InspectorFormView(form: form) { key, value in setFormValue(key, value) }
+                    }
                     if isMulti {
                         InspectorBulkSection(selectedIds: selectedIds)
                         Text("Select one line to see its text, hands, certainty, rights and links.")
                             .font(.caption).foregroundStyle(.secondary)
-                        if let multiNote {
-                            Text(multiNote).font(.caption).foregroundStyle(.secondary)
-                        }
                     }
                     if !isMulti, let inspected, let flags, let line = flags.flag(segmentId: inspected, documentId: documentId) {
                         // The teacher-line check flagged it (#5446): why, in words, and the person's Confirm.
@@ -131,11 +127,6 @@ struct SegmentInspectorView: View {
                     }
                     if !isMulti, let inspected {
                         InspectorGroupBox(group: .details) {
-                            // What kind of region it is, in the engine's words, at the top of Details.
-                            InspectorTypeRow(type: kindRaw(of: inspected), types: regionTypes) { setAttribute(.type($0)) }
-                            if !language.isEmpty {
-                                InspectorDetailsLine(rows: language)
-                            }
                             // Who wrote the ink, and who judged so (#5161); hidden while none is named.
                             InspectorHandsSection(
                                 segmentId: inspected, hidesWhenEmpty: hides(.hand), onEmpty: { noted(.hand, empty: $0) }
@@ -167,8 +158,6 @@ struct SegmentInspectorView: View {
                             // What applies here, from the library down (5.8).
                             InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
                         }
-                    } else if !language.isEmpty {
-                        InspectorGroupBox(group: .details) { InspectorDetailsLine(rows: language) }
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
@@ -205,38 +194,33 @@ struct SegmentInspectorView: View {
         .focusable()
         .onKeyPress(.upArrow, phases: .down) { press in step(-1, extend: press.modifiers.contains(.shift)) }
         .onKeyPress(.downArrow, phases: .down) { press in step(1, extend: press.modifiers.contains(.shift)) }
-        // The selection's settings are read under a task keyed on the ids: a newer selection cancels the older read, so
-        // an older run can never finish last and show the old selection's answer (## 1075).
-        .task(id: isMulti ? selectedIds : []) { if isMulti { await reloadText() } }
-        .task(id: documentId) { regionTypes = (try? await segmentService?.regionTypes(documentId: documentId)) ?? [] }
-        .alert(askingFor == .script ? "Script" : "Language", isPresented: Binding(
-            get: { askingFor != nil }, set: { if !$0 { askingFor = nil } }
-        )) {
-            TextField(askingFor == .script ? "ISO 15924, e.g. Syrc" : "BCP 47, e.g. syc", text: $code)
-            Button("Set") {
-                let value = code.trimmingCharacters(in: .whitespaces)
-                if !value.isEmpty { setAttribute(askingFor == .script ? .script(value) : .language(value)) }
-                askingFor = nil
-            }
-            Button("Cancel", role: .cancel) { askingFor = nil }
-        } message: {
-            Text("Set on the \(selectedIds.count == 1 ? "selected segment" : "\(selectedIds.count) selected segments").")
-        }
+        // The form is read under a task keyed on the ids and the revision: a newer selection or edit cancels the older read,
+        // so an older answer never shows last (## 1075).
+        .task(id: formIds + [String(formRevision)]) { await reloadForm() }
     }
 
-    /// The Segment menu's verb (#5157): one audited `segment.update_many` over the selection, ⌘Z.
-    private func setAttribute(_ attribute: SegmentEdit.Attribute) {
+    private func reloadForm() async {
+        let ids = formIds
+        guard let segmentService, !ids.isEmpty else { form = nil; return }
+        let answer = try? await segmentService.inspectForm(segmentIds: ids)
+        guard !Task.isCancelled, ids == formIds else { return }
+        form = answer
+    }
+
+    /// A form control changed: one audited `segment.update_many` over the form's segments, ⌘Z.
+    private func setFormValue(_ rowKey: String, _ value: String) {
         guard let segmentService, let actionsService = actionStore?.actionsService else { return }
         let store = SegmentStore.shared(for: segmentService)
         let byId = Dictionary(
             store.segments(documentId: documentId).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
         )
-        guard case .success(let call) = SegmentEdit.set(attribute, on: selectedIds.compactMap { byId[$0] }) else { return }
+        guard case .success(let call) = InspectorForm.edit(rowKey: rowKey, to: value, on: formIds.compactMap { byId[$0] })
+        else { return }
         let runner = SegmentEditRunner(actionsService: actionsService, store: store)
         let windowSteps = windowSteps
         Task {
             _ = try? await runner.run(call, documentId: documentId, actionName: "Set Segment", steps: windowSteps)
-            // The rows describe the lines as they are now (Mixed becomes one value once they agree).
+            formRevision += 1
             await reloadText()
         }
     }
@@ -262,31 +246,14 @@ struct SegmentInspectorView: View {
     }
 
     private func reloadText() async {
-        language = []
-        if isMulti, let segmentService {
-            // The selection as one: each line's resolved settings, Mixed where they differ.
+        if isMulti {
             text = nil
             direction = nil
-            multiNote = nil
-            let ids = selectedIds
-            // One request for the whole selection (`resolve-many`, #6082), not one per line; over the cap, none.
-            var reads: [[InspectorLanguage.Setting]?] = []
-            if ids.count <= Self.multiCap {
-                reads = ((try? await segmentService.resolvedSettings(segmentIds: ids)) ?? []).map { Optional($0) }
-                if reads.count != ids.count { reads = ids.map { _ in nil } }
-            }
-            // Apply only if this is still the selection (an older read must not show the old selection's answer).
-            guard !Task.isCancelled, ids == selectedIds else { return }
-            switch InspectorLanguage.selection(reads, total: ids.count, cap: Self.multiCap) {
-            case .rows(let rows): language = rows
-            case .note(let note): multiNote = note
-            }
             return
         }
         guard let inspected, let segmentService else { return }
         text = try? await segmentService.readings(segmentId: inspected)
         let settings = (try? await segmentService.resolvedSettings(segmentId: inspected)) ?? []
-        language = InspectorLanguage.rows(settings)
         direction = settings.first { $0.key == "direction" }?.value
     }
 
@@ -380,12 +347,6 @@ extension SegmentInspectorView {
                 selected: segments.filter { selectedIds.contains($0.id) }, documentId: documentId,
                 onNote: { deleteNote = $0 }
             )
-            // Verbs on the SELECTION (ruled: the Inspector offers verbs, never typing a reading).
-            SegmentAttributeMenu(apply: { setAttribute($0) }, askForCode: { askingFor = $0; code = "" }, types: regionTypes)
-                .menuStyle(.button)
-                .buttonStyle(.borderless)
-                .fixedSize()
-                .font(.caption)
             // Delete the selected lines: the one `segment.delete` batch every surface uses, one ⌘Z.
             Button { deleteSelected() } label: { Label("Delete", systemImage: "trash") }
                 .buttonStyle(.borderless)
@@ -441,9 +402,4 @@ extension SegmentInspectorView {
 #Preview("Segment inspector: two lines selected") {
     SegmentInspectorView(documentId: "doc-1", selectedIds: ["line-1", "line-2"], onOrderSelected: nil)
         .frame(width: 320, height: 480)
-}
-
-extension SegmentInspectorView {
-    /// The region type (`kind_raw`) of a segment of this page, if it has one.
-    fileprivate func kindRaw(of segmentId: String) -> String? { segments.first { $0.id == segmentId }?.kindRaw }
 }

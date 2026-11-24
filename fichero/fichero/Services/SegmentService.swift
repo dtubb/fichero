@@ -272,6 +272,18 @@ extension SegmentService {
         }
     }
 
+    /// The Inspector's form rows for the selection, as the engine words them (`GET /api/segments/inspect`);
+    /// nil when the engine knows none of the ids.
+    func inspectForm(segmentIds: [String]) async throws -> InspectorForm? {
+        guard !segmentIds.isEmpty else { return nil }
+        let response = try await client.api.inspectSegmentsApiSegmentsInspectGet(query: .init(segmentIds: segmentIds))
+        switch response {
+        case .ok(let okResponse): return InspectorForm(try okResponse.body.json)
+        case .undocumented(404, _), .unprocessableContent: return nil
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// The same for a source -- a folder, document or page -- with no segment (the Inspector's Direction row).
     func resolvedSettings(documentId: String) async throws -> [InspectorLanguage.Setting] {
         try await resolvedSettings(query: .init(documentId: documentId))

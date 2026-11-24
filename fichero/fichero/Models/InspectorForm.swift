@@ -104,7 +104,7 @@ struct InspectorForm: Equatable {
         let value = value.trimmingCharacters(in: .whitespaces)
         guard !value.isEmpty else { return nil }
         switch rowKey {
-        case "type": return .kindRaw(value)
+        case "type": return .type(value)
         case "furniture": return .furniture(value == "true")
         case "language": return .language(value)
         case "script": return .script(value)
