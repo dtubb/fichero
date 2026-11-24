@@ -211,5 +211,5 @@ or an explicit resync has no prior row to splice against (see
 class rather than a special-cased exemption from the mutating-verb scan.
 
 ## Triaged from the backlog (2026-10-04)
-- `observable.change-events-carry-item-ids` **[GAP]** (#4824): the engine's change events name the item ids they touch, not only `document_ids`, so a store can update just those rows.
+- `observable.change-events-carry-item-ids` **[GAP]** (#4824): the engine's change events name the item ids they touch, not only `document_ids`, so a store can update just those rows. Not built: needs the item-id field on the change-event schema and each action's ChangeSpec to fill it, with the Swift stores reading it.
 - `data.store-wraps-app-endpoints` — **[PARTIAL]** (#3677) every app-facing endpoint has a store-layer accessor; batches 1-3 landed and backend-only long-tail endpoints are allowlisted.
