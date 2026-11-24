@@ -597,6 +597,34 @@ def test_the_ladder_excuses_a_deleted_modules_tests_only_when_the_rule_is_named_
         assert ("weakens existing tests" in said) is refused, auto or "off"
     assert [(x["rule"], x["file"]) for x in journal.read() if x["event"] == "auto"] == [("weakened-tests-of-a-deleted-module", "test_page.py")]
 
+def test_the_ladder_skips_the_red_for_a_tests_only_batch_names_every_test_in_the_row_and_keeps_it_for_scripts_source(tmp_path, monkeypatch):
+    """manager review 2026-11-24 (`red-on-base-tests-only`): tests alone owe no red (one auto row naming ALL the tests, they still run green);
+    a scripts/ guard with its test is source outside red_paths and still owes one."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    extra = 'red_paths = ["src/"]\nauto = ["red-on-base-tests-only"]\n'
+    for kind in ("tests", "source"):
+        root = tmp_path / kind
+        root.mkdir()
+        work, g, base, pinned = _project(root, check_extra=extra)
+        for i in range(7):  # more than five: the row names every one
+            (work / f"test_t{i}.py").write_text("def test_ok():\n    assert 1\n")  # passes on base: a red would refuse it
+        if kind == "source":
+            (work / "scripts").mkdir()
+            (work / "scripts" / "check_x.py").write_text("pass\n")
+        g("add", "."), g("commit", "-qm", "batch")
+        r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+        if kind == "tests":
+            assert r["ok"], r
+        else:
+            assert r["failed"] == "red-on-base" and "NOT RED ON BASE" in r["rungs"][-1]["stderr_tail"], r
+        rows = [x for x in journal.read() if x["event"] == "auto" and x["rule"] == "red-on-base-tests-only"]
+        if kind == "tests":
+            assert len(rows) == 1 and rows[0]["file"].split(",") == [f"test_t{i}.py" for i in range(7)], rows
+        else:
+            assert len(rows) == 1, "a scripts/ source change adds no auto row (the one row is the tests batch's)"
+
+
 def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
     """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
     work, g, base, pinned = _project(tmp_path)
