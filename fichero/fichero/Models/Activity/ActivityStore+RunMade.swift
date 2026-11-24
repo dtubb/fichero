@@ -8,7 +8,7 @@ extension ActivityStore {
         do {
             let page = try await ArtifactService(ficheroClient: activityService.client)
                 .getAllArtifacts(runId: threadId, limit: ActivityDetails.madeShown)
-            if runMade[threadId] != page { runMade[threadId] = page }
+            if runMade[threadId] != page { runMade = [threadId: page] }  // only the run being read is kept
         } catch {
             log.debug("ActivityStore: artifacts of \(threadId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
         }

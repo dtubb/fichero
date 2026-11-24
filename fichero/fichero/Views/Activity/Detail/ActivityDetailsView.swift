@@ -103,9 +103,7 @@ struct ActivityDetailsView: View {
         // The closed Log still counts its problems: a Problems read, once per change of the row.
         .task(id: details.logKey) {
             if !logOpen { await store.loadJobLog(jobId: details.jobId, problemsOnly: true) }
-        }
-        // What a finished workflow run made: one read, again when the row's state changes.
-        .task(id: details.logKey) {
+            // What a finished workflow run made: one read, again when the row's state changes.
             if details.madeIsRead, let threadId = details.row.runThreadId { await store.loadRunMade(threadId: threadId) }
         }
         }
