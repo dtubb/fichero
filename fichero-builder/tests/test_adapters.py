@@ -49,7 +49,7 @@ def test_claude_code_argv(tmp_path, monkeypatch):
     argv = start_tool.prepare(tmp_path, wt, "do it", scratch)
     assert argv[:3] == ["sh", "-c", start_tool._READ_PROMPT] and argv[4] == str(scratch / "prompt.md") and argv[5] == "do it"
     text = (scratch / "prompt.md").read_text()
-    assert "NO X" in text and "Written-By: sonnet using Claude Code using Fichero Builder" in text and text not in " ".join(argv)  # a file, not the text
+    assert "NO X" in text and "Written-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder" in text and text not in " ".join(argv)  # a file, not the text
     assert argv[argv.index("--settings") + 1] == str(scratch / "settings.json")
     assert argv[argv.index("--setting-sources") + 1] == ""  # no user, project or local settings: only the generated file
     assert "--strict-mcp-config" in argv

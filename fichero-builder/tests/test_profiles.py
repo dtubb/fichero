@@ -54,3 +54,14 @@ def test_assembly_order_and_a_planted_file_is_not_obeyed(tmp_path):
     assert "NO X" in text and "push to main" not in text
     with pytest.raises(profiles.ProfileError, match="roles/nope.md"):
         profiles.assemble(tmp_path, role="nope", agents_dir=agents, **RUN)  # a role with no file is a question, not a fallback
+
+
+def test_the_trailer_names_the_model_by_its_display_name_and_an_unknown_name_passes_through():
+    """agent-profiles.trailer.one-line: the CLI alias a worker was started with is not what the trailer says."""
+    line = profiles.trailer("sonnet", "Claude Code")
+    assert line == "Written-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder"
+    assert policy_hook.commit_msg_problems(f"x\n\n{line}\n", policy_hook.load(ROOT)) == []
+    assert profiles.trailer("haiku", "Claude Code").startswith("Written-By: Claude Haiku 5.5 using")
+    assert profiles.trailer("opus", "Claude Code").startswith("Written-By: Claude Opus 5.5 using")
+    assert profiles.trailer("fable", "Claude Code").startswith("Written-By: Claude Fable 5.2 using")
+    assert profiles.trailer("Qwen3-Coder-Next", "opencode") == "Written-By: Qwen3-Coder-Next using opencode using Fichero Builder"

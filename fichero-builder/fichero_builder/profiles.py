@@ -18,8 +18,12 @@ class ProfileError(Exception):
     pass
 
 
+# the CLI alias a worker is started with -> the display name the trailer carries; a name not listed passes through unchanged
+DISPLAY_NAMES = {"sonnet": "Claude Sonnet 5.5", "haiku": "Claude Haiku 5.5", "opus": "Claude Opus 5.5", "fable": "Claude Fable 5.2"}
+
+
 def trailer(model: str, harness: str) -> str:
-    return f"Written-By: {model} using {harness} using Fichero Builder"
+    return f"Written-By: {DISPLAY_NAMES.get(model, model)} using {harness} using Fichero Builder"
 
 
 def private_text(text: str, boundary: list[str]) -> list[str]:
