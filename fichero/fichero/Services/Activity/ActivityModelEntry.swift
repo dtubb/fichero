@@ -113,6 +113,10 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
         }
     }
 
+    /// What a call costs the person: a model on this Mac costs no money; a cloud or remote model's price is not in the
+    /// answer yet, so "—" (never 0).
+    var costWords: String { place == .thisMac ? "None (runs on this Mac)" : "—" }
+
     /// The Account column: the probe's word, "—" where nothing probes.
     var accountWords: String { account?.words ?? "—" }
 

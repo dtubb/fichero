@@ -9,13 +9,15 @@ enum ModelsWindowModel {
     /// The scene's title, which the Window menu lists.
     static let windowTitle = "Models & Cluster"
 
-    /// The sidebar's sections: Models (the found cards), then over the one list This Mac, Places, Work.
+    /// The sidebar's sections: Models (every model, then the found cards), Providers (every provider, local and cloud), then
+    /// over the one list This Mac, Places, Work (`models.window.providers-and-models-in-the-sidebar`).
     enum Section: String, CaseIterable, Sendable {
-        case models, thisMac, places, work
+        case models, providers, thisMac, places, work
 
         var title: String {
             switch self {
             case .models: "Models"
+            case .providers: "Providers"
             case .thisMac: "This Mac"
             case .places: "Places"
             case .work: "Work"
@@ -25,7 +27,8 @@ enum ModelsWindowModel {
 
     /// A sidebar item: a grouping over the one list.
     enum Item: Hashable, Sendable {
-        case usableNow, bookmarked, found
+        case allModels, usableNow, bookmarked, found
+        case provider(String)
         case thisMac
         case place(ActivityModelEntry.Place)
         case runningNow
@@ -43,7 +46,8 @@ enum ModelsWindowModel {
 
         var section: Section {
             switch self {
-            case .usableNow, .bookmarked, .found: .models
+            case .allModels, .usableNow, .bookmarked, .found: .models
+            case .provider: .providers
             case .thisMac: .thisMac
             case .place: .places
             case .runningNow, .failedToday: .work
@@ -52,6 +56,8 @@ enum ModelsWindowModel {
 
         var title: String {
             switch self {
+            case .allModels: "All Models"
+            case .provider(let name): name
             case .usableNow: "Usable now"
             case .bookmarked: "Bookmarked"
             case .found: "Found"
@@ -64,6 +70,8 @@ enum ModelsWindowModel {
 
         var icon: String {
             switch self {
+            case .allModels: "cpu"
+            case .provider: "shippingbox"
             case .usableNow: "checkmark.circle"
             case .bookmarked: "bookmark"
             case .found: "magnifyingglass"
@@ -77,6 +85,8 @@ enum ModelsWindowModel {
         /// The accessibility id's last part: `models.sidebar.<item>`.
         var identifier: String {
             switch self {
+            case .allModels: "allModels"
+            case .provider(let name): "provider.\(name)"
             case .usableNow: "usableNow"
             case .bookmarked: "bookmarked"
             case .found: "found"
@@ -90,7 +100,7 @@ enum ModelsWindowModel {
 
     /// Every item, by section, in the sidebar's order.
     static let items: [(section: Section, items: [Item])] = [
-        (.models, [.usableNow, .bookmarked, .found]),
+        (.models, [.allModels, .usableNow, .bookmarked, .found]),
         (.thisMac, [.thisMac]),
         (.places, [.place(.remote), .place(.cloud)]),
         (.work, [.runningNow, .failedToday])
@@ -104,12 +114,40 @@ enum ModelsWindowModel {
         let badge: Int
     }
 
-    /// The sidebar over the one list: each section's items with their badges.
+    /// The sidebar over the one list: each section's items with their badges, the Providers section after Models with one
+    /// item per provider the list names (local runtimes first, then cloud, each by name).
     static func sidebar(_ models: [ActivityModelEntry]) -> [(section: Section, entries: [SidebarEntry])] {
-        items.map { group in
-            (group.section, group.items.map {
+        var result: [(section: Section, entries: [SidebarEntry])] = []
+        for group in items {
+            result.append((section: group.section, entries: group.items.map {
                 SidebarEntry(item: $0, title: $0.title, icon: $0.icon, badge: badge($0, in: models))
-            })
+            }))
+            if group.section == .models {
+                let entries = providers(in: models).map {
+                    SidebarEntry(item: .provider($0), title: $0, icon: Item.provider($0).icon, badge: badge(.provider($0), in: models))
+                }
+                result.append((section: .providers, entries: entries))
+            }
+        }
+        return result
+    }
+
+    /// Every provider the one list names, This Mac's first, then remote, then cloud, each place's by name.
+    static func providers(in models: [ActivityModelEntry]) -> [String] {
+        let order = Dictionary(uniqueKeysWithValues: ActivityModelEntry.Place.allCases.enumerated().map { ($1, $0) })
+        var best: [String: Int] = [:]
+        for model in models { best[model.provider] = min(best[model.provider] ?? .max, order[model.place] ?? .max) }
+        return best.keys.sorted { (best[$0]!, $0.lowercased()) < (best[$1]!, $1.lowercased()) }
+    }
+
+    /// The rows whose name, provider or licence holds the query, ignoring case and accents; every row for an empty query
+    /// (`models.search.over-every-model`).
+    static func search(_ rows: [ActivityModelEntry], query: String) -> [ActivityModelEntry] {
+        let words = query.split(separator: " ").map(String.init)
+        guard !words.isEmpty else { return rows }
+        return rows.filter { row in
+            let text = [row.name, row.provider, row.place.title, row.licence ?? ""].joined(separator: " ")
+            return words.allSatisfy { text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
         }
     }
 
@@ -118,6 +156,8 @@ enum ModelsWindowModel {
         let rows: [ActivityModelEntry]
         switch item {
         case .usableNow, .bookmarked, .found: rows = []  // drawn from the candidates, not the models answer
+        case .allModels: rows = models
+        case .provider(let name): rows = models.filter { $0.provider == name }
         case .thisMac: rows = models.filter { $0.place == .thisMac }
         case .place(let place): rows = models.filter { $0.place == place }
         case .runningNow: rows = models.filter { $0.active || !$0.usingNow.isEmpty }
@@ -189,6 +229,8 @@ enum ModelsWindowModel {
         [
             InspectorLine(label: "Name", value: row.name),
             InspectorLine(label: "Where", value: row.provider),
+            InspectorLine(label: "Runs on", value: row.place.title),
+            InspectorLine(label: "Cost", value: row.costWords),
             InspectorLine(label: "Size", value: row.sizeWords),
             InspectorLine(label: "Fits here", value: row.fitsWords),
             InspectorLine(label: "Account", value: row.accountWords),

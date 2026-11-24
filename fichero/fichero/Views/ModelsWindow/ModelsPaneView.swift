@@ -52,6 +52,7 @@ struct ModelsPaneView: View {
         .task { await openStore() }
         .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { refresh() }
         .onChange(of: item) { refresh() }
+        .onChange(of: search) { refresh() }
         .accessibilityIdentifier("models.pane")
     }
 
@@ -170,7 +171,7 @@ struct ModelsPaneView: View {
         let fresh = ModelsAnswerStore.shared.answer(for: libraryIds)
         if fresh != answer { answer = fresh }
         sidebarGroups = ModelsWindowModel.sidebar(answer.models)
-        rows = item.map { ModelsWindowModel.rows($0, in: answer.models) } ?? []
+        rows = item.map { ModelsWindowModel.search(ModelsWindowModel.rows($0, in: answer.models), query: search) } ?? []
     }
 }
 
