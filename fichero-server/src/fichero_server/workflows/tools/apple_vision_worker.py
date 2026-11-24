@@ -6,23 +6,21 @@ calls run in ONE forked child, one at a time (Vision is serial anyway). A call t
 parent KILL the child; the next call starts a new one. Nothing is left stuck, the memory comes back, and the page that
 timed out fails in words.
 
-Forked, not exec'd, for the reason `db/embed_process.py` gives: the shipped engine has no Python of its own, and re-execing
-its sandboxed stub hangs. The child is forked from the seed the engine made at its start, before any thread
-(`embed_process.fork_from_seed`, #6237), so it inherits no thread of the running engine; without a seed (a test) the engine
-forks it itself. The app launches the engine with OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES, and the child sets it too;
-whether real Vision survives that fork is checked on the M4. `FICHERO_APPLE_VISION_START=spawn` execs a
-child instead (a dev engine, which has a Python). The parent never imports `Vision` itself: only the child runs the calls.
-
-This module imports nothing heavy itself, but its package (`workflows.tools`) loads PyObjC: a seed child that imports it
-fresh needs OBJC_DISABLE_INITIALIZE_FORK_SAFETY set at the engine's launch, as the app sets it.
+By default the calls run on the engine's own threads (`vision_base._start_apple_vision_page`), behind the gate and its deadline:
+a child forked without exec crashed in Vision (SIGSEGV on the child side of fork, an M1, #7084), and the shipped engine has no
+Python of its own to exec (its sandboxed stub hangs). `FICHERO_APPLE_VISION_START=spawn` starts an exec'd child instead (a dev
+engine, which has a Python); that child is killed when a call does not return, and a child that crashes fails its page at once
+with the signal named. The parent never imports `Vision` itself.
 """
 from __future__ import annotations
 
 import importlib
 import multiprocessing
 import os
+import signal
 import sys
 import threading
+import time
 from typing import Any
 
 #: A function the child runs, named by where it lives, never pickled: "module:qualified.name".
@@ -31,6 +29,12 @@ Ref = tuple[str, str]
 
 class WorkerTimeout(RuntimeError):
     """The child did not answer in time and was killed; the next call starts a new one."""
+
+
+#: Seconds a spawned child may take to start before its first call.
+START_SECONDS = 60.0
+
+_CRASH_SIGNALS = {int(n): n.name for n in (signal.SIGSEGV, signal.SIGBUS, signal.SIGABRT, signal.SIGILL, signal.SIGFPE, signal.SIGTRAP)}
 
 
 class WorkerBusy(RuntimeError):
@@ -42,8 +46,12 @@ class WorkerFailure(RuntimeError):
 
 
 def in_process() -> bool:
-    """FICHERO_APPLE_VISION_IN_PROCESS=1 runs the calls on threads in the engine, as before (tests and bare tools)."""
-    return os.environ.get("FICHERO_APPLE_VISION_IN_PROCESS") == "1"
+    """True (the default) when the calls run on threads in the engine; False only for FICHERO_APPLE_VISION_START=spawn.
+    A fork start is refused: Vision does not survive a fork without exec (#7084)."""
+    method = os.environ.get("FICHERO_APPLE_VISION_START", "")
+    if method not in ("", "spawn"):
+        raise RuntimeError(f"FICHERO_APPLE_VISION_START={method!r}: only 'spawn' is supported; Apple Vision cannot run in a forked child")
+    return os.environ.get("FICHERO_APPLE_VISION_IN_PROCESS") == "1" or method != "spawn"
 
 
 def reference(fn: Any) -> Ref | None:
@@ -64,8 +72,8 @@ def _resolve(ref: Ref) -> Any:
 
 def _serve(conn: Any) -> None:
     """The child: answer calls one at a time until the pipe closes. Never returns to the engine's code."""
-    os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     try:
+        conn.send("ready")  # the engine charges the child's start (it imports PyObjC) to no page's deadline
         while True:
             try:
                 ref, args = conn.recv()
@@ -94,21 +102,18 @@ class VisionWorker:
         self.recycles = 0  # how many were killed because a call did not return
 
     def _start(self) -> None:
-        method = os.environ.get("FICHERO_APPLE_VISION_START", "fork")
-        if method != "spawn":  # forked by the seed made at the engine's start, never by the running engine (#6237)
-            from fichero_server.db.embed_process import fork_from_seed
-
-            seeded = fork_from_seed((__name__, "_serve"), ())
-            if seeded is not None:
-                self._conn, self._process = seeded
-                self.starts += 1
-                return
-        context = multiprocessing.get_context("spawn" if method == "spawn" else "fork")
+        context = multiprocessing.get_context("spawn")  # exec'd, never forked (#7084)
         self._conn, child = context.Pipe(duplex=True)
         self._process = context.Process(target=_serve, args=(child,), daemon=True)
         self._process.start()
         child.close()
         self.starts += 1
+        try:
+            if not self._conn.poll(START_SECONDS) or self._conn.recv() != "ready":
+                raise EOFError
+        except (EOFError, OSError) as exc:
+            self._end()
+            raise WorkerFailure("Apple Vision's worker did not start; it starts again for the next one.") from exc
 
     def _end(self) -> None:
         if self._conn is not None:
@@ -139,9 +144,11 @@ class VisionWorker:
         if not self._lock.acquire(timeout=timeout):
             raise WorkerBusy("an earlier Apple Vision call was still running")
         try:
+            began = time.monotonic()
             if self._process is None or not self._process.is_alive():
                 self._end()
                 self._start()
+            timeout = max(timeout - (time.monotonic() - began), 0.05)  # the caller's deadline covers the child's start too
             try:
                 self._conn.send((ref, args))
                 if not self._conn.poll(timeout):
@@ -152,6 +159,9 @@ class VisionWorker:
             except (EOFError, OSError) as exc:
                 how = self._how_it_ended()
                 self._end()
+                crash = _CRASH_SIGNALS.get(int(how.rsplit(" ", 1)[-1].rstrip(")"))) if "killed by signal" in how else None
+                if crash:  # the same page would crash the same way: the words do not name a passing cause (page_retry)
+                    raise WorkerFailure(f"Apple Vision's worker crashed ({crash}) while reading this page; this page was not read again.") from exc
                 raise WorkerFailure(f"Apple Vision's worker stopped while reading this page{how}; it starts again for the next one.") from exc
             if kind == "raised":
                 raise payload

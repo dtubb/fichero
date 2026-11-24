@@ -14,7 +14,6 @@ from fichero_server.db import embed_process
 # Before any seed is forked: the worker module's package loads PyObjC, and a seed's child that loads it fresh aborts on
 # ObjC's fork-safety check (13 of 15 runs) unless OBJC_DISABLE_INITIALIZE_FORK_SAFETY was set when this process started,
 # as the app sets it for the engine. Tests can't set it late: the runtime reads it at launch.
-from fichero_server.workflows.tools import apple_vision_worker as vision
 
 
 @pytest.fixture
@@ -96,29 +95,6 @@ def test_with_a_log_path_the_rotation_thread_starts_after_the_seed(monkeypatch, 
     with pytest.raises(SystemExit):
         engine._main([])
     assert order == ["rotate", "seed", "thread engine-log-rotation"], f"wrong start order: {order}"
-
-
-def test_apple_visions_worker_is_the_seeds_child_too(seed, monkeypatch):
-    """Apple Vision's worker (#5392) is forked the same way: from the seed, never from the running engine."""
-    monkeypatch.delenv("FICHERO_APPLE_VISION_IN_PROCESS", raising=False)
-    monkeypatch.delenv("FICHERO_APPLE_VISION_START", raising=False)
-    vision.WORKER.close()
-    try:
-        assert vision.WORKER.call(("os", "getppid"), (), 10) == seed.pid != os.getpid()
-    finally:
-        vision.WORKER.close()
-
-
-def test_a_stuck_vision_call_still_kills_its_seeded_worker_and_the_next_one_reads(seed, monkeypatch):
-    monkeypatch.delenv("FICHERO_APPLE_VISION_IN_PROCESS", raising=False)
-    monkeypatch.delenv("FICHERO_APPLE_VISION_START", raising=False)
-    vision.WORKER.close()
-    try:
-        with pytest.raises(vision.WorkerTimeout):
-            vision.WORKER.call(("time", "sleep"), (5,), 0.5)
-        assert vision.WORKER.call(("os", "getppid"), (), 10) == seed.pid, "the new worker is the seed's child"
-    finally:
-        vision.WORKER.close()
 
 
 def test_a_bad_request_does_not_end_the_seed(seed):
