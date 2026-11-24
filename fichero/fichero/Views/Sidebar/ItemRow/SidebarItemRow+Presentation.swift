@@ -93,6 +93,19 @@ extension SidebarItemRow {
                     // Run the Recipe on This Folder… (#5540): the Project menu's own item.
                     RunRecipeOnFolderMenuItem(folderId: processDoc.id, library: library)
                 }
+                // Run Step ▸ on a folder or a page, or on the highlighted rows when this one is among them (#7087):
+                // a folder is its pages.
+                RunStepAgainOnSelectionMenu(
+                    pages: RecipeFolderScope.redoPages(
+                        selection: RecipeFolderScope.runStepTargets(
+                            clicked: processDoc.id,
+                            selection: Set(resolvedSelectionItems.compactMap { selected -> String? in
+                                if case .document(let doc) = selected.itemType { return doc.id }
+                                return nil
+                            })),
+                        in: documentStore?.sidebarDocuments ?? []),
+                    library: library
+                )
                 #if os(macOS)
                 if processDoc.docType != .folder {
                     // Export a Copy… of the source file (#4121), the shared item (#5652).

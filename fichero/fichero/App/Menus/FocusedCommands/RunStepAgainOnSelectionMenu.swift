@@ -8,9 +8,12 @@ struct RunStepAgainOnSelectionMenu: View {
     let library: LibraryManager.LibraryReference?
     @Environment(\.openWindow) private var openWindow
 
+    /// One name on every surface: Run Step ▸ the recipe's steps, on exactly what is selected (#7087).
+    static let title = "Run Step"
+
     var body: some View {
         if let library, !pages.isEmpty, !library.recipeSetupStore.redoSteps.isEmpty {
-            Menu("Run a Step Again on the Selection") {
+            Menu(Self.title) {
                 ForEach(library.recipeSetupStore.redoSteps, id: \.steps) { step in
                     Button(step.name) { Task { await run(step.steps, library: library) } }
                 }
