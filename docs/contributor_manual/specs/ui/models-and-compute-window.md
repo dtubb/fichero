@@ -250,13 +250,13 @@ filters Activity by `model:`.
   provider "Apple Intelligence"; where it cannot, no row. *Test:*
   `fichero-server/tests/unit/api/test_activity_models_6588.py::test_apple_intelligence_is_a_provider_and_a_model_on_a_mac_that_has_it`.
   Offering it where its jobs fit, and a catalogue card for it, are `models.cards.richer-and-more` (cards-1).
-- `models.settings.window-replaces-ai-panes` — **[GAP]** (#6588, #4307, owner 2026-11-24) Models & Cluster folds in Settings'
+- `models.settings.window-replaces-ai-panes` — **[PARTIAL]** (#6588, #4307, owner 2026-11-24) Models & Cluster folds in Settings'
   AI models and providers panes: every provider's key, switch, base URL and model list, the defaults per kind of work and
   the local models move into the window (a provider item's Inspector holds its key field and its switch; the model rows hold
   the defaults); Settings keeps at most a link, "Models & Cluster…" (this supersedes `models.settings.keeps-preferences`
   where it keeps the defaults and caps in Settings). Acceptance: no provider key field is reachable from Settings; the
   window's provider item saves and clears a key through the engine's key routes; the alert's `settings.ai.providers` link
-  lands on that provider item. *Test (to write):* `ModelsWindowProvidersTests.swift` (ui-4).
+  lands on that provider item. *Test:* `AISettingsPlacementTests.swift` (every AI tab is in exactly one place: the window or Settings). **Built (ui-4):** `AISettingsView(placement:)`: the window's item "Keys, Defaults & Downloads" (Providers section) draws the existing Defaults, Models & Providers (every provider's key, switch and model list) and Downloads tabs; Settings draws Advanced and an "Open Models & Cluster…" button; the old "Local LLM" selection resolves to Providers. **Not built:** the key field on each provider item's own Inspector (the pane is moved whole, not re-laid per item), and the `settings.ai.providers` deep link landing on a provider item.
 - `models.manage.add-by-id-or-url` — **[GAP]** (#6588, #5460, owner 2026-11-24) from a search result the window downloads a
   local model or adds a cloud model; "Add by id or URL…" takes a Hugging Face id or a URL and resolves it through the same
   finder, so the added model is one card like any other, bookmarked until downloaded. *Test (to write):*
@@ -471,7 +471,8 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 #### Step 2.4 — Providers' keys and switches move into the window; Settings' panes become a link (#6588; ui-4)
 - Behaviours: `models.settings.window-replaces-ai-panes`
-- Tests: ModelsWindowProvidersTests.swift (to write)
+- Tests: fichero/Tests/Unit/general/Views/Settings/AISettingsPlacementTests.swift
+- Status: the panes are moved and Settings links; per-provider Inspector key fields and the deep link are not built.
 - Depends on: 2.3
 - Size: L
 
