@@ -132,10 +132,7 @@ struct SegmentInspectorView: View {
                     if !isMulti, let inspected {
                         InspectorGroupBox(group: .details) {
                             // What kind of region it is, in the engine's words, at the top of Details.
-                            InspectorTypeRow(
-                                type: segments.first { $0.id == inspected }?.kindRaw, types: regionTypes,
-                                choose: { setAttribute(.type($0)) }
-                            )
+                            InspectorTypeRow(type: kindRaw(of: inspected), types: regionTypes) { setAttribute(.type($0)) }
                             if !language.isEmpty {
                                 InspectorDetailsLine(rows: language)
                             }
@@ -444,4 +441,9 @@ extension SegmentInspectorView {
 #Preview("Segment inspector: two lines selected") {
     SegmentInspectorView(documentId: "doc-1", selectedIds: ["line-1", "line-2"], onOrderSelected: nil)
         .frame(width: 320, height: 480)
+}
+
+extension SegmentInspectorView {
+    /// The region type (`kind_raw`) of a segment of this page, if it has one.
+    fileprivate func kindRaw(of segmentId: String) -> String? { segments.first { $0.id == segmentId }?.kindRaw }
 }

@@ -22,8 +22,8 @@ extension SegmentService {
     func regionTypes(documentId: String) async throws -> [RegionTypeChoice] {
         let response = try await client.api.listRegionTypesApiSegmentsDocumentDocIdTypesGet(path: .init(docId: documentId))
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.types.map {
+        case .ok(let answer):
+            return try answer.body.json.types.map {
                 RegionTypeChoice(label: $0.label, zone: $0.zone, subtype: $0.subtype, onPage: $0.onPage)
             }
         case .unprocessableContent(let error):
