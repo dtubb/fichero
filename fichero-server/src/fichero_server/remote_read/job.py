@@ -323,8 +323,15 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     while True:
         _state, latest = _row(db, job_id)
         if latest.get("cancel") or _its_recipe_stopped(db, job_id):
+            # What the far side finished before the Stop is kept: landed first, never cancelled
+            # (`compute.recipe.stop-keeps-what-landed`).
+            seen = target.statuses(job_id) if any(s["state"] == "submitted" for s in shards.values()) else {}
+            for key, shard in shards.items():
+                if shard["state"] == "submitted" and (seen.get(shard["far_id"]) or target.status(shard["far_id"])).state == "done":
+                    shard["ended_at"] = _now()
+                    _land_done_shard(db, job_id, detail, target, key, work, land, pass_name, started_by)
             out = [s for s in shards.values() if s["state"] == "submitted"]
-            if hasattr(target, "cancel_all"):  # a cluster's array: cancelled as one job
+            if hasattr(target, "cancel_all") and out:  # a cluster's array: cancelled as one job
                 target.cancel_all([s["far_id"] for s in out])
             for shard in out:
                 if not hasattr(target, "cancel_all"):
@@ -370,20 +377,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                 continue
             shard["ended_at"] = _now()
             if far.state == "done":
-                part = f"shard-{int(key):05d}"
-                detail["landing_now"] = key  # the far side ended it; its pages are not landed yet
-                _save(db, job_id, detail)
-                try:
-                    folder = target.fetch_part(job_id, part, work / "out" / part)
-                    result = land(db, job_id, folder, pass_name=pass_name, actor=started_by)
-                except BaseException:
-                    detail.pop("landing_now", None)  # the run ends here: the row must not say `landing`
-                    _save(db, job_id, detail)
-                    raise
-                detail.pop("landing_now", None)
-                for name, value in result.items():
-                    detail["landing"][name] = detail["landing"].get(name, 0) + value
-                shard.update(state="landed", landed=result, seconds=_shard_seconds(folder))
+                _land_done_shard(db, job_id, detail, target, key, work, land, pass_name, started_by)
             else:
                 shard.update(state="failed", why=f"Hugging Face: {far.message or far.stage}",
                              last_lines=target.last_lines(shard["far_id"])[-5:])
@@ -405,6 +399,25 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     detail.pop("catch_up", None)  # a request made as the run ended has nothing left to hurry
     _save(db, job_id, detail, reason=words, keep_catch_up=False)
     return counts
+
+
+def _land_done_shard(db: Any, job_id: str, detail: dict[str, Any], target: Any, key: str, work: Path, land: Any,
+                     pass_name: str, started_by: str) -> None:
+    """Fetch and land one shard the far side finished, and write it into the row's counts."""
+    part = f"shard-{int(key):05d}"
+    detail["landing_now"] = key  # the far side ended it; its pages are not landed yet
+    _save(db, job_id, detail)
+    try:
+        folder = target.fetch_part(job_id, part, work / "out" / part)
+        result = land(db, job_id, folder, pass_name=pass_name, actor=started_by)
+    except BaseException:
+        detail.pop("landing_now", None)  # the run ends here: the row must not say `landing`
+        _save(db, job_id, detail)
+        raise
+    detail.pop("landing_now", None)
+    for name, value in result.items():
+        detail["landing"][name] = detail["landing"].get(name, 0) + value
+    detail["shards"][key].update(state="landed", landed=result, seconds=_shard_seconds(folder))
 
 
 def copies_left(db: Any, target: Any, job_id: str) -> str:

@@ -46,8 +46,9 @@ class FakeHub:
 
     bucket = "historian/fichero-training"
 
-    def __init__(self, fail=()):
+    def __init__(self, fail=(), running_polls=2):
         self.fail = set(fail)
+        self.running_polls = running_polls  # a Job reads running until it has been listed this many times
         self.package = None
         self.jobs: dict[str, dict] = {}  # far id -> {shard, polls}
         self.cancelled: list[str] = []
@@ -75,7 +76,7 @@ class FakeHub:
         out = {}
         for far_id, j in self.jobs.items():
             j["polls"] += 1
-            state = "running" if j["polls"] < 2 else ("failed" if j["fails"] else "done")
+            state = "running" if j["polls"] < self.running_polls else ("failed" if j["fails"] else "done")
             out[far_id] = FarStatus(state=state, stage=state.upper(), message="CUDA error" if j["fails"] else None)
         return out
 
@@ -202,7 +203,7 @@ def test_only_the_failed_shards_are_resent_and_landing_twice_changes_nothing(db,
 def test_stopping_cancels_the_running_shards_on_hugging_face(db, archive):
     """WHY (`compute.job.cancel-reaches-the-far-side`): a stopped run does not keep paying for GPUs."""
     job_id, subject = _start(db, archive, max_in_flight=3)
-    hub = FakeHub()
+    hub = FakeHub(running_polls=99)
 
     def stop_after_first_round(_seconds):
         db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [job_id])
@@ -212,6 +213,26 @@ def test_stopping_cancels_the_running_shards_on_hugging_face(db, archive):
         read_job.run(db, subject, target=hub, sleep=stop_after_first_round)
     assert sorted(hub.cancelled) == ["far-0", "far-1", "far-2"]
     assert json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])["cancel"]
+
+
+def test_a_stop_lands_the_shards_the_far_side_finished_and_cancels_only_the_rest(db, archive):
+    """WHY (`compute.recipe.stop-keeps-what-landed`): a shard that finished on the far side before the Stop is landed,
+    not cancelled and lost; only the shards still running are cancelled."""
+    job_id, subject = _start(db, archive, max_in_flight=3)
+    hub = FakeHub()  # a Job reads running on its first listing, done on its second: the Stop falls between
+
+    def stop_after_first_round(_seconds):
+        db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [job_id])
+        read_job.request_cancel(db, job_id)
+
+    with pytest.raises(jobs.JobCancelled):
+        read_job.run(db, subject, target=hub, sleep=stop_after_first_round)
+    assert hub.cancelled == []
+    detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])
+    states = {s["state"] for s in detail["shards"].values()}
+    assert states == {"landed"}, states
+    landed = detail["landing"]["landed"]
+    assert landed > 0 and sum(len(v) for v in _passes(db, archive).values()) == landed
 
 
 def test_an_engine_without_the_token_keeps_a_run_whose_shards_may_still_run(db, archive, monkeypatch):
