@@ -160,6 +160,10 @@ asserted from the rows, the models stubbed at the functions the steps really cal
   with Find Lines model-less it waits for Find Lines and does not run.
 - `recipes-run.steps.read-a-line` — **[OK]** (#6212; in one run with every other step, #6222: `fichero-server/tests/unit/recipes/test_a_run_through_every_step.py`) runs to done line by line (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`); with no model it is skipped
   saying so and Names, Statements, Documents, Translate, Catalogue and Search wait for it.
+  *Built (#7086):* the card carries the reader the step chose (PP-OCRv6 is `kraken` + `kraken-zenodo-21788410`, set as the Kraken
+  node's `kraken_model`), a pin no workflow can run refuses Start naming it, and Activity says "Reading each line with PP-OCRv6
+  (medium)", not the reader's id (`fichero-server/tests/unit/recipes/test_run_uses_the_chosen_reader_7086.py`). *Not built:* a
+  vision-model step's Activity row still shows the model's repository name, not a display name.
 - `recipes-run.steps.translate-transliterate-normalise` — **[OK]** (#6212; in one run with every other step, #6222: `fichero-server/tests/unit/recipes/test_a_run_through_every_step.py`) runs to done, a page done when it holds
   the step's reading by its model (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`); with no model it is skipped saying so; with the reader model-less it waits.
 - `recipes-run.steps.find-names-tag-words` — **[OK]** (#6212; in one run with every other step, #6222: `fichero-server/tests/unit/recipes/test_a_run_through_every_step.py`) runs and its names are counted by kind on the summary
