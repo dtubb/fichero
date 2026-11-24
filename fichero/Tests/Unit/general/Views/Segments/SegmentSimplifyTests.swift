@@ -155,7 +155,7 @@ struct CutWordsTests {
     func releaseIsForTheFocusedPane() {
         let window = WindowState(libraryId: UUID())
         let focused = RegionSelection(), other = RegionSelection()
-        window.focusedRegionSelection = focused
+        window.focusRegionSelection(focused)
         window.isEditingSegments = false
         #expect(window.simplifyReleaseIsFor(focused))
         #expect(!window.simplifyReleaseIsFor(other))

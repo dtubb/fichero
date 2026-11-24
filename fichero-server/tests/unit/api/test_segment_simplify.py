@@ -149,7 +149,8 @@ def test_an_outline_that_would_fall_under_the_floor_is_held_not_discarded():
     sliver = [[float(x), 0.5 * (x % 2)] for x in range(0, 600, 3)] + [[float(x), 2.0 + 0.5 * (x % 2)] for x in range(600, 0, -3)]
     identity = lambda points: points  # noqa: E731 -- pixels are the points
 
-    kept = _fewer_points(sliver, True, 3, 20.0, identity, identity)
+    kept = _fewer_points(sliver, True, 3, 20.0, identity, identity, hold_floor=True)
+    assert _fewer_points(sliver, True, 3, 20.0, identity, identity) is None, "the marker's smoothing keeps its old rule"
 
     assert kept is not None and 3 <= len(kept) < len(sliver)
 

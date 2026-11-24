@@ -1645,16 +1645,18 @@ def _marker_shapes(db: Database, params: SegmentCreateParams) -> tuple[SegmentCr
     return params.model_copy(update={"anchor": anchor, "baseline": baseline}), outline
 
 
-def _fewer_points(points, closed: bool, least: int, tolerance: float, forward, back) -> list[list[float]] | None:
-    """Douglas-Peucker on `points` (page fractions) in the image's pixels; None when it would not drop a point. A
-    tolerance wide enough to leave fewer than `least` points is narrowed (halved) until `least` are left, so the shape
-    is simplified as far as the floor allows, not left as it was."""
+def _fewer_points(
+    points, closed: bool, least: int, tolerance: float, forward, back, hold_floor: bool = False,
+) -> list[list[float]] | None:
+    """Douglas-Peucker on `points` (page fractions) in the image's pixels; None when it would not drop a point or would
+    leave fewer than `least`. With `hold_floor` (Simplify), a tolerance wide enough to leave fewer than `least` points is
+    halved until `least` are left, so the shape is simplified as far as the floor allows; the marker's smoothing does not."""
     import cv2
     import numpy as np
 
     pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
     kept = cv2.approxPolyDP(pixels, tolerance, closed).reshape(-1, 2).tolist()
-    for _ in range(12):
+    for _ in range(12 if hold_floor else 0):
         if len(kept) >= least:
             break
         tolerance /= 2
@@ -4304,7 +4306,7 @@ def _simplified_shapes(
     _image, forward, back = _page_image_for_lines(db, document)
 
     def fewer(points: list[list[float]], closed: bool, least: int) -> list[list[float]] | None:
-        return _fewer_points(points, closed, least, tolerance, forward, back)
+        return _fewer_points(points, closed, least, tolerance, forward, back, hold_floor=True)
 
     shapes = []
     for row in rows:
