@@ -79,6 +79,8 @@ enum SegmentEdit {
         case direction(String)
         case language(String)
         case script(String)
+        /// The region type a person chose, written to `kind_raw` (`source.editor.region-type-is-seen-and-set`).
+        case type(String)
     }
 
     /// The directions the engine accepts (`language_policy.DIRECTIONS`), in the menu's order.
@@ -152,6 +154,7 @@ enum SegmentEdit {
             case .direction(let direction): update.direction = direction
             case .language(let language): update.language = language
             case .script(let script): update.script = script
+            case .type(let type): update.kindRaw = type
             }
             updates.append(update)
         }

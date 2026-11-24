@@ -8,6 +8,8 @@ struct SegmentAttributeMenu: View {
     let apply: (SegmentEdit.Attribute) -> Void
     /// Offer "Language…" / "Script…", which need a code typed: only where the host can ask for one.
     var askForCode: ((CodeKind) -> Void)?
+    /// The region types the engine offers for this page; the Type submenu shows only when there are some.
+    var types: [RegionTypeChoice] = []
 
     enum CodeKind { case language, script }
 
@@ -15,15 +17,23 @@ struct SegmentAttributeMenu: View {
     static let kinds = ["region", "line", "word", "character"]
 
     var body: some View {
-        Menu("Segment") { Items(apply: apply, askForCode: askForCode) }
+        Menu("Segment") { Items(apply: apply, askForCode: askForCode, types: types) }
     }
 
     /// The menu's items on their own: the menu bar's Segment menu lists them at its top level (#5229).
     struct Items: View {
         let apply: (SegmentEdit.Attribute) -> Void
         var askForCode: ((CodeKind) -> Void)?
+        var types: [RegionTypeChoice] = []
 
         var body: some View {
+            if !types.isEmpty {
+                Menu("Type") {
+                    ForEach(Array(types.enumerated()), id: \.element.id) { index, type in
+                        typeButton(type, index: index)
+                    }
+                }
+            }
             Menu("Kind") {
                 ForEach(SegmentAttributeMenu.kinds, id: \.self) { kind in
                     Button(kind.capitalized) { apply(.kind(kind)) }
@@ -40,6 +50,16 @@ struct SegmentAttributeMenu: View {
                 Divider()
                 Button("Language…") { askForCode(.language) }
                 Button("Script…") { askForCode(.script) }
+            }
+        }
+
+        /// The first nine types take Ctrl-Option-1 to 9 (`segment-editor.type-by-key`).
+        @ViewBuilder private func typeButton(_ type: RegionTypeChoice, index: Int) -> some View {
+            let button = Button(type.label) { apply(.type(type.label)) }.help(type.zoneName ?? type.label)
+            if index < 9, let key = "123456789".dropFirst(index).first {
+                button.keyboardShortcut(KeyEquivalent(key), modifiers: [.control, .option])
+            } else {
+                button
             }
         }
     }

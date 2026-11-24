@@ -95,6 +95,17 @@ struct SegmentEditTests {
         #expect(updates.allSatisfy { Set($0.keys) == ["segment_id", "expected_version", "direction"] })
     }
 
+    @Test("a chosen region type goes to kind_raw on every selected segment in one update_many, and nothing else")
+    func settingATypeWritesKindRaw() throws {
+        let call = try SegmentEdit.set(.type("Section-header"), on: [
+            segment("l1", version: 2, rect: [0, 0, 1, 0.1]), segment("l2", version: 5, rect: [0, 0.1, 1, 0.1])
+        ]).get()
+        #expect(call.action == "segment.update_many")
+        let updates = try #require(try json(call)["updates"] as? [[String: Any]])
+        #expect(updates.allSatisfy { $0["kind_raw"] as? String == "Section-header" })
+        #expect(updates.allSatisfy { Set($0.keys) == ["segment_id", "expected_version", "kind_raw"] })
+    }
+
     @Test("the Segment menu sends nothing for an empty selection or a segment with no version")
     func setRefusals() {
         #expect(SegmentEdit.set(.kind("line"), on: []) == .failure(.tooFew))

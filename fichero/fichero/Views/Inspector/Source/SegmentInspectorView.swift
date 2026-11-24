@@ -23,6 +23,8 @@ struct SegmentInspectorView: View {
     @State private var language: [InspectorLanguage.Row] = []
     /// The Segment menu's Language… / Script… prompt (#5157).
     @State private var askingFor: SegmentAttributeMenu.CodeKind?
+    /// The types the engine offers for this page (`source.editor.region-type-is-seen-and-set`).
+    @State private var regionTypes: [RegionTypeChoice] = []
     @State private var code = ""
     /// Edit… (#5201): the words being edited, with the reading they correct; nil when not editing.
     @State private var editing: (reading: InspectorText.Reading, words: String)?
@@ -129,6 +131,11 @@ struct SegmentInspectorView: View {
                     }
                     if !isMulti, let inspected {
                         InspectorGroupBox(group: .details) {
+                            // What kind of region it is, in the engine's words, at the top of Details.
+                            InspectorTypeRow(
+                                type: segments.first { $0.id == inspected }?.kindRaw, types: regionTypes,
+                                choose: { setAttribute(.type($0)) }
+                            )
                             if !language.isEmpty {
                                 InspectorDetailsLine(rows: language)
                             }
@@ -204,6 +211,7 @@ struct SegmentInspectorView: View {
         // The selection's settings are read under a task keyed on the ids: a newer selection cancels the older read, so
         // an older run can never finish last and show the old selection's answer (## 1075).
         .task(id: isMulti ? selectedIds : []) { if isMulti { await reloadText() } }
+        .task(id: documentId) { regionTypes = (try? await segmentService?.regionTypes(documentId: documentId)) ?? [] }
         .alert(askingFor == .script ? "Script" : "Language", isPresented: Binding(
             get: { askingFor != nil }, set: { if !$0 { askingFor = nil } }
         )) {
@@ -376,7 +384,7 @@ extension SegmentInspectorView {
                 onNote: { deleteNote = $0 }
             )
             // Verbs on the SELECTION (ruled: the Inspector offers verbs, never typing a reading).
-            SegmentAttributeMenu(apply: { setAttribute($0) }, askForCode: { askingFor = $0; code = "" })
+            SegmentAttributeMenu(apply: { setAttribute($0) }, askForCode: { askingFor = $0; code = "" }, types: regionTypes)
                 .menuStyle(.button)
                 .buttonStyle(.borderless)
                 .fixedSize()
