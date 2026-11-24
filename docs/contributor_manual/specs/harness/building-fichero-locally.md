@@ -681,7 +681,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   appends the brief to that step as a new part instead of making a step: the step's one brief file gains a `## PART <n> (#<issue>)`
   heading and the new text (the first append adds `## PART 1 (...)` above the old text), the step's `issues` list gains the
   issue, one `part-added` row is journaled, and the verb prints `joined <lane> <step> as part <n>`. `--alone` keeps a step of its own (an
-  urgent hang or crash). A step that is not `queued`, or has a resume brief, a round or a head, is never changed; an issue the step already
+  urgent hang or crash). The loop marks a step `sent` in the queue file, under the queue lock, before it reads the step's brief, and `queue add` joins only a step it finds `queued` under that same lock, so a join is either in the brief the worker gets or a new step. A step that is not `queued`, or has a resume brief, a round or a head, is never changed; an issue the step already
   has, a brief that names several issues, and a milestone's `--enqueue` make steps as before. The fix brief and the review read the whole
   batch, because they read the one brief file and the step's `issues`. Acceptance: test
   `fichero-builder/tests/test_queue_batch.py::test_a_one_issue_brief_joins_the_next_unstarted_step_as_a_part` and its neighbours there.
