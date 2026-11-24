@@ -72,7 +72,7 @@ struct SegmentMenuContent: View {
         // (`SegmentDeleteRoute`). A bare ⌫ here would take the key from every text field.
         Button(Self.deleteTitle(count), role: .destructive) { target?.delete() }
             .disabled(!Self.canDelete(selected: count))
-        Button("Join") { target?.join() }
+        Button(Self.joinTitle(count)) { target?.join() }
             .keyboardShortcut("j", modifiers: [.command, .option])
             .disabled(!Self.canJoin(selected: count))
         // No chord yet: the spec's ⌘⇧R is Run Workflow on Selection's (`FocusedCommandButtons+Workflow`).
@@ -114,6 +114,9 @@ struct SegmentMenuContent: View {
     }
 
     static func deleteTitle(_ count: Int) -> String { count > 1 ? "Delete \(count) Segments" : "Delete Segment" }
+
+    /// Join says how many it joins, as Delete does.
+    static func joinTitle(_ count: Int) -> String { count >= 2 ? "Join \(count) Segments" : "Join" }
 
     /// Delete needs a selection and no mode (#6413: the gate is going).
     static func canDelete(selected: Int) -> Bool { selected > 0 }

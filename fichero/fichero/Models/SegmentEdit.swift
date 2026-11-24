@@ -206,6 +206,12 @@ enum SegmentEdit {
         joined.allSatisfy(live.contains) ? joined : Array(joined.prefix(1))
     }
 
+    /// The ids Make Region from Lines leaves selected: the new region the engine answered (`region_id`), or none when it
+    /// answered none (the selection stays as it was).
+    static func selectionAfterGroup(regionId: String?) -> [String] {
+        regionId.map { [$0] } ?? []
+    }
+
     /// Whether a Join merges regions (so their lines move into the kept one and the order is shown after).
     static func joinsRegions(_ segments: [Segment]) -> Bool {
         segments.count >= 2 && segments.allSatisfy { $0.kind.lowercased() == "region" }

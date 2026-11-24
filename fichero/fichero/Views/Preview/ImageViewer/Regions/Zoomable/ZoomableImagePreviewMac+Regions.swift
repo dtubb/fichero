@@ -262,6 +262,9 @@ extension ZoomableImagePreview {
                 if selection.count >= 2 {
                     Button("Make Region from Lines") { makeRegionFromSelectedLines() }
                 }
+                if selection.count >= 2 {
+                    Button(SegmentMenuContent.joinTitle(selection.count)) { _ = joinSelectedSegments() }
+                }
                 Button("Ungroup Region") { ungroupSelectedRegions() }
                 Button(
                     selection.count == 1 ? "Delete Region" : "Delete \(selection.count) Regions",

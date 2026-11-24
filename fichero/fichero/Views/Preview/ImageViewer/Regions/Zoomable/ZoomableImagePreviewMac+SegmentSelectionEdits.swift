@@ -142,7 +142,10 @@ extension ZoomableImagePreview {
     /// new region; one ⌘Z.
     func makeRegionFromSelectedLines() {
         guard let documentId else { return }
-        runSegmentEdit(SegmentEdit.groupLines(selectedSegments(documentId)), documentId: documentId, name: "Make Region from Lines")
+        runSegmentEdit(
+            SegmentEdit.groupLines(selectedSegments(documentId)), documentId: documentId, name: "Make Region from Lines",
+            answered: { selectNewSegment($0.resultStrings["region_id"], documentId: documentId) }
+        )
     }
 
     /// UNGROUP REGION: each selected region's lines go back to its parent and the region is removed; one ⌘Z each.
