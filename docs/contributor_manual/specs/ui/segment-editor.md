@@ -191,7 +191,7 @@ targets are at least 44 pt.
 ### Structure: merge, split, reassign
 
 - `segment-editor.merge-lines` — **[OK]** (→ #4941; app + engine; builds on `source.editor.join-is-easy`, #6182) two or
-  more selected lines and ⌘J become one line: the first picked keeps its id; the outlines are
+  more selected lines and ⌥⌘J become one line: the first picked keeps its id; the outlines are
   joined into one polygon (their union, hulled across the gap when they do not touch); the
   baselines are joined end to end in the page's reading order; the readings join with the
   script's separator; the result sits where the first line sat in every order; the others
@@ -205,6 +205,27 @@ targets are at least 44 pt.
   `keep_restore`) and redo; the Preview's Join sends both flags (`SegmentEdit.join(_:asLines:)`).
   The key is ⌥⌘J, the owner's ruling of 2026-11-08 in menus-and-commands.md. Lines measured on another image are refused, not carried. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
   hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
+- `segment-editor.join-lines-in-the-same-row` — **[PARTIAL]** (→ #7071-2; app + engine; builds on `segment-editor.merge-lines`) Join
+  Lines in the Same Row (⌥⇧⌘J) joins, in one step, every group of lines that share a row: two lines share a row when they
+  overlap across the reading direction by more than half of the thinner one and overlap along it by no more than a quarter of
+  the shorter one, so lines stacked in a column are not a row; a row of three beside each other is one group
+  (`media/line_join.rows`). On a selection it joins the rows among the selected lines; with nothing selected, the rows of the
+  page. Each group is one `segment.merge` of its lines in reading order (geometry joined, the first line keeping its id), all in the
+  one action `segment.join_rows`, so one ⌘Z puts every row back and one ⇧⌘Z joins them again. A line with no other line in its
+  row is left alone, and so is a row whose lines are in different regions (nothing is moved across regions here), each with its
+  reason; when nothing joins the action is refused with that and writes no step. After it answers, the joined lines are selected
+  (`segment-editor.join-selects-the-joined-segment`'s seam). Edit › Segments ▸ Join Lines in the Same Row, the segment menu and the
+  Preview's context menu offer it. *Tests:* `fichero-server/tests/unit/api/test_segment_join_rows.py` (`TestRowGrouping`, `TestJoinRows`:
+  groups, left alone, one undo and redo, a stale version refuses all); `SegmentJoinRowsTests.swift`.
+- `segment-editor.join-rows-keeps-parts-as-words` — **[PARTIAL]** (→ #7071-2; engine + app) a part of a joined row that held no
+  words becomes one word of the joined line, with the part's outline and its reading; a part that already held words keeps them
+  (`segment.merge` moves them to the joined line), and gets no extra word. The undo removes the words the join made. *Tests:*
+  `test_segment_join_rows.py` (`TestPartsAsWords`).
+- `segment-editor.join-rows-says-what-it-will-do` — **[PARTIAL]** (→ #7071-2; engine + app) before and while the command is offered, the
+  page says what it would do: `GET /api/segments/document/{doc_id}/join-rows-preview?segment_ids=…` answers the groups (the kept id
+  and the lines in reading order), the lines left alone with the reason, and one sentence ("Joins 5 lines into 2 lines; leaves 1 line
+  alone."), and writes nothing. The Preview's Join Lines in the Same Row item shows that sentence as its help, and after the join
+  the notice says what was done. *Tests:* `test_segment_join_rows.py` (`TestThePreview`: names the groups, writes no version).
 - `segment-editor.join-selects-the-joined-segment` — **[OK]** (→ #7068; app) after a Join answers, the selection is the
   kept segment (the first picked), so the Inspector shows the joined line; after ⌘Z it is the segments that were joined,
   after ⇧⌘Z the kept one again. The Preview's Join and the segment menu's Join both do it, once the store has re-read the
@@ -903,6 +924,7 @@ Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across t
 | Lasso | ⌥-drag on empty page |
 | Select all (level) / same kind | ⌘A / ⌘⇧A |
 | Merge (Join) | ⌥⌘J |
+| Join Lines in the Same Row | ⌥⇧⌘J |
 | Split under pointer | ⌘⇧K |
 | Redraw Outline from Baseline | ⌘⇧R |
 | Simplify outline | ⌘⌥S |
