@@ -124,7 +124,8 @@ struct SegmentInspectorFormTests {
         {"level":"region","count":1,"withheld":0,"rows":[
           {"key":"type","label":"Type","kind":"choice","state":"none","values":[],
            "choices":[{"value":"main text","label":"Main text"}],"free_text":false},
-          {"key":"furniture","label":"Page furniture","kind":"toggle","state":"set","value":"false","values":[],"choices":[],"free_text":false},
+          {"key":"furniture","label":"Page furniture","kind":"toggle","state":"set","value":"false","values":[],
+           "choices":[],"free_text":false},
           {"key":"language","label":"Language","kind":"choice","state":"inherited","value":"syc","values":[],
            "inherited_from":"document","choices":[{"value":"syc","label":"syc"}],"free_text":true}]}
         """
