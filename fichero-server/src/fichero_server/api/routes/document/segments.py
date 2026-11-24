@@ -672,6 +672,41 @@ class DoubtfulLines(BaseModel):
     lines: list[DoubtfulLine]
 
 
+class RegionType(BaseModel):
+    label: str
+    zone: Optional[str] = Field(default=None, description="The SegmOnto zone of a known label; none for a label the page brought.")
+    subtype: Optional[str] = None
+    on_page: bool = Field(description="Some live segment of the page already carries this label.")
+
+
+class RegionTypes(BaseModel):
+    document_id: str
+    types: list[RegionType]
+
+
+def region_types(db: Database, doc_id: str) -> RegionTypes:
+    """The types a region can be set to (`source.editor.region-type-is-seen-and-set`): the labels the engine knows
+    (DocLayNet's, each with its SegmOnto zone), then any other label a live segment of the page carries."""
+    from fichero_server.llm.layout_labels import DOCLAYNET_LABELS, segmonto_zone
+
+    if not db.get(Document, doc_id):
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    on_page = {row.kind_raw for row in db.query(Segment, document_id=doc_id) if row.deleted_at is None and row.kind_raw}
+    labels = [*DOCLAYNET_LABELS, *sorted(on_page - DOCLAYNET_LABELS.keys())]
+    types = []
+    for label in labels:
+        zone, subtype = segmonto_zone(label) if label in DOCLAYNET_LABELS else (None, None)
+        types.append(RegionType(label=label, zone=zone, subtype=subtype, on_page=label in on_page))
+    return RegionTypes(document_id=doc_id, types=types)
+
+
+@router.get("/document/{doc_id}/types", response_model=RegionTypes)
+@off_loop
+def list_region_types(doc_id: str, db: Database = Depends(get_library_database)) -> RegionTypes:
+    """The region types the editor's Type menu and the Inspector's Type row offer for this page. Reads, writes nothing."""
+    return region_types(db, doc_id)
+
+
 @router.get("/document/{doc_id}/doubtful", response_model=DoubtfulLines)
 @off_loop
 def doubtful_lines(doc_id: str, db: Database = Depends(get_library_database)) -> DoubtfulLines:
@@ -2515,6 +2550,8 @@ class SegmentAttributeUpdate(BaseModel):
     language: Optional[str] = None
     script: Optional[str] = None
     direction: Optional[str] = None
+    #: The region type a person chose (`source.editor.region-type-is-seen-and-set`); the version history keeps the model's.
+    kind_raw: Optional[str] = None
 
 
 class SegmentUpdateManyParams(BaseModel):
@@ -2697,6 +2734,8 @@ def _action_segment_update_many(db: Database, params: SegmentUpdateManyParams, c
         if item.kind is not None:
             row.kind = item.kind
             row.doc_kind = f"{row.document_id}:{row.kind}"
+        if item.kind_raw is not None:
+            row.kind_raw = item.kind_raw
         if item.is_furniture is not None:
             _mark_furniture(row, item.is_furniture, item.left_out_reason)
         # The cascade's facts through the SAME writer `segment.update` uses, so a
