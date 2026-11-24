@@ -184,9 +184,9 @@ filters Activity by `model:`.
 ### A. The window and its bones
 
 - `models.window.is-activitys-shape` — **[PARTIAL]** (#6588, #4307) the window is a `NavigationSplitView` with a source
-  list (This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
+  list (Models: Usable now, Bookmarked, Found; This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
   window can show it as a pane; the toolbar leads with Activity's run controls; the bottom bar is the filter.
-  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowLayoutTests.swift`. **Also built:** the `Window` scene "Models & Cluster" (Window menu, id `models-cluster`), `PaneKind.models`, `ModelsPaneView` (the `NavigationSplitView`, the one table of size, memory, fits here, account, using now and last failed, and the Inspector), reading the one list through `ModelsAnswerStore`, which Activity's Models tree shares. Tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowSceneTests.swift` (the window id and title, the pane kind, the sidebar from the model, the needs-you sort, the Inspector following the selection, the shared store) and `ActivityWindowSelectionStateTests.swift` (the scene is a `Window` that replaces `.newItem` with the File menu). **Not built:** the This Mac row's pressure, the run controls, the filter, the Search field, the column menu and Usable now / Bookmarked / Found.
+  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowLayoutTests.swift`. **Also built:** the `Window` scene "Models & Cluster" (Window menu, id `models-cluster`), `PaneKind.models`, `ModelsPaneView` (the `NavigationSplitView`, the one table of size, memory, fits here, account, using now and last failed, and the Inspector), reading the one list through `ModelsAnswerStore`, which Activity's Models tree shares. Tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowSceneTests.swift` (the window id and title, the pane kind, the sidebar from the model, the needs-you sort, the Inspector following the selection, the shared store) and `ActivityWindowSelectionStateTests.swift` (the scene is a `Window` that replaces `.newItem` with the File menu). **Also written, without a view test:** the Models section (Usable now the default item, Bookmarked, Found), its Search field and a button column on the rows. **Not built:** the This Mac row's pressure, the run controls, the filter and the column menu.
 - `models.window.one-list` — **[PARTIAL]** (#6588; built: `GET /api/activity/models` with place › provider › model,
   `loaded`, `active`, memory, today's pages and calls, `this_mac`; not built: size on disk, `fits_here`, `account`, the
   card's licence, failures today, the Mac's GPU) the window reads ONE engine list, the models answer grown by the columns
@@ -205,8 +205,7 @@ filters Activity by `model:`.
   job on the search lane (`recipes/discovery.py` `search_online`, `search_online_for_step`: Zenodo's Kraken repository,
   HTR-United, Hugging Face), what it finds kept in the model store's `discovery/` folder (`keep_hub`, `found_for` per
   language), served as cards by `GET /api/recipes/candidates` with `runs_here`, `cannot_run_because` and `runs_on`, and
-  Set Up's finder with "Searching online…" (`ModelFinderStore.searchOnline`); not built: the window's Search field and its
-  Found item) the window's search IS the recipe finder's job: one search, one kept result, one card shape; nothing is
+  Set Up's finder with "Searching online…" (`ModelFinderStore.searchOnline`); built in the window, untested by any view test: its Search field and its Found item) the window's search IS the recipe finder's job: one search, one kept result, one card shape; nothing is
   searched twice and no second catalogue exists.
 - `models.bookmark.kept-not-added` — **[PARTIAL]** (#5460, #6588) a found card is BOOKMARKED, never "added": Bookmark keeps
   the card in the one kept list (`discovery/`, a `bookmarked` mark beside `found_for`) without downloading it, so it
@@ -261,7 +260,7 @@ filters Activity by `model:`.
 
 - `models.manage.load-and-unload` — **[GAP]** (#6588, owner 2026-11-19) the window loads a downloaded model into memory now
   and unloads a loaded one (one model, not only the idle ones), refused with the reason when it does not fit
-  (`models.row.fits-here`); the work happens as a row in Activity.
+  (`models.row.fits-here`); the work happens as a row in Activity. **Built:** a loaded row's Unload calls `POST /api/activity/models/unload-idle`, which unloads every idle model, not that row's alone. **Not built:** a per-model unload and any load route.
 - `models.manage.add-a-model` — **[GAP]** (#6588, #5460, #6747, owner 2026-11-19) the window adds a model: search Hugging
   Face or a provider (`models.search.is-the-finder`), then download it to the models folder (#6747), with its progress in
   Activity (`models.row.download-reports-bytes`).
@@ -270,7 +269,7 @@ filters Activity by `model:`.
   deletion shown in Activity. **Built:** the engine half of asking first: `DELETE /api/local-models/{model_type}/{model_id}`
   with a library open answers 409 naming the steps of its recipe whose model is this one (`recipes.discovery.steps_using_model`,
   the whole id, never a part of one), and deletes with `?confirm=true`; tested in
-  `fichero-server/tests/unit/api/test_delete_model_names_its_steps_6588.py`. **Not built:** the window, its Delete verb, the
+  `fichero-server/tests/unit/api/test_delete_model_names_its_steps_6588.py`. **Also written, without a view test:** an installed row's Delete verb calls the route without `confirm` first, shows the 409's step words in its alert, and sends `confirm=true` only on a second yes. **Not built:** the
   disk it frees, Choose for… (open question 3's recommendation) and the row in Activity.
 
 ### B2. Run settings per model (owner 2026-11-19)
