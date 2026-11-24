@@ -687,11 +687,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 name += "-2"
             brief = Path(s["brief"]).with_name(f"{slug(lane['id'])}-{slug(name)}.txt")
             have = parts_of(Path(s["brief"]).read_text())
-            brief.write_text("\n".join(f"PART {p} was left by the worker of step {s['step']}: {why}" for p, why in left_parts.items()) + "\n\n"
-                             + "\n\n".join(have[p][1] for p in sorted(left_parts)) + "\n")
+            brief.write_text("\n\n".join(have[p][1] for p in sorted(left_parts)) + "\n")  # the owner's own part text only: the worker's reasons are never in a brief the inliner reads
             lane["steps"].insert(lane["cursor"], {"step": name, "brief": str(brief), "issues": sorted({n for p in left_parts for n in have[p][0]}), "waits": [],
                                                   "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
-            journal.append("queue", lane=lane["id"], step=name, state="queued", detail=f"part(s) {sorted(left_parts)} left by {s['step']}")
+            journal.append("queue", lane=lane["id"], step=name, state="queued",
+                           detail=f"part(s) {sorted(left_parts)} left by {s['step']}: " + "; ".join(f"{p}: {w}" for p, w in left_parts.items())[:250])
         end_session(lane, s, handles, procs)
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):

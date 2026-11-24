@@ -101,6 +101,8 @@ def test_parts_the_worker_left_are_requeued_alone_as_the_lanes_next_step(state):
     assert left["issues"] == [9] and left["state"] in ("landed", "queued")
     text = Path(left["brief"]).read_text()
     assert "brief b" in text and "brief a" not in text and "brief c" not in text
+    assert "design call" not in text, "the worker's reason is not in the brief the inliner reads"
+    assert any("needs a design call" in r.get("detail", "") for r in journal.read() if r.get("step") == "s1-left"), "it is in the journal row"
     assert [s["step"] for s in steps()][:2] == ["s1", "s1-left"]
 
 
