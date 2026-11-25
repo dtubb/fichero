@@ -494,9 +494,10 @@ dev = [
     "dashscope",
     "Pillow",
     "numpy",
-    "pyobjc-framework-Vision",
-    "pyobjc-framework-Quartz",
-    "pyobjc-framework-Cocoa",
+    # Apple-only: no Linux wheel, so the marker lets `uv sync --frozen --extra dev` run on Linux CI runners (ci.python-tiers)
+    "pyobjc-framework-Vision; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
     "typer",
     "rich",
     "requests",
@@ -557,6 +558,7 @@ markers = [
     "anyio: mark async tests compatible with anyio backends",
     "requires_apple_vision: mark test as needing macOS Vision framework (auto-skipped on non-mac / when fm-bridge probe fails)",
     "requires_apple_intelligence: mark test as needing on-device Apple Intelligence (auto-skipped via fm-bridge --probe)",
+    "macos_only(reason): needs macOS itself (PyObjC, Apple frameworks, macOS tools or file-system behaviour); skipped off-darwin with the reason; the engine-macos CI job runs exactly these (ci.python-tiers)",
     "slow: mark a test that is slow enough to be worth excluding from a fast gate (`-m 'not slow'`)",
     # Spec/area tags — the backend parallel to Swift Testing's @Tag vocabulary
     # (fichero/Tests/Unit/general/TestTags.swift). Same area names front and back so a

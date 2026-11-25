@@ -358,6 +358,7 @@ class TestThumbnailGeneration:
         result = ensure_thumbnail(doc)
         assert result is None
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="Requires Pillow"
@@ -404,6 +405,7 @@ class TestThumbnailGeneration:
         finally:
             storage.settings = original_settings
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="Requires Pillow"
@@ -446,6 +448,7 @@ class TestThumbnailGeneration:
         finally:
             storage.settings = original_settings
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="Requires Pillow"
@@ -504,6 +507,7 @@ class TestStorageRouteHeaders:
         assert 'filename="r?sum?-???.pdf"' in header
         assert "filename*=UTF-8''r%C3%A9sum%C3%A9-%E6%97%A5%E6%9C%AC%E8%AA%9E.pdf" in header
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="Requires Pillow"

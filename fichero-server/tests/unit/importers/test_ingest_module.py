@@ -1120,6 +1120,7 @@ class TestCopyToLibrary:
 class TestTryApfsClone:
     """Tests for _try_apfs_clone function."""
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="macOS only"
@@ -1427,6 +1428,7 @@ class TestExtractFileMetadata:
 
         assert doc.metadata["mime_type"] == "text/plain"
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="Requires Pillow"

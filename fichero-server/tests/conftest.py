@@ -850,6 +850,9 @@ def pytest_collection_modifyitems(config, items):
         test_obj = getattr(item, "obj", None)
         if test_obj is not None and inspect.iscoroutinefunction(test_obj):
             item.add_marker(pytest.mark.anyio)
+        if (mac := item.get_closest_marker("macos_only")) is not None and sys.platform != "darwin":
+            # ci.python-tiers: the Linux runners skip it, saying why; the macOS job runs exactly these (`-m macos_only`)
+            item.add_marker(pytest.mark.skip(reason="macOS only: " + str(mac.kwargs.get("reason") or (mac.args[0] if mac.args else "needs macOS"))))
         if "requires_apple_vision" in item.keywords and not _APPLE_VISION_OK:
             item.add_marker(skip_vision)
         if (

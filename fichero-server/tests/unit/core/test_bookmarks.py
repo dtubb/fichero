@@ -8,6 +8,7 @@ pytestmark = pytest.mark.skipif(
     not Path("/System").exists(),
     reason="macOS only - bookmarks require macOS APIs"
 )
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 
 class TestIsAvailable:

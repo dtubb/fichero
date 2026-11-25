@@ -18,6 +18,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "darwin" or importlib.util.find_spec("torch") is None, reason="macOS with torch only (the M4)")
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 TRIGGER = pytest.mark.xfail(reason="#5929: loading Kraken's model (vgsl builds a Core ML model) aborts the process at exit on "
                                    "macOS 27 (SIGABRT, MetalShaderLibrary destructor), on mps or the CPU; the engine's way out "

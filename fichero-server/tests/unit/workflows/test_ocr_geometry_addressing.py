@@ -92,6 +92,7 @@ def apple_geometry(rendered_page) -> OCRGeometryResult:
 
 
 @macos_only
+@pytest.mark.macos_only
 def test_apple_vision_word_geometry_is_not_discarded(apple_geometry):
     """Word rects come back wrapped, and used to be dropped on the floor.
 
@@ -110,6 +111,7 @@ def test_apple_vision_word_geometry_is_not_discarded(apple_geometry):
 
 
 @macos_only
+@pytest.mark.macos_only
 def test_apple_vision_word_boxes_sit_inside_their_line(apple_geometry):
     """A word's rect must be inside its line's rect, or the flip is wrong."""
     lines = [b for b in apple_geometry.boxes if b.level == OCRGeometryLevel.LINE]
@@ -141,6 +143,7 @@ def test_apple_vision_word_boxes_sit_inside_their_line(apple_geometry):
 
 
 @macos_only
+@pytest.mark.macos_only
 def test_apple_vision_word_text_matches_its_span(apple_geometry):
     """The span is the box↔text link; if it lies, nothing downstream works."""
     for box in apple_geometry.boxes:
@@ -150,6 +153,7 @@ def test_apple_vision_word_text_matches_its_span(apple_geometry):
 
 
 @macos_only
+@pytest.mark.macos_only
 def test_apple_vision_records_the_kind_of_evidence(apple_geometry):
     """Provenance is the engine AND the kind of evidence.
 
@@ -162,6 +166,7 @@ def test_apple_vision_records_the_kind_of_evidence(apple_geometry):
 
 
 @macos_only
+@pytest.mark.macos_only
 def test_line_resolves_to_its_region_on_a_real_page(apple_geometry):
     """The whole point: point at a line, get the ink it was read from."""
     first = region_for_line(apple_geometry, 0)
@@ -178,6 +183,7 @@ def test_line_resolves_to_its_region_on_a_real_page(apple_geometry):
 
 
 @macos_only
+@pytest.mark.macos_only
 def test_region_and_span_are_the_same_cursor_read_two_ways(apple_geometry):
     """Select text → get a region; select that region → get the text back."""
     region = region_for_line(apple_geometry, 0)

@@ -16,6 +16,7 @@ scan_files = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(scan_files)
 
 
+pytestmark = pytest.mark.macos_only(reason="PyObjC Quartz")
 pytest.importorskip("Quartz")
 
 CODE = """

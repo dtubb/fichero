@@ -29,6 +29,7 @@ pytestmark = pytest.mark.skipif(
     sys.platform != "darwin",
     reason="Kraken's PDF-page render goes through Quartz (macOS-only)",
 )
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 
 def _make_pdf_with_text(path: Path, pages: list[str]) -> None:

@@ -94,6 +94,7 @@ import sys as _sys
 import threading
 
 
+@pytest.mark.macos_only
 @pytest.mark.skipif(_sys.platform != "darwin", reason="macOS per-thread QoS")
 class TestPerThreadQoSSeparation:
     """The throttle is SURGICAL: only the worker thread is backgrounded, never

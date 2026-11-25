@@ -14,6 +14,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "darwin" or importlib.util.find_spec("kraken") is None, reason="macOS with Kraken only")
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 SRC = Path(__file__).resolve().parents[3] / "src"
 TWO_PAGES_ON_THREADS = f"""

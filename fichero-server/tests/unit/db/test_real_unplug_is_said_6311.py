@@ -28,6 +28,7 @@ pytestmark = pytest.mark.skipif(
     sys.platform != "darwin" or shutil.which("hdiutil") is None or os.environ.get("CI"),
     reason="needs macOS and hdiutil, not under CI",
 )
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 
 def _route(fn):

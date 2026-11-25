@@ -51,21 +51,41 @@ it. Spec-change: owner 2026-11-20.
   has read a few weeks of results). The Python tiers (`ci.python-tiers`) run on every trigger; the Swift job
   (`ci.swift-on-actions`) does not run on a lane push, because the Macs own Swift for lane checks. Public repositories pay
   nothing for these minutes. Acceptance: the workflow triggers on `pull_request` to `integration` and on `push` to `lane-*`
-  and `integration`, has exactly the jobs `engine`, `contracts`, `builder` and `swift`, all `continue-on-error`, and the
+  and `integration`, has exactly the jobs `engine`, `engine-macos`, `contracts`, `builder` and `swift`, all `continue-on-error`, and the
   Python jobs enable the uv cache. Built (2026-11-25): the triggers and jobs above. Test:
   `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job` in fichero-server/tests/unit/scripts/.
 
 ## Python test tiers on Actions
 
-- `ci.python-tiers` [PARTIAL] (#6600; the jobs and their shape test are in the tree, no run of them on GitHub has been read yet) —
-  GitHub Actions runs every Python tier a hosted runner can, one job per tier, in parallel, so a red names its tier and the
-  builder can read each by name. The jobs (macos-15, arm64; uv with its cache): `engine`, the engine's `tests/unit` tier with the
-  `check_spec_*` guards as its own `Spec guards` step (kept in this job because `ci.builder-reads-actions` reads exactly the
-  `engine` job's `Spec guards` and `Unit tests` steps; a separate guards job would run them twice); `contracts`, the engine's
-  `tests/contracts`; `builder`, the builder's own suite (`cd fichero-builder && python -m pytest tests -q`, stdlib plus pytest,
-  uv's cache keyed on `fichero-builder/pyproject.toml`). The integration and perf tiers need models, libraries and a quiet
-  machine and stay on the Macs. Acceptance: `tests.yml` has one job per tier it runs, named for the tier, each with a cached uv,
-  none gated off a trigger. Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_each_python_tier_is_its_own_job_with_cached_uv_and_the_engine_job_keeps_the_steps_the_builder_reads`.
+- `ci.python-tiers` [PARTIAL] (#6600; the jobs and their shape tests are in the tree, no run of them on GitHub has been read
+  yet, and no Linux run of the engine tiers has been made: this Mac has no Docker) — GitHub Actions runs every Python tier a
+  hosted runner can, one job per tier, in parallel, so a red names its tier and the builder can read each by name. Until
+  2026-11-25 every job ran on macos-15 and the engine and contract jobs failed at install (onnxruntime 1.29.0 has no wheel
+  for that runner), which `continue-on-error` showed as green: Actions tested almost nothing. What runs where:
+
+  | Job | Runner | What it runs |
+  |---|---|---|
+  | `engine` (four, `engine (1/4)`..`engine (4/4)`) | ubuntu-latest | the engine's `tests/unit` tier without `macos_only`, split by test folder: `scripts/ci_shard_tests.py` deals the folders and top-level test files to four shards, largest first, so the shards together are the whole tier and a new folder needs no workflow edit; shard 1 also runs the `check_spec_*` guards as its `Spec guards` step |
+  | `engine-macos` | macos-26 | exactly the `macos_only` tests of `tests/unit` and `tests/contracts` |
+  | `contracts` | ubuntu-latest | the engine's `tests/contracts` without `macos_only` |
+  | `builder` | ubuntu-latest | the builder's own suite (stdlib plus pytest, uv's cache keyed on `fichero-builder/pyproject.toml`) |
+
+  The engine jobs install with `uv sync --frozen --all-extras` from the one `fichero-server/uv.lock`: the Apple-only
+  dependencies (the PyObjC frameworks of the `dev` extra; MLX is installed into the app at build time, not from the lock)
+  carry `; sys_platform == 'darwin'`, so the same lock syncs on Linux and on macOS with every macOS version unchanged. No
+  engine module imports an Apple framework at import time (each import is inside the function that needs it), so the
+  package imports on Linux. A test that needs macOS itself (PyObjC, an Apple framework, a macOS tool such as `plutil` or
+  `hdiutil`, APFS behaviour) carries `@pytest.mark.macos_only` (registered in `pyproject.toml`; `tests/conftest.py` skips it
+  off darwin with the reason); a test already skipped off macOS keeps its own `skipif` and gains the marker, so
+  `engine-macos` runs it. Linux torch wheels pull the CUDA libraries, so a cold Linux install is large; uv's cache keeps it
+  to one download per lock. The integration and perf tiers need models, libraries and a quiet machine and stay on the
+  Macs. Acceptance: `tests.yml` has one job per tier it runs, named for the tier, each with a cached uv, none gated off a
+  trigger; the Linux jobs exclude `macos_only` and `engine-macos` runs only it; the shards cover the tier once. Tests:
+  `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_each_python_tier_is_its_own_job_with_cached_uv_and_the_engine_job_keeps_the_steps_the_builder_reads`,
+  `::test_the_python_tiers_run_on_linux_with_the_unit_tier_in_four_shards_and_macos_runs_only_the_macos_only_tests`,
+  `::test_the_shards_together_are_the_whole_unit_tier_each_entry_once`,
+  `::test_apple_only_dependencies_carry_a_darwin_marker_so_the_lock_syncs_on_linux`,
+  `::test_macos_only_is_a_registered_marker_that_skips_off_darwin_with_its_reason`.
 
 ## Swift on Actions
 
@@ -130,7 +150,8 @@ it. Spec-change: owner 2026-11-20.
   batch, then the run's jobs through `gh api` (the Actions "list jobs for a workflow run" endpoint). The jobs are
   `continue-on-error`, which makes the run's own conclusion `success` even when a job failed, so the rung reads each JOB's
   conclusion and each step's conclusion, never the run's. The rung is satisfied only when the run is `completed`, its head
-  sha equals the batch head exactly, and the `engine` job's steps `Spec guards` and `Unit tests` are `success`. It then
+  sha equals the batch head exactly, the `Spec guards` step of `engine (1/4)` is `success` and the `Unit tests` step of every
+  `engine (n/4)` job is `success` (the unit tier is four shards, `ci.python-tiers`; one missing shard is no pass). It then
   stands in for the engine unit-test rung and the spec-guard rung of that batch, and the ladder row says
   `from GitHub run <id>`. A run that is missing, still running, for another sha, red, cancelled, or unreadable (no `gh`,
   no network, a bad reply) is never a pass: the rung runs on the Macs as it does today and the row says why the run was not

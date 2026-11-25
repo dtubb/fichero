@@ -148,6 +148,7 @@ class TestTheProbesReadTheMac:
             if tight:
                 assert reason.startswith(throttle.MEMORY_REASON), reason
 
+    @pytest.mark.macos_only(reason="PyObjC Quartz")
     def test_in_use_from_seconds_since_the_last_input(self, monkeypatch):
         import Quartz
 
