@@ -190,3 +190,24 @@ def test_label_prefix_names_the_plists(tmp_path):
     from fichero_builder import queue
     assert queue.agent_label("loop", tmp_path) == "local.builder.loop"
     assert queue.agent_label("loop", rules(tmp_path, '[harness]\nlabel_prefix = "local.words"\n')) == "local.words.loop"
+
+
+def test_harness_name_renames_the_state_variable_and_directory(tmp_path):
+    """The checkout the package runs from (not the cwd) sets [harness].name: variable X_BUILDER_STATE, directory x-builder."""
+    import shutil
+    copy = tmp_path / "co"
+    shutil.copytree(ROOT / "fichero-builder" / "fichero_builder", copy / "fichero-builder" / "fichero_builder", ignore=shutil.ignore_patterns("__pycache__"))
+    code = "from fichero_builder import journal, client, work; print(journal.STATE); print(client.state_env())"
+    def run(env_extra, cwd):
+        env = {"PYTHONPATH": str(copy / "fichero-builder"), "PATH": "/usr/bin:/bin", "XDG_STATE_HOME": str(tmp_path / "xdg"), **env_extra}
+        return subprocess.run([sys.executable, "-c", code], cwd=cwd, capture_output=True, text=True, env=env).stdout.split("\n")[:2]
+    other = tmp_path / "cwd"
+    other.mkdir()
+    assert run({}, other) == [str(tmp_path / "xdg" / "fichero-builder"), "FICHERO_BUILDER_STATE"]
+    rules(copy, '[harness]\nname = "x"\n')
+    assert run({}, other) == [str(tmp_path / "xdg" / "x-builder"), "X_BUILDER_STATE"]
+    assert run({"X_BUILDER_STATE": str(tmp_path / "s")}, other)[0] == str(tmp_path / "s")
+    # a harness.toml in the start directory changes nothing
+    rules(copy, "")
+    rules(other, '[harness]\nname = "evil"\nscripts_dir = "/opt/h"\n')
+    assert run({}, other) == [str(tmp_path / "xdg" / "fichero-builder"), "FICHERO_BUILDER_STATE"]

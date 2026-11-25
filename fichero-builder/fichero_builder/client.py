@@ -7,14 +7,12 @@ import tomllib
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parent
+CHECKOUT = PACKAGE.parents[1]  # the checkout this package runs from (a pinned copy's own, for a jailed worker)
 
 
 def _doc(root) -> dict:
-    """root's harness.toml; no root = no file: a caller names a trusted root (--root, the pinned copy), never the start directory,
-    which a jailed worker owns."""
-    if root is None:
-        return {}
-    f = Path(root) / "harness.toml"
+    """root's harness.toml; no root = the checkout this package runs from, never the current directory, which a jailed worker owns."""
+    f = Path(CHECKOUT if root is None else root) / "harness.toml"
     return tomllib.loads(f.read_text()) if f.is_file() else {}
 
 
@@ -59,7 +57,7 @@ def label_prefix(root=None) -> str:
 def scripts_dir(root=None) -> Path:
     """[harness].scripts_dir: where harness_*.py live (default: the checkout holding this package)."""
     v = _get(root, "harness", "scripts_dir", "")
-    return (Path(root) / v) if v else PACKAGE.parents[1] / "scripts"  # a relative value is relative to root; an absolute one wins
+    return (Path(CHECKOUT if root is None else root) / v) if v else CHECKOUT / "scripts"  # a relative value is relative to root; an absolute one wins
 
 
 def script(root, name: str, default: Path) -> Path:

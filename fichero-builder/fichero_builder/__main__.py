@@ -20,7 +20,7 @@ def state_dir(rules_root, explicit) -> Path:
     both users can read, so the owner reads the worker's journal without sudo), else the XDG default."""
     if explicit:
         return Path(explicit)
-    env = client.state_env(rules_root)
+    env = client.state_env()  # the checkout's name, as journal.STATE reads it
     if os.environ.get(env):
         return Path(os.environ[env])
     f = Path(rules_root) / "harness.toml"
