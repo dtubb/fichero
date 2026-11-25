@@ -462,7 +462,7 @@ dependencies = [
     "iso639-lang",  # ISO 639-3 language names: setup's language search (recipes/names.py)
     # YOLO region finding (#6675, #5525): declared so the lock, and every environment made from it, imports it. A floor,
     # as every shipped dependency is; the lock holds the version `[tool.fichero.mlx_bundle]` installs into the app
-    # (tests/unit/packaging/test_ultralytics_declared_6675.py).
+    # (tests/unit/scripts/test_ultralytics_declared_6675.py).
     "ultralytics>=8.4.175",
 ]
 

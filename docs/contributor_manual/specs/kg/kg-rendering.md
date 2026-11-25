@@ -118,7 +118,7 @@ Three rules follow, and most of what is wrong today breaks one of them.
   Claims table has a Date column and the inline editor edits start, end and precision
   (`ClaimPatchFields.inline`); each neighbourhood edge carries the claim's `time_start`,
   `time_end` and `time_precision` (`NeighborhoodEdge`, `api/routes/kg/graph.py`). Tests:
-  `fichero-server/tests/unit/kg/test_neighborhood_edge_carries_time_and_place.py`::test_an_edge_carries_its_statements_when_and_where_and_links_a_known_place.
+  `fichero-server/tests/unit/knowledge/test_neighborhood_edge_carries_time_and_place.py`::test_an_edge_carries_its_statements_when_and_where_and_links_a_known_place.
   Not built: the graph does not label an edge with its date; the entity card's sentences carry
   no date; the document inspector does not draw one.
 - `kg.render.where-is-on-the-statement` — **[PARTIAL]** (#5032, #6773) the same for the place a
@@ -126,7 +126,7 @@ Three rules follow, and most of what is wrong today breaks one of them.
   is a known name. The inline editor has no place field, so a wrong place cannot be corrected
   where it is seen. Built: each neighbourhood edge carries the claim's free-text place (`place`,
   from `claim_location`) and `place_entity_id` when that text is a known name or alias. Tests:
-  `fichero-server/tests/unit/kg/test_neighborhood_edge_carries_time_and_place.py`::test_a_place_that_is_not_a_known_name_has_no_entity_link.
+  `fichero-server/tests/unit/knowledge/test_neighborhood_edge_carries_time_and_place.py`::test_a_place_that_is_not_a_known_name_has_no_entity_link.
   Not built: no surface draws the place with the statement, and the inline editor has no place
   field.
 - `kg.render.dates-are-not-a-kind-of-name` — **[BROKEN]** (→ #5008, #6774) no list of names

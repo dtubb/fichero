@@ -509,7 +509,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   them go with one UPDATE: 10,000 held rows continue in under a second in the test. *Not built:* the item's name is
   the queue's own ("Processing imported pages"), not "Prepare pages"; the alert view (Swift) is unchanged and not
   run against the one-item list; a page the person paused is not in the list, as before.
-  Test: `fichero-server/tests/unit/jobs/test_continue_is_one_statement.py`.
+  Test: `fichero-server/tests/unit/execution/test_continue_is_one_statement.py`.
 - `importer.resume.no-twin-rows-at-open` — **[PARTIAL]** (#6209, #6595) the open leaves one job row per page and
   stage. *Built:* a waiting or paused row is reused (`enqueue_many`, `execution/jobs.py`). A page whose job was running at the kill is
   reused too (the open's re-queue runs after `jobs.resume`). *Not built:* a page whose job was already done while the
@@ -605,7 +605,7 @@ page has a thumbnail row; the launch alert lists the import; Continue finishes i
 
 #### Step 1.4 — Continue in one statement; one alert item per queue (#6830, #6584)
 - Behaviours: `importer.resume.launch-alert-is-one-row-per-queue`
-- Tests: fichero-server/tests/unit/jobs/test_continue_is_one_statement.py
+- Tests: fichero-server/tests/unit/execution/test_continue_is_one_statement.py
 - Size: S
 
 `execution/jobs.py`, `api/routes/system/activity.py`, the alert view. Test: 10,000 paused rows continue in under a

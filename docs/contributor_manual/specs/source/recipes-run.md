@@ -761,7 +761,7 @@ The behaviours this adds:
   list said Find Lines `running` while the run was paused.
   *Built:* `fichero-server/tests/unit/recipes/test_continue_adopts_the_paused_step_6807.py`, the last test.
 - `recipes-run.order.embed-waits-for-kraken-never-fails` — **[OK]** (#6186, #6808;
-  `fichero-server/tests/unit/jobs/test_embed_waits_for_kraken.py`) a page's embed that meets
+  `fichero-server/tests/unit/execution/test_embed_waits_for_kraken.py`) a page's embed that meets
   Kraken reading waits and runs afterwards; it never ends failed. Measured before the fix: 6 of 22 `make-a-vector`
   jobs, each queued by a fresh reading of a page, ended `failed` with the row words "Something went wrong in Fichero"; the log
   says "Kraken is reading a page; the search model waits for it to finish". `llm/kraken_runtime.py`

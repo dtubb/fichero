@@ -321,7 +321,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   `fichero-server/tests/unit/llm/test_yolo_runs_without_ultralytics.py` (the engine's load and detect path against a fake
   `ultralytics`, so it runs where none is installed), `fichero-server/tests/unit/llm/test_yolo_real_model.py` (the real
   weights on a fixture page; marked `real_model`, outside the ladder, skipped with its reason where the stock weights are
-  not in the model store), and `fichero-server/tests/unit/packaging/test_ultralytics_declared_6675.py`. *Not yet:* the
+  not in the model store), and `fichero-server/tests/unit/scripts/test_ultralytics_declared_6675.py`. *Not yet:* the
   bundle build under the lock's constraints, the gate's refusal above, and the row on the 8 GB Mac.
 
 ### C. Loading, residency and speed

@@ -295,7 +295,7 @@ KNOWN_VIOLATIONS: dict[str, int] = {
     "fichero-server/tests/unit/check  [tests]": 11,
     "fichero-server/tests/unit/export  [tests]": 11,
     "fichero-server/tests/unit/finddocs  [tests]": 1,
-    "fichero-server/tests/unit/jobs  [tests]": 131,  # #6588 batch-21: 8 Activity job tests the per-batch rule (--since) passes
+    "fichero-server/tests/unit/jobs  [tests]": 128,
     "fichero-server/tests/unit/kg  [tests]": 25,
     "fichero-server/tests/unit/packaging  [tests]": 1,
     "fichero-server/tests/unit/transport  [tests]": 28,

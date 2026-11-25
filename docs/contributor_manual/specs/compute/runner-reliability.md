@@ -399,7 +399,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `activity.throttle.in-use-slows-to-half` own it) automatic work goes on while the person uses the Mac, at half the
   performance cores and background QoS; a run the person started begins at once, throttled, never waits for Run now
   (#6263). Built: the one in-use rule; a started run's step is never held for use or battery, only for memory or heat (*test:*
-  `fichero-server/tests/unit/jobs/test_started_run_begins_at_once_6263.py`); an import's automatic Kraken reads on half the
+  `fichero-server/tests/unit/execution/test_started_run_begins_at_once_6263.py`); an import's automatic Kraken reads on half the
   performance cores at utility QoS. Owed: other automatic work in use still drops to the lowest QoS class (#6230), and the
   Air's step hold of #6263, not reproduced.
 
