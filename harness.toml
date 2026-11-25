@@ -13,7 +13,7 @@ max_commits = 100  # the most commits a lane may be ahead of origin/integration 
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
 min_guards = 20
-parallel = 4   # owner 2026-11-23 afternoon: the iMac runs two checks at once (two gate dirs, two heavy locks), the M1 Air one
+parallel = 3   # owner 2026-11-23 afternoon: the iMac runs two checks at once (two gate dirs, two heavy locks), the M1 Air one
 # Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).
 guard_skip = [
   "check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
@@ -59,7 +59,7 @@ pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
 # synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
 # rung and the guards that call git stay on the Pro
-remote = ["air:~/fichero-gate", "imac:~/fichero-gate", "imac:~/fichero-gate2", "localhost:~/fichero-gate"]  # 2026-11-25 10:55: the Pro last (load 180 with Swift builds and checks at once); it keeps build_remote  # owner 2026-11-25: the Pro first while the iMac is nearly full;  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
+remote = ["air:~/fichero-gate", "imac:~/fichero-gate", "imac:~/fichero-gate2"]  # 2026-11-25 14:30: the Pro dropped (load 260, 12 GB swap, the owner working on it); 2026-11-25 10:55: the Pro last (load 180 with Swift builds and checks at once); it keeps build_remote  # owner 2026-11-25: the Pro first while the iMac is nearly full;  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
 # manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
 # or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
 remote_guards = "auto"
