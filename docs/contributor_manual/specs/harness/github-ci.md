@@ -34,12 +34,14 @@ it. Spec-change: owner 2026-11-20.
   `security_rung.read_osv` only when `osv = true` (it is false while lane deps-security has open alerts, and the workflow
   follows it, so a PR is not red for an alert it did not cause). A red row fails the job, and so does a `REFUSED` line or a
   scanner that wrote no JSON: a scanner that did not run is never a green.
-  Job `codeql` runs CodeQL for Python (ubuntu) and Swift (macos-15, `build-mode: none`; if the Swift extractor refuses that
-  mode the job is changed to a manual build, which needs the Xcode project and is not attempted here). CodeQL results go to
+  Job `codeql` runs CodeQL for Python (ubuntu, `build-mode: none`). Swift is not in the matrix: Swift has no `none` mode, a
+  manual build needs the Xcode project, and the project is in Xcode 27's format, which GitHub's hosted macOS runners cannot
+  open (the same wall as `ci.swift-on-actions`). Swift comes back into the matrix, as a manual build, when a hosted runner has
+  Xcode 27 or on a self-hosted runner; until then the Swift code has no CodeQL scan here. CodeQL results go to
   code scanning; blocking a merge on high or critical alerts is a repository ruleset setting. The owner switches on, in
   Settings > Code security: secret scanning, push protection, and code scanning as a required check on `integration`; these
   are settings, not code, and this workflow does not set them. Acceptance: the workflow triggers on `pull_request` to
-  `integration` and on a schedule, names `security_scan_run.py`, reads the pins and `osv` from `harness.toml`, fails on a refused scanner, and its CodeQL matrix is Python and Swift.
+  `integration` and on a schedule, names `security_scan_run.py`, reads the pins and `osv` from `harness.toml`, fails on a refused scanner, and its CodeQL matrix is Python only (Swift out, with the reason in a comment).
   Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_security_workflow_runs_on_prs_and_nightly_reuses_the_rungs_scanner_and_adds_codeql` in fichero-server/tests/unit/scripts/.
 
 ## Test workflow

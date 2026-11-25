@@ -33,7 +33,8 @@ def test_security_workflow_runs_on_prs_and_nightly_reuses_the_rungs_scanner_and_
     assert "scripts/security_scan_run.py" in text
     assert 'sec["pins"]' in text and 'sec.get("osv"' in text and "uv tool install" in text and "install_security_tools" not in text
     assert 'if result["refused"]' in text
-    assert {m["language"] for m in doc["jobs"]["codeql"]["strategy"]["matrix"]["include"]} == {"python", "swift"}
+    assert {m["language"] for m in doc["jobs"]["codeql"]["strategy"]["matrix"]["include"]} == {"python"}, "Swift waits for a runner with Xcode 27"
+    assert "Xcode 27" in text, "the matrix says why Swift is out"
 
 
 def test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job():
