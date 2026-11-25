@@ -478,6 +478,7 @@ nav:
               - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-signs.md
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
               - Segment Editor CRUD (draft): contributor_manual/specs/source/segment-editor-crud.md
+              - Segment Actions (draft): contributor_manual/specs/source/segment-actions.md
               - Segment Editor Tools (Source pane & lines): contributor_manual/specs/ui/segment-editor.md
               - Editable Reader (draft): contributor_manual/specs/source/editable-reader.md
               - Panes (draft): contributor_manual/specs/source/panes.md
