@@ -8172,6 +8172,15 @@ def fichero_segments_doubtful_lines(
     return _rt.call("GET", f"/api/segments/document/{doc_id}/doubtful")
 
 
+def fichero_segments_preview_join_rows(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    segment_ids: Annotated[Optional[list[str]], Field(description="Only these lines are grouped; absent, every line of the page's working pass.")] = None,
+) -> Any:
+    'Preview Join Rows\n\nThe rows `segment.join_rows` would join, written nowhere (`segment-editor.join-rows-says-what-it-will-do`): the\ngroups of lines in one row and the lines left alone, so the menu can say it before it acts. Lines of different\nregions are never one row.\n\nRoute: GET /api/segments/document/{doc_id}/join-rows-preview (toolset `segments`; reads).'
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/join-rows-preview", params={"segment_ids": segment_ids})
+
+
 def fichero_segments_list_document_matches(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -8242,6 +8251,15 @@ def fichero_segments_inspect(
 ) -> Any:
     "Inspect Segments\n\n`GET /api/segments/inspect?segment_ids=...` -- the Inspector's form for a selection: the rows of its level, each with\nits state across the selection (set, inherited, mixed, none) and its choices (`source.editor.inspector-form-comes-from-the-engine`).\nAn id that is not found, is deleted, or is on a page the caller may not read is left out and counted in `withheld`.\n\nRoute: GET /api/segments/inspect (toolset `segments`; reads)."
     return _rt.call("GET", "/api/segments/inspect", params={"segment_ids": segment_ids})
+
+
+def fichero_segments_join_rows(
+    *,
+    expected_versions: Annotated[dict[str, Any], Field(description="Each line's version as last read, {segment_id: version}; a changed line refuses the whole join.")],
+    groups: Annotated[list[Any], Field(description="Each row's lines and the one that keeps its id.")],
+) -> Any:
+    'Join Rows\n\nRoute: POST /api/segments/join-rows (toolset `segments`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/segments/join-rows", json=_rt.body({"expected_versions": expected_versions, "groups": groups}))
 
 
 def fichero_segments_propose_match(
@@ -10643,6 +10661,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_delete", "segments", "POST", "/api/segments/delete", fichero_segments_delete),
     GeneratedTool("fichero_segments_list_document", "segments", "GET", "/api/segments/document/{doc_id}", fichero_segments_list_document),
     GeneratedTool("fichero_segments_doubtful_lines", "segments", "GET", "/api/segments/document/{doc_id}/doubtful", fichero_segments_doubtful_lines),
+    GeneratedTool("fichero_segments_preview_join_rows", "segments", "GET", "/api/segments/document/{doc_id}/join-rows-preview", fichero_segments_preview_join_rows),
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),
@@ -10651,6 +10670,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
     GeneratedTool("fichero_segments_inspect", "segments", "GET", "/api/segments/inspect", fichero_segments_inspect),
+    GeneratedTool("fichero_segments_join_rows", "segments", "POST", "/api/segments/join-rows", fichero_segments_join_rows),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),
     GeneratedTool("fichero_segments_accept_match", "segments", "POST", "/api/segments/matches/{match_id}/accept", fichero_segments_accept_match),
     GeneratedTool("fichero_segments_reject_match", "segments", "POST", "/api/segments/matches/{match_id}/reject", fichero_segments_reject_match),
