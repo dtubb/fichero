@@ -33,6 +33,49 @@ struct SegmentSelectionGesturesTests {
         #expect(Gestures.touching(band: [0.7, 0.7, 0.1, 0.1], boxes: page, level: "line").isEmpty)
     }
 
+    private let nested: [Gestures.Box] = [
+        .init(index: 0, bbox: [0.1, 0.1, 0.4, 0.2], level: "region", segmentId: "R"),
+        .init(index: 1, bbox: [0.12, 0.12, 0.3, 0.05], level: "line", segmentId: "L1", parentId: "R"),
+        .init(index: 2, bbox: [0.12, 0.2, 0.3, 0.05], level: "line", segmentId: "L2", parentId: "R"),
+        .init(index: 3, bbox: [0.7, 0.7, 0.2, 0.05], level: "line", segmentId: "L3")
+    ]
+
+    @Test("a band enclosing a region selects it and its lines")
+    func bandEnclosingRegion() {
+        let hits = Gestures.bandHits(band: [0.05, 0.05, 0.6, 0.4], boxes: nested, level: "line")
+        #expect(Gestures.withLines(hits, boxes: nested) == [1, 2, 0])
+    }
+
+    @Test("a band inside a region selects only the lines it touches")
+    func bandInsideRegion() {
+        let hits = Gestures.bandHits(band: [0.13, 0.13, 0.1, 0.02], boxes: nested, level: "line")
+        #expect(Gestures.withLines(hits, boxes: nested) == [1])
+    }
+
+    @Test("a band that only grazes a region does not select it")
+    func bandGrazingRegion() {
+        #expect(Gestures.bandHits(band: [0.05, 0.05, 0.2, 0.1], boxes: nested, level: "line") == [1])
+    }
+
+    @Test("a region comes with its lines, by parent when the lines name one and by position when they do not")
+    func regionBringsLines() {
+        #expect(Gestures.group(of: 0, boxes: nested) == [0, 1, 2])
+        #expect(Gestures.group(of: 1, boxes: nested) == [1])
+        let bare = nested.map { Gestures.Box(index: $0.index, bbox: $0.bbox, level: $0.level) }
+        #expect(Gestures.group(of: 0, boxes: bare) == [0, 1, 2])
+    }
+
+    @Test("⇧-click adds a region with its lines; ⌘-click on it again removes them all")
+    func clickAddsAndRemovesGroup() {
+        let selection = RegionSelection()
+        selection.select(3, artifactId: "a", documentId: "d")
+        let group = Gestures.group(of: 0, boxes: nested)
+        selection.toggleGroup(group, artifactId: "a", documentId: "d")
+        #expect(Set(selection.indices) == [0, 1, 2, 3])
+        selection.toggleGroup(group, artifactId: "a", documentId: "d")
+        #expect(selection.indices == [3])
+    }
+
     @Test("with ⌘ held the band selects regions")
     func commandSelectsRegions() {
         let level = Gestures.level(of: page, commandHeld: true)

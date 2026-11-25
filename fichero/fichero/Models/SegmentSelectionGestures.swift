@@ -8,6 +8,53 @@ enum SegmentSelectionGestures {
         let index: Int
         let bbox: [Double]
         let level: String
+        /// The segment this box draws and the one it sits in (`OCRGeometryBox.segmentId`, `.parentSegmentId`).
+        var segmentId: String?
+        var parentId: String?
+
+        init(index: Int, bbox: [Double], level: String, segmentId: String? = nil, parentId: String? = nil) {
+            self.index = index
+            self.bbox = bbox
+            self.level = level
+            self.segmentId = segmentId
+            self.parentId = parentId
+        }
+    }
+
+    /// The band's hits: the boxes it touches at `level`, plus every region it wholly encloses
+    /// (`segment-editor.select-band-encloses-region`). A band inside a region touches only that region's lines.
+    static func bandHits(band: [Double], boxes: [Box], level: String?) -> [Int] {
+        guard band.count >= 4 else { return [] }
+        var hits = touching(band: band, boxes: boxes, level: level)
+        for box in boxes where box.level == "region" && box.bbox.count >= 4 && !hits.contains(box.index) {
+            if box.bbox[0] >= band[0], box.bbox[1] >= band[1],
+               box.bbox[0] + box.bbox[2] <= band[0] + band[2], box.bbox[1] + box.bbox[3] <= band[1] + band[3] {
+                hits.append(box.index)
+            }
+        }
+        return hits
+    }
+
+    /// `index` with what comes with it: a region brings its lines (by parent segment when the lines carry one, else the
+    /// lines whose box lies inside the region's); any other box is alone. The one rule for click, ⇧-click, ⌘-click and band.
+    static func group(of index: Int, boxes: [Box]) -> [Int] {
+        guard let box = boxes.first(where: { $0.index == index }), box.level == "region" else { return [index] }
+        let lines = boxes.filter { line in
+            guard line.level == "line" else { return false }
+            if let parent = line.parentId, let own = box.segmentId { return parent == own }
+            return line.bbox.count >= 4 && box.bbox.count >= 4
+                && line.bbox[0] >= box.bbox[0] && line.bbox[1] >= box.bbox[1]
+                && line.bbox[0] + line.bbox[2] <= box.bbox[0] + box.bbox[2]
+                && line.bbox[1] + line.bbox[3] <= box.bbox[1] + box.bbox[3]
+        }.map(\.index)
+        return [index] + lines.filter { $0 != index }
+    }
+
+    /// `hits` with each region's lines added, order kept, no repeats.
+    static func withLines(_ hits: [Int], boxes: [Box]) -> [Int] {
+        var out: [Int] = []
+        for hit in hits { for member in group(of: hit, boxes: boxes) where !out.contains(member) { out.append(member) } }
+        return out
     }
 
     /// The level a band or lasso selects: regions when ⌘ is held as it starts, else lines when the page shows any, else

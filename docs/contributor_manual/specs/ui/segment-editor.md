@@ -298,6 +298,12 @@ targets are at least 44 pt.
   starts ON a box (every press on a page) draws it; a click that does not move still selects. The band selects every box it
   touches or encloses (`SegmentSelectionGestures.touching`); the lasso keeps the over-half rule. The band runs in the Source
   view as well as Edit Segments. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SelectPointerTests.swift`.
+  *Built note (#7080):* a region wholly inside the band is selected too, with its lines; a band inside a region selects only
+  the lines it touches (`SegmentSelectionGestures.bandHits`, `withLines`). One rule for every way of adding a region
+  (click, ⇧-click, ⌘-click, band): the region comes with its lines, and ⌘/⇧-click on a selected region removes its lines too
+  (`SegmentSelectionGestures.group`, `RegionSelection.toggleGroup`). *Tests:*
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift` (`bandEnclosingRegion`, `bandInsideRegion`,
+  `regionBringsLines`, `clickAddsAndRemovesGroup`).
 - `segment-editor.select-shift-toggles` — **[PARTIAL]** (→ #4941; app) ⇧-click and ⇧-band add to the selection;
   ⇧-click on a selected segment removes it; ⌘A selects every segment of the level shown; ⌘⇧A
   selects the same kind as the selection ("select the same kind" from the umbrella); ⌘-click toggles one box, in the Source view
