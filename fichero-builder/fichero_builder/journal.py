@@ -12,9 +12,12 @@ import threading
 import time
 from pathlib import Path
 
+from fichero_builder import client
+
 # The Builder's state directory: FICHERO_BUILDER_STATE, else $XDG_STATE_HOME/fichero-builder, else ~/.local/state/fichero-builder.
-STATE = Path(os.environ.get("FICHERO_BUILDER_STATE") or Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
-             / "fichero-builder")
+# [harness].name of the harness.toml in the start directory renames all three (default fichero: FICHERO_BUILDER_STATE, fichero-builder).
+STATE = Path(os.environ.get(client.state_env()) or Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+             / f"{client.harness_name()}-builder")
 
 
 def path():

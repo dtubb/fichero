@@ -35,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, watcher, work
+from fichero_builder import brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, watcher, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -1263,6 +1263,11 @@ def restart_loop(root, tick_s: float = 30.0) -> int:
     return p.pid
 
 
+def agent_label(name: str, root) -> str:
+    """The launchd label of one of the builder's agents: [harness].label_prefix (default local.builder) and the agent's name."""
+    return f"{client.label_prefix(root)}.{name}"
+
+
 def launch_agents(root, out, *, branch: str | None = None, state=None, tick_s: float = 30.0, port: int = 8766) -> list[Path]:
     """The owner's four LaunchAgents (dev-workflows.run.loop, run.loop-launchd): `builder loop` and the console (`builder status`)
     kept alive and started at login, `builder heartbeat` every three ticks, and `builder release` at 03:00 (run.release-stages). All run as the owner from the checkout's package;
@@ -1281,7 +1286,7 @@ def launch_agents(root, out, *, branch: str | None = None, state=None, tick_s: f
     out.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, (args, when) in jobs.items():
-        label = f"local.builder.{name}"
+        label = agent_label(name, root)
         f = out / f"{label}.plist"
         f.write_bytes(plistlib.dumps({"Label": label, "ProgramArguments": [sys.executable, "-m", "fichero_builder", *args],
                                       "WorkingDirectory": str(logs), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", ""), "PYTHONUNBUFFERED": "1",

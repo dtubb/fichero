@@ -11,7 +11,7 @@ from pathlib import Path
 
 import json
 
-from fichero_builder import check_tool, journal, models, spec_tool, steps, work
+from fichero_builder import check_tool, client, journal, models, spec_tool, steps, work
 from fichero_builder import run as run_mod
 
 
@@ -20,8 +20,8 @@ def state_dir(rules_root, explicit) -> Path:
     both users can read, so the owner reads the worker's journal without sudo), else the XDG default."""
     if explicit:
         return Path(explicit)
-    if os.environ.get("FICHERO_BUILDER_STATE"):
-        return Path(os.environ["FICHERO_BUILDER_STATE"])
+    if os.environ.get(client.state_env(rules_root)):
+        return Path(os.environ[client.state_env(rules_root)])
     f = Path(rules_root) / "harness.toml"
     if f.is_file():
         import tomllib

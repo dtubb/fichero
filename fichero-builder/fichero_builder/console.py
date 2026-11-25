@@ -98,7 +98,7 @@ def _st() -> list[str]:
 
 
 def _plist() -> str:
-    return str(Path.home() / "Library" / "LaunchAgents" / "local.builder.loop.plist")
+    return str(Path.home() / "Library" / "LaunchAgents" / f"{queue.agent_label('loop', ROOT)}.plist")
 
 
 # verb -> (the argument names it takes, argv from them). Values are checked in `argv_for`: text only, never a flag.
@@ -111,7 +111,7 @@ VERBS = {
     "park": (("lane", "step"), lambda a: _builder("queue", "park", "--lane", a["lane"], "--step", a["step"], *_st())),
     "unpark": (("lane", "step"), lambda a: _builder("queue", "unpark", "--lane", a["lane"], "--step", a["step"], *_st())),
     "loop-start": ((), lambda a: ["launchctl", "bootstrap", f"gui/{os.getuid()}", _plist()]),
-    "loop-stop": ((), lambda a: ["launchctl", "bootout", f"gui/{os.getuid()}/local.builder.loop"]),
+    "loop-stop": ((), lambda a: ["launchctl", "bootout", f"gui/{os.getuid()}/{queue.agent_label('loop', ROOT)}"]),
     "alert": (("id", "action"), lambda a: _builder("alert", a["id"], a["action"], "--root", str(ROOT), *_st())),
     "build": ((), lambda a: _builder("build", "--dev", "--root", str(ROOT), *_st())),
     "done": (("lane", "sha"), lambda a: _builder("done", a["lane"], a["sha"], *_st())),

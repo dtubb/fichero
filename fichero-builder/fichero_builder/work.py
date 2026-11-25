@@ -80,12 +80,19 @@ def _shared_rows(a) -> list[dict]:
     return rows
 
 
+def pinned_package(pinned) -> Path:
+    """The folder that holds the builder package, for PYTHONPATH: the pinned copy's when it has one at [harness].package_dir (the
+    jail user cannot read the owner's checkout), else this checkout's."""
+    rel = client.package_dir(pinned)
+    if (Path(pinned) / rel).is_dir():  # #6466
+        return (Path(pinned) / rel).parent
+    return Path(__file__).resolve().parents[1]
+
+
 def run_cmd(a, model: str, *extra) -> str:
     """The `builder run` command line the jail user runs (the one-brief path, and the queue's long-running session with --feed)."""
     py = check_tool.load(a.pinned).python or sys.executable
-    pkg = Path(__file__).resolve().parents[1]
-    if (Path(a.pinned) / "fichero-builder" / "fichero_builder").is_dir():  # #6466: the jail user cannot read the owner's checkout; the pinned copy is world-readable
-        pkg = Path(a.pinned) / "fichero-builder"
+    pkg = pinned_package(a.pinned)
     return codemap.index_prefix(a.pinned, a.worktree) + " ".join(["PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin", "PYTHONPATH=" + shlex.quote(str(pkg)), shlex.quote(py), "-m fichero_builder run",
                      *(f"{k} {shlex.quote(str(v))}" for k, v in (
                          ("--worktree", a.worktree), ("--brief", a.brief), ("--root", a.root), ("--name", a.name), ("--model", model),
@@ -354,7 +361,7 @@ def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str, h
     journal.append("activity", kind="review", key=key, state="start", lane=a.name, model=model)  # which reviewer (6a)
     argv = [sys.executable, str(SCRIPTS / "harness_review.py"), repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model]
     # the review's review-scratch folder is under the state dir; this loop may have got its state dir from --state, so say it, or the sweep looks elsewhere
-    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env={**os.environ, "FICHERO_BUILDER_STATE": str(journal.STATE)})
+    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env={**os.environ, client.state_env(a.pinned): str(journal.STATE)})
     if holder is not None:
         holder["proc"] = p
     out = (p.communicate()[0] or "").strip()
@@ -386,7 +393,10 @@ def ensure_pinned(root: str, brief: str, base: str) -> str:
     """[land].pinned_dir/pinned-<base7> of root's harness.toml, a worktree of [check].engine_repo on branch pinned-<base7>
     (the shape `builder landed` makes and later removes); made when missing, found otherwise."""
     rules = tomllib.loads((Path(root) / "harness.toml").read_text())
-    repo, pinned_dir = rules["check"]["engine_repo"], Path(rules["land"]["pinned_dir"])
+    try:
+        repo, pinned_dir = rules["check"]["engine_repo"], Path(rules["land"]["pinned_dir"])
+    except KeyError as e:
+        raise ValueError(f"harness.toml of {root} lacks {e.args[0]!r}: the pinned copy needs [check].engine_repo and [land].pinned_dir") from None
     if not pinned_dir.is_absolute():
         raise ValueError(f"[land].pinned_dir {str(pinned_dir)!r} must be an absolute path")
     name = f"pinned-{base_of(brief, base)[:7]}"
