@@ -260,6 +260,7 @@ class Procs:
     nightly: object = None  # nightly.Cfg from [nightly] (run.nightly-build); None = the project has none
     nightly_runners: object = None  # nightly.Runners; None = no nightly
     nightly_spawn: Callable[[str, str], object] | None = None  # (sha, night) -> start the night detached (local.nightly.detached); None = a thread
+    watchdog: Callable[[list], list] | None = None  # lanes -> what the slow-work watchdog did (local.watchdog.slow-work); None = off
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
@@ -1590,6 +1591,49 @@ def uv_prune_when_due(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+def real_watchdog(root, stop: Callable[[dict], None], tell: Callable[[dict, str], str]) -> Callable[[list], list]:
+    """The watchdog with the real world: a pane's last output is tmux's `window_activity` on the workers' server (an external lane's
+    registered pane is told through `tell`), a rung's timeout is its [check] figure, the second strike stops the session and answers
+    the watchdog's own alert with retry (local.watchdog.slow-work)."""
+    from fichero_builder import watchdog
+
+    cfg = check_tool.load(root)
+    limits = {"guards": cfg.guard_timeout_s, "build": cfg.build_timeout_s, "perf": float(cfg.perf.get("timeout_s", 0) or 0),
+              "security": float(cfg.security.get("timeout_s", 0) or 0)}
+
+    def last_output(lane):
+        j = jail.load(root)
+        if j is None or not j.user:
+            return None
+        acts = [int(x) for x in tmux_as_worker(j, "display-message", "-p", "-t", f"={lane['id']}", "#{window_activity}").split() if x.isdigit()]
+        return float(max(acts)) if acts else None
+
+    def nudge(lane, text):
+        if lane.get("pane"):
+            return tell(lane, text)
+        j = jail.load(root)
+        wins = worker_windows(j, lane["id"]) if j is not None and j.user else []
+        if not wins:
+            return "no window"
+        tmux_as_worker(j, "send-keys", "-t", wins[0], "-l", text)
+        tmux_as_worker(j, "send-keys", "-t", wins[0], "Enter")
+        return ""
+
+    def stop_retry(lane_id, step, aid):
+        lane = next((x for x in load() if x["id"] == lane_id), None)
+        if lane is None:
+            return "the lane is gone"
+        stop(lane)
+        rc, said = answer(aid, "retry") if aid else (1, "no alert to answer")
+        return "" if rc == 0 else said
+
+    def run(lanes):
+        return watchdog.check(lanes, journal.read(), time.time(), last_output=last_output, rung_timeout=lambda r: limits.get(r) or 3600.0,
+                              nudge=nudge, stop_retry=stop_retry, cancel=lambda head: check_tool.cancel_file(head).write_text("watchdog"),
+                              alert=lambda lane, step, why: alert(lane, step, why, str(journal.STATE / "journal.jsonl"), ["retry", "park", "dismiss"]))
+    return run
+
+
 def nightly_when_due(procs: Procs, chains: dict | None) -> None:
     """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts: its own
     process when `procs.nightly_spawn` is set (local.nightly.detached; a running one is adopted by pid each tick), else its own thread."""
@@ -1761,6 +1805,12 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
     disk_floor_alerts(procs)
     daily_when_due(procs, chains)
     nightly_when_due(procs, chains)
+    if procs.watchdog is not None:  # local.watchdog.slow-work: slow steps, silent sessions, hung rungs, acted on once per cause
+        try:
+            for line in procs.watchdog(load()):
+                out(f"watchdog: {line}")
+        except Exception:  # noqa: BLE001 - the watchdog never stops the tick
+            journal.append("loop", state="watchdog-error", detail=traceback.format_exc()[-1500:])
     reconcile_when_due(procs, chains)
     uv_prune_when_due(procs, chains)
     if not busy:
@@ -2437,7 +2487,7 @@ def real_procs(root) -> Procs:
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
+                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))

@@ -758,6 +758,14 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `nightly.pid` lock under the state dir): a loop re-exec neither waits for it nor ends it, a second start while it runs is a row,
   a restarted loop adopts it by pid (one `adopted` row), and a dead one whose night has no result is one alert. `[nightly]` is a
   known table. Tests: `fichero-builder/tests/test_nightly.py` (the detached section).
+- `local.watchdog.slow-work` [OK] (#6589) — every tick the loop looks for work taking too long, three causes: a running step past
+  twice its lane's median land time (`nightly.median_land_s`, from its first `sent` row), a working session whose tmux window has
+  shown no output for 20 minutes, and a check rung started longer ago than its `[check]` timeout (one hour when it has none). The
+  first strike raises ONE alert with the evidence and the action taken (the session is nudged with a line asking for WAITING or
+  DONE; a hung rung is only named). The same cause one period later is the second strike: the session is stopped (a hung rung's
+  ladder cancelled) and the alert answered with retry, once, with one `watchdog` row naming the alert; after that the cause is the
+  person's. A cause that ends is forgotten. An error in the watchdog is a `watchdog-error` row, never a stopped tick.
+  Tests: `fichero-builder/tests/test_watchdog.py`.
 - `local.nightly.notarize-own-timeout` [OK] (#6589) — `[nightly].notarize_timeout_min` (default 90) is each notarization's own
   budget: `scripts/notarize.sh` submits and polls (never `--wait`) that many minutes, and the DMG part's timeout is the build's two
   hours plus two such budgets (the app and the DMG). Tests: `fichero-builder/tests/test_nightly.py::test_notarization_has_its_own_budget_and_polls_never_waits`.
