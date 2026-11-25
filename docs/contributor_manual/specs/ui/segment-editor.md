@@ -797,17 +797,17 @@ See section 7.2 below for what exists. The design:
   Needs an on-screen check.
 - `segment-editor.convert-level` — **[PARTIAL]** (#6740; app + engine; owner 2026-11-19) a region can become a line and a line a
   region. Convert to Line on a region keeps its shape, text and order position and computes a baseline (or draws one from its
-  box, the lower third, editable); a region with child lines asks whether to merge their text into the one line, in order, or
-  refuses and says why. Convert to Region on a line keeps its shape, and its text stays as the region's text, or by option the
-  line stays as the one child line of the new region. Both are in the Segment menu, the context menu and the segment list's row
+  box, the lower third, editable); a region that holds lines is refused with the notice "This region holds N lines; move or
+  delete them first" (no merge of their text, no question). Convert to Region on a line keeps its shape and text; the line does
+  not stay as a child line (ruled by the manager). Both are in the Segment menu, the context menu and the segment list's row
   menu; they work on many at once; each is a new version, undoable; readings and ids are kept where the level allows. Tests:
-  each direction keeps shape, text and order; a region with children asks; undo restores.
+  each direction keeps shape, text and order; a region with children is refused; undo restores.
   *Built 2026-11-20:* the engine half: `segment.convert_level` (region to line with a baseline along the lower third; line to
   region; a region holding lines is refused with the reason; one undo; `fichero-server/tests/unit/api/test_segment_convert_level.py`).
   *Built note (#6740):* Convert to Line and Convert to Region (Edit › Segments ▸, the page's context menu, and the segment
   list's row menu) send one `segment.convert_level` for the selection's segments not already at that level; a selection of
-  only those is refused with the reason (`SegmentConvertLevelTests.swift`). *Not built:* the merge-their-text choice, the
-  one-child-line option and an editable baseline prompt. Needs an on-screen check.
+  only those is refused with the reason (`SegmentConvertLevelTests.swift`); the engine's refusal of a region that holds lines
+  carries the notice above (`test_segment_convert_level.py`). *Not built:* an editable baseline prompt. Needs an on-screen check.
 - `segment-editor.list-drag-reorder` — **[PARTIAL]** (#6739; app + engine; owner 2026-11-19; extends
   `segment-editor.reassign-by-drag`, which covers dropping into a region) in the segment list, dragging also reorders, as in a
   Finder or Mail outline. Dropping between rows shows a thin insertion line with a circle at its left end, indented to the

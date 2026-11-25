@@ -4291,7 +4291,7 @@ class SegmentConvertLevelParams(BaseModel):
 def _action_convert_level(db: Database, params: SegmentConvertLevelParams, ctx: ActionContext):
     """Change each segment's kind (`segment-editor.convert-level`); shape, id, readings and order entries are kept.
     A region becomes a line with a baseline along the lower third of its box; a line keeps its baseline as a region.
-    A region that holds lines is refused (merging their text is not built), as is a segment already at that level.
+    A region that holds lines is refused with "This region holds N lines; move or delete them first" (manager's ruling: no merge), as is a segment already at that level.
     One action, one undo, all or nothing."""
     _refuse_repeated_ids(params.segment_ids)
     rows: list[Segment] = []
@@ -4305,12 +4305,14 @@ def _action_convert_level(db: Database, params: SegmentConvertLevelParams, ctx: 
         not_regions = [row.id for row in rows if row.kind != "region"]
         if not_regions:
             raise HTTPException(status_code=422, detail=f"only a region becomes a line: {not_regions}")
-        parents = {child.parent_segment_id for child in db.query_in(Segment, "parent_segment_id", [row.id for row in rows])
-                   if child.deleted_at is None}
-        holding = [row.id for row in rows if row.id in parents]
-        if holding:
-            raise HTTPException(
-                status_code=422, detail=f"these regions hold lines, so they cannot become one line: {holding}")
+        held: dict[str, int] = {}
+        for child in db.query_in(Segment, "parent_segment_id", [row.id for row in rows]):
+            if child.deleted_at is None:
+                held[child.parent_segment_id] = held.get(child.parent_segment_id, 0) + 1
+        if held:
+            raise HTTPException(status_code=422, detail="; ".join(
+                f"This region holds {n} {'line' if n == 1 else 'lines'}; move or delete them first ({region_id})"
+                for region_id, n in held.items()))
     elif any(row.kind != "line" for row in rows):
         raise HTTPException(status_code=422, detail="only a line becomes a region")
 
