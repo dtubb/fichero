@@ -3,6 +3,7 @@ pinned copies over a worktree's head; a stale allowlist entry is fixable by the 
 its red carries the exact command; a missing Spec-change trailer and stale generated files carry theirs."""
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 
@@ -48,6 +49,14 @@ if (ROOT / "embed.txt").read_text() != "".join(sorted(p.name + "\\n" for p in RO
 
 def _g(cwd, *a):
     return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def _delete_lines(path, sed_cmd):
+    """Apply the printed `sed -i '' -e 'A,Bd' FILE` fix as the lane's Mac would, without sed: GNU sed reads `-i ''` as a file name."""
+    m = re.fullmatch(r"sed -i '' -e '(\d+),(\d+)d' (\S+)", sed_cmd)
+    assert m and path.name == m[3].rsplit("/", 1)[-1], sed_cmd
+    lines = path.read_text().splitlines(keepends=True)
+    path.write_text("".join(lines[: int(m[1]) - 1] + lines[int(m[2]):]))
 
 
 @pytest.fixture
@@ -103,7 +112,7 @@ def test_precheck_runs_the_pinned_guards_over_the_head_and_a_stale_entry_red_car
     cmd = fix.split(": ", 3)[3].split(" (ruled")[0]
     assert cmd == "sed -i '' -e '6,8d' scripts/check_known.py", cmd
     _g(lane, "checkout", "-q", "HEAD~1", "--", "scripts/check_known.py")  # back to the base copy, then the lane runs the fix
-    subprocess.run(cmd, shell=True, cwd=lane, check=True)
+    _delete_lines(lane / "scripts" / "check_known.py", cmd)  # what the printed sed does, in Python: `sed -i ''` is BSD-only (ci.python-tiers)
     assert '"b.swift"' not in (lane / "scripts" / "check_known.py").read_text() and '"a.swift"' in (lane / "scripts" / "check_known.py").read_text()
     _g(lane, "commit", "-qam", "drop the stale entry")
     rc, said = _precheck(world)
