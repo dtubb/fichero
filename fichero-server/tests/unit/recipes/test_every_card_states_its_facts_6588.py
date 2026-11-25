@@ -46,7 +46,7 @@ def test_no_card_states_an_accuracy_measured_on_a_persons_pages():
 def test_the_loaded_card_carries_its_link_and_cost():
     loaded = {c.id: c for c in cards_module.all_seed_cards()}
     assert set(loaded) == {r["id"] for r in ROWS}
-    assert all(c.source_url and c.cost for c in loaded.values() if c.id)
+    assert all(c.source_url and c.cost for c in loaded.values())
 
 
 def test_apple_intelligence_and_the_cloud_card_say_their_cost_and_link_to_their_source():
@@ -66,3 +66,20 @@ def test_a_downloaded_reader_with_no_memory_stated_is_offered_not_chosen():
                and {"read-a-line", "read-a-page"} & set(r["jobs"])]
     assert readers, "the catalogue has readers whose memory is unstated"
     assert [r["id"] for r in readers if not loaded[r["id"]].offered_only] == []
+
+
+def test_the_rules_never_choose_an_offered_only_seed_card():
+    """A Syriac handwritten project: no step is read by an offered-only seed card, and with only those to pick from a step
+    has a gap rather than a reader whose memory nothing states."""
+    from fichero_server.recipes.assemble import Answers, _choose
+
+    a = Answers(purposes=("transcribe",), languages=frozenset({"syr"}), scripts=frozenset({"Syrc"}),
+                materials=("handwriting",), material="handwriting")
+    seed = cards_module.all_seed_cards()
+    offered = {c.id for c in seed if c.offered_only}
+    assert any("Syrc" in (c.scripts or ()) for c in seed if c.offered_only)
+    for job in ("read-a-line", "read-a-page"):
+        choice = _choose(job, seed, a)
+        assert choice.card is None or choice.card.id not in offered
+        assert not {c.id for c in choice.chain} & offered
+    assert _choose("read-a-line", [c for c in seed if c.offered_only], a).card is None

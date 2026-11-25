@@ -655,6 +655,7 @@ def rank_key(job: str, card: Card, material: str, a: Answers | None = None) -> t
 
 def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None) -> Choice:
     material = material or a.material
+    cards = [c for c in cards if not c.offered_only]  # offered to compare, never chosen by the rules (#6588)
     kept = [c for c in cards if _refusal(job, c, a, material) is None]
     if not kept:
         # Short: how many cards were refused, by reason, naming the first few; each card and why is the problem's
