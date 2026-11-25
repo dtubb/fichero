@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   scanners:
-    runs-on: macos-15
+    runs-on: ubuntu-latest  # 2026-11-25: was macos-15; GitHub had no macOS runner free and the job failed unstarted; nothing here needs macOS
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -45,14 +45,14 @@ jobs:
           uv tool install "bandit==${{ steps.cfg.outputs.bandit }}"
           uv tool install "semgrep==${{ steps.cfg.outputs.semgrep }}"
           g="${{ steps.cfg.outputs.gitleaks }}"
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${g}/gitleaks_${g}_darwin_arm64.tar.gz" | tar -xz -C "$RUNNER_TEMP" gitleaks
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${g}/gitleaks_${g}_linux_x64.tar.gz" | tar -xz -C "$RUNNER_TEMP" gitleaks
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install osv-scanner (only when harness.toml [check.security] osv is true)
         if: steps.cfg.outputs.osv == 'true'
         run: |
           o="${{ steps.cfg.outputs.osv-scanner }}"
-          curl -sSfL -o "$RUNNER_TEMP/osv-scanner" "https://github.com/google/osv-scanner/releases/download/v${o}/osv-scanner_darwin_arm64"
+          curl -sSfL -o "$RUNNER_TEMP/osv-scanner" "https://github.com/google/osv-scanner/releases/download/v${o}/osv-scanner_linux_amd64"
           chmod +x "$RUNNER_TEMP/osv-scanner"
       - name: Choose the range
         id: range
