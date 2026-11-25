@@ -619,8 +619,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                                    detail=f"new code on disk: the chain waits for the loop's re-exec (at most {DRAIN_MAX_S // 60} min; a live worker session holds it off)")
                     store(lane, expect=(s["step"], s.get("head", "")))
                 return True
-            # ponytail: past the cap the chain runs on this process's code, as every chain did before the drain existed; the re-exec comes after it
-            journal.append("queue", lane=lane["id"], step=s["step"], state="drain-expired", detail=f"waited {DRAIN_MAX_S // 60} min for a re-exec a live session holds off: the chain runs on the loop's current code")
+            # past the cap: one row per lane and head, and still no chain starts, so the first tick with none running re-execs (#6589)
+            if lane.get("drain_expired_head") != s.get("head"):
+                lane["drain_expired_head"] = s.get("head")
+                journal.append("queue", lane=lane["id"], step=s["step"], state="drain-expired", detail=f"waited {DRAIN_MAX_S // 60} min for a re-exec: no chain starts before it, which comes at the first tick with no chain running")
+                store(lane, expect=(s["step"], s.get("head", "")))
+            return True
         if (hold := journal.manual_hold()) and touches_build(lane, s, getattr(procs, "root", None)):
             # owner 2026-11-06: a held Xcode build rung sat on the only chain worker for an hour; a batch that would build waits HERE,
             # holding no worker, one `held` row per head, and starts by itself once the person's hold ends

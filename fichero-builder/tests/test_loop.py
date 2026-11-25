@@ -853,7 +853,7 @@ def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(st
         assert len([r for r in journal.read() if r.get("state") == "drain-held"]) == 1, "one row per head, not per tick"
         queue.DRAIN_SINCE[0] = time.time() - queue.DRAIN_MAX_S - 1  # a live worker session held the re-exec off past the cap
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
-        assert "ext" in chains, "past the cap the chain runs on the loop's current code"
+        assert set(chains) == {"pool"}, "past the cap no chain starts either: the re-exec comes first"
         assert [r["state"] for r in journal.read() if r.get("state") in ("drain-held", "drain-expired")] == ["drain-held", "drain-expired"]
     finally:
         queue.DRAIN[0] = False
