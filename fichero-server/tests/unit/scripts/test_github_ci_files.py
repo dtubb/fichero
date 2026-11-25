@@ -92,22 +92,38 @@ def test_xcode_cloud_scripts_never_start_python():
         assert p.stat().st_mode & 0o111, f"{p.name} must be executable for Xcode Cloud to run it"
 
 
-def test_the_python_tiers_run_on_linux_with_the_unit_tier_in_four_shards_and_macos_runs_only_the_macos_only_tests():
-    """ci.python-tiers: Linux runs everything but `macos_only` (the unit tier as four shards that together are the whole tier,
-    the spec guards once); engine-macos runs exactly the `macos_only` tests on a macOS runner."""
+def test_the_python_tiers_run_on_linux_with_the_unit_tier_in_eight_shards_and_macos_runs_only_the_macos_only_tests():
+    """ci.python-tiers: Linux runs everything but `macos_only` (the unit tier as eight shards that together are the whole tier,
+    each inside 30 minutes, the spec guards once, from the repo root); engine-macos runs exactly the `macos_only` tests on a
+    macOS runner, or says NOT RUN with the reason when the engine does not install there. Every engine job is on the
+    engine's Python (3.12), and every pytest run has a per-test timeout and names its failures."""
     jobs = _workflow("tests.yml")["jobs"]
     for name in ("engine", "contracts", "builder"):
         assert jobs[name]["runs-on"] == "ubuntu-latest", name
     engine = jobs["engine"]
-    assert engine["strategy"]["matrix"]["shard"] == [1, 2, 3, 4] and engine["strategy"]["fail-fast"] is False
+    assert engine["strategy"]["matrix"]["shard"] == list(range(1, 9)) and engine["strategy"]["fail-fast"] is False
+    assert engine["name"] == "engine (${{ matrix.shard }}/8)" and engine["timeout-minutes"] <= 30
     steps = _steps(engine)
-    assert steps["Spec guards"]["if"] == "matrix.shard == 1", "the guards run once, not four times"
-    assert "ci_shard_tests.py tests/unit ${{ matrix.shard }} 4" in steps["Unit tests"]["run"]
+    assert steps["Spec guards"]["if"] == "matrix.shard == 1", "the guards run once, not eight times"
+    assert "working-directory" not in steps["Spec guards"], "the guards scan docs/ from the repo root (run 45666948572)"
+    assert "for g in scripts/check_spec_*.py" in steps["Spec guards"]["run"] and "--project fichero-server" in steps["Spec guards"]["run"]
+    assert steps["Unit tests"]["if"] == "${{ !cancelled() }}", "a red guard still lets the shard's tests run"
+    assert "ci_shard_tests.py tests/unit ${{ matrix.shard }} 8" in steps["Unit tests"]["run"]
     assert "-m 'not macos_only'" in steps["Unit tests"]["run"] and "-m 'not macos_only'" in _steps(jobs["contracts"])["Contract tests"]["run"]
+    for name, step in (("engine", "Unit tests"), ("contracts", "Contract tests"), ("engine-macos", "macOS-only tests")):
+        run = _steps(jobs[name])[step]["run"]
+        assert "--timeout=300" in run and "--timeout-method=thread" in run and "-rfE" in run, name
     for name in ("engine", "engine-macos", "contracts"):
+        assert "uv sync --frozen --all-extras" in _steps(jobs[name])["Install the engine"]["run"], name
+        uv = next(s for s in jobs[name]["steps"] if s.get("uses", "").startswith("astral-sh/setup-uv"))
+        assert uv["with"]["python-version"] == "3.12", name
+    for name in ("engine", "contracts"):
         assert _steps(jobs[name])["Install the engine"]["run"] == "uv sync --frozen --all-extras", name
     mac = jobs["engine-macos"]
     assert mac["runs-on"].startswith("macos-") and "-m macos_only" in _steps(mac)["macOS-only tests"]["run"]
+    install = _steps(mac)["Install the engine"]
+    assert "NOT RUN" in install["run"] and "exit 0" in install["run"] and "available=false" in install["run"]
+    assert _steps(mac)["macOS-only tests"]["if"] == "steps.install.outputs.available == 'true'", "no install: the tests are skipped, not red"
 
 
 def test_the_shards_together_are_the_whole_unit_tier_each_entry_once():
@@ -116,10 +132,14 @@ def test_the_shards_together_are_the_whole_unit_tier_each_entry_once():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     items = mod.entries(ROOT / "fichero-server" / "tests" / "unit")
-    shards = mod.shards(items, 4)
+    shards = mod.shards(items, 8)
     flat = [p for s in shards for p in s]
     assert sorted(flat) == sorted(p for p, _ in items) and len(flat) == len(set(flat))
     assert all(shards), "no shard is empty"
+    assert {p for p, _ in items} == {str(p) for p in (ROOT / "fichero-server" / "tests" / "unit").rglob("test_*.py")}, "every test file once"
+    weight = dict(items)
+    loads = [sum(weight[p] for p in s) for s in shards]
+    assert max(loads) <= 1.1 * min(loads), f"the shards are even by test count: {loads}"
     assert mod.shards([("a", 5), ("b", 3), ("c", 2), ("d", 1)], 2) == [["a", "d"], ["b", "c"]], "largest first, to the lightest shard, a tie to the lowest"
 
 

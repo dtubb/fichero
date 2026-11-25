@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """Print the test paths of one CI shard (ci.python-tiers): `ci_shard_tests.py TESTS_DIR SHARD TOTAL`.
 
-The entries of TESTS_DIR (each folder, each top-level test_*.py) are dealt to TOTAL shards, largest first by test-file count,
-each to the shard with the fewest files so far; ties go to the lowest shard. Every entry lands in exactly one shard, so the
-shards together are the whole tier, and a new folder joins a shard without anyone editing the workflow."""
+Every test_*.py file under TESTS_DIR is an entry, weighed by the tests it defines (its `def test_` lines, at least one).
+The entries are dealt to TOTAL shards, heaviest first, each to the shard with the least weight so far; ties go to the lowest
+shard. Every file lands in exactly one shard, so the shards together are the whole tier, and a new file or folder joins a
+shard without anyone editing the workflow. Files, not folders: one folder (workflows) holds a fifth of the tier and made its
+shard twice as long as the others (GitHub run 45666948572)."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
+
+_TEST = re.compile(r"^\s*(?:async\s+)?def test_", re.MULTILINE)
 
 
 def entries(root: Path) -> list[tuple[str, int]]:
     out = []
-    for p in sorted(root.iterdir()):
-        if p.is_dir() and p.name != "__pycache__" and (n := sum(1 for _ in p.rglob("test_*.py"))):
-            out.append((str(p), n))
-        elif p.is_file() and p.name.startswith("test_") and p.suffix == ".py":
-            out.append((str(p), 1))
+    for p in sorted(root.rglob("test_*.py")):
+        if "__pycache__" not in p.parts:
+            out.append((str(p), max(1, len(_TEST.findall(p.read_text(encoding="utf-8", errors="replace"))))))
     return out
 
 

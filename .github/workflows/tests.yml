@@ -22,46 +22,55 @@ concurrency:
 jobs:
   # The Python tiers run on Linux (ci.python-tiers): Apple-only dependencies carry a darwin marker, so the same uv.lock
   # syncs here, and a test that needs macOS itself is marked macos_only, skipped here with its reason and run by
-  # engine-macos. The engine unit tier is split into four jobs by test folder (scripts/ci_shard_tests.py).
+  # engine-macos. The engine unit tier is split into eight jobs by test file, weighed by test count
+  # (scripts/ci_shard_tests.py). Python is the engine's own 3.12 (the repo's .python-version): a runner's default
+  # (3.14 on Linux, 3.15 on macOS) is not what ships, and onnxruntime has no 3.15 wheel.
+  # Each pytest run: --timeout=300 per test (pytest-timeout, in the dev extra) with the gates' thread method, so a hang
+  # ends the run with every thread's stack instead of the job's limit; -rfE names each failure in the summary.
   engine:
-    name: engine (${{ matrix.shard }}/4)
+    name: engine (${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: fichero-server/uv.lock
+          python-version: '3.12'
       - name: Install the engine
         working-directory: fichero-server
         run: uv sync --frozen --all-extras
       - name: Spec guards
         if: matrix.shard == 1
-        working-directory: fichero-server
         run: |
+          # from the repo root: the guards scan docs/ and scripts/ relative to it
           status=0
-          for g in ../scripts/check_spec_*.py; do
+          for g in scripts/check_spec_*.py; do
             echo "== $g"
-            uv run --frozen python "$g" || status=1
+            uv run --project fichero-server --frozen python "$g" || status=1
           done
           exit $status
       - name: Unit tests
+        if: ${{ !cancelled() }}
         working-directory: fichero-server
         run: |
-          paths="$(python3 ../scripts/ci_shard_tests.py tests/unit ${{ matrix.shard }} 4)"
-          echo "shard ${{ matrix.shard }}/4: $paths"
-          uv run --frozen pytest $paths -q -p no:cacheprovider -m 'not macos_only' --timeout-method=thread
+          paths="$(python3 ../scripts/ci_shard_tests.py tests/unit ${{ matrix.shard }} 8)"
+          echo "shard ${{ matrix.shard }}/8: $(echo $paths | wc -w) files"
+          uv run --frozen pytest $paths -q -rfE -p no:cacheprovider -m 'not macos_only' --timeout=300 --timeout-method=thread
 
+  # The macos_only tests run on the Macs whatever this job says. When the engine cannot be installed on the hosted macOS
+  # runner (no wheel for it, GitHub run 45666948572), the job says NOT RUN with the reason and is not red: a NOT RUN is
+  # not a green either. Kept so it runs again by itself once it can install.
   engine-macos:
     name: engine-macos (macos_only tests)
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 45
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -69,12 +78,25 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: fichero-server/uv.lock
+          python-version: '3.12'
       - name: Install the engine
+        id: install
         working-directory: fichero-server
-        run: uv sync --frozen --all-extras
+        run: |
+          if ! uv sync --frozen --all-extras 2> sync.err; then
+            cat sync.err
+            why="$(grep -m1 -E '^error' sync.err | tr -d '\r' | cut -c1-300)"
+            echo "::notice title=engine-macos NOT RUN::the engine did not install on this hosted macOS runner (${why:-uv sync failed}); the macos_only tests did not run here, which is not a green"
+            echo "NOT RUN: ${why:-uv sync failed}"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cat sync.err
+          echo "available=true" >> "$GITHUB_OUTPUT"
       - name: macOS-only tests
+        if: steps.install.outputs.available == 'true'
         working-directory: fichero-server
-        run: uv run --frozen pytest tests/unit tests/contracts -q -p no:cacheprovider -m macos_only --timeout-method=thread
+        run: uv run --frozen pytest tests/unit tests/contracts -q -rfE -p no:cacheprovider -m macos_only --timeout=300 --timeout-method=thread
 
   contracts:
     name: Engine contract tier
@@ -87,12 +109,13 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: fichero-server/uv.lock
+          python-version: '3.12'
       - name: Install the engine
         working-directory: fichero-server
         run: uv sync --frozen --all-extras
       - name: Contract tests
         working-directory: fichero-server
-        run: uv run --frozen pytest tests/contracts -q -p no:cacheprovider -m 'not macos_only' --timeout-method=thread
+        run: uv run --frozen pytest tests/contracts -q -rfE -p no:cacheprovider -m 'not macos_only' --timeout=300 --timeout-method=thread
 
   builder:
     name: Builder's own suite
