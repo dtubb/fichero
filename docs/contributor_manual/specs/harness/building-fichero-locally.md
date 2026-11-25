@@ -608,18 +608,23 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   state. A step that was `checking` before a restart still gets the file-bound split. Tests
   `fichero-builder/tests/test_builder_restart.py::test_a_live_window_the_loop_cannot_adopt_is_one_alert_with_its_id_and_is_never_stopped`,
   `fichero-builder/tests/test_builder_restart.py::test_a_step_that_was_checking_before_a_restart_still_gets_the_automatic_split`.
-  Built: the process id is recorded at start (`session_pid`) and a window or that process makes a lane alive. Left: a
-  watcher started again on the same feed.
-  Tests: `test_builder_restart.py::test_a_re_exec_with_five_live_windows_and_no_watcher_adopts_five_and_stops_none`,
-  `test_a_live_process_id_with_a_renamed_window_is_adopted`, `test_a_lane_with_neither_a_live_window_nor_a_live_process_is_queued_once`. Serves: reliable.
+  Left: the window id and process id recorded at start, and a watcher started again on the same feed.
+  Test (owed): `test_builder_restart.py`, a re-exec with five live windows and no watcher adopts five and stops none; a
+  live process id with a renamed window is adopted; a lane with neither is queued once. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+  Built: the process id is recorded at start (`session_pid`) and a window or that process makes a lane alive. Tests
+  `fichero-builder/tests/test_builder_restart.py::test_a_re_exec_with_five_live_windows_and_no_watcher_adopts_five_and_stops_none`,
+  `fichero-builder/tests/test_builder_restart.py::test_a_live_process_id_with_a_renamed_window_is_adopted`,
+  `fichero-builder/tests/test_builder_restart.py::test_a_lane_with_neither_a_live_window_nor_a_live_process_is_queued_once`.
 - `local.run.drain-expired-one-row` [OK] (#6589) — when the wait for a re-exec passes its limit, the loop says so once
   for each lane and head, and the re-exec then happens at the first tick with no chain running, before another chain
   starts. Today the branch after `DRAIN_MAX_S` in `queue.tick_lane` appends a `drain-expired` row every time it is
   reached and lets every chain start on the old code, so the quiet tick `queue.restart_due` waits for may never come:
   725 `drain-expired` rows on 2026-11-21 against 9 `drain-held`, and about 35 minutes of them before the re-exec.
-  Test: `test_loop_survives.py::test_ten_ticks_past_the_drain_limit_write_one_row_a_lane_and_head_and_the_loop_re_execs_after_the_running_chain`. Serves: reliable.
+  Test (owed): `test_loop_survives.py`, ten ticks past the limit write one row a lane and head, and the loop re-execs
+  after the running chain ends with a second batch still waiting. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+  Built: `fichero-builder/tests/test_loop_survives.py::test_ten_ticks_past_the_drain_limit_write_one_row_a_lane_and_head_and_the_loop_re_execs_after_the_running_chain`.
 - `local.run.sent-needs-a-live-session` [GAP] (#6589) — a step is `sent` only while a session is at work on it. At every
   tick the loop checks each `sent` step: the window runs more than a shell, and the session file has changed within
   `[spend].silent_s` or the session is idle after a delivered message. A `sent` step that fails the check for two ticks
