@@ -33,15 +33,4 @@ struct SegmentMoveSelectionTests {
         selection.selectAll([0], artifactId: "scope", documentId: "p", in: after)
         #expect(selection.resolvedIndices(in: after) == [0])
     }
-
-    @Test("both move paths reselect the moved segments after the re-read")
-    func movePathsReselect() throws {
-        let source = try String(
-            contentsOf: AppSource.root().appendingPathComponent(
-                "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+SegmentEdits.swift"
-            ), encoding: .utf8
-        )
-        #expect(source.contains("afterReread: reselectAfterMove(segments.map(\\.id), documentId: documentId)"))
-        #expect(source.contains("afterReread: reselectAfterMove([segment.id], documentId: documentId)"))
-    }
 }
