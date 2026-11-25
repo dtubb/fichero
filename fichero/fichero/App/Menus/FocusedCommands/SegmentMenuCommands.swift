@@ -15,6 +15,8 @@ struct SegmentMenuTarget {
     var nextDoubtful: () -> Void = {}
     let delete: () -> Void
     let join: () -> Void
+    /// Join Lines in the Same Row (⌥⇧⌘J): the selection's lines, or the page's when none is selected, one line per row.
+    var joinRows: () -> Void = {}
     /// Whether every selected line has a baseline to redraw its outline from (`segment-editor.edge.no-baseline`).
     let selectionHasBaselines: Bool
     let redraw: () -> Void
@@ -83,6 +85,9 @@ struct SegmentMenuContent: View {
         Button(Self.joinTitle(count)) { target?.join() }
             .keyboardShortcut("j", modifiers: [.command, .option])
             .disabled(!Self.canJoin(selected: count))
+        Button("Join Lines in the Same Row") { target?.joinRows() }
+            .keyboardShortcut("j", modifiers: [.command, .option, .shift])
+            .disabled(target == nil)
         // No chord yet: the spec's ⌘⇧R is Run Workflow on Selection's (`FocusedCommandButtons+Workflow`).
         Button("Redraw Outline from Baseline") { target?.redraw() }
             .disabled(Self.redrawReason(selected: count, hasBaselines: target?.selectionHasBaselines == true) != nil)

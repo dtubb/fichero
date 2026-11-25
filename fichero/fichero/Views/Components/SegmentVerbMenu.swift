@@ -38,7 +38,7 @@ struct SegmentVerbMenu: View {
         if ids.count >= 2 {
             Button("Join") { run("Join Lines", selectingJoined: true) { SegmentEdit.join($0) } }
         }
-        RunStepOnSegmentsMenu(ids: ids)
+        Button("Join Lines in the Same Row") { joinRows() }
         let kinds = ids.compactMap { id in segments.first { $0.id == id }?.kind }
         ForEach(Self.regionVerbs(kinds: kinds), id: \.self) { verb in
             Button(verb.title) { run(verb) }
@@ -99,6 +99,17 @@ struct SegmentVerbMenu: View {
                 }
                 note(nil)
             } catch { note("That did not happen: \(error.localizedDescription)") }
+        }
+    }
+
+    private func joinRows() {
+        guard let store, let segmentService, let actionsService = actionStore?.actionsService else { return }
+        let ids = ids, documentId = documentId, steps = windowSteps, note = onNote, windowState = windowState
+        Task {
+            await SegmentRowJoiner.run(
+                segmentIds: ids.isEmpty ? nil : ids, documentId: documentId, service: segmentService, store: store,
+                actionsService: actionsService, steps: steps, windowState: windowState, note: note
+            )
         }
     }
 

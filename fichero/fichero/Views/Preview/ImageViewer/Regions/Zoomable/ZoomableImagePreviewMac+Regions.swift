@@ -270,6 +270,7 @@ extension ZoomableImagePreview {
                 if selection.count >= 2 {
                     Button("Make Region from Lines") { makeRegionFromSelectedLines() }
                 }
+                Button("Join Lines in the Same Row") { joinLinesInTheSameRow() }
                 if selection.count >= 2 {
                     Button(SegmentMenuContent.joinTitle(selection.count)) { _ = joinSelectedSegments() }
                 }

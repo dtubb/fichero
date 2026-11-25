@@ -10,7 +10,8 @@ enum SegmentRowJoiner {
     /// `segmentIds` nil: every line of the page. Nothing is thrown: a failure is said through `note`.
     static func run(
         segmentIds: [String]?, documentId: String, service: SegmentService, store: SegmentStore,
-        actionsService: ActionsService, steps: WindowSteps?, windowState: WindowState?, note: @escaping (String?) -> Void
+        actionsService: ActionsService, steps: WindowSteps?, windowState: WindowState?, note: @escaping (String?) -> Void,
+        afterReread: @escaping @MainActor () async -> Void = {}
     ) async {
         do {
             let (rows, leftAlone) = try await service.joinRowsPreview(documentId: documentId, segmentIds: segmentIds)
@@ -21,6 +22,7 @@ enum SegmentRowJoiner {
             note(SegmentEdit.joinRowsWillSay(rows: rows, leftAlone: leftAlone))
             // After each re-read (the join, its undo, its redo): each row's kept line, or its lines once undone.
             let reselect: @MainActor () async -> Void = {
+                await afterReread()
                 guard let windowState else { return }
                 let live = Set(store.segments(documentId: documentId).map(\.id))
                 windowState.pickInReader(
