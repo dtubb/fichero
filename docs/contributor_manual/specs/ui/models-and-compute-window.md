@@ -268,9 +268,20 @@ filters Activity by `model:`.
   Bookmarked. The route's test and the Swift test have not been run in the worker's environment (the route test needs a
   library location the worker lacks; the app is not built there). **Not built:** a provider's model id by address (a cloud
   model is added on the provider's page), a Zenodo record that is not in the kept listing, the cloud price on the card.
-- `models.cards.richer-and-more` — **[GAP]** (#6588, owner 2026-11-24) the catalogue's cards (`recipes/seed/cards.yaml`) say
+- `models.cards.richer-and-more` — **[PARTIAL]** (#6588, owner 2026-11-24) the catalogue's cards (`recipes/seed/cards.yaml`) say
   what a model does, its size, where it runs and its cost, and cover more models, Apple Intelligence's included, offered
-  where its jobs fit. *Test (to write):* `fichero-server/tests/unit/recipes/` over the seed (cards-1).
+  where its jobs fit. *Test:* `fichero-server/tests/unit/recipes/test_every_card_states_its_facts_6588.py` (cards-1).
+  **Built (cards-1):** every seed card states, or says in `unstated` why it does not, its note (what it reads), jobs, scripts,
+  languages, period, material, licence, size, memory, published accuracy, where it runs, its cost and `source_url` (its own page,
+  checked against its Zenodo or Hub pin); `Card` carries `cost` and `source_url`. Six cards are added from their own pages
+  (read 2026-11-24): the Kraken readers CATMuS Print, CATMuS Gothic Print, TRIDIS v2 and Sophro Mhiro on Zenodo, and the MLX
+  readers Qwen3-VL 8B and Gemma 3 4B on the Hub. They state no memory, so they are `offered_only` (offered to compare, never
+  chosen by the rules). Apple Intelligence's card and the cloud cards the finder makes carry a cost in words and a link to
+  Apple's or the provider's models page. **Not built:** a card shown with these facts in the window (the finder's
+  `ModelCandidate` does not carry `cost` or `source_url` yet); the cloud providers' current vision models as their own cards
+  with prices (cloud cards come from the person's provider rows); measured accuracy (it is the person's, from a bake-off, so the
+  seed holds none); a CER for TRIDIS v2 and Sophro Mhiro (their cards give a range and a percentage, not one CER); Pixtral
+  (its Hub card states no licence).
 
 ### B. What a row says
 
@@ -492,7 +503,8 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 #### Step 2.6 — Richer cards and more of them (#6588; cards-1)
 - Behaviours: `models.cards.richer-and-more`
-- Tests: a pytest over `recipes/seed/cards.yaml` (to write)
+- Tests: `test_every_card_states_its_facts_6588.py`
+- Status: partial; see `models.cards.richer-and-more` for what is not built
 - Depends on: 2.3
 - Size: M
 
