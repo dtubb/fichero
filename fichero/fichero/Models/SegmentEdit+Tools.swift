@@ -354,6 +354,7 @@ extension SegmentEdit.Params {
     var toolPayload: any Encodable {
         switch self {
         case .reparent(let params): params
+        case .joinRows(let params): params
         case .regenerateOutline(let params): params
         case .knife(let params): params
         case .simplify(let params): params
