@@ -1,5 +1,7 @@
 """speed-tests-1: the unit rung's affected-test selection, the warm DerivedData and its stale-cache retry, the ui rung, and the
 Swift tests command. No Mac: a fake runner records what it was asked."""
+import hashlib
+import json
 import subprocess
 
 from fichero_builder import affected, check_tool, journal
@@ -16,9 +18,13 @@ def _tree(tmp_path, files):
     return sorted(files)
 
 
+def _blobs(root, files):
+    return {f: hashlib.sha1((root / f).read_bytes()).hexdigest() for f in files if f.endswith(".py")}
+
+
 def _select(tmp_path, files, changed, always=()):
     all_py = _tree(tmp_path, files)
-    return affected.select(tmp_path, changed, [f for f in all_py if f.endswith(".py")], GLOBS, PP, always, "h", tmp_path / "cache")
+    return affected.select(tmp_path, changed, _blobs(tmp_path, all_py), GLOBS, PP, always, tmp_path / "cache")
 
 
 BASE = {
@@ -59,14 +65,20 @@ def test_a_changed_file_that_does_not_parse_runs_the_whole_suite(tmp_path):
     assert "does not parse" in _select(tmp_path, files, ["pkg/src/pkg/a.py"])["whole"]
 
 
-def test_the_map_is_cached_by_the_tree_hash(tmp_path):
+def test_only_a_changed_blob_is_parsed_again(tmp_path, monkeypatch):
     files = _tree(tmp_path, BASE)
-    py = [f for f in files if f.endswith(".py")]
-    m1 = affected.cached_map(tmp_path, py, PP, "t1", tmp_path / "c")
-    (tmp_path / "pkg/src/pkg/b.py").write_text("")  # same tree hash named: the cached map answers
-    assert affected.cached_map(tmp_path, py, PP, "t1", tmp_path / "c") == m1
-    assert affected.cached_map(tmp_path, py, PP, "t2", tmp_path / "c") != m1
-    assert [p.name for p in (tmp_path / "c").iterdir()] == ["affected-map-t2.json"]
+    cache = tmp_path / "c"
+    m1 = affected.cached_map(tmp_path, _blobs(tmp_path, files), cache)
+    parsed = []
+    real = affected._imports
+    monkeypatch.setattr(affected, "_imports", lambda src, path: parsed.append(path) or real(src, path))
+    assert affected.cached_map(tmp_path, _blobs(tmp_path, files), cache) == m1 and parsed == [], "same blobs: nothing parsed"
+    (tmp_path / "pkg/src/pkg/b.py").write_text("import os\n")
+    m2 = affected.cached_map(tmp_path, _blobs(tmp_path, files), cache)
+    assert parsed == ["pkg/src/pkg/b.py"] and m2 != m1, "one changed blob: one file parsed"
+    gone = {k: v for k, v in _blobs(tmp_path, files).items() if k != "pkg/src/pkg/b.py"}
+    affected.cached_map(tmp_path, gone, cache)
+    assert "pkg/src/pkg/b.py" not in json.loads((cache / "affected-edges.json").read_text()), "a removed file drops out"
 
 
 def _git(root, *a):

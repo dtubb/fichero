@@ -1,5 +1,6 @@
 """The tests a batch can affect (speed-tests-1, part 1): changed source file -> the test files that import it, directly or through
-another module, by a static import scan of the tree. The map is cached by the tree hash.
+another module, by a static import scan of the tree. Each file's imports are cached by its blob sha, so a batch parses only the files
+that changed since the last map.
 
 A change the map cannot place runs the whole suite: a conftest, a pytest/pyproject config, a fixture, a data file under a tests dir or
 under a package source dir, or a Python file that does not parse. Everything else outside Python (Swift, docs) places to no test.
@@ -70,32 +71,31 @@ def _imports(src: str, path: str) -> set[str]:
     return out
 
 
-def build_map(root, files: list[str], python_path: tuple[str, ...]) -> dict:
-    """{"edges": {file: [imported names]}, "bad": [files that do not parse]}."""
-    edges, bad = {}, []
-    for f in files:
-        try:
-            edges[f] = sorted(_imports((Path(root) / f).read_text(encoding="utf-8", errors="replace"), f))
-        except (SyntaxError, ValueError, OSError):
-            bad.append(f)
-    return {"edges": edges, "bad": bad}
-
-
-def cached_map(root, files: list[str], python_path: tuple[str, ...], tree_hash: str, cache_dir: Path | None) -> dict:
-    """`build_map`, kept in `<cache_dir>/affected-map-<tree hash>.json` (the tree hash is what the map reads, so it never goes stale)."""
-    f = cache_dir / f"affected-map-{tree_hash}.json" if cache_dir and tree_hash else None
+def cached_map(root, blobs: dict[str, str], cache_dir: Path | None) -> dict:
+    """{"edges": {file: [imported names]}, "bad": [files that do not parse]} for every file of `blobs` ({path: blob sha}). A file's
+    imports are kept in the cache dir's affected-edges.json under its path with the blob sha they were read from; only a file whose blob
+    differs (or is new) is parsed again, and a file no longer in the tree drops out of the cache."""
+    f = cache_dir / "affected-edges.json" if cache_dir else None
+    old: dict = {}
     if f is not None and f.is_file():
         try:
-            return json.loads(f.read_text())
+            old = json.loads(f.read_text())
         except ValueError:
-            pass
-    m = build_map(root, files, python_path)
-    if f is not None:
+            old = {}
+    kept: dict = {}
+    for path, sha in blobs.items():
+        hit = old.get(path)
+        if hit and hit[0] == sha:
+            kept[path] = hit
+            continue
+        try:
+            kept[path] = [sha, sorted(_imports((Path(root) / path).read_text(encoding="utf-8", errors="replace"), path))]
+        except (SyntaxError, ValueError, OSError):
+            kept[path] = [sha, None]
+    if f is not None and kept != old:
         cache_dir.mkdir(parents=True, exist_ok=True)
-        for old in cache_dir.glob("affected-map-*.json"):  # one map at a time: a tree hash is read once per batch
-            old.unlink(missing_ok=True)
-        f.write_text(json.dumps(m))
-    return m
+        f.write_text(json.dumps(kept))
+    return {"edges": {p: v[1] for p, v in kept.items() if v[1] is not None}, "bad": [p for p, v in kept.items() if v[1] is None]}
 
 
 def whole_reason(changed: list[str], python_path: tuple[str, ...]) -> str:
@@ -111,16 +111,16 @@ def whole_reason(changed: list[str], python_path: tuple[str, ...]) -> str:
     return ""
 
 
-def select(root, changed: list[str], all_py: list[str], cfg_test_globs: tuple, python_path: tuple[str, ...], always: tuple,
-           tree_hash: str = "", cache_dir: Path | None = None) -> dict:
+def select(root, changed: list[str], blobs: dict[str, str], cfg_test_globs: tuple, python_path: tuple[str, ...], always: tuple,
+           cache_dir: Path | None = None) -> dict:
     """{"whole": reason or '', "tests": [files], "changed_tests": [files], "always": [files]}: the tests this change can affect.
-    `all_py` is every Python file of the tree; `changed` is every changed path (a deleted one too: it seeds its names by path)."""
+    `blobs` is {path: blob sha} for every Python file of the tree; `changed` is every changed path (a deleted one too: it seeds its names by path)."""
     def is_test(f: str) -> bool:
         return any(fnmatch.fnmatch(Path(f).name, g) for g in cfg_test_globs)
 
     if why := whole_reason(changed, python_path):
         return {"whole": why, "tests": [], "changed_tests": [], "always": list(always)}
-    m = cached_map(root, all_py, python_path, tree_hash, cache_dir)
+    m = cached_map(root, blobs, cache_dir)
     if bad := [c for c in changed if c in m["bad"]]:
         return {"whole": f"{bad[0]} does not parse, so its importers cannot be placed", "tests": [], "changed_tests": [], "always": list(always)}
     importers: dict[str, list[str]] = {}

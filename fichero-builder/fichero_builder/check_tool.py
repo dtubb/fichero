@@ -1078,7 +1078,7 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
     the machine pool, #6356): the stable build tree rsynced (mtimes kept, removed files removed, no .git) to <dir>/build-tree there,
     xcodebuild there with <dir>/derived as its derived data, under that Mac's own one-heavy-job lock. Everything lives under the
     one registered root <dir>. A green key is reused as here. None when that Mac cannot be reached (ssh failed): the build runs here.
-    ponytail: no clean retry over there; a stale-state red there is a red, retried by the next push."""
+    A stale-cache red (module not found, PCM mismatch) there clears that derived dir and builds once more, saying so."""
     host, _, base = cfg.build_remote.partition(":")
     where = _remote_arg(base or ".")
     home = _ssh(host, f"mkdir -p {where} && cd {where} && pwd -P", 30)  # -P: the physical path; Xcode sees one derived-data path, not a symlink's two
@@ -1813,9 +1813,8 @@ def unit(root, changed: list[str], cfg: Config, tests_run_elsewhere: bool = True
     from . import affected
     if not cfg.always_tests:
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].always_tests", "results": []}
-    all_py = _lines(root, "ls-files", "*.py") or []
-    tree_hash = (_lines(root, "rev-parse", "HEAD^{tree}") or [""])[0]
-    sel = affected.select(root, changed, all_py, cfg.test_globs, cfg.python_path, cfg.always_tests, tree_hash, journal.STATE)
+    blobs = {row.partition("\t")[2]: row.split()[1] for row in _lines(root, "ls-files", "-s", "*.py") or []}  # "<mode> <blob> <stage>\t<path>"
+    sel = affected.select(root, changed, blobs, cfg.test_globs, cfg.python_path, cfg.always_tests, journal.STATE)
     if sel["whole"]:
         whole = tuple(sorted({v for v in cfg.whole_tests.values() if isinstance(v, str)}))
         dirs = sorted(f"{p.parent.name}/tests" for p in Path(root).glob("*/tests") if p.is_dir() and f"{p.parent.name}/tests" not in whole)
