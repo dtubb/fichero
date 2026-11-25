@@ -51,6 +51,29 @@ def test_a_lane_with_a_role_starts_its_worker_on_that_roles_model_and_a_lane_wit
         procs.start({"id": lane_id, "worktree": str(state / "wr" / f"wt-{lane_id}"), "seq": 0, **extra}, {"step": "1.1", "brief": str(state / "brief"), "issues": []})
     assert "--model claude-fable-5-1" in popens[0] and "--role maintainer-fable" in popens[0]
     assert "--model sonnet" in popens[1] and "--role" not in popens[1]
+    assert "--kind claude" in popens[0] and "--kind claude" in popens[1]
+
+
+def test_a_qwen_trial_lane_starts_pi_on_openrouter_with_the_owners_agent_dir(state, monkeypatch):
+    """The Qwen3-Coder-Next trial: a lane on an openrouter role starts `builder run --kind pi --provider openrouter --agent-dir <dir>`
+    (the queue started every worker as `--kind claude`); with no [models].pi_agent_dir it does not start."""
+    toml = state / "harness.toml"
+    toml.write_text(toml.read_text().replace('providers = ["claude-code"]', 'providers = ["claude-code", "openrouter"]')
+                    + 'qwen-trial = { provider = "openrouter", model = "qwen/qwen3-coder-next", context = 262144 }\n')
+    popens = []
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv[-1]) or object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    lane = {"id": "qwen", "worktree": str(state / "wr" / "wt-qwen"), "seq": 0, "role": "qwen-trial"}
+    with pytest.raises(RuntimeError, match="pi_agent_dir"):
+        queue.real_procs(state).start(dict(lane), {"step": "1.1", "brief": str(state / "brief"), "issues": []})
+    toml.write_text(toml.read_text().replace("[models]\n", '[models]\npi_agent_dir = "/Users/Shared/w/pi-agent"\n'))
+    queue.real_procs(state).start(dict(lane), {"step": "1.1", "brief": str(state / "brief"), "issues": []})
+    (cmd,) = popens
+    assert "--kind pi" in cmd and "--provider openrouter" in cmd and "--agent-dir /Users/Shared/w/pi-agent" in cmd
+    assert "--model qwen/qwen3-coder-next" in cmd and "--role qwen-trial" in cmd
 
 
 def test_the_handoff_successor_keeps_the_role_its_window_and_its_label(state):

@@ -2150,6 +2150,19 @@ def retry_rules_blocked(out=print) -> list[str]:
         out(f"{d}: retried (rules newer than the old code)")
     return done_
 
+def worker_kind(mdl: dict, role: str) -> tuple[str, tuple]:
+    """A lane's worker kind and its `builder run` arguments, from its [models] role (agent-profiles, the Qwen3-Coder-Next trial):
+    `claude-code` (or no role) is an interactive Claude Code session; any other provider is a Pi session on that provider, priced by
+    the owner-owned Pi agent dir `[models].pi_agent_dir` (its models.json; the worker's own could set its own prices). The caps,
+    [spend.week_usd] among them, are `builder run`'s own. RuntimeError when a Pi role has no agent dir: the step does not start."""
+    provider = models.for_role(mdl, role).provider if role else "claude-code"
+    if provider == "claude-code":
+        return "claude", ()
+    if not (agent_dir := str(mdl.get("pi_agent_dir") or "")):
+        raise RuntimeError(f"[models].{role} runs on {provider!r} (a Pi session) and harness.toml [models].pi_agent_dir names no agent dir")
+    return "pi", ("--provider", provider, "--agent-dir", agent_dir)
+
+
 def table() -> list[list[str]]:
     return [[x["id"], s["step"], s["state"], ", ".join(f"#{n}" for n in s["issues"]), s["head"][:9] or "-", s["why"].strip().replace("\n", " ")[:200]]
             for x in load() for s in x["steps"]]
@@ -2513,6 +2526,7 @@ def real_procs(root) -> Procs:
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
     def start(lane, step):
+        kind = worker_kind(mdl, lane.get("role", ""))  # a role on a Pi provider (openrouter) runs Pi under the same caps; refused before any tree is made
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
         step["pinned"] = a.pinned  # local.pin.prune-keeps-live-pins: a landing's prune keeps the copy this session runs from
@@ -2547,8 +2561,9 @@ def real_procs(root) -> Procs:
         publish_rules(root, feed)  # #6851: the run's caps, from the live rules, re-read by it every tick
         codemap.provide_all(root)
         role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
+        a.kind, pi = kind
         cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
-                           *(("--role", role) if role else ()))
+                           *(("--role", role) if role else ()), *pi)
         return spawn(j, lane, cmd)
 
     def spawn(j, lane, cmd):

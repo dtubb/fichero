@@ -986,6 +986,13 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   Tests: `fichero-builder/tests/test_watcher.py` (a metered provider with no figure refuses; the week's rows reach the
   figure and the session parks; a subscription session is not counted), `fichero-builder/tests/test_model_config.py::test_a_role_on_a_metered_provider_with_no_weekly_figure_is_a_question`,
   `fichero-builder/tests/test_dry_run.py::test_a_metered_role_parks_before_the_start_when_the_weeks_rows_reach_its_cap`.
+  Built (2026-11-25, the trial made runnable): the queue started every lane's worker as `--kind claude`; a lane whose role is on
+  any provider but `claude-code` now starts `builder run --kind pi --provider <its provider> --agent-dir <[models].pi_agent_dir>`
+  (the owner-owned Pi agent dir whose models.json prices each turn), and a Pi role with no `pi_agent_dir` does not start. Tests:
+  `fichero-builder/tests/test_lane_role.py::test_a_qwen_trial_lane_starts_pi_on_openrouter_with_the_owners_agent_dir`,
+  `fichero-builder/tests/test_model_config.py::test_a_lane_on_a_pi_provider_role_starts_pi_with_the_owners_agent_dir_and_a_claude_role_does_not`,
+  `::test_a_qwen_trial_run_parks_before_the_start_once_the_weeks_openrouter_rows_reach_25_usd` (a dry run of that exact command:
+  24.90 USD this week starts Pi, 25.00 parks before it).
   Serves: reliable (no spend without a cap), local.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
