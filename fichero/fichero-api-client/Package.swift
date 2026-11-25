@@ -26,7 +26,7 @@ let package = Package(
         // and the protocol-only Types.swift warns UnusedImportAccess four times (#968). Lift the cap and re-baseline the
         // generated bucket of check_swift_compiler_warning_ratchet in one commit
         // (spec code-org.ratchet.generated-warnings-fixed-at-source).
-        .package(url: "https://github.com/apple/swift-openapi-generator", "1.6.0"..<"1.13.0"),
+        .package(url: "https://github.com/apple/swift-openapi-generator", "1.6.0"..<"2.0.0"),
         .package(url: "https://github.com/apple/swift-openapi-runtime", from: "1.7.0"),
         .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-http-types", from: "1.0.0"),
