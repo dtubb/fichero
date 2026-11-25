@@ -9,6 +9,7 @@ result, never a raise.
 from __future__ import annotations
 
 import ast
+from concurrent.futures import ThreadPoolExecutor
 import difflib
 import fcntl
 import fnmatch
@@ -1454,6 +1455,18 @@ def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[
     return bool(removed) and imports_ok and all(_uses(n, imported) & gone for n in removed) and body(new) == body(old, removed)
 
 
+def _MINE_ROOTS() -> set:
+    if not hasattr(_MINE, "roots"):
+        _MINE.roots = set()
+    return _MINE.roots
+
+
+def _in_thread(shipped: set, fn, *a):
+    """`fn` in a helper thread: the remote copies it ships are recorded in `shipped`, for the calling ladder's thread to drop."""
+    _MINE.roots = shipped
+    return fn(*a)
+
+
 def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
                 head_tree=None, also_green: tuple = (), approve_red: bool | tuple = False) -> dict:
     """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
@@ -1476,6 +1489,12 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
         return r
     sha = _git(root, "rev-parse", head)["stdout_tail"].strip()  # `HEAD` inside the scratch tree would be `since`
     base = _mkdtemp("check-base-tree-", readable=True)
+    # the head's green run and the base runs go at once, each from its own shipped copy (its own gate dir): 2026-11-24 throughput
+    # review, the two ran in a row. ponytail: one runner's heavy lock still lets one pytest at a time there; two runners overlap.
+    # The pool's exit waits for the head run, so a refusal returns with no run left going.
+    shipped = _MINE_ROOTS()  # the head thread records its remote copies here: this thread's set, dropped when the ladder ends
+    pool = ThreadPoolExecutor(max_workers=1)
+    here_f = pool.submit(_in_thread, shipped, green_runs, head_tree or root, files, also_green, cfg, timeout_s) if files or also_green else None
     try:
         r0 = _git(root, "worktree", "add", "--detach", "-q", base, since, timeout_s=SCRATCH_CHECKOUT_S)
         if not r0["ok"]:  # infra, never a code verdict: an approve would skip the proof (manager 2026-11-07, alert 416)
@@ -1513,9 +1532,10 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
                 f"{source[0]} changed and every changed test says Already built" + (" or changes only module data" if data_skipped else "")
                 + ": the change owes a red")):
             return x  # a data-only edit to an existing test excuses no source change (review 2026-11-02)
-        here = green_runs(head_tree or root, files, also_green, cfg, timeout_s) if files or also_green else _skipped("red-on-base")
+        here = here_f.result() if here_f else _skipped("red-on-base")
         return {**here, "name": "red-on-base", **({"stdout_tail": "approved by the manager: " + "; ".join(approved) + "\n" + here.get("stdout_tail", "")} if approved else {})}
     finally:
+        pool.shutdown(wait=True)
         _git(root, "worktree", "remove", "--force", base)
 
 
@@ -1816,10 +1836,19 @@ def rung_not_run(r: dict) -> bool:
     return bool(r.get("not_run") or r.get("skipped"))
 
 
+CHEAP_RUNGS = ("ready", "guards", "contract-current", "since-guards")  # independent of each other and of the tests: all report in one pass
+
+
 def ladder(rungs: list) -> dict:
-    """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
+    """Run (name, callable) rungs in order. A red stops the ladder, except that the cheap independent rungs (CHEAP_RUNGS) that
+    follow a red cheap rung still run, so the worker gets every one of their findings in one fix brief (throughput review
+    2026-11-24: 14 of 58 check reds were a later rung failing after the worker fixed an earlier one). `failed` is the first red,
+    `also_failed` the other cheap reds."""
     out = []
+    reds: list[str] = []
     for name, fn in rungs:
+        if reds and name not in CHEAP_RUNGS:
+            continue
         if (prior := (REUSE[0] or {}).get(name)) is not None:  # green before the approve, for this exact head: not run again (dev-workflows.run.loop-needs-maintainer)
             out.append({**prior, "name": name, "cached": True})
             continue
@@ -1834,8 +1863,10 @@ def ladder(rungs: list) -> dict:
         if ON_RUNG[0]:
             ON_RUNG[0](name, bool(r.get("ok")), out)
         if not r["ok"]:
-            return {"ok": False, "failed": name, "rungs": out}
-    return {"ok": True, "failed": "", "rungs": out}
+            reds.append(name)
+            if name not in CHEAP_RUNGS:
+                break
+    return {"ok": not reds, "failed": reds[0] if reds else "", "also_failed": reds[1:], "rungs": out}
 
 
 BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")

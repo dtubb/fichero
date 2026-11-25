@@ -405,11 +405,17 @@ def ensure_pinned(root: str, brief: str, base: str) -> str:
 
 
 def _tail(r: dict) -> str:
-    """What a red rung said, for the worker's fix brief."""
-    last = (r.get("rungs") or [{}])[-1]
+    """What a red rung said, for the worker's fix brief: every red rung of the ladder, each named when more than one is red."""
     keys = ("reason", "stdout_tail", "stderr_tail", "errors", "log")  # errors and the log path LAST: the 3000-character cut keeps the end
-    red = [f"{x.get('name')}: " + "\n".join(str(x[k]) for k in keys if x.get(k)) for x in last.get("results") or [] if not x.get("ok")]  # a guards rung
-    return "\n".join([*(str(last[k]) for k in keys if last.get(k)), *red])[-3000:]
+
+    def said(row: dict) -> str:
+        red = [f"{x.get('name')}: " + "\n".join(str(x[k]) for k in keys if x.get(k)) for x in row.get("results") or [] if not x.get("ok")]  # a guards rung
+        return "\n".join([*(str(row[k]) for k in keys if row.get(k)), *red])
+    rungs = r.get("rungs") or [{}]
+    reds = [x for x in rungs if x.get("name") and not x.get("ok")]
+    if len(reds) < 2:
+        return said(rungs[-1])[-3000:]  # one red rung ends the ladder: it is the last row
+    return "\n".join(f"[{x['name']} red]\n{said(x)}" for x in reds)[-3000:]
 
 
 def hints(r: dict, repo: str, head: str, cfg) -> list[str]:
@@ -682,7 +688,9 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                                      f"exactly these files under the pinned guards (the scripts stay pinned){widen}", _tail(r), str(diff)), "approvals": ["approve_guard_data"]}
                 fixes = hints(r, repo, head, check_tool.load(a.pinned))  # the exact command for a mechanical red (2026-11-14)
                 fix = ("\nFix: " + "\nFix: ".join(fixes)) if fixes else ""
-                return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}{fix}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}{fix}", ladder)
+                also = r.get("also_failed") or []
+                return no("red", f"the check is red at {head[:9]} (failed: {', '.join([r.get('failed') or '?', *also])}); ladder in {ladder}{fix}",
+                          f"failed rung{'s' if also else ''}: {', '.join([r.get('failed') or '?', *also])}\n{_tail(r)}{fix}", ladder)
             if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
                 moved += 1
                 if early.get("proc"):
