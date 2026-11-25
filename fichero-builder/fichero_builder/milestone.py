@@ -11,12 +11,12 @@ import re
 import subprocess
 from pathlib import Path
 
-from fichero_builder import codemap
+from fichero_builder import client, codemap
 
 STEP_IN_TITLE = r"\b{slug} Step (\d+\.\d+)\b"   # `<spec slug> Step 1.3: ...`, the shape `builder steps` files
 STEP_IN_BODY = re.compile(r"^Step:?\s+(\d+\.\d+)\b", re.M)  # a bare line counts only inside the spec's own milestone
 MILESTONE_LINE = re.compile(r"^>\s*Milestone:\s*(\S+)", re.M)
-GUARD = Path(__file__).resolve().parents[2] / "scripts" / "check_spec_build_order_shape.py"
+GUARD = client.scripts_dir() / "check_spec_build_order_shape.py"
 
 
 def spec_slug(spec_path) -> str:

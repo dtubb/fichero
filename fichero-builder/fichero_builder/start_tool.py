@@ -15,10 +15,10 @@ import stat
 import sys
 from pathlib import Path
 
-from fichero_builder import adapters, check_tool, journal, mcp_servers, profiles
+from fichero_builder import adapters, check_tool, client, journal, mcp_servers, profiles
 from fichero_builder.jail import Jail
 
-_HOOK = Path(__file__).resolve().parents[2] / "scripts" / "harness_policy_hook.py"  # <repo>/scripts; the first live run found parents[4] after the move
+_HOOK = client.scripts_dir() / "harness_policy_hook.py"  # [harness].scripts_dir, else the checkout's scripts folder
 _HANDOFF = _HOOK.with_name("harness_handoff_hook.py")
 
 

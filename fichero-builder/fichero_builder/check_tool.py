@@ -32,7 +32,7 @@ import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
-from fichero_builder import journal
+from fichero_builder import client, journal
 
 
 @dataclass(frozen=True)
@@ -932,7 +932,7 @@ BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is no
 
 
 WARNING_PLATFORMS = {"build": "mac", "ios-sim": "ios"}  # the remote build rung holds the mac count, the iOS daily build the iOS count (the Swift test target holds none; iPad waits for a scheme that carries the iPad plan)
-RATCHET_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_xcode_warning_ratchet.py"  # the harness's own copy judges: a batch's own script never runs, jailed or not
+RATCHET_SCRIPT = client.scripts_dir() / "check_xcode_warning_ratchet.py"  # the harness's own copy judges: a batch's own script never runs, jailed or not
 
 
 def _warning_ratchet(tree: Path, host: str, bundle: str, name: str, r: dict) -> None:

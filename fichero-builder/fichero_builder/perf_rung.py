@@ -10,6 +10,8 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from fichero_builder import client
+
 ENGINE_PATHS = ("fichero-server/", "fichero-cli/", "fichero-mcp/", "pipeline/")
 APP_PATHS = ("fichero/",)
 BASELINE = "scripts/perf_baseline.json"
@@ -18,7 +20,7 @@ OWN_FRAME = "fichero_server/"  # a frame under this is ours, not a library's
 
 def trial(root: Path | str | None = None):
     """`scripts/perf_trial.py` loaded by path (it is a script, not a package); from `root`'s copy when given."""
-    here = Path(root) / "scripts" / "perf_trial.py" if root else Path(__file__).resolve().parents[2] / "scripts" / "perf_trial.py"
+    here = Path(root) / "scripts" / "perf_trial.py" if root else client.scripts_dir() / "perf_trial.py"
     spec = importlib.util.spec_from_file_location("perf_trial", here)
     assert spec and spec.loader
     mod = sys.modules.get("perf_trial") or importlib.util.module_from_spec(spec)

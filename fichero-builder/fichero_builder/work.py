@@ -19,9 +19,9 @@ import time
 import tomllib
 from pathlib import Path
 
-from fichero_builder import check_tool, codemap, jail, journal, land_tool, models
+from fichero_builder import check_tool, client, codemap, jail, journal, land_tool, models
 
-SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+SCRIPTS = client.scripts_dir()  # [harness].scripts_dir of the harness.toml in the start directory
 
 
 def _git(repo, *args) -> subprocess.CompletedProcess:

@@ -15,10 +15,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import journal, models, session, watcher
+from fichero_builder import client, journal, models, session, watcher
 
 HERE = Path(__file__).resolve().parent
-START = HERE.parents[1] / "scripts" / "harness_start.py"
+START = client.scripts_dir() / "harness_start.py"
 
 
 def slug(worktree) -> str:
