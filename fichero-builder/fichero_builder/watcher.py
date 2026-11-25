@@ -10,7 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-KEYS = {"window", "handoff_at", "handoff_tokens", "session_usd", "day_usd", "silent_s", "prices"}
+KEYS = {"window", "handoff_at", "handoff_tokens", "session_usd", "day_usd", "silent_s", "prices", "metered", "week_usd"}
+ALWAYS_METERED = ("openrouter",)  # bills by use whatever the file says: a role on it never starts without a weekly figure
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,8 @@ class Spend:
     day_usd: float = 0.0           # 0 = no cap declared = refuse to start
     silent_s: int = 1800           # a session file unchanged this long while not idle = alert
     prices: dict = field(default_factory=dict)  # model name or prefix -> [usd per M input tokens, usd per M output tokens]
+    metered: tuple = ()            # [spend].metered: providers that bill by use (local.spend.metered-provider-needs-a-cap)
+    week_usd: dict = field(default_factory=dict)  # [spend.week_usd]: provider -> its cap per ISO week (Monday to Sunday), USD
 
 
 LOCAL = Path.home() / ".config" / "fichero-builder" / "harness.local.toml"
@@ -61,8 +64,15 @@ def parse(t: dict) -> Spend:
     for k, v in prices.items():
         if not (isinstance(v, list) and len(v) == 2 and all(isinstance(x, (int, float)) and x >= 0 for x in v)):
             raise ValueError(f"harness.toml [spend].prices.{k}: two numbers, usd per million input and output tokens")
+    metered, week = t.get("metered", []), t.get("week_usd", {})
+    if not (isinstance(metered, list) and all(isinstance(x, str) and x for x in metered)):
+        raise ValueError("harness.toml [spend].metered: a list of provider names")
+    if not isinstance(week, dict) or not all(isinstance(v, (int, float)) and v >= 0 for v in week.values()):
+        raise ValueError("harness.toml [spend.week_usd]: provider = USD a week, a number")
+    if missing := [p for p in metered if not week.get(p)]:  # a metered provider with no figure refuses the rules file
+        raise ValueError(f"harness.toml [spend].metered lists {missing} with no [spend.week_usd] figure: a metered provider needs a weekly cap")
     d = Spend()
-    return Spend(window=int(t.get("window", d.window)), handoff_at=float(t.get("handoff_at", d.handoff_at)), handoff_tokens=int(t.get("handoff_tokens", 0)),
+    return Spend(metered=tuple(metered), week_usd={k: float(v) for k, v in week.items()}, window=int(t.get("window", d.window)), handoff_at=float(t.get("handoff_at", d.handoff_at)), handoff_tokens=int(t.get("handoff_tokens", 0)),
                  session_usd=float(t.get("session_usd", 0)), day_usd=float(t.get("day_usd", 0)),
                  silent_s=int(t.get("silent_s", d.silent_s)), prices=dict(prices))
 
@@ -80,9 +90,32 @@ def price_for(model: str, spend: Spend):
     return spend.prices[hits[-1]] if hits else None
 
 
-def refusals(spend: Spend, kind: str, model: str) -> list[str]:
+def is_metered(spend: Spend, provider: str) -> bool:
+    """The provider bills by use: listed in [spend].metered, or one of ALWAYS_METERED. A subscription login (claude-code) is not."""
+    return bool(provider) and (provider in spend.metered or provider in ALWAYS_METERED)
+
+
+def week_of(ts: str) -> tuple:
+    """The ISO (year, week) of a journal timestamp (`YYYY-MM-DDTHH:MM:SS`); () when it does not parse."""
+    import datetime
+    try:
+        return tuple(datetime.date.fromisoformat(str(ts)[:10]).isocalendar()[:2])
+    except ValueError:
+        return ()
+
+
+def spent_week(rows: list[dict], provider: str, now_ts: str) -> float:
+    """Sum of the journal's `cost` rows that name `provider`, in the ISO week of `now_ts`: a row with no provider is not counted."""
+    wk = week_of(now_ts)
+    return sum(float(r.get("usd", 0)) for r in rows
+               if r.get("event") == "cost" and r.get("provider") == provider and week_of(r.get("ts", "")) == wk)
+
+
+def refusals(spend: Spend, kind: str, model: str, provider: str = "") -> list[str]:
     """Every reason not to start a worker of this kind and model; empty = go."""
     out = []
+    if is_metered(spend, provider) and spend.week_usd.get(provider, 0) <= 0:
+        out.append(f"provider {provider!r} bills by use and harness.toml [spend.week_usd] gives it no weekly cap: no cap, no start")
     if spend.day_usd <= 0:
         out.append("harness.toml [spend] must set day_usd above 0: no cap, no start")
     if kind != "pi" and price_for(model, spend) is None:  # a Pi session file carries its own price per turn
@@ -128,8 +161,10 @@ def live_spend(d, today: str, exclude: str, now: float) -> float:
     return total
 
 
-def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_for_s: float) -> list[str]:
-    """Decisions in the order the watcher acts on them; [] = leave the worker alone."""
+def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_for_s: float, provider: str = "",
+           spent_week: float = 0.0) -> list[str]:
+    """Decisions in the order the watcher acts on them; [] = leave the worker alone. `spent_week`: the metered `provider`'s
+    cost rows this week (not this session's), which with the session's cost reaching its [spend.week_usd] figure parks."""
     out = []
     if state.get("rate_limited"):
         out.append("park: the provider refused for quota or credit")
@@ -138,6 +173,8 @@ def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_
     cost = cost_of(state, spend, model)
     if spent_today + cost >= spend.day_usd:  # the only dollar cap: owner ruling B2 (2026-11-21) dropped the session cap
         out.append(f"park: today's spend {spent_today + cost:.2f} USD reached the cap {spend.day_usd:.2f}")
+    elif is_metered(spend, provider) and spent_week + cost >= spend.week_usd.get(provider, 0):
+        out.append(f"park: this week's {provider} spend {spent_week + cost:.2f} USD reached the cap {spend.week_usd.get(provider, 0):.2f}")
     elif state.get("context", 0) >= threshold(spend):
         out.append(f"handoff: context {state['context']} of {threshold(spend) if spend.handoff_tokens else spend.window}")
     if not state.get("idle") and state.get("started") and silent_for_s >= spend.silent_s:

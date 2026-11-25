@@ -184,6 +184,19 @@ def _live(name: str, usd: float | None) -> Path:
     return f
 
 
+def _spent_week(provider: str) -> float:
+    """This ISO week's journal cost rows of `provider` (local.spend.metered-provider-needs-a-cap)."""
+    return watcher.spent_week(journal.read(), provider, time.strftime("%Y-%m-%dT%H:%M:%S"))
+
+
+def provider_of(root, rules, role: str, default: str) -> str:
+    """The provider a run bills to: its [models] role's when it has one, else `default` (claude-code for a Claude session)."""
+    if not role:
+        return default
+    mdl = json.loads(Path(rules).read_text())["models"] if rules else models.load(root)
+    return models.for_role(mdl, role).provider
+
+
 def _spent_today(name: str) -> float:
     """Today's journal cost rows plus every other live session's running cost (#6871)."""
     today = time.strftime("%Y-%m-%d")  # the journal stamps rows with the wall clock
@@ -192,7 +205,7 @@ def _spent_today(name: str) -> float:
 
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
         tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0, role: str = "",
-        rules=None) -> str:
+        rules=None, provider: str = "") -> str:
     """Start, then watch until the worker is done (idle, its last text ends with the brief's `DONE <sha>` line, and the
     worktree's HEAD is that sha and has moved from the start: a worker's words alone never end a run),
     parked (a cap or a provider refusal) or gone. Returns the end as a word.
@@ -205,8 +218,9 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     `rules` (the queue's `<feed>/rules.json`): the caps are read from it at every tick, never from `root`; an unreadable read keeps
     the last figures and says so once."""
     spend = rules_of(root, rules, role)
+    provider = provider_of(root, rules, role, provider or ("claude-code" if kind == "claude" else ""))
     label = {"role": role} if role else {}  # the journal rows of a role's worker say which role
-    bad = watcher.refusals(spend, kind, model)
+    bad = watcher.refusals(spend, kind, model, provider)
     if bad:
         for b in bad:
             out("builder run refuses: " + b)
@@ -214,6 +228,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     if (spent := _spent_today(name)) >= spend.day_usd:
         journal.append("watch", task=name, what=f"park: today's spend {spent:.2f} USD reached the cap {spend.day_usd:.2f} before the start")
         out(f"{name}: parked before the start, today's spend {spent:.2f} of {spend.day_usd:.2f} USD")
+        return "parked"
+    if watcher.is_metered(spend, provider) and (wk := _spent_week(provider)) >= spend.week_usd.get(provider, 0):
+        journal.append("watch", task=name, what=f"park: this week's {provider} spend {wk:.2f} USD reached the cap {spend.week_usd[provider]:.2f} before the start")
+        out(f"{name}: parked before the start, this week's {provider} spend {wk:.2f} of {spend.week_usd[provider]:.2f} USD")
         return "parked"
     handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
     register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend))
@@ -265,7 +283,8 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             _live(name, watcher.cost_of(state, spend, model))
         except OSError as e:  # the other runs miss this run's figure for a tick; the watch goes on
             journal.append("watch", task=name, what=f"alert: live spend not written: {e}"[:300])
-        decisions = watcher.assess(state, spend, model, spent_today=_spent_today(name), silent_for_s=now - last_change)
+        decisions = watcher.assess(state, spend, model, spent_today=_spent_today(name), silent_for_s=now - last_change, provider=provider,
+                                   spent_week=_spent_week(provider) if watcher.is_metered(spend, provider) else 0.0)
         for d in decisions:
             kind_of = d.split(":")[0]  # one row per kind of decision, not one per tick
             if kind_of not in told:
@@ -336,7 +355,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
                 journal.append("watch", task=name, what=f"park: {gen} generations, the cap")
                 break
             procs.stop(pane)
-            journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
+            journal.append("cost", task=name, model=model, provider=provider, usd=round(watcher.cost_of(state, spend, model), 4),
                            tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(now - started), end="handoff",
                            generation=gen, **label, **reading_of(first_commit))
             _live(name, 0.0)  # the cost row now holds it; the successor starts from nothing
@@ -351,7 +370,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             sent = {"prompts": -1, "text": "", "at": procs.now(), "words": "", "again": 0}
             base0, first_commit = procs.head(), None
             continue
-    journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
+    journal.append("cost", task=name, model=model, provider=provider, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,
                    generation=gen, **label, **reading_of(first_commit))
     _live(name, None)

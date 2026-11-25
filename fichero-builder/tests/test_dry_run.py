@@ -534,3 +534,16 @@ def test_a_done_step_row_carries_the_sessions_context_model_window_and_the_parts
     (row,) = [r for r in journal.read() if r["event"] == "step"]
     assert row["context"] == 12345 and row["model"] == "sonnet" and row["window"] > 0
     assert row["left"] == [{"part": 2, "why": "needs a design call"}]
+
+
+def test_a_metered_role_parks_before_the_start_when_the_weeks_rows_reach_its_cap(root):
+    """local.spend.metered-provider-needs-a-cap: the cost rows name their provider, and the week's openrouter rows reach the figure."""
+    (root / "harness.toml").write_text(TOML.replace("prices = { sonnet = [3, 15] }", 'prices = { sonnet = [3, 15], qwen = [0.2, 1] }\nmetered = ["openrouter"]')
+                                       + '[spend.week_usd]\nopenrouter = 1\n[models]\nproviders = ["openrouter"]\nq = { provider = "openrouter", model = "qwen" }\n')
+    assert run.run(root, root / "wt", root / "b.txt", name="w", model="qwen", role="q", procs=Fake([{**HEALTHY, "cost_usd": 0.6}]).procs, out=lambda s: None) == "gone"
+    assert journal.read()[-1]["provider"] == "openrouter"
+    assert run.run(root, root / "wt", root / "b.txt", name="w2", model="qwen", role="q", procs=Fake([{**HEALTHY, "cost_usd": 0.5}]).procs, out=lambda s: None) == "parked"
+    assert any("this week's openrouter spend" in r.get("what", "") for r in journal.read())
+    said = []
+    assert run.run(root, root / "wt", root / "b.txt", name="w3", model="qwen", role="q", procs=Fake([HEALTHY]).procs, out=said.append) == "parked"
+    assert "before the start" in said[0]

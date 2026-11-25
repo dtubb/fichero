@@ -702,7 +702,8 @@ def main(argv=None) -> int:
     else:
         procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
-                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role, rules=a.rules)
+                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role, rules=a.rules,
+                      provider=a.provider if a.kind == "pi" else "claude-code")
     return 0 if end in ("done", "done-unsaid", "lane-done", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
 
 

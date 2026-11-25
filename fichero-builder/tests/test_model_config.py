@@ -71,3 +71,18 @@ def test_the_loop_has_a_manager_role_and_no_verb_names_a_model_of_its_own(tmp_pa
     (tmp_path / "b.txt").write_text("brief")
     cli.main(["run", "--root", str(tmp_path), "--worktree", str(tmp_path), "--brief", str(tmp_path / "b.txt"), "--name", "w"])
     assert seen.get("model") == "a-local-coder"
+
+
+def test_a_role_on_a_metered_provider_with_no_weekly_figure_is_a_question(tmp_path):
+    """local.spend.metered-provider-needs-a-cap: the Qwen3-Coder-Next trial role (the spec's example) needs [spend.week_usd].openrouter."""
+    from fichero_builder import watcher
+
+    (tmp_path / "harness.toml").write_text('[models]\nproviders = ["claude-code", "openrouter"]\n'
+                                           'qwen-trial = { provider = "openrouter", model = "qwen/qwen3-coder-next", context = 262144 }\n'
+                                           '[spend]\nday_usd = 300\nmetered = ["openrouter"]\n[spend.week_usd]\nopenrouter = 25\n')
+    cfg = models.load(tmp_path)
+    assert models.for_role(cfg, "qwen-trial", watcher.load(tmp_path)) == models.Model("openrouter", "qwen/qwen3-coder-next", 262144)
+    with pytest.raises(models.Question, match="no weekly cap"):
+        models.for_role(cfg, "qwen-trial", watcher.parse({"day_usd": 300}))
+    with pytest.raises(ValueError, match="needs a weekly cap"):
+        watcher.parse({"day_usd": 300, "metered": ["openrouter"]})

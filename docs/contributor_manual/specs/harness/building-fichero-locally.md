@@ -878,15 +878,23 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   the report; an owed test in `test_codemap.py` (a step citing two functions lists both with spans; the list never
   passes the cap). Serves: local.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.spend.metered-provider-needs-a-cap` [GAP] (#6116) — no session starts on a provider that bills by use unless
+- `local.spend.metered-provider-needs-a-cap` [OK] (#6116) — no session starts on a provider that bills by use unless
   that provider has a cap. `[spend].metered` lists such providers (OpenRouter is the first) and `[spend.week_usd]`
   gives each a weekly figure in USD; a listed provider with no figure refuses the rules file, and a role on it
   refuses to start. Every `cost` row names its provider; the watcher adds the week's rows for the provider and parks a
   session that would pass the cap, with one alert. A subscription login is not metered and keeps the session and day
-  caps it has. Today `watcher.Spend` in `fichero-builder/fichero_builder/watcher.py` has a session cap and a day cap for
-  all models together, the `cost` row names no provider, and the 50 USD a week for OpenRouter is a stop rule for a
-  person to watch. Test (owed): `test_watcher.py` and `test_model_config.py`, a metered provider with no figure
-  refuses; a session parks when the week's rows reach the figure; a subscription session is not counted.
+  caps it has. Built (2026-11-25): `watcher.Spend` reads `metered` and `week_usd`; `openrouter` counts as metered even when
+  the file does not list it, so it never starts without a figure; the week is the ISO week (Monday to Sunday) of the
+  journal's timestamps; `builder run` takes the provider from the lane's `[models]` role (else `claude-code`, or `--provider`
+  for `--kind pi`), refuses a metered one with no figure, parks before the start when the week's rows already reach it, and
+  parks a live session (one `watch` row) when the week's rows plus its own cost reach it; `models.for_role(cfg, role, spend)`
+  is a Question for such a role. The Qwen3-Coder-Next trial through Pi on OpenRouter is configured like this (an example, not
+  the live file):
+  `[models]` `providers = [..., "openrouter"]`, `qwen-trial = { provider = "openrouter", model = "qwen/qwen3-coder-next", context = 262144 }`;
+  `[spend]` `metered = ["openrouter"]`, `prices = { ..., "qwen/qwen3-coder-next" = [<in>, <out>] }`; `[spend.week_usd]` `openrouter = 25`.
+  Tests: `fichero-builder/tests/test_watcher.py` (a metered provider with no figure refuses; the week's rows reach the
+  figure and the session parks; a subscription session is not counted), `fichero-builder/tests/test_model_config.py::test_a_role_on_a_metered_provider_with_no_weekly_figure_is_a_question`,
+  `fichero-builder/tests/test_dry_run.py::test_a_metered_role_parks_before_the_start_when_the_weeks_rows_reach_its_cap`.
   Serves: reliable (no spend without a cap), local.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
