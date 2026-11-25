@@ -75,7 +75,14 @@ it. Spec-change: owner 2026-11-20.
   took 3.14 on Linux and 3.15 on macos-26, and onnxruntime 1.29.0 has no 3.15 wheel, which was why `engine-macos` failed
   at install. The Apple-only dependencies (the PyObjC frameworks of the `dev` extra; MLX is installed into the app at build
   time, not from the lock) carry `; sys_platform == 'darwin'`, so the same lock syncs on Linux and on macOS with every macOS
-  version unchanged. No engine module imports an Apple framework at import time (each import is inside the function that
+  version unchanged. The `engine` and `contracts` jobs then add the briefcase `requires` of
+  `[tool.briefcase.app.fichero_server]` with uv.lock's versions as constraints, as `scripts/setup_venv.sh` does on the
+  Macs (its step 2): spaCy's two language models come only from there. Kraken and htrmopo come only from the bundle's own
+  install step, which needs a built bundle, so the runners have neither; a test that needs them starts with
+  `pytest.importorskip`, as the suite's other Kraken tests do (the Macs' venv has them, `setup_venv.sh` fails without).
+  An engine started with `$FICHERO_BASE_PATH` (every test engine) makes nothing under the home's Application Support: on a
+  runner with no `~/Library/Application Support/Fichero`, each engine start in run 45676804358 made it and the real-state
+  guard (#5530) failed 109 tests. No engine module imports an Apple framework at import time (each import is inside the function that
   needs it), so the package imports on Linux, and no memory or process reading goes through `ctypes.util.find_library`
   off macOS (there it shells out to `ldconfig`, and a page call hung on it under a fork in run 45666948572). A test that
   needs macOS itself (PyObjC, an Apple framework or Apple Vision's worker, a macOS tool such as `plutil`, `sips` or
@@ -93,8 +100,9 @@ it. Spec-change: owner 2026-11-20.
   `::test_the_shards_together_are_the_whole_unit_tier_each_entry_once`,
   `::test_apple_only_dependencies_carry_a_darwin_marker_so_the_lock_syncs_on_linux`,
   `::test_macos_only_is_a_registered_marker_that_skips_off_darwin_with_its_reason`.
-  *Not proved:* a green Linux run of the engine shards; the reds of run 45666948572 named below are fixed or marked, the
-  unnamed ones (its `-q` output named none) wait for the next run's `-rfE` summary.
+  *Not proved:* a green Linux run of the engine shards. Run 45676804358 (the first complete one, every shard inside its
+  limit) had 187 failed and 198 errors; the real-state, spaCy, Kraken, Apple Silicon, Apple Vision, macOS-tool and APFS
+  ones are fixed or marked, and the rest are listed in the report of that commit for the next run to confirm.
 
 ## Swift on Actions
 

@@ -12,12 +12,15 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _scan_files import scan_rglob  # noqa: E402  (hidden folders, a nested worktree among them, are never walked)
+
 _TEST = re.compile(r"^\s*(?:async\s+)?def test_", re.MULTILINE)
 
 
 def entries(root: Path) -> list[tuple[str, int]]:
     out = []
-    for p in sorted(root.rglob("test_*.py")):
+    for p in sorted(scan_rglob(root, "test_*.py")):
         if "__pycache__" not in p.parts:
             out.append((str(p), max(1, len(_TEST.findall(p.read_text(encoding="utf-8", errors="replace"))))))
     return out

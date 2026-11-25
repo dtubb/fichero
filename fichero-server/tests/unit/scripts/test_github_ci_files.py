@@ -119,6 +119,12 @@ def test_the_python_tiers_run_on_linux_with_the_unit_tier_in_eight_shards_and_ma
         assert uv["with"]["python-version"] == "3.12", name
     for name in ("engine", "contracts"):
         assert _steps(jobs[name])["Install the engine"]["run"] == "uv sync --frozen --all-extras", name
+        # the bundle's own requires on top, pinned by the lock, as scripts/setup_venv.sh does (spaCy's language models)
+        bundle = _steps(jobs[name])["Install the bundle's own requires"]["run"]
+        assert '["tool"]["briefcase"]["app"]["fichero_server"]["requires"]' in bundle and "uv export --frozen" in bundle, name
+        assert 'uv pip install -c "$RUNNER_TEMP/lock-constraints.txt" -r "$RUNNER_TEMP/bundle-requires.txt"' in bundle, name
+        names = [s.get("name") for s in jobs[name]["steps"]]
+        assert names.index("Install the bundle's own requires") == names.index("Install the engine") + 1, name
     mac = jobs["engine-macos"]
     assert mac["runs-on"].startswith("macos-") and "-m macos_only" in _steps(mac)["macOS-only tests"]["run"]
     install = _steps(mac)["Install the engine"]
@@ -136,7 +142,8 @@ def test_the_shards_together_are_the_whole_unit_tier_each_entry_once():
     flat = [p for s in shards for p in s]
     assert sorted(flat) == sorted(p for p, _ in items) and len(flat) == len(set(flat))
     assert all(shards), "no shard is empty"
-    assert {p for p, _ in items} == {str(p) for p in (ROOT / "fichero-server" / "tests" / "unit").rglob("test_*.py")}, "every test file once"
+    assert {p for p, _ in items} == {str(p) for p in mod.scan_rglob(ROOT / "fichero-server" / "tests" / "unit", "test_*.py")
+                                       if "__pycache__" not in p.parts}, "every test file once"
     weight = dict(items)
     loads = [sum(weight[p] for p in s) for s in shards]
     assert max(loads) <= 1.1 * min(loads), f"the shards are even by test count: {loads}"

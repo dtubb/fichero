@@ -46,6 +46,15 @@ jobs:
       - name: Install the engine
         working-directory: fichero-server
         run: uv sync --frozen --all-extras
+      - name: Install the bundle's own requires
+        # What scripts/setup_venv.sh step 2 adds on the Macs: the briefcase `requires` (spaCy's two language models,
+        # among them), pinned by uv.lock. Kraken is not installed here; its tests skip without it.
+        working-directory: fichero-server
+        run: |
+          uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
+            --format requirements-txt -o "$RUNNER_TEMP/lock-constraints.txt" > /dev/null
+          uv run --frozen --no-sync python -c 'import tomllib; print("\n".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["briefcase"]["app"]["fichero_server"]["requires"]))' > "$RUNNER_TEMP/bundle-requires.txt"
+          uv pip install -c "$RUNNER_TEMP/lock-constraints.txt" -r "$RUNNER_TEMP/bundle-requires.txt"
       - name: Spec guards
         if: matrix.shard == 1
         run: |
@@ -113,6 +122,15 @@ jobs:
       - name: Install the engine
         working-directory: fichero-server
         run: uv sync --frozen --all-extras
+      - name: Install the bundle's own requires
+        # What scripts/setup_venv.sh step 2 adds on the Macs: the briefcase `requires` (spaCy's two language models,
+        # among them), pinned by uv.lock. Kraken is not installed here; its tests skip without it.
+        working-directory: fichero-server
+        run: |
+          uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
+            --format requirements-txt -o "$RUNNER_TEMP/lock-constraints.txt" > /dev/null
+          uv run --frozen --no-sync python -c 'import tomllib; print("\n".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["briefcase"]["app"]["fichero_server"]["requires"]))' > "$RUNNER_TEMP/bundle-requires.txt"
+          uv pip install -c "$RUNNER_TEMP/lock-constraints.txt" -r "$RUNNER_TEMP/bundle-requires.txt"
       - name: Contract tests
         working-directory: fichero-server
         run: uv run --frozen pytest tests/contracts -q -rfE -p no:cacheprovider -m 'not macos_only' --timeout=300 --timeout-method=thread
