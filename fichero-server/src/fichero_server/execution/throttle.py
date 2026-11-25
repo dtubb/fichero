@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass
 import os
 import subprocess
+import sys
 import time
 from typing import Any, Callable
 
@@ -153,6 +154,8 @@ def footprint_bytes(pid: int) -> int | None:
             "ri_pageins", "ri_wired_size", "ri_resident_size", "ri_phys_footprint",
             "ri_proc_start_abstime", "ri_proc_exit_abstime")]
 
+    if sys.platform != "darwin":  # off macOS find_library shells out (ldconfig, gcc) and can hang under a fork (ci.python-tiers)
+        return None
     try:
         libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
         info = _RusageInfoV0()
@@ -183,6 +186,8 @@ def swap_used_bytes() -> int | None:
         _fields_ = [("total", ctypes.c_uint64), ("avail", ctypes.c_uint64), ("used", ctypes.c_uint64),
                     ("pagesize", ctypes.c_uint32), ("encrypted", ctypes.c_bool)]
 
+    if sys.platform != "darwin":  # off macOS find_library shells out (ldconfig, gcc) and can hang under a fork (ci.python-tiers)
+        return None
     try:
         usage, size = _SwapUsage(), ctypes.c_size_t(ctypes.sizeof(_SwapUsage))
         libc = ctypes.CDLL(ctypes.util.find_library("System"))

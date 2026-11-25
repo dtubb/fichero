@@ -17,6 +17,11 @@ from fichero_server.workflows.tools import vision_base as vb
 
 DEADLINE = 0.6
 
+# ci.python-tiers: the Apple Vision worker runs only on macOS. On the Linux runner (GitHub run 45666948572) a page call
+# hung inside the gate while the memory reading shelled out (ctypes find_library -> ldconfig) under a fork; that reading
+# now returns None off macOS, and the per-test --timeout=300 bounds any hang that is left.
+pytestmark = pytest.mark.macos_only(reason="Apple Vision's worker process exists on macOS only")
+
 
 def read_page(path: str, language: str = "en") -> str:
     """Stands for apple_vision_ocr: a page named stuck* never returns."""

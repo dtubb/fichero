@@ -113,11 +113,11 @@ def test_drop_stamps_engine_recorded_source_paths(client, db, test_package, tmp_
     import fichero_server.api.routes.ingest.core as core
 
     manifest = _fixture_manifest(tmp_path)
-    monkeypatch.setattr(core, "is_allowed_ingest_path", lambda p: True, raising=False)
+    monkeypatch.setattr(core, "is_allowed_ingest_path", lambda p, **_: True, raising=False)
     # The stamp imports the authority inside the function; patch its source.
     import fichero_server.security.path_security as ps
 
-    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: True)
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p, **_: True)
 
     docs = _import_manifest_folder(
         db,
@@ -154,7 +154,7 @@ def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_packa
     # Remove the drop-root image so only the manifest's external source
     # remains, then refuse that source.
     (tmp_path / "page_001_enhanced.jpg").unlink()
-    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p, **_: False)
 
     with pytest.raises(HTTPException, match="no file path"):
         _import_manifest_folder(
@@ -176,7 +176,7 @@ def test_drop_root_image_is_stamped_even_when_bookmarks_are_broken(client, db, t
     manifest = _fixture_manifest(tmp_path)
     # Name the drop-root image the way staging does: <doc name>.<ext>.
     (tmp_path / "page_001_enhanced.jpg").rename(tmp_path / "page_001.jpg")
-    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p, **_: False)
 
     docs = _import_manifest_folder(
         db,
@@ -280,7 +280,7 @@ def test_dropped_corpus_serves_real_thumbnail_bytes(client, db, test_package, tm
     PILImage.new("RGB", (64, 64), (180, 40, 40)).save(
         tmp_path / "page_001_enhanced.jpg", "JPEG"
     )
-    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: True)
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p, **_: True)
 
     docs = _import_manifest_folder(
         db,

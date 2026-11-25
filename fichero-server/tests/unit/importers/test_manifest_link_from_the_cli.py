@@ -19,7 +19,7 @@ from .test_manifest_import import _fixture_manifest, _TestClientAdapter
 def test_cli_link_gives_every_page_its_image_without_copying(client, db, test_package, tmp_path, monkeypatch):
     import fichero_server.security.path_security as ps
 
-    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: True)  # the engine may read tmp_path
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p, **_: True)  # the engine may read tmp_path
     manifest = _fixture_manifest(tmp_path)
     from PIL import Image
 

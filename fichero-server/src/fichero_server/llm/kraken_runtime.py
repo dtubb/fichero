@@ -702,6 +702,8 @@ def _mach_reclaimable_bytes() -> int | None:
     failing) — callers must decide what "unknown" means; this never
     guesses a number.
     """
+    if sys.platform != "darwin":  # off macOS find_library shells out (ldconfig, gcc) and can hang under a fork (ci.python-tiers)
+        return None
     try:
         libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
     except OSError:
