@@ -656,6 +656,11 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
     ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
     moved = 0
     carry = None  # (base, files, head) of a green check whose base moved before its review
+    green = state / f"green-{a.name}.json"  # the last READY's range: a later chain of the lane (its result lost, or not landed) keeps it
+    with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
+        g = json.loads(green.read_text())
+        carry = (g["base"], list(g["files"]), g["head"])
+    green.unlink(missing_ok=True)  # read once: a later READY writes it again
     while True:  # dev-workflows.run.loop-chain: a ready range whose base moved is rebased and re-checked
         why = do_rebase(a, branch)
         if not step("rebase", not why, why.split(REBASE_CONFLICT)[0] if why else f"on top of origin/{branch}"):
@@ -677,7 +682,9 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         kept, rerun = keep_green(repo, carry[0], carry[1], since_now, files, check_tool.load(a.pinned), carry[2], head) if carry else ("", ())
         held = kept_rows(ladder, carry[0], carry[2], a.pinned) if kept else {}  # the old ladder's rows: without them the whole ladder runs
         carry = None
-        with ladder_slot(a.name, files, check_tool.load(a.pinned).parallel):  # speed 3: [check].parallel ladders, disjoint batches only
+        # nothing to run again: no file-overlap hold to wait behind (2026-11-25, seg-inspector waited on seg-hang's shared test file)
+        slot = contextlib.nullcontext() if kept and held and not rerun else ladder_slot(a.name, files, check_tool.load(a.pinned).parallel)
+        with slot:  # speed 3: [check].parallel ladders, disjoint batches only
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
             stage("checking")
@@ -792,9 +799,12 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             if not step("land", ok, out[-300:]):
                 if moved < MOVES and _base_moved(a, branch, head):
                     moved += 1  # another lane landed after our rebase: rebase and judge the new range, never a person's hand step
+                    carry = (since_now, files, head)  # green and READY: keep_green judges the new base's delta
                     step("rebase", True, f"origin/{branch} moved under {head[:9]}: rebased and checked again ({moved}/{MOVES})")
                     continue
                 return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
+        if since_now:
+            green.write_text(json.dumps({"base": since_now, "files": files, "head": head}))
         return {"ok": True, "head": head, "out": out}
 
 

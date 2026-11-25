@@ -680,6 +680,38 @@ def test_a_kept_rebase_without_the_old_green_rows_runs_the_whole_ladder(chain, m
     assert [c[0] for c in chain.calls].count("check") == 2 and not any(r["step"] == "kept" for r in rows())
 
 
+def _kept_chain(chain, monkeypatch, rerun):
+    bases, seen = iter(["b" * 40, "c" * 40]), []
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
+    monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
+    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg, oh="", h="": (seen.append((ob, of, oh)), (f"kept across rebase onto {nb[:9]}", rerun))[1])
+    monkeypatch.setattr(work, "kept_rows", lambda ladder, ob, oh, pinned: {"ready": {"ok": True}, "guards": {"ok": True}})
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder, partial=None: (chain.calls.append(("check", partial)), {"ok": True, "failed": ""})[1])
+    return seen
+
+
+def test_a_later_chain_of_a_ready_range_keeps_its_green_across_a_base_move(chain, monkeypatch):
+    """2026-11-25, seg-inspector swift-green-2: READY at bf62549fc (14:52); its result was never collected and the chain that ran
+    again at 15:30 on a moved base had no carry, so keep_green never ran and the whole ladder waited behind seg-hang. A READY range
+    is remembered for the lane's next chain."""
+    seen = _kept_chain(chain, monkeypatch, ("guards",))
+    assert chain() == 0 and seen == [], "the first chain has nothing to keep"
+    assert chain() == 0
+    assert seen == [("b" * 40, ["fichero-builder/x.py"], HEAD)], "the READY range's base, files and head reach keep_green"
+    assert chain.calls[-3][0] == "check" and chain.calls[-3][1][1] == ("guards",), "only the rung the delta can change runs"
+    assert json.loads((chain.tmp / "s" / "green-n1.json").read_text())["base"] == "c" * 40, "the new READY is remembered in its place"
+
+
+def test_a_kept_check_with_nothing_to_run_again_takes_no_ladder_slot(chain, monkeypatch):
+    """A kept green with no rung to re-run waits behind no other lane's file-overlap hold."""
+    _kept_chain(chain, monkeypatch, ())
+    slots = []
+    real = work.ladder_slot
+    monkeypatch.setattr(work, "ladder_slot", lambda name, files, n, **k: (slots.append(name), real(name, files, n, **k))[1])
+    assert chain() == 0 and slots == ["n1"], "the first chain takes a slot"
+    assert chain() == 0 and slots == ["n1"], "the kept chain does not"
+
+
 def test_keep_green_for_a_base_delta_that_shares_no_file_test_check_file_or_guard_with_the_batch_and_names_what_to_run_again(tmp_path):
     """The keep rule (manager 2026-11-24: 81 of 89 deltas were file-disjoint): the same patch, an ancestor move, and a delta touching none of:
     the batch's files, a test the batch ran (its changed tests, its whole-tests dirs), [check].check_paths, the guard glob. The delta then
