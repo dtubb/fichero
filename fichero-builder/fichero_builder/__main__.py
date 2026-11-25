@@ -151,6 +151,9 @@ def main(argv=None) -> int:
     dp.add_argument("--dry-run", action="store_true"), dp.add_argument("--gh", default="gh")
     dp.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml; gh runs from it")
     dp.add_argument("--state", help="where the journal and queue live (default: the owner's journal dir)")
+    gw = sub.add_parser("github-watch", help="one pass over GitHub (the tests and security workflows on the land branch, Xcode Cloud, the release branch's reds as info): alerts for what failed")
+    gw.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml; gh runs from it")
+    gw.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     q = sub.add_parser("queue", help="one long-running worker per lane, fed step by step: no action prints the steps; add; run (the owner-side loop; push only with --push); pause (no new step is fed); stop (the worker commits what is green and its session ends; the tree is kept); resume")
     q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell", "stop", "move", "park", "unpark", "drop", "landed", "moved", "said-done"])
     q.add_argument("--to", type=int, help="move: the step's new index in the lane's steps (below the cursor = next; past the end = last)")
@@ -328,6 +331,10 @@ def main(argv=None) -> int:
         from fichero_builder import triage
 
         return triage.main(a)
+    if a.cmd == "github-watch":
+        from fichero_builder import gh_watch
+
+        return gh_watch.main(a)
     if a.cmd == "deps":
         from fichero_builder import deps
 

@@ -281,6 +281,8 @@ class Procs:
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
     deps: Callable[[], int] | None = None  # `builder deps` once (local.deps.weekly); None = [deps] off
     deps_cfg: object = None  # its deps.Cfg: the day and hour it runs
+    gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
+    gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
 
 
@@ -1780,6 +1782,43 @@ def deps_when_due(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+GH_WATCH_LAST = "gh-watch.last"  # when `builder github-watch` last ran from the loop (epoch seconds)
+
+
+def gh_watch_when_due(procs: Procs, chains: dict | None) -> None:
+    """local.github.watch: every [github_watch].every_s, one pass in a BUILDS thread (a re-exec waits for it)."""
+    if procs.gh_watch is None or any(t.name == "gh-watch" and t.is_alive() for t in BUILDS):
+        return
+    marker = journal.STATE / GH_WATCH_LAST
+    try:
+        if time.time() - float(marker.read_text()) < procs.gh_watch_s:
+            return
+    except (OSError, ValueError):
+        pass
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(f"{time.time()}\n")
+
+    def run_it():
+        try:
+            procs.gh_watch()
+        except Exception:  # noqa: BLE001 - a failed pass is a row, never the loop's death
+            journal.append("gh-watch", state="error", detail=traceback.format_exc()[-1000:])
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="gh-watch", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
+def gh_watch_job(root):
+    """The loop's `builder github-watch` with the owner's gh and texter; (None, 600) when [github_watch].enabled is not true."""
+    from fichero_builder import gh_watch
+
+    cfg = gh_watch.load(root)
+    return ((lambda: gh_watch.main_run(root, out=lambda s: None)) if cfg.enabled else None), float(cfg.every_s)
+
+
 def deps_cfg(root):
     from fichero_builder import deps
 
@@ -2018,6 +2057,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
     reconcile_when_due(procs, chains)
     uv_prune_when_due(procs, chains)
     deps_when_due(procs, chains)
+    gh_watch_when_due(procs, chains)
     if not busy:
         verify_when_idle(procs, chains)
         if getattr(procs, "root", ""):  # housekeeping at a quiet tick: the ladders' old scratch dirs (run.scratch-sweep)
@@ -2831,7 +2871,7 @@ def real_procs(root) -> Procs:
         return models.for_role(mdl, lane["role"]).model if lane.get("role") else builder
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
-                 drop_index=drop_index, deps=deps_job(root), deps_cfg=deps_cfg(root), uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
+                 drop_index=drop_index, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),

@@ -1004,6 +1004,19 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   minor bump waits (one row); a pull request against another base is left alone; a land branch named main refuses the run.
   `--dry-run` prints what it would do and changes nothing. The loop runs it once on `[deps].day` at or after `[deps].hour`
   (after Dependabot's Monday run) when `[deps].enabled = true`; absent, the job is off. Tests: `fichero-builder/tests/test_deps.py`.
+- `local.github.watch` [OK] (owner ruling 2026-11-25: watching GitHub is the builder's job, not a manager habit; built
+  2026-11-25) — `builder github-watch` and a loop job every `[github_watch].every_s` (600) when `[github_watch].enabled = true`
+  (absent, off), with the manager's gh only. The tests workflow on the land branch: its newest completed run (a cancelled one
+  skipped) is judged by its jobs, and each failed job is one alert per (workflow, job, head) naming the failing tests from the
+  log's pytest FAILED/ERROR lines (a log GitHub drops still alerts, without names); a later run without that failed job clears
+  it; a run going past `stuck_min` (60) minutes is one alert. The security workflow: a failed job is one alert with its
+  failure annotations, and "not acquired by Runner" says GitHub capacity, not our code. Xcode Cloud: the newest build run of
+  `xcode_workflow` through Apple's ASC REST API (a token signed by openssl with `asc_key_path`; the key is never printed):
+  each failed action is one alert with its error and test-failure issues, warnings left out; a later build clears it.
+  Dependabot is `builder deps`'s. The release branch's red runs are one `gh-watch` info row a day, never an alert. Alerts are
+  the ordinary alert rows (lane "-"); the owner is texted only for one naming `owner_words` (release, TestFlight). Tests:
+  `fichero-builder/tests/test_gh_watch.py` (from 2026-11-25's Tests run 45676804358, Security run 45667437823 and Xcode Cloud
+  build 3).
 
 - `local.loop.follows-landed-code` [OK] (#6589; built 2026-11-25) — the loop never runs older code than the rules it pins. On
   2026-11-25 a landing added a `[check]` key; the loop re-pinned the new rules, and its own older checkout refused every check
