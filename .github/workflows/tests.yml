@@ -1,10 +1,14 @@
 name: Tests
 
-# Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.test-workflow). REPORT-ONLY at first: every job is
-# continue-on-error, so a red run is read (by people and by `builder check`, ci.builder-reads-actions) but blocks nothing.
+# Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.test-workflow, ci.python-tiers, ci.swift-on-actions).
+# REPORT-ONLY: every job is continue-on-error, so a red run is read (by people and by `builder check`, ci.builder-reads-actions)
+# but blocks nothing. One job per tier, so a red names its tier. A push to a lane-* branch runs the Python tiers only: the Macs
+# own Swift for lane checks; the Swift job runs on pull requests, integration pushes and by hand.
 on:
   pull_request:
     branches: ['integration']
+  push:
+    branches: ['lane-*', 'integration']
   workflow_dispatch:
 
 permissions:
@@ -16,7 +20,7 @@ concurrency:
 
 jobs:
   engine:
-    name: Engine unit suite and spec guards
+    name: Engine unit tier and spec guards
     runs-on: macos-15
     timeout-minutes: 60
     continue-on-error: true
@@ -42,16 +46,86 @@ jobs:
         working-directory: fichero-server
         run: uv run --frozen pytest tests/unit -q -p no:cacheprovider
 
-  swift:
-    name: Swift build and unit tests
+  contracts:
+    name: Engine contract tier
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
-      - name: Build and test (scheme Dev Local, macOS)
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: fichero-server/uv.lock
+      - name: Install the engine
+        working-directory: fichero-server
+        run: uv sync --frozen
+      - name: Contract tests
+        working-directory: fichero-server
+        run: uv run --frozen pytest tests/contracts -q -p no:cacheprovider
+
+  builder:
+    name: Builder's own suite
+    runs-on: macos-15
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: fichero-builder/pyproject.toml
+      - name: Builder tests
+        working-directory: fichero-builder
+        env:
+          PYTHONPATH: .
+        run: uv run --no-project --python 3.12 --with pytest python -m pytest tests -q -p no:cacheprovider
+
+  swift:
+    name: Swift build and unit tests
+    if: github.event_name != 'push' || github.ref == 'refs/heads/integration'
+    runs-on: macos-26
+    timeout-minutes: 90
+    continue-on-error: true
+    env:
+      XCODE_MAJOR: '27'  # the project's LastUpgradeCheck and deployment targets are 27: an older Xcode cannot build it
+      DERIVED: ${{ github.workspace }}/.ci/DerivedData
+      PACKAGES: ${{ github.workspace }}/.ci/SourcePackages
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        id: xcode
+        run: |
+          app="$(ls -d /Applications/Xcode_${XCODE_MAJOR}*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$app" ]; then
+            have="$(ls -d /Applications/Xcode*.app 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
+            echo "::notice title=Swift NOT RUN::this hosted runner has no Xcode ${XCODE_MAJOR} (it has: ${have:-none}); the Swift build and tests did not run, which is not a green"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sudo xcode-select -s "$app/Contents/Developer"
+          xcodebuild -version
+          echo "available=true" >> "$GITHUB_OUTPUT"
+      - name: DerivedData and SwiftPM cache
+        if: steps.xcode.outputs.available == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            .ci/DerivedData
+            .ci/SourcePackages
+          key: swift-${{ runner.os }}-xcode${{ env.XCODE_MAJOR }}-${{ hashFiles('fichero/fichero.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: swift-${{ runner.os }}-xcode${{ env.XCODE_MAJOR }}-
+      - name: Build (scheme Dev Local, macOS)
+        if: steps.xcode.outputs.available == 'true'
         run: |
           set -o pipefail
-          xcodebuild test -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" \
-            -destination 'platform=macOS' -skipPackagePluginValidation -skipMacroValidation \
-            CODE_SIGNING_ALLOWED=NO | tail -n 200
+          xcodebuild build-for-testing -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" -testPlan fichero \
+            -destination 'platform=macOS' -derivedDataPath "$DERIVED" -clonedSourcePackagesDirPath "$PACKAGES" \
+            -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO | tail -n 200
+      - name: Swift unit tests
+        if: steps.xcode.outputs.available == 'true'
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" -testPlan fichero \
+            -only-testing:FicheroTests -destination 'platform=macOS' -derivedDataPath "$DERIVED" \
+            -clonedSourcePackagesDirPath "$PACKAGES" CODE_SIGNING_ALLOWED=NO | tail -n 200

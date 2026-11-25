@@ -44,44 +44,72 @@ it. Spec-change: owner 2026-11-20.
 
 ## Test workflow
 
-- `ci.test-workflow` [PARTIAL] (#6600; the file and its shape test are in the tree, no run of it on GitHub has been read yet) — `.github/workflows/tests.yml` runs on pull requests to `integration`, report-only (every job is
-  `continue-on-error`, so a red run blocks nothing until the maintainer has read a few weeks of results). Job `engine`
-  (macos-15, arm64; uv with its cache keyed on `fichero-server/uv.lock`) runs every `scripts/check_spec_*.py` guard and
-  then `pytest tests/unit` in `fichero-server`. Job `swift` (macos-15) builds the `Fichero (Dev Local)` scheme and runs its
-  unit tests with signing off. Public repositories pay nothing for these minutes; the first runs are the measure of whether
-  the Swift job fits in a run the builder can wait for, and if it does not it is split or moved to Xcode Cloud (see
-  `reviews/2026-11-20-ci-review.md`). Acceptance: the workflow triggers on `pull_request` to `integration`, has exactly
-  the jobs `engine` and `swift`, both `continue-on-error` on `macos-15`, and the engine job enables the uv cache.
-  Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job` in fichero-server/tests/unit/scripts/.
-
-## Dependency and security audits
-
-- `ci.dependency-audit` [PARTIAL] (#6600) — one auditor reads both sides, not one per language: osv-scanner reads the engine's
-  `fichero-server/uv.lock` and both Swift `Package.resolved` files (the app project's, which Dependabot cannot read, and
-  the api-client package's), and `security_rung.read_osv` in `fichero-builder/fichero_builder/security_rung.py` turns
-  its findings into the rung's rows. pip-audit is not added: it would read the same advisories for the Python lock
-  alone. Swift advisories arrive the same way, and as Dependabot security alerts for the api-client package. Built:
-  the reader, the pinned version and the workflow step. Left: `harness.toml [check.security] osv = false`, so neither
-  the rung nor the workflow runs it today; it is switched on when the open alerts are cleared. Acceptance: with
-  `osv = true` a vulnerable pin in a fixture lock is a red row naming the package and the advisory, for the Python
-  lock and for a `Package.resolved`; with `osv = false` the row says not run, never green.
+- `ci.test-workflow` [PARTIAL] (#6600; the file and its shape test are in the tree, no run of it on GitHub has been read yet) — `.github/workflows/tests.yml` runs on pull requests to `integration`, on pushes to `lane-*` branches and to
+  `integration`, and by hand; report-only (every job is `continue-on-error`, so a red run blocks nothing until the maintainer
+  has read a few weeks of results). The Python tiers (`ci.python-tiers`) run on every trigger; the Swift job
+  (`ci.swift-on-actions`) does not run on a lane push, because the Macs own Swift for lane checks. Public repositories pay
+  nothing for these minutes. Acceptance: the workflow triggers on `pull_request` to `integration` and on `push` to `lane-*`
+  and `integration`, has exactly the jobs `engine`, `contracts`, `builder` and `swift`, all `continue-on-error`, and the
+  Python jobs enable the uv cache. Built (2026-11-25): the triggers and jobs above. Test:
+  `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job` in fichero-server/tests/unit/scripts/.
 
 ## Python test tiers on Actions
 
-- `ci.python-tiers` [GAP] (#6600) — GitHub Actions runs every Python tier a hosted runner can, one job per tier, so the
-  builder can read each by name. Built: the engine's `tests/unit` tier and the `check_spec_*` guards
-  (`ci.test-workflow`). Left: the builder's own suite (`fichero-builder/tests`) and the engine's contract tier
-  (`fichero-server/tests/contracts`) have no job. The integration and perf tiers need models, libraries and a quiet
-  machine and stay on the Macs. Acceptance: `tests.yml` has one job per tier it runs, named for the tier, and the
-  shape test in `fichero-server/tests/unit/scripts/test_github_ci_files.py` names each.
+- `ci.python-tiers` [PARTIAL] (#6600; the jobs and their shape test are in the tree, no run of them on GitHub has been read yet) —
+  GitHub Actions runs every Python tier a hosted runner can, one job per tier, in parallel, so a red names its tier and the
+  builder can read each by name. The jobs (macos-15, arm64; uv with its cache): `engine`, the engine's `tests/unit` tier with the
+  `check_spec_*` guards as its own `Spec guards` step (kept in this job because `ci.builder-reads-actions` reads exactly the
+  `engine` job's `Spec guards` and `Unit tests` steps; a separate guards job would run them twice); `contracts`, the engine's
+  `tests/contracts`; `builder`, the builder's own suite (`cd fichero-builder && python -m pytest tests -q`, stdlib plus pytest,
+  uv's cache keyed on `fichero-builder/pyproject.toml`). The integration and perf tiers need models, libraries and a quiet
+  machine and stay on the Macs. Acceptance: `tests.yml` has one job per tier it runs, named for the tier, each with a cached uv,
+  none gated off a trigger. Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_each_python_tier_is_its_own_job_with_cached_uv_and_the_engine_job_keeps_the_steps_the_builder_reads`.
+
+## Swift on Actions
+
+- `ci.swift-on-actions` [PARTIAL] (#6600; the job and its shape test are in the tree, no run of it on GitHub has been read yet) —
+  job `swift` of `tests.yml` builds the app scheme `Fichero (Dev Local)` (the one that does not embed the engine) with
+  `build-for-testing` and runs the Swift unit tests (`-testPlan fichero -only-testing:FicheroTests`; never the UI plans), signing
+  off, on the newest hosted macOS runner (`macos-26`). It selects its Xcode explicitly: the project needs Xcode 27
+  (`LastUpgradeCheck = 2700`, deployment targets 27), so the job looks for `/Applications/Xcode_27*.app` and `xcode-select`s it;
+  when the hosted image has none, a `Swift NOT RUN` notice names the Xcodes it has and every later step is skipped, so the job is
+  not red and not green. DerivedData and the cloned Swift packages are cached under `.ci/`, keyed on the app project's
+  `Package.resolved` and the Xcode major. It runs on pull requests, integration pushes and by hand, never on a lane push.
+  Acceptance: the shape test below. Test:
+  `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_the_swift_job_selects_its_xcode_says_not_run_without_it_caches_by_package_resolved_and_skips_lane_pushes`.
 
 ## Xcode Cloud
 
-- `ci.xcode-cloud-swift-only` [GAP] (#6600) — Xcode Cloud, if it is used, builds and tests Swift only: the app schemes and
-  the Swift test target. It never runs Python: no engine tests, no guards, no engine (Briefcase) build. Python stays on
-  GitHub Actions and the Macs. Nothing is configured today: the tree holds no Xcode Cloud workflow or script, and the
-  Swift job runs on Actions (`ci.test-workflow`) until its measured time says it should move. Acceptance: a custom
-  script added for Xcode Cloud starts no Python interpreter, and a test of the CI files says so.
+- `ci.xcode-cloud-swift-only` [PARTIAL] (#6600; the repository side is in the tree, the App Store Connect side is the owner's
+  and not done) — Xcode Cloud, if it is used, builds and tests Swift only: the app schemes and the Swift test target. It never
+  runs Python: no engine tests, no guards, no engine (Briefcase) build. Python stays on GitHub Actions and the Macs.
+  Built (2026-11-25): `fichero/ci_scripts/ci_post_clone.sh` (beside the project, where Xcode Cloud looks): it refuses a
+  scheme that embeds the engine (`*Embedded*`, `App Store`) with its name, trusts the packages' plugins and macros, and starts
+  no Python interpreter. Acceptance: every `ci_scripts/ci_*.sh` starts no Python and is executable. Test:
+  `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_xcode_cloud_scripts_never_start_python`.
+
+  The workflows (what runs on which trigger):
+
+  | Workflow | Start condition | Scheme | Actions |
+  | --- | --- | --- | --- |
+  | `Swift PR` | a pull request to `integration` whose changes touch `fichero/` | `Fichero (Dev Local)` | Build (macOS); Test (macOS) with test plan `fichero` (`FicheroTests` only) |
+  | `Swift integration` | a push to `integration` touching `fichero/` | `Fichero (Dev Local)` | Build (macOS and iOS); Test (macOS) with test plan `fichero` |
+  | (none) | lane branches, schedules, tags | — | lane checks stay on the Macs; UI plans and the embedded and App Store schemes never run here |
+
+  Budget: the free tier is 25 compute hours a month. At about 15 to 25 minutes a run (a measured run will say), that is roughly
+  60 to 100 runs a month, so the file-change condition matters: a PR that touches only `fichero-server/`, `scripts/` or docs
+  starts no Xcode Cloud run. If a month's usage passes 20 hours, `Swift integration` is the one to switch off first; GitHub
+  Actions (`ci.swift-on-actions`) stays the second reading.
+
+  The owner's clicks (App Store Connect and Xcode; no worker or script does these):
+  1. Xcode: open `fichero/fichero.xcodeproj`, Product > Xcode Cloud > Create Workflow, choose the `Fichero` app product, and
+     grant Xcode Cloud access to the GitHub repository when asked (App Store Connect > Xcode Cloud > Settings > Source Code).
+  2. Edit the workflow: name it `Swift PR`; Environment: the Xcode 27 release, macOS latest; Start Conditions: remove the default
+     branch condition, add Pull Request Changes, source branch any, target branch `integration`, Files and Folders: `fichero/`.
+  3. Actions: remove the default Archive; add Build (platform macOS, scheme `Fichero (Dev Local)`) and Test (platform macOS,
+     scheme `Fichero (Dev Local)`, test plan `fichero`); Post-Actions: none.
+  4. Duplicate it as `Swift integration`: Start Condition Branch Changes on `integration`, files `fichero/`; add Build for iOS.
+  5. App Store Connect > Users and Access > Xcode Cloud usage: note the month's compute hours after the first week.
 
 ## Repository settings
 
@@ -124,6 +152,6 @@ it. Spec-change: owner 2026-11-20.
 | bandit, semgrep, gitleaks, osv-scanner | the `scanners` job of `security.yml`, the same way | otherwise |
 | CodeQL | code scanning alerts for the head, listed for the reviewer | never run locally; never a gate in the builder |
 | Dependabot | its pull requests and alerts live on GitHub | nothing in the builder reads them yet |
-| Builder's own tests, contract tier | not yet (`ci.python-tiers`) | yes |
+| Builder's own tests, contract tier | not yet read (`ci.python-tiers` runs them as jobs `builder` and `contracts`) | yes |
 | Pinned checks, ready, diff bound, red-on-base, the build rung, Swift tests, perf, review | never | always |
 | Nightly verify, DMG, notarize, smoke, publish | never | always |
