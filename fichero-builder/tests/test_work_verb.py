@@ -610,7 +610,7 @@ def _early_chain(chain, monkeypatch, later_red: bool):
         chain.calls.append(("check", since, head))
         work.check_tool.ON_RUNG[0]("red-on-base", True, [{"name": "ready", "ok": True}, {"name": "red-on-base", "ok": True}])
         assert not (Path(ladder).parent / (Path(ladder).name + ".partial")).exists(), "not after red-on-base: no guard has run yet (reviews 199, 207, 263, 275)"
-        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base")] + [
+        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base", "unit")] + [
             {"name": "guards", "ok": True, "results": [{"name": "check_a", "ok": True}, {"name": "check_b", "ok": True}]},
             {"name": "security", "ok": True}, {"name": "contract-current", "ok": True}, {"name": "since-guards", "ok": True}]
         work.check_tool.ON_RUNG[0]("since-guards", True, cheap)
@@ -638,7 +638,7 @@ def test_the_early_review_is_told_which_rungs_still_run_beside_it(chain, monkeyp
     file names the rungs still to come, in the ladder's order."""
     _early_chain(chain, monkeypatch, later_red=False)
     assert chain() == 0
-    assert chain.pending == ["build", "perf"], "only the build and the perf measurement run beside the review"
+    assert chain.pending == ["build", "ui", "perf"], "only the build, the ui rung and the perf measurement run beside the review"
     assert chain.guard_results == [2], "the reviewer reads every guard's result (the partial is written after since-guards)"
 
 
