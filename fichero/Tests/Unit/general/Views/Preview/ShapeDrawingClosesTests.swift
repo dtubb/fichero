@@ -11,7 +11,7 @@ struct ShapeDrawingClosesTests {
     private let three: [[Double]] = [[0.1, 0.1], [0.3, 0.1], [0.3, 0.2]]
 
     private func drawing(_ points: [[Double]], kind: SegmentShapes.DrawKind = .polygon) -> WindowState {
-        let state = WindowState()
+        let state = WindowState(libraryId: LibraryManager.globalLibraryId)
         state.shapeKind = kind
         state.drawingPoints = points
         return state

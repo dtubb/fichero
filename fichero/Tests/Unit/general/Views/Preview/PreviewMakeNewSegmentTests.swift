@@ -6,7 +6,7 @@ import Testing
 struct PreviewMakeNewSegmentTests {
     @Test("Escape during a ⌥-dragged box abandons it, once")
     func escapeAbandonsTheBox() {
-        let windowState = WindowState()
+        let windowState = WindowState(libraryId: LibraryManager.globalLibraryId)
         windowState.boxDrawing = true
         #expect(windowState.abandonDrawing())
         #expect(!windowState.boxDrawing)

@@ -8,6 +8,7 @@
 //
 
 @testable import Fichero
+import FicheroAPIClient
 import XCTest
 
 @MainActor
