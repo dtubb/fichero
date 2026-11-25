@@ -532,6 +532,22 @@ Hands and ink
   as two separate facts. **The engine keeps them apart** (the attribution names the hand; its `created_by` and
   `provenance_kind` name who judged -- `test_hands.py::test_the_hand_is_not_who_made_the_record`); the Inspector
   does not show either yet.
+- `source.hand.assign-from-every-surface` — **[PARTIAL]** (#5161; owner 2026-11-24) a hand is assigned wherever the text
+  is: the selection's hand verbs (a hand from the list, New Hand…, Remove Hand) are in the segment row menu, the Reader's
+  line menu and Edit › Segments ▸ Hand, with ⌃⌘H attributing the selection to the hand last chosen; one segment is
+  `hand.attribute`, several are one `hand.attribute_many`, Remove Hand is `hand.unattribute` or one `hand.unattribute_many`
+  (the file's attribution too, kept in the record), each one audit row and one ⌘Z. *Acceptance:* select two lines of an
+  imported page, choose a hand from the row menu, and both lines carry it with one ⌘Z taking it back. *Test:*
+  `fichero-server/tests/unit/api/test_hands_from_every_surface_5161.py` (the calls, on a real imported papyrus),
+  `fichero/Tests/Unit/general/Models/HandAssignmentTests.swift` (the call each surface builds; Swift, not run by the worker).
+  Built 2026-11-25 (#5161): the row menu and the Reader's line menu (`HandMenu`), Edit › Segments ▸ Hand with ⌃⌘H and
+  Remove Hand. Not built: the Source pane's menu, a hand picker on a shortcut, the toolbar icon, the Inspector's own
+  verbs on a multi-selection, listing a hand's attributions from a menu, and the ⌃⌘H chord not yet checked against the
+  menu bar's other chords.
+- `source.hand.mixed-selection-shows-mixed` — **[PARTIAL]** (#5161; owner 2026-11-24) the selection's hand is shown: "No hand",
+  the hand's label, "a + b" when every segment has the same, "Mixed" when they differ
+  (`HandAssignment.summary`, `HandAssignmentTests.swift`). Built in the Hand menu's title; not yet in the Inspector.
+
 - `source.campaign.ordered` — **[PARTIAL]** (#4935) a source has ordered campaigns; segments belong to one; campaigns can
   share characters.
   **Built engine-side:** `campaign.create` (ordered by `sequence`), `campaign.assign`, which moves a segment into exactly one and undoes (`fichero-server/tests/unit/api/test_campaigns.py::test_campaigns_are_ordered_and_a_segment_belongs_to_one_moves_and_undoes`). Characters are shared by two campaigns' segments overlapping, not by one segment in two. **Missing:** the app shows none of it yet.
