@@ -275,8 +275,8 @@ filters Activity by `model:`.
   languages, period, material, licence, size, memory, published accuracy, where it runs, its cost and `source_url` (its own page,
   checked against its Zenodo or Hub pin); `Card` carries `cost` and `source_url`. Six cards are added from their own pages
   (read 2026-11-24): the Kraken readers CATMuS Print, CATMuS Gothic Print, TRIDIS v2 and Sophro Mhiro on Zenodo, and the MLX
-  readers Qwen3-VL 8B and Gemma 3 4B on the Hub. They state no memory, so they are `offered_only` (offered to compare, never
-  chosen by the rules). Apple Intelligence's card and the cloud cards the finder makes carry a cost in words and a link to
+  readers Qwen3-VL 8B and Gemma 3 4B on the Hub. They state no memory, so they are `offered_only`: `assemble._choose` drops every
+  `offered_only` card before it ranks, so the rules never choose one; they are offered to compare only. Apple Intelligence's card and the cloud cards the finder makes carry a cost in words and a link to
   Apple's or the provider's models page. **Not built:** a card shown with these facts in the window (the finder's
   `ModelCandidate` does not carry `cost` or `source_url` yet); the cloud providers' current vision models as their own cards
   with prices (cloud cards come from the person's provider rows); measured accuracy (it is the person's, from a bake-off, so the
