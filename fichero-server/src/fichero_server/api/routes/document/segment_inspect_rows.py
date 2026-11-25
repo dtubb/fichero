@@ -82,14 +82,11 @@ def rows_for_levels(levels: list[str]) -> tuple[str, list[str]]:
 
 def _seen_codes(db: Database, rows: list[Segment]) -> dict[str, list[str]]:
     """What the selection's pages already state for language and script: the codes a person would pick again (one read)."""
-    ids = sorted({row.document_id for row in rows})
-    marks = ", ".join("?" for _ in ids)
-    found = db.execute_fetchall(
-        f"SELECT DISTINCT language, script FROM segments WHERE document_id IN ({marks}) AND deleted_at IS NULL", ids
-    )
+    found = db.query_fields_in(Segment, ["language", "script", "deleted_at"], "document_id", {row.document_id for row in rows})
+    found = [r for r in found if r.deleted_at is None]
     return {
-        "language": sorted({r[0] for r in found if r[0]}),
-        "script": sorted({r[1] for r in found if r[1]}),
+        "language": sorted({r.language for r in found if r.language}),
+        "script": sorted({r.script for r in found if r.script}),
     }
 
 
