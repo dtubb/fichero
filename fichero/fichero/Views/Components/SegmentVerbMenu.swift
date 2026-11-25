@@ -38,6 +38,7 @@ struct SegmentVerbMenu: View {
         if ids.count >= 2 {
             Button("Join") { run("Join Lines", selectingJoined: true) { SegmentEdit.join($0) } }
         }
+        RunStepOnSegmentsMenu(ids: ids)
         let kinds = ids.compactMap { id in segments.first { $0.id == id }?.kind }
         ForEach(Self.regionVerbs(kinds: kinds), id: \.self) { verb in
             Button(verb.title) { run(verb) }

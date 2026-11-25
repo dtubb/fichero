@@ -251,6 +251,7 @@ extension ZoomableImagePreview {
                 Button("New Region from Words") { promoteSelectedWords() }
             }
             if !selection.isEmpty {
+                if let documentId { RunStepOnSegmentsMenu(ids: selectedSegments(documentId).map(\.id)) }
                 // The Segment menu (#5157): kind, direction, text or furniture, on the selection.
                 SegmentAttributeMenu(apply: { setSelectedSegments($0) }, types: shownRegionTypes)
                 if selectionHasBaselines {
