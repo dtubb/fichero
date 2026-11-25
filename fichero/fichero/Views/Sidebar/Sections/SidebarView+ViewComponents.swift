@@ -283,7 +283,6 @@ extension SidebarView {
                     )
                 },
                 isAncestor: { ancestor, descendant in
-                    // Plain click only: ⌘/⇧ build a deliberate multi-selection (delete.target-is-the-selection-exactly).
                     guard Self.sidebarClickIsPlain, let item = cachedItem(id: ancestor.serializedID) else { return false }
                     return Self.sidebarItem(item, containsDescendantId: descendant.serializedID)
                 }

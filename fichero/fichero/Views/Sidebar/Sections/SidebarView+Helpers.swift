@@ -80,7 +80,7 @@ private func sidebarIndexItems(_ items: [SidebarItem], into index: inout [String
 }
 
 extension SidebarView {
-    /// True unless Command or Shift is held; iOS has no such modifiers on a tap.
+    /// True unless Command or Shift is held: those build a deliberate multi-selection (delete.target-is-the-selection-exactly).
     static var sidebarClickIsPlain: Bool {
         #if os(macOS)
         let modifiers = sidebarClickModifiers()
