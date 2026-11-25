@@ -371,7 +371,8 @@ def test_the_ladder_runs_the_pinned_guards_not_the_workers_copies(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "add a failing guard")
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert not r["ok"] and r["failed"] == "guards"
-    assert [x["name"] for x in r["rungs"][-1]["results"] if not x["ok"]] == ["lint_new"]
+    guards = next(x for x in r["rungs"] if x["name"] == "guards")  # the cheap rungs after it still report (49b9cfb59c), so it is not the last
+    assert [x["name"] for x in guards["results"] if not x["ok"]] == ["lint_new"]
 
 
 def test_no_rung_sees_the_workers_home_or_a_real_base_path(tmp_path, monkeypatch):
