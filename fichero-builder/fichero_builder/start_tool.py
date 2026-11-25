@@ -98,7 +98,7 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     if subprocess.run([*wt, "config", "--get", "extensions.worktreeConfig"], capture_output=True, text=True).stdout.strip() != "true":
         # the one write to the repo's shared config file, once per repo, under a lock named for that repo (two starts in two repos never meet)
         common = subprocess.run([*wt, "rev-parse", "--path-format=absolute", "--git-common-dir"], capture_output=True, text=True, check=True).stdout.strip()
-        with journal.Lock("git-config-" + hashlib.sha1(common.encode()).hexdigest()[:12], what=f"worktreeConfig of {common}"):
+        with journal.Lock("git-config-" + hashlib.sha1(common.encode(), usedforsecurity=False).hexdigest()[:12], what=f"worktreeConfig of {common}"):
             subprocess.run([*wt, "config", "extensions.worktreeConfig", "true"], check=True)
     for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
         subprocess.run([*wt, "config", "--worktree", k, v], check=True)  # this worktree's own config.worktree file: no lock
