@@ -2067,3 +2067,42 @@ def test_a_conflict_when_the_next_step_is_sent_goes_to_the_live_session_not_a_bl
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert any(t.startswith("brief 1.2") and "Conflicting files" in t for t in fake.sent), fake.sent
     assert _alerts() == [] and [r for r in journal.read() if r.get("state") == "conflict-told"]
+
+
+APP_BUGS_TEST = "fichero-server/tests/unit/execution/test_a_failed_jobs_reason_is_its_kinds_words_6597.py"
+APP_BUGS_WHAT = ("red-on-base at {h}: .html | ====================== KNOWN BROKEN, SPECIFIED, NOT FIXED ====================== | 9 tests "
+                 "describe behaviour the code does not have yet. | Open: #4395, #4420, #5113, #5134, #5794 | Listed in tests/known_specification_failures.txt "
+                 "— this is debt, not a pass. | 1 pas")
+
+
+def test_a_worker_lanes_red_on_base_approve_holds_at_the_same_head_from_the_ladders_file_names(state, tmp_path):
+    """2026-11-25, app-bugs nightly-green-1: approved at 11:37:32 (alert -1863, red-on-base at f8dd07262, the test passes on base), asked
+    AGAIN at 12:33 (alert -1869) at the SAME head. The alert's text named only ".html"; the test file was in the ladder alone; and a
+    worker lane's step has no head, so the content binding was never read. The approve now names the ladder's files and binds on the
+    tree's HEAD."""
+    wt, g = _ext_repo(tmp_path, commits=0)
+    (wt / APP_BUGS_TEST).parent.mkdir(parents=True)
+    (wt / APP_BUGS_TEST).write_text("def test_words():\n    assert True\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a test that passes on base")
+    head = g(wt, "rev-parse", "HEAD")
+    queue.add("app-bugs", str(wt), "nightly-green-1", str(state / "b1.1"), [])
+    ladder = state / "ladder-app-bugs.json"
+    ladder.write_text(json.dumps({"ok": False, "rungs": [{"name": "red-on-base", "ok": False, "reason": "NOT RED ON BASE",
+                                                         "stdout_tail": f"{APP_BUGS_TEST} passes on base\n1 passed, 77 warnings in 1.01s"}]}))
+    red = {"ok": False, "kind": "red-on-base", "approvals": ["approve_red"], "evidence": str(ladder), "why": APP_BUGS_WHAT.format(h=head[:9])}
+    fake = Fake(chains={"nightly-green-1": [dict(red)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(journal.STATE)]) == 0
+    s = next(x for x in queue.load() if x["id"] == "app-bugs")["steps"][0]
+    assert s["head"] == "" and APP_BUGS_TEST in s["approved_tests"], "the ladder's file, at its full path"
+    assert s["approved_test_blobs"][APP_BUGS_TEST]["head"] == g(wt, "rev-parse", f"{head}:{APP_BUGS_TEST}")
+    assert APP_BUGS_TEST in queue.content_approvals(s, str(wt), "origin/integration")["approve_red"]
+    s2 = {**s, "approve_red": False}  # the head's own flag spent (the 11:52 re-check): the content binding alone still holds
+    assert queue.content_approvals(s2, str(wt), "origin/integration")["approve_red"] == (APP_BUGS_TEST,)
+
+
+def test_named_files_drop_a_cut_off_copy_of_a_longer_name():
+    said = "weakens existing tests (...chero-server/tests/unit/jobs/test_a.py"
+    ladder = "fichero-server/tests/unit/jobs/test_a.py: 2 asserts fewer"
+    assert queue.named_files(said, ladder, r"\.py") == ["fichero-server/tests/unit/jobs/test_a.py"]

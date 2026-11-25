@@ -746,6 +746,11 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   binds each file of its diff by that file's own patch-id: a later refusal whose named files have the same per-file diff is approved
   by itself, whatever other files (the batch's tests, the base) changed. Tests: `fichero-builder/tests/test_loop.py::test_a_red_on_base_approve_binds_the_test_the_ladder_file_names_when_the_alert_line_names_none`,
   `::test_a_pinned_approve_holds_when_only_files_the_refusal_does_not_name_changed`, `::test_refused_files_reads_every_named_path`.
+  Fixed 2026-11-25 (app-bugs nightly-green-1, approved as alert -1863 and asked again as -1869 at the same head f8dd07262): a
+  worker lane's step has no head until a chain is green, so the binding is read at the tree's HEAD; the approved file set is read
+  from the ladder's red rows before the alert's cut-off line, at full paths (a name that is the tail of a longer one found is
+  dropped); a path in neither tree binds nothing. Tests: `::test_a_worker_lanes_red_on_base_approve_holds_at_the_same_head_from_the_ladders_file_names`,
+  `::test_named_files_drop_a_cut_off_copy_of_a_longer_name`.
 - `local.check.stale-base-guards` [OK] (#6589) — when every red guard is a shrink-only allowlist's "no longer occurs" and the lane's
   base is older than the pinned copy's commit (integration now), the guards run again over head merged with that commit (a throwaway
   merge commit, never a branch); green there is green with the reason said and one `stale-base-guards` row. A lane already on the

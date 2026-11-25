@@ -1246,6 +1246,14 @@ def refused_files(findings: str) -> list[str]:
     return list(dict.fromkeys(named))
 
 
+def named_files(said: str, ladder: str, ext: str) -> list[str]:
+    """The files an approve names (2026-11-25, app-bugs nightly-green-1, alerts 1863/1869): the ladder's own red rows first, since an
+    alert's one-line text is cut to 300 characters and named only ".html" or a path's tail ("chero-server/tests/..."). A name that is
+    the tail of a longer name found is a cut-off copy of it and is dropped."""
+    found = list(dict.fromkeys(re.findall(r"[\w/][\w./-]*" + ext + r"\b", ladder + "\n" + said)))
+    return [f for f in found if not any(o != f and o.endswith(f) for o in found)]
+
+
 def evidence_text(path: str, cap: int = 20000) -> str:
     """What a red alert's ladder file says (its red rungs' output): the file names an alert's one-line `what` leaves out (#6589: a
     red-on-base approve named no test file, so it bound to nothing and was asked again after each of 13 rebases)."""
@@ -1353,8 +1361,8 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged first, never a newer step head (review)
                 h, repo_ = (at.group(1) if at else s.get("head", "")), s.get("land_tree") or lane["worktree"]
                 kind = "approve_weakened" if s.get("approve_kind") == "weakened-tests" or "approve_weakened" in (s.get("approvals") or ()) else "approve_red"
-                for f in dict.fromkeys(re.findall(r"[\w./-]+\.py", said + "\n" + evidence_text(a.get("evidence", "")))):
-                    if h and (fp := test_fingerprint(repo_, h, f)):
+                for f in named_files(said, evidence_text(a.get("evidence", "")), r"\.py"):
+                    if h and (fp := test_fingerprint(repo_, h, f)) and (fp.get("head") or fp.get("base")):  # a path in neither tree binds nothing
                         s.setdefault("approved_test_blobs", {})[f] = {**fp, "kind": kind}
             if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
@@ -1365,7 +1373,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                 # each approve replacing the last one's files); a new head starts empty
                 had = set(s.get("approved_tests") or ()) if s.get("approved_head") == s.get("head", "") else set()
                 s["approved_head"] = s.get("head", "")
-                s["approved_tests"] = sorted(had | set(re.findall(r"[\w./-]+\.(?:py|json)", said)))
+                s["approved_tests"] = sorted(had | set(named_files(said, evidence_text(a.get("evidence", "")), r"\.(?:py|json)")))
             if action == "approve":
                 _set_approval(s, s.get("approve_kind"), s.get("approvals"))
                 at_ = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged: the approve is remembered for it
@@ -2320,7 +2328,11 @@ def content_approvals(step: dict | None, repo: str, base_ref: str = BASE_REF) ->
         out["approve_red"] = tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True
     if _approved(step, "approve_weakened"):
         out["approve_weakened"] = True
-    bound, head = step.get("approved_test_blobs") or {}, step.get("head", "")
+    bound = step.get("approved_test_blobs") or {}
+    # a worker lane's step has no head until a chain is green (2026-11-25: app-bugs nightly-green-1 was approved at f8dd07262 and asked
+    # again at the SAME head, the binding never read): the tree's HEAD is the head the ladder will judge
+    head = step.get("head", "") or (subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "HEAD"],
+                                                   capture_output=True, text=True).stdout.strip() if bound else "")
     if not bound or not head:
         return out
     held: dict = {}
