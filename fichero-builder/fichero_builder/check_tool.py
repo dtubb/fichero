@@ -787,7 +787,7 @@ def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tre
     names = ", ".join(x.get("name", "?") for x in reds)
     journal.append("check", state="stale-base-guards", rung="guards", head=head, base=tip, detail=f"{names}: green on head merged with {tip[:9]}")
     return {**again, "reason": f"{names} reported allowlist entries that no longer occur on the lane's older base; on head merged with "
-                               f"the current base {tip[:9]} every guard is green (integration still needs those entries)", "stale_base": True}
+                               f"the current base {tip[:9]} every guard is green (the current base still needs those entries)", "stale_base": True}
 
 
 def _guards(root, cfg: Config) -> dict:
