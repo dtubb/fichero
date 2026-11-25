@@ -703,6 +703,11 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
 - `local.queue.session.console-shows-parts-and-session` [GAP] (#6589) — the console's lane rows list each step with its issues, "<n> parts" when it
   has more than one, and "session kept" or "session fresh". Acceptance:
   `fichero-builder/tests/test_queue_batch.py::test_the_lanes_steps_on_the_console_carry_their_parts_and_session`.
+- `builder.client.installs-as-a-package` [GAP] (#6589) — `fichero-builder/pyproject.toml` makes the builder installable with no dependencies: package
+  `fichero_builder`, `console.html` as package data, and the console script `builder = fichero_builder.__main__:main`. The install is editable
+  (`pip install -e fichero-builder`), because `pi/`, `agents/` and `prompts/` are read relative to the folder. Running from the folder with
+  `PYTHONPATH=. python -m fichero_builder` is unchanged. Acceptance: `fichero-builder/tests/test_install.py` (the entry function and package data
+  exist, `--help` runs from the folder, and, marked `slow`, `pip install -e` in a scratch venv gives `python -m fichero_builder --help` and `builder --help`).
 - `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
