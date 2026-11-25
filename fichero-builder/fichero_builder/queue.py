@@ -262,6 +262,8 @@ class Procs:
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
+    head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
+    descends: Callable[[dict, str], bool] = lambda lane, sha: bool(sha)  # lane, sha -> the tree's HEAD is the sha or a commit on it
     live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
@@ -499,7 +501,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             move(s, "queued", f"the worker ended {end!r}: a new session next tick")
             return True
     if h is None and (s["state"] == "sent" or (s["state"] == "queued" and lane["feed"])):  # no handle: this loop restarted; the old session may be up
-        if (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
+        mismatch = "" if s["state"] != "sent" else (f"the session was sent step {lane.get('session_step') or '-'}, the queue is at {s['step']}" if lane.get("session_step") != s["step"]
+                    else f"the tree's HEAD does not descend from the head the session was sent at ({(lane.get('session_head') or '-')[:9]})"
+                    if not procs.descends(lane, lane.get("session_head", "")) else "")  # a queued step's kept session holds no step
+        if mismatch:  # never adopt a session of another step or of a tree that moved under it
+            journal.append("queue", lane=lane["id"], step=s["step"], state="adopt-refused", detail=mismatch)
+        elif (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
             handles[lane["id"]] = adopted
             journal.append("queue", lane=lane["id"], step=s["step"], state="adopted", detail="a restarted loop took over the lane's live tmux window")
             return True
@@ -565,6 +572,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 procs.send(lane, Path(s.get("resume_brief") or s["brief"]).read_text())  # a send-back or a fix round writes it (review 2026-11-02: the finding never reached a live session)
         except (RuntimeError, OSError, ValueError, KeyError) as e:  # a refusal is a row, never a traceback
             return block(s, f"the step could not start: {e}")
+        lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)  # what an adopting loop checks (items: step and head must match)
         move(s, "sent", f"message {lane['seq']}")
         return True
     if s["state"] == "sent":
@@ -981,6 +989,59 @@ def done(lane_id: str, sha: str = "") -> str:
     if not why:
         close_alerts(lane_id, s["step"], f"superseded by the new head {sha[:9]}")
     return why
+
+
+def landed(lane_id: str, step: str, sha: str) -> str:
+    """`builder queue landed --lane --step --sha`: a landing made by hand (throughput review 2026-11-24, item 7). The lane's cursor step
+    is marked landed at `sha`, the cursor moves on and the step's open alerts are answered. '' or why it is refused."""
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha or ""):
+        why = f"{sha!r} is not a commit sha"
+    else:
+        with journal.Lock("queue"):
+            lanes = load()
+            lane = next((x for x in lanes if x["id"] == lane_id), None)
+            if lane is None:
+                why = f"no lane {lane_id!r}"
+            elif lane["cursor"] >= len(lane["steps"]) or lane["steps"][lane["cursor"]]["step"] != step:
+                why = f"{step!r} is not {lane_id}'s cursor step"
+            elif lane["steps"][lane["cursor"]]["state"] in IN_LADDER:
+                why = f"{lane_id} {step} is in the ladder ({lane['steps'][lane['cursor']]['state']}): let it finish, or stop the lane"
+            else:
+                why = ""
+                s = lane["steps"][lane["cursor"]]
+                s.update(state="landed", head=sha, why=f"landed by hand at {sha[:9]}", entered_at=_now())
+                s.pop("settling", None)
+                lane["cursor"] += 1
+                lane["feed"] = ""
+                save(lanes)
+    journal.append("queue", lane=lane_id, step=step if not why else "-", state="landed" if not why else "landed-refused", detail=why or f"landed by hand at {sha[:9]}")
+    if not why:
+        close_alerts(lane_id, step, f"landed by hand at {sha[:9]}")
+    return why
+
+
+MECHANICAL = re.compile(r"holds a live session|a live session runs in tmux window|said DONE with no commit")  # the two alerts the manager answered `retry` to, unread
+
+
+def auto_retry_mechanical() -> list[str]:
+    """Throughput review 2026-11-24, item 7 (54 plain `retry` answers): an open alert that says "live session" or "DONE with no commit"
+    is answered `retry` once per lane and step by the loop itself, with an `auto-retry` row. The second one is a person's."""
+    rows = journal.read()
+    answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+    tried = {(r.get("lane"), r.get("step")) for r in rows if r.get("event") == "auto-retry"}
+    out = []
+    for a in rows:
+        if a.get("event") != "alert" or a["id"] in answered or not MECHANICAL.search(a.get("what", "")) or "retry" not in a.get("actions", []):
+            continue
+        key = (a.get("lane"), a.get("step"))
+        if key in tried:
+            continue
+        tried.add(key)
+        journal.append("auto-retry", lane=a["lane"], step=a["step"], id=a["id"], detail=a["what"][:200])
+        code, _ = answer(a["id"], "retry")
+        if code == 0:
+            out.append(a["id"])
+    return out
 
 
 def close_alerts(lane_id: str, step: str, why: str) -> list[str]:
@@ -1767,6 +1828,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             if x.get("kind") == "external" and not x.get("hold") and cur in ("queued", "landed") and (sha := procs.intake(x)):
                 why = done(x["id"], sha)
                 out(f"{x['id']}: intake at {sha[:9]}" + (f" refused: {why}" if why else ""))
+        for aid in auto_retry_mechanical():  # the two mechanical alerts, once each (throughput review 2026-11-24, item 7)
+            out(f"{aid}: retried by the loop")
         took = feed(procs, lanes_n, out) if feed_milestones else False  # the verb: only when [loop].feed_milestones (manager 2026-11-04)
         busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took
         if heartbeat:  # dev-workflows.run.loop: a watchdog reads the gap between these
@@ -2283,6 +2346,8 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
+                 head_of=lambda lane: lane_head(lane["worktree"]),
+                 descends=lambda lane, sha: bool(sha) and _cg(lane["worktree"], "merge-base", "--is-ancestor", sha, "HEAD").returncode == 0,
                  live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
@@ -2544,6 +2609,11 @@ def main(a) -> int:
             p.chmod(0o644)
             save(lanes)
         journal.append("queue", lane=a.lane, step="-", state="told", detail=text[:300])
+        return 0
+    if a.action == "landed":  # a landing made by hand: the cursor step is landed at --sha
+        if why := landed(a.lane or "", a.step or "", getattr(a, "sha", "") or ""):
+            print(f"REFUSED: {why}")
+            return 1
         return 0
     if a.action == "stop":  # pause = no new step is fed; stop = the session ends (the loop closes it after the grace)
         with journal.Lock("queue"):

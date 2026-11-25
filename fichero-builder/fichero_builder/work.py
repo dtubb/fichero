@@ -148,11 +148,13 @@ def do_rebase(a, branch: str) -> str:
     lane's own trailers. One `rebake` journal row each."""
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
     before = as_worker(a, f"{g} -C {wt} rev-parse HEAD").stdout.strip()
-    cmd = f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q origin/{q(branch)}"
+    cmd = f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q --autostash origin/{q(branch)}"
     r = as_worker(a, cmd)
     if r.returncode and NETWORK_BLIP.search(r.stderr or r.stdout or ""):  # manager 2026-11-08: a GitHub blip is not a conflict; once more
         time.sleep(NETWORK_RETRY_S)
         r = as_worker(a, cmd)
+    if r.returncode == 0 and "autostash resulted in conflicts" in (r.stdout or "") + (r.stderr or ""):  # the unstaged edits no longer apply on the new base
+        return f"the rebase onto origin/{branch} went through but the tree's unstaged changes conflict with it (kept in the stash): {(r.stderr or r.stdout).strip()[-300:]}"
     if r.returncode == 0:
         return regen(a, branch, before)
     cfg = check_tool.load(a.pinned)

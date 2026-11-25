@@ -26,6 +26,7 @@ def _restarted_with_a_lost_handle(state, adopt):
     lane(state)
     fake = Fake()
     fake.procs.adopt = adopt
+    fake.procs.head_of, fake.procs.descends = (lambda ln: "h0"), (lambda ln, sha: sha == "h0")  # the session's step and head match the queue
     queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)  # the old loop starts the session
     assert fake.starts and steps()["1.1"]["state"] == "sent"
     handles: dict = {}  # the restarted loop has no handle
