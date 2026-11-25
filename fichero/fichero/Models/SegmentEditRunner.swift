@@ -37,6 +37,8 @@ struct SegmentEditRunner {
                 NotificationCenter.default.post(name: SegmentEditRunner.didChange, object: documentId)
             }
         )
+        // A line whose shape changed is read again by itself, after a pause (`SegmentReread`).
+        store.noteShapeEdited(SegmentReread.affectedIds(call))
         return result
     }
 }

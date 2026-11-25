@@ -171,7 +171,10 @@ struct ReaderLineRow: View {
         }
         .correctThisLine($correcting)
         .overlay(alignment: .bottomLeading) {
-            if let deleteNote { Text(deleteNote).font(.caption).foregroundStyle(.secondary).padding(4) }
+            VStack(alignment: .leading, spacing: 2) {
+                if let deleteNote { Text(deleteNote).font(.caption).foregroundStyle(.secondary).padding(4) }
+                StaleReadingNote(segmentId: segment.id)
+            }
         }
         // Page › Segments › Correct This Line… on the selected line (#5652), the same verb as this row's menu.
         .focusedSceneValue(\.lineVerbs, lineVerbsTarget)
