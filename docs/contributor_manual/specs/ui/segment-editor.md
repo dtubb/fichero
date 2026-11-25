@@ -360,14 +360,14 @@ targets are at least 44 pt.
 - `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
   (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
   union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
-  the region takes the lines' own parent, so lines inside a region make a region nested in it; lines under different
-  parents are refused with the reason). **Ungroup Region** (the same menus, no chord: ⇧⌘G shows or hides Items) sends a
+  the region takes the lines' own parent, so lines inside a region that keeps other lines make a region nested in it; when the
+  selected lines are every line of their region, that region is left empty and is deleted in the same edit and the new region
+  takes its place, with no question asked; lines under different parents are refused with the reason). **Ungroup Region** (the same menus, no chord: ⇧⌘G shows or hides Items) sends a
   region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
-  each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
-  same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
-  *Tests:* `test_segment_group_lines.py`; `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
-  *Not built:* the new region open for its type; the "replace the old region when every line of it
-  is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
+  each is the other's undo: undoing a group deletes the region (and brings back the region it emptied), undoing an ungroup
+  brings the same region back with the same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
+  *Tests:* `test_segment_group_lines.py` (including the emptied region's delete, undo and redo); `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
+  *Not built:* the new region open for its type; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
 - `segment-editor.make-region-in-every-menu` — **[OK]** (#6737, #7070; app) Make Region from Lines (two or more selected
   segments) and Ungroup Region (a selected region) are in every menu that lists the verbs: the Segment menu, the page's

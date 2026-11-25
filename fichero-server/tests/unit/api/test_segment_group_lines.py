@@ -46,12 +46,37 @@ def test_three_lines_become_one_region_with_three_children_and_the_union_box(db,
     assert len([a for a in db.all(ActionAudit) if a.action_name == "segment.group_lines"]) == 1
 
 
-def test_lines_inside_a_region_make_a_region_nested_in_it(db):
-    _, _, region_one, _, line, other = _page(db)
+def test_lines_inside_a_region_that_keeps_other_lines_make_a_region_nested_in_it(db):
+    doc, pass_row, region_one, _, line, other = _page(db)
+    _segment(db, doc, pass_row, "line", parent=region_one.id, y=0.55)
     result = _group(db, [line, other])
     new = db.get(Segment, result.result["region_id"])
     assert new.parent_segment_id == region_one.id
     assert db.get(Segment, line.id).parent_segment_id == new.id
+    assert db.get(Segment, region_one.id).deleted_at is None
+
+
+def test_grouping_every_line_of_a_region_deletes_that_region_and_undo_and_redo_bring_it_back(db, client):
+    from tests.unit.api.test_segment_redo_of_drawn_and_converted import _undo as _undo_audit
+
+    _, _, region_one, _, line, other = _page(db)
+    result = _group(db, [line, other])
+    new_id = result.result["region_id"]
+    new = db.get(Segment, new_id)
+    assert db.get(Segment, region_one.id).deleted_at is not None, "the old region is left with no lines, so it goes"
+    assert new.parent_segment_id is None, "the new region takes the old region's place"
+    assert [db.get(Segment, r.id).parent_segment_id for r in (line, other)] == [new_id, new_id]
+    assert len([a for a in db.all(ActionAudit) if a.action_name == "segment.group_lines"]) == 1
+
+    undone = _undo_audit(client, result.audit_id)
+    assert db.get(Segment, region_one.id).deleted_at is None
+    assert db.get(Segment, new_id).deleted_at is not None
+    assert [db.get(Segment, r.id).parent_segment_id for r in (line, other)] == [region_one.id] * 2
+
+    _undo_audit(client, undone)
+    assert db.get(Segment, region_one.id).deleted_at is not None
+    assert db.get(Segment, new_id).deleted_at is None
+    assert [db.get(Segment, r.id).parent_segment_id for r in (line, other)] == [new_id] * 2
 
 
 def test_lines_of_two_regions_are_refused_and_nothing_is_made(db):
@@ -122,7 +147,8 @@ def test_the_lines_keep_their_reading_order_in_the_new_region_and_undo_and_ungro
     result = _group(db, [line, other, stray])
     new_id = result.result["region_id"]
     assert _children(db, order_id, new_id) == [line.id, other.id, stray.id], "order kept inside the new region"
-    assert _children(db, order_id, region_one.id) == [new_id]
+    assert db.get(Segment, region_one.id).deleted_at is not None
+    assert region_one.id not in [row.segment_id for row in entries_in_sequence(db, order_id)], "the emptied region left the order"
 
     _undo(client, result)
     assert _children(db, order_id, region_one.id) == before
@@ -134,3 +160,22 @@ def test_the_lines_keep_their_reading_order_in_the_new_region_and_undo_and_ungro
     assert again.audit_id
     top = [row.segment_id for row in entries_in_sequence(db, order_id)]
     assert top.index(line.id) < top.index(other.id) < top.index(stray.id), "the lines stay in order on the page"
+
+
+def test_redo_of_a_group_that_emptied_a_region_keeps_the_orders_right(db, client):
+    from fichero_server.api.routes.document.reading_orders import AS_WRITTEN
+    from tests.unit.api.test_segment_reassign_by_drag import _children
+    from tests.unit.api.test_segment_redo_of_drawn_and_converted import _undo as _undo_audit
+
+    doc, pass_row, region_one, _, line, other = _page(db)
+    order_id = registry.invoke(
+        db, "reading_order.create",
+        {"document_id": doc.id, "pass_id": pass_row.id, "name": AS_WRITTEN, "seed_from_pass": True}, _person(),
+    ).result["order_id"]
+    result = _group(db, [line, other])
+    new_id = result.result["region_id"]
+    undone = _undo_audit(client, result.audit_id)
+    assert _children(db, order_id, region_one.id) == [line.id, other.id]
+    _undo_audit(client, undone)
+    assert _children(db, order_id, new_id) == [line.id, other.id]
+    assert db.get(Segment, region_one.id).deleted_at is not None
