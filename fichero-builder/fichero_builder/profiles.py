@@ -20,11 +20,12 @@ class ProfileError(Exception):
 
 
 def trailer(model: str, harness: str, root=None) -> str:
-    """`Written-By: <MODEL> using <HARNESS> using Fichero Builder`, MODEL the display name `harness.toml` [models.display] gives the
+    """`Written-By: <MODEL> using <HARNESS> using <[policy].product>`, MODEL the display name `harness.toml` [models.display] gives the
     alias the worker was started with; a name it does not list passes through unchanged."""
     toml = Path(root or REPO) / "harness.toml"
-    names = (tomllib.loads(toml.read_text()) if toml.is_file() else {}).get("models", {}).get("display", {})
-    return f"Written-By: {names.get(model, model)} using {harness} using Fichero Builder"
+    doc = tomllib.loads(toml.read_text()) if toml.is_file() else {}
+    names = doc.get("models", {}).get("display", {})
+    return f"Written-By: {names.get(model, model)} using {harness} using {doc.get('policy', {}).get('product', 'Fichero Builder')}"
 
 
 def private_text(text: str, boundary: list[str]) -> list[str]:
