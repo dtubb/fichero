@@ -164,6 +164,8 @@ def conflict_text(a, branch: str, files: list[str], applying: str) -> str:
 AUTOSTASH_KEPT = re.compile(r"autostash resulted in conflicts|applying them\s+resulted in conflicts")
 NETWORK_BLIP = re.compile(r"unable to access|Could not resolve host|Failed to connect|Connection (timed out|reset)|early EOF")
 NETWORK_RETRY_S = 20
+REF_LOCK_RACE = re.compile(r"cannot lock ref '[^']+': is at [0-9a-f]+ but expected [0-9a-f]+")
+REF_LOCK_TRIES, REF_LOCK_RETRY_S = 3, 2
 
 
 def do_rebase(a, branch: str) -> str:
@@ -181,6 +183,11 @@ def do_rebase(a, branch: str) -> str:
     r = as_worker(a, cmd)
     if r.returncode and NETWORK_BLIP.search(r.stderr or r.stdout or ""):  # manager 2026-11-08: a GitHub blip is not a conflict; once more
         time.sleep(NETWORK_RETRY_S)
+        r = as_worker(a, cmd)
+    for i in range(REF_LOCK_TRIES):  # two fetches into the shared object repo at once (2026-11-25, alerts 1883, 1892-1894): a race, never a conflict
+        if not (r.returncode and REF_LOCK_RACE.search(r.stderr or r.stdout or "")):
+            break
+        time.sleep(REF_LOCK_RETRY_S * (i + 1))
         r = as_worker(a, cmd)
     said = (r.stdout or "") + (r.stderr or "")
     # the unstaged edits no longer apply on the new base. The autostash is left in the stash list; git's wording changed (2.56: "applying

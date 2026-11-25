@@ -400,6 +400,30 @@ def test_a_github_blip_in_the_rebase_is_retried_once_not_called_a_conflict(scrat
     assert len(calls) == 2 and calls[0] == calls[1], "the same fetch and rebase ran once more"
 
 
+REF_LOCK = ("error: cannot lock ref 'refs/remotes/origin/integration': is at 9ec20974b532c93201fe4c89a111bb191677d7f4 "
+            "but expected a40008b70825b0faf7f0b11a5ae4e47e6b512313")
+
+
+@pytest.mark.parametrize("races,ok", [(2, True), (4, False)])
+def test_a_ref_lock_race_in_the_fetch_is_retried_not_called_a_conflict(scratch, monkeypatch, races, ok):
+    """2026-11-25, alerts 1883, 1892-1894: two fetches into the shared object repo at once; the loser's rebase was called a conflict."""
+    monkeypatch.setattr(work, "REF_LOCK_RETRY_S", 0)
+    real, calls = work.as_worker, []
+
+    def racing(a, cmd, *args, **kw):
+        if " fetch -q origin && " in cmd:
+            calls.append(cmd)
+            if len(calls) <= races:
+                return subprocess.CompletedProcess(cmd, 1, "", REF_LOCK)
+        return real(a, cmd, *args, **kw)
+
+    monkeypatch.setattr(work, "as_worker", racing)
+    _commit(scratch.wt, "mine")
+    _commit(scratch.engine, "theirs")
+    why = work.do_rebase(scratch.a, "integration")
+    assert (why == "") is ok and len(calls) == min(races + 1, 1 + work.REF_LOCK_TRIES)
+
+
 def test_a_failed_rebase_is_a_question_before_patches(chain, monkeypatch, capsys):
     monkeypatch.setattr(work, "do_rebase", lambda a, branch: "conflict in f")
     assert chain() == 2

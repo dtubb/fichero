@@ -1172,6 +1172,9 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   keeps the ladder for a hand run. Tests: `fichero-builder/tests/test_work_verb.py::test_rebase_puts_the_worktree_on_top_of_the_branch_another_lane_moved`,
   `::test_a_rebase_conflict_is_aborted_and_said_never_resolved`,
   `::test_a_github_blip_in_the_rebase_is_retried_once_not_called_a_conflict` (a fetch or rebase that fails with a network error (unable to access, could not resolve host, failed to connect, connection timed out or reset, early EOF) is retried once after 20 s, never reported as a conflict left to a person; #6116, manager 2026-11-08),
+  `::test_a_ref_lock_race_in_the_fetch_is_retried_not_called_a_conflict` (a fetch that loses a race for the shared object repo's
+  remote ref, "cannot lock ref ...: is at X but expected Y", is retried up to 3 times with a short backoff before anything is said;
+  manager 2026-11-25, four such reds in one day),
   `fichero-builder/tests/test_main.py::test_land_with_a_green_check_row_runs_the_verdict_and_boundary_only_never_the_ladder_again`.
 - `dev-workflows.tool.spec` [PARTIAL] (#6116) (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
   `[models]` as a worker whose brief is the spec template, the issue and the spec guards' rules; the result is one spec
