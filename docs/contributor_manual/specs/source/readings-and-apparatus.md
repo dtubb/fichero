@@ -148,6 +148,23 @@ hand, with certainty and the author of that judgement. Several scholars can disa
 A hand is not provenance. Provenance says who made the *record* (a model, a person, a
 workflow run). Both are kept, separately, always.
 
+#### What the person sees: assigning a hand (#5161)
+
+- **Opener.** Select one or more lines and open the segment row menu (Order list), the Reader's line menu, or the menu bar's
+  Edit › Segments ▸ Hand. The submenu is titled "Hand: <summary>": "No hand", the hand's label, "a + b", or "Mixed".
+  ⌃⌘H attributes the selection to the hand chosen last, without opening a menu.
+- **Contents.** The project's hands (one button each), then New Hand… (asks for a name, creates the hand, attributes the
+  selection to it), then Remove Hand.
+- **Empty.** With no hands in the project the list is just New Hand… and Remove Hand; Remove Hand is dimmed when no selected
+  line has a hand. The title reads "No hand".
+- **Loading.** The hands and the selection's attributions are read when the menu appears and whenever the selection changes;
+  until they arrive the menu is in the empty state above. There is no spinner.
+- **Error.** If the hands list cannot be read it is shown empty; a line whose attributions cannot be read counts as having
+  none. A failed create, attribute or remove shows "That did not happen: <reason>" and changes nothing.
+- **Acceptance.** Select two lines of an imported page, choose a hand from the row menu: both lines carry it, the title
+  reads that hand's label, and one ⌘Z takes both back. Select a line with hand A and one with hand B: the title reads
+  "Mixed".
+
 ### Campaigns
 
 One patch of page can carry several **campaigns of writing**: the main ink; the rubric; vowel
