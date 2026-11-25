@@ -55,9 +55,12 @@ def label_prefix(root=None) -> str:
 
 
 def scripts_dir(root=None) -> Path:
-    """[harness].scripts_dir: where harness_*.py live (default: the checkout holding this package)."""
+    """[harness].scripts_dir: where harness_*.py live. Default: the checkout's scripts/ (thin wrappers that exec the package copy) when
+    the package runs from a checkout that has them, else the package's own scripts/."""
     v = _get(root, "harness", "scripts_dir", "")
-    return (Path(CHECKOUT if root is None else root) / v) if v else CHECKOUT / "scripts"  # a relative value is relative to root; an absolute one wins
+    if v:
+        return Path(CHECKOUT if root is None else root) / v
+    return CHECKOUT / "scripts" if (CHECKOUT / "scripts" / "harness_start.py").is_file() else PACKAGE / "scripts"  # a relative value is relative to root; an absolute one wins
 
 
 def script(root, name: str, default: Path) -> Path:

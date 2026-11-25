@@ -159,7 +159,7 @@ def test_the_ready_checks_commit_cap_is_max_commits_from_the_trees_harness_toml_
     repo = Path(__file__).resolve().parents[4]
     w = tmp_path / "w"
     (w / "scripts").mkdir(parents=True)
-    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    shutil.copy(repo / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "C", "GIT_AUTHOR_EMAIL": "noreply@anthropic.com",
            "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com", "FICHERO_PYTHON_BIN": sys.executable}
 
@@ -1233,7 +1233,7 @@ def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_
     repo = Path(__file__).resolve().parents[4]
     w = tmp_path / "w"
     (w / "scripts").mkdir(parents=True)
-    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    shutil.copy(repo / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
     (w / "harness.toml").write_text('[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
     (w / "pipeline" / "projects").mkdir(parents=True)
     (w / "pipeline" / "projects" / "fichero.toml").write_text('[repo]\npython_path = "."\n[[ladder]]\nname = "fast-guards"\nskip = []\n')

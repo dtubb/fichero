@@ -84,7 +84,7 @@ def scratch(tmp_path, monkeypatch):
     (repo / "tests").mkdir()
     (repo / "tests" / "test_base.py").write_text("from src.mod import base\n\ndef test_base():\n    assert base() == 0\n")
     (repo / "scripts").mkdir()
-    shutil.copy(ROOT / "scripts" / "lane_ready_check.sh", repo / "scripts" / "lane_ready_check.sh")
+    shutil.copy(ROOT / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh", repo / "scripts" / "lane_ready_check.sh")
     (repo / "fichero-builder" / "fichero_builder").mkdir(parents=True)
     shutil.copy(ROOT / "fichero-builder" / "fichero_builder" / "lint.py", repo / "fichero-builder" / "fichero_builder" / "lint.py")
     (repo / "scripts" / "check_no_bad.py").write_text(GUARD)

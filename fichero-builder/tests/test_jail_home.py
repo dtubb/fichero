@@ -29,6 +29,6 @@ def test_harness_start_keeps_the_worker_users_own_home():
     """#6466: the loop starts the worker with `sudo -H`, so HOME is the worker's own home: the token file, ~/.claude.json and the
     session files `builder run` watches are all there. A start script that moved HOME to the workroot put the session files where
     `builder run` never looks (2026-11-07: sessions under the workroot's .claude), so it never saw a DONE."""
-    text = (Path(__file__).resolve().parents[2] / "scripts" / "harness_start.py").read_text()
+    text = (Path(__file__).resolve().parents[2] / "fichero-builder" / "fichero_builder" / "scripts" / "harness_start.py").read_text()
     assert "use_worker_home" not in text and 'environ["HOME"]' not in text
     assert "find_claude(Path.home(), jail.workroot)" in text, "claude is looked for on PATH, then in the worker's own ~/.local/bin, then the workroot's"

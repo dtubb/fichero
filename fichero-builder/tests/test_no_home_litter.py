@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULES = sorted((ROOT / "fichero-builder" / "fichero_builder").glob("*.py")) + sorted((ROOT / "scripts").glob("harness_*.py"))
+MODULES = sorted((ROOT / "fichero-builder" / "fichero_builder").glob("*.py")) + sorted((ROOT / "fichero-builder" / "fichero_builder" / "scripts").glob("harness_*.py"))
 MAKERS = {"mkdtemp", "mkstemp", "mkdir", "NamedTemporaryFile", "TemporaryDirectory"}
 HOME_MARKERS = ("Path.home()", "expanduser", "environ[\"HOME\"]", "getenv(\"HOME\")")
 

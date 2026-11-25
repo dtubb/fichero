@@ -13,7 +13,7 @@ def test_the_hook_self_check_passes():
 
 def test_a_successor_keeps_the_builder_name_so_its_hooks_find_the_registry(tmp_path):
     import importlib.util
-    spec = importlib.util.spec_from_file_location("hh", ROOT / "scripts" / "harness_handoff_hook.py")
+    spec = importlib.util.spec_from_file_location("hh", ROOT / "fichero-builder" / "fichero_builder" / "scripts" / "harness_handoff_hook.py")
     hh = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hh)
     seen = []

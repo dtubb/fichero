@@ -2,7 +2,7 @@
 import subprocess
 from pathlib import Path
 
-SCRIPT = next(p for p in Path(__file__).resolve().parents if (p / "scripts" / "lane_ready_check.sh").exists()) / "scripts" / "lane_ready_check.sh"
+SCRIPT = next(p for p in Path(__file__).resolve().parents if (p / "scripts" / "lane_ready_check.sh").exists()) / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh"
 GOOD = "Written-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder"
 
 
