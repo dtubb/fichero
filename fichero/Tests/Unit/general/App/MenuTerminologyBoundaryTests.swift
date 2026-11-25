@@ -159,8 +159,12 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
                 "Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift",
             ]
         )
-        XCTAssertEqual(startSites, ["App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift"],
-                       "only the shared item starts a folder's run")
+        // The shared item starts a folder's run from a menu; `LibraryManager.runAgainOnMissed` is the one other
+        // caller, Run Again on what a finished run missed (`source.recipe.run-again-on-what-was-missed`, #6170).
+        XCTAssertEqual(startSites, [
+            "App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift",
+            "Models/LibraryManager+Operations.swift",
+        ], "only the shared item and Run Again on what was missed start a folder's run")
     }
 
     /// The one folder the recipe runs on, from a context menu and from the menu bar (#5540).
