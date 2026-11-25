@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/integration' }}  # integration: a running pass finishes (the engine takes ~25 min, pushes come faster); only the newest waiting run is kept
 
 jobs:
   # The Python tiers run on Linux (ci.python-tiers): Apple-only dependencies carry a darwin marker, so the same uv.lock
