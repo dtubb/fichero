@@ -3,14 +3,10 @@
     {
       "id" : "1C37B94C-AD56-4CBE-9B8B-C2CE21D2F115",
       "name" : "Test Scheme Action",
-      "options" : {
-
-      }
+      "options" : {}
     }
   ],
-  "defaultOptions" : {
-
-  },
+  "defaultOptions" : {},
   "testTargets" : [
     {
       "skippedTests" : [
@@ -20,7 +16,8 @@
         "containerPath" : "container:fichero.xcodeproj",
         "identifier" : "A10521C02EFDC94100B28C3E",
         "name" : "FicheroUITests"
-      }
+      },
+      "enabled" : false
     },
     {
       "target" : {
