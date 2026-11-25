@@ -49,6 +49,8 @@ def configure(root=".") -> None:
     f = pathlib.Path(root) / "harness.toml"
     land = tomllib.loads(f.read_text()).get("land", {}) if f.is_file() else {}
     REPO, DEFAULT_REF = land.get("repo", REPO), f"origin/{land['branch']}" if "branch" in land else DEFAULT_REF
+
+
 GH = "gh"  # the self-test and the unit tests point this at a fake
 DONE_TAGS = frozenset({"OK", "BUILT"})  # the specs use both words for a finished behaviour
 COMMENT_MARK = "<!-- issue-spec-reconcile -->"
@@ -664,7 +666,7 @@ not a bullet (#18)
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Reconcile open issues against spec lines and fix commits (dry run by default).")
-    ap.add_argument("--ref", default=DEFAULT_REF)
+    ap.add_argument("--ref", default=None, help="default origin/<[land].branch>")
     ap.add_argument("--tsv")
     ap.add_argument("--apply", action="store_true", help="apply the decisions in --tsv (dry run otherwise)")
     ap.add_argument("--self-test", action="store_true")
@@ -677,11 +679,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--landed", default="", help="the landed sha named in the comments (with --issues)")
     ap.add_argument("--link-apply", action="store_true", help="apply the safe milestone moves of the link audit")
     args = ap.parse_args(argv)
-    if args.ref == DEFAULT_REF:  # not named: the checkout's own land branch
-        configure()
-        args.ref = DEFAULT_REF
     if args.self_test:
         return self_test()
+    configure()  # always: the gh slug is the checkout's, whatever --ref says (the loop runs this in the owner's checkout)
+    args.ref = args.ref or DEFAULT_REF
     if args.link_audit:
         with open(args.link_audit, "w") as f:
             json.dump(link_audit(args.ref), f, indent=1)

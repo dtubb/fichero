@@ -211,3 +211,21 @@ def test_harness_name_renames_the_state_variable_and_directory(tmp_path):
     rules(copy, "")
     rules(other, '[harness]\nname = "evil"\nscripts_dir = "/opt/h"\n')
     assert run({}, other) == [str(tmp_path / "xdg" / "fichero-builder"), "FICHERO_BUILDER_STATE"]
+
+
+@pytest.mark.parametrize("argv", [["--issues", "1", "--ref", "abc1234", "--landed", "abc1234"], ["--issues", "1", "--ref", "origin/draft"]])
+def test_issue_reconcile_main_uses_the_configured_repo_with_any_ref(tmp_path, monkeypatch, argv):
+    from fichero_builder import issue_reconcile as ir
+    log = tmp_path / "gh.log"
+    gh = tmp_path / "gh"
+    gh.write_text(f"#!/bin/sh\necho \"$@\" >> {log}\necho '{{\"state\":\"OPEN\",\"labels\":[]}}'\n")
+    gh.chmod(0o755)
+    rules(tmp_path, '[land]\nrepo = "me/words"\nbranch = "draft"\n')
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ir, "GH", str(gh))
+    monkeypatch.setattr(ir, "REPO", ir.REPO)
+    monkeypatch.setattr(ir, "DEFAULT_REF", ir.DEFAULT_REF)
+    ir.main(argv)
+    calls = log.read_text().splitlines()
+    assert calls and all("-R me/words" in c for c in calls if "issue" in c), calls
+    assert not any("dtubb/fichero" in c for c in calls)
