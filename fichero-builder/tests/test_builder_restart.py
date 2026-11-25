@@ -172,3 +172,75 @@ def test_a_step_that_was_checking_before_a_restart_still_gets_the_automatic_spli
     queue.save(lanes)
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # the restarted loop: no handles
     assert "1.1-part2" in steps() and "m1-part2" in fake.sent[-1] + "".join(fake.sent)
+
+
+def test_a_restarted_loop_attaches_a_new_watcher_to_a_live_window_instead_of_alerting(state):
+    """local.run.sessions-survive-watchers: five "this loop cannot watch it" alerts on 2026-11-25; the session is watched again."""
+    lane(state)
+    fake = Fake()
+    fake.procs.adopt = lambda ln: None
+    fake.procs.live_windows = lambda ln: ["@7"]
+    attached = []
+    fake.procs.attach = lambda ln, st, w: attached.append((ln["id"], st["step"], st["state"], w)) or "watcher-2"
+    fake.procs.head_of, fake.procs.descends = (lambda ln: "h0"), (lambda ln, sha: sha == "h0")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    fake.seqs.clear()
+    handles: dict = {}
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert attached == [("m1", "1.1", "sent", "@7")] and handles == {"m1": "watcher-2"}
+    assert fake.stops == [] and steps()["1.1"]["state"] == "sent" and not [r for r in journal.read() if r["event"] == "alert"]
+    assert [r["detail"][:30] for r in journal.read() if r.get("state") == "attached"] == ["a restarted loop found the ses"]
+
+
+def test_a_watcher_that_exits_while_its_session_lives_is_re_attached_with_no_restart(state):
+    """2026-11-25: the loop ran from 11:12 with no restart, and run-seg-tools.log ended at 11:24 with `seg-tools: gone` while the
+    session lived on; the step was queued again beside it. Now the session gets a new watcher and the step stays sent."""
+    lane(state)
+    fake = Fake()
+    fake.procs.live_windows = lambda ln: ["@7"]
+    fake.procs.attach = lambda ln, st, w: "watcher-2"
+    handles: dict = {}
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    _feed("/w/feed")
+    fake.seqs.clear()
+    fake.alive_now = False  # the watcher process is gone; the window is not
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert handles == {"m1": "watcher-2"} and steps()["1.1"]["state"] == "sent" and steps()["1.1"]["restarts"] == 0
+    assert len(fake.starts) == 1, "no second session beside the live one"
+
+
+def test_a_kept_session_with_no_step_out_and_no_watcher_is_closed_and_the_step_sent_afresh(state):
+    lane(state)
+    fake = Fake()
+    fake.procs.adopt = lambda ln: None
+    windows = ["@7"]
+    fake.procs.live_windows = lambda ln: list(windows)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"] = "queued"  # the session idles at its prompt: nothing in flight
+    lanes[0]["feed"] = "/w/feed"
+    queue.save(lanes)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.stops == ["m1"] and [r for r in journal.read() if r.get("state") == "window-closed"]
+    assert not [r for r in journal.read() if r["event"] == "alert"]
+
+
+def test_said_done_records_a_managed_lanes_missed_done_at_its_trees_head_only(state):
+    """2026-11-25: `builder done` refuses a managed lane ("no external lane"); seven retries were spent on DONEs no watcher read."""
+    from fichero_builder import __main__ as cli
+    lane(state)
+    fake = Fake()
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    head = lambda ln: "eab0a2072e0000"  # noqa: E731
+    assert queue.said_done("m1", "1.1", "23462609bb", head) == "m1's tree is at eab0a2072, not 23462609b"
+    assert queue.said_done("m1", "1.2", "eab0a2072e", head) == "'1.2' is not m1's cursor step"
+    assert queue.said_done("m1", "1.1", "eab0a2072e", head) == ""
+    assert steps()["1.1"]["state"] == "done"
+    assert queue.said_done("m1", "1.1", "eab0a2072e", head) == "m1 1.1 is done, not sent"
+    assert cli.main(["queue", "said-done", "--lane", "m1", "--step", "1.1", "--sha", "zz", "--state", str(journal.STATE)]) == 1
+
+
+def _feed(path):
+    lanes = queue.load()
+    lanes[0]["feed"] = path
+    queue.save(lanes)

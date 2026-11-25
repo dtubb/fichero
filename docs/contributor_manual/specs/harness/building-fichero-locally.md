@@ -795,6 +795,24 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `test_queue_verb.py`, a queued step that never started is dropped with its reason in the row; a `sent` one is
   refused. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.run.sessions-survive-watchers` [OK] (#6589; built 2026-11-25) — a worker session outlives its `builder run` watcher (a
+  loop restart, or a watcher that exits on its own: on 2026-11-25 run-seg-tools.log ended at 11:24 with `seg-tools: gone` while the
+  session lived, with no restart), and the loop watches it again instead of alerting. A live window named for the lane whose step
+  is sent gets a new `builder run --attach <pane>` on the lane's existing feed and seq, with the head the step was sent at as its
+  base; it starts no session and reads a `DONE <sha>` already on screen at its first idle tick (2026-11-25 13:46: seg-tools and
+  builder-fixes sat at the prompt after `DONE eab0a2072e` and `DONE 23462609bb`, unread). A step past sent (done, checking,
+  reviewing, fixing, red) whose session has no watcher gets one with `--idle`, so its fix round is typed into the session. A
+  watcher that exits while its window lives is re-attached in the same tick, with no restart counted and no second session
+  started. A kept session with no step in flight and no watcher is closed and the step starts afresh. The "this loop cannot watch
+  it" alert stays only for a session that cannot be attached (another step's, a tree that moved, or an attach that fails).
+  `builder queue said-done --lane L --step S --sha SHA` records a managed lane's missed DONE by hand: the cursor step, sent, whose
+  tree's HEAD is that sha, goes to done (`builder done` stays the external lanes' verb). Tests:
+  `fichero-builder/tests/test_builder_restart.py::test_a_restarted_loop_attaches_a_new_watcher_to_a_live_window_instead_of_alerting`,
+  `::test_a_watcher_that_exits_while_its_session_lives_is_re_attached_with_no_restart`,
+  `::test_a_kept_session_with_no_step_out_and_no_watcher_is_closed_and_the_step_sent_afresh`,
+  `::test_said_done_records_a_managed_lanes_missed_done_at_its_trees_head_only`,
+  `fichero-builder/tests/test_dry_run.py::test_an_attached_watcher_starts_nothing_and_reads_a_done_already_on_screen`,
+  `::test_an_attached_watcher_with_no_step_out_waits_for_the_next_message`.
 - `local.run.rebase-conflict-fix-round` [OK] (#6589; built 2026-11-25) — when the loop's rebase of a lane onto origin's land
   branch stops on a conflict it cannot resolve itself (anything beyond the generated identity), it aborts the rebase as before
   and hands the conflict to the lane's worker instead of blocking: one fix round whose text names the conflicting files, the

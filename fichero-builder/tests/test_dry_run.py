@@ -547,3 +547,25 @@ def test_a_metered_role_parks_before_the_start_when_the_weeks_rows_reach_its_cap
     said = []
     assert run.run(root, root / "wt", root / "b.txt", name="w3", model="qwen", role="q", procs=Fake([HEALTHY]).procs, out=said.append) == "parked"
     assert "before the start" in said[0]
+
+
+def test_an_attached_watcher_starts_nothing_and_reads_a_done_already_on_screen(root):
+    """local.run.sessions-survive-watchers: 2026-11-25 13:46, seg-tools (hands-5161) had printed `DONE eab0a2072e` and sat at the
+    prompt with no watcher; the loop never read it. `builder run --attach` watches that pane and reads the DONE at the first idle tick."""
+    feed = root / "inbox"
+    feed.mkdir()
+    fake = Fake([{**HEALTHY, "idle": True, "turns": 9, "prompts": 4, "last_text": "work done\nDONE eab0a2072e"}], heads=("eab0a2072e",))
+    fake.procs.start = lambda *a: pytest.fail("an attached watcher starts no session")
+    end = run.run(root, root / "wt", root / "b.txt", name="seg-tools", procs=fake.procs, out=lambda s: None, feed=feed, seq=7,
+                  attach="%4", base_sha="23462609bb")
+    assert end == "gone"
+    assert [(r["seq"], r["sha"], r["moved"]) for r in journal.read() if r["event"] == "step"] == [(7, "eab0a2072e", True)]
+    assert [r.get("attached") for r in journal.read() if r["event"] == "worker"] == [True]
+
+
+def test_an_attached_watcher_with_no_step_out_waits_for_the_next_message(root):
+    feed = root / "inbox"
+    feed.mkdir()
+    fake = Fake([{**HEALTHY, "idle": True, "turns": 9, "prompts": 4, "last_text": "DONE eab0a2072e"}], heads=("eab0a2072e",))
+    run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed, seq=7, attach="%4", outstanding=False)
+    assert not [r for r in journal.read() if r["event"] == "step"], "the DONE on screen is the last step's, already recorded"

@@ -264,6 +264,7 @@ class Procs:
     watchdog: Callable[[list], list] | None = None  # lanes -> what the slow-work watchdog did (local.watchdog.slow-work); None = off
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
+    attach: Callable[[dict, dict, str], object | None] = lambda lane, step, window: None  # a new `builder run --attach` on a live window's session
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
     head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
     descends: Callable[[dict, str], bool] = lambda lane, sha: bool(sha)  # lane, sha -> the tree's HEAD is the sha or a commit on it
@@ -533,6 +534,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True  # its check or review is running in its own thread
     if h is not None and not procs.alive(h):
         del handles[lane["id"]]
+        if (s["state"] in ATTACHABLE and lane.get("feed") and procs.end_of(lane) not in ("parked", "lane-done")
+                and (hh := attach_live(lane, s, procs, "the session's watcher ended while the session lives"))):
+            handles[lane["id"]] = hh
+            return True
         h, lane["feed"], end = None, "", procs.end_of(lane)
         if end == "parked":
             PARKED.append(lane["id"])
@@ -552,6 +557,15 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         elif (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
             handles[lane["id"]] = adopted
             journal.append("queue", lane=lane["id"], step=s["step"], state="adopted", detail="a restarted loop took over the lane's live tmux window")
+            return True
+        if not mismatch and s["state"] == "sent" and (hh := attach_live(lane, s, procs, "a restarted loop found the session with no watcher")):
+            handles[lane["id"]] = hh
+            return True
+        if s["state"] == "queued" and lane["feed"] and procs.live_windows(lane):  # a kept session with no step out: closed, the step sent afresh
+            procs.stop(lane)
+            lane["feed"] = ""
+            journal.append("queue", lane=lane["id"], step=s["step"], state="window-closed", detail="a kept session with no step in flight and no watcher: closed; the step starts afresh")
+            store(lane)
             return True
         if wins := procs.live_windows(lane):  # #6850: a live session this loop cannot watch is told, never ended or started beside
             if s.get("live_window_alert") != wins:
@@ -628,6 +642,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)  # what an adopting loop checks (items: step and head must match)
         move(s, "sent", f"message {lane['seq']}")
         return True
+    if h is None and s["state"] in ATTACHABLE and s["state"] != "sent" and lane.get("feed") and not (chains or {}).get(lane["id"]) \
+            and (hh := attach_live(lane, s, procs, "the session of a step in flight had no watcher")):
+        handles[lane["id"]] = hh  # its next message (a fix round) reaches the session; the step itself goes on below
+        h = hh
     if s["state"] == "sent":
         row = procs.row(lane)
         if row is None:
@@ -2373,6 +2391,48 @@ def pid_alive(pid) -> bool:
     return True
 
 
+ATTACHABLE = ("sent", "said-done", "done", "checking", "reviewing", "fixing", "red")  # a step whose session may outlive its watcher
+
+
+def attach_live(lane: dict, s: dict, procs, why: str):
+    """local.run.sessions-survive-watchers (2026-11-25: five "this loop cannot watch it" alerts; seg-tools and builder-fixes sat at the
+    prompt after `DONE <sha>` with no watcher, and the loop never read it): a live window named for the lane gets a new `builder run
+    --attach` on the same feed, which reads a DONE already on screen. A handle, or None when there is no live window or no attach."""
+    wins = procs.live_windows(lane)
+    if not wins:
+        return None
+    hh = procs.attach(lane, s, wins[0])
+    if hh is not None:
+        journal.append("queue", lane=lane["id"], step=s["step"], state="attached", detail=f"{why}: a new watcher on window {wins[0]}")
+    return hh
+
+
+def said_done(lane_id: str, step: str, sha: str, head_of: Callable[[dict], str]) -> str:
+    """`builder queue said-done --lane --step --sha` (manager 2026-11-25): a managed lane's worker said `DONE <sha>` and no watcher
+    recorded it. The cursor step, sent, whose tree's HEAD is that sha, goes to `done` as the watcher's row would put it. '' or why not."""
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha or ""):
+        why = f"{sha!r} is not a commit sha"
+    else:
+        with journal.Lock("queue"):
+            lanes = load()
+            lane = next((x for x in lanes if x["id"] == lane_id), None)
+            s = lane["steps"][lane["cursor"]] if lane and lane["cursor"] < len(lane["steps"]) else None
+            if lane is None:
+                why = f"no lane {lane_id!r}"
+            elif s is None or s["step"] != step:
+                why = f"{step!r} is not {lane_id}'s cursor step"
+            elif s["state"] != "sent":
+                why = f"{lane_id} {step} is {s['state']}, not sent"
+            elif not (head := head_of(lane)) or not head.startswith(sha):
+                why = f"{lane_id}'s tree is at {head[:9] or 'an unreadable head'}, not {sha[:9]}"
+            else:
+                why = ""
+                s.update(state="done", why=f"DONE {sha[:9]} recorded by hand", entered_at=_now())
+                save(lanes)
+    journal.append("queue", lane=lane_id, step=step, state="done" if not why else "said-done-refused", detail=why or f"DONE {sha[:9]} recorded by hand")
+    return why
+
+
 def adopt_session(j, lane: dict):
     """#6589: a handle on the lane's live session, or None. Its `builder run` must still watch the lane's feed (an unwatched session
     reports no DONE and reads no message: that is the #6850 alert, never an adoption), and the session is alive when a window named
@@ -2421,7 +2481,7 @@ def real_procs(root) -> Procs:
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
     def start(lane, step):
-        a, q = ns(lane, step), shlex.quote
+        a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
         step["pinned"] = a.pinned  # local.pin.prune-keeps-live-pins: a landing's prune keeps the copy this session runs from
         a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
@@ -2457,13 +2517,34 @@ def real_procs(root) -> Procs:
         role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
         cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
                            *(("--role", role) if role else ()))
+        return spawn(j, lane, cmd)
+
+    def spawn(j, lane, cmd):
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         # #6869: the worker starts in a directory it made (the workroot is world-writable), and its TMPDIR and pytest's basetemp are inside it
-        own = q(str(Path(j.workroot) / f"work-{lane['id']}"))
+        own = shlex.quote(str(Path(j.workroot) / f"work-{lane['id']}"))
         env = f"export TMPDIR={own}/tmp PYTEST_ADDOPTS=--basetemp={own}/tmp/pytest"
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"mkdir -p {own}/tmp && [ -d {own} ] && [ ! -L {own} ] && [ -O {own} ] && cd {own} && {env} && {cmd}"],
                                 stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+
+    def attach(lane, step, window):
+        """local.run.sessions-survive-watchers: a `builder run --attach <pane>` on the lane's existing feed; None when it cannot."""
+        j = jail.load(root)
+        feed = Path(lane.get("feed") or "")
+        if j is None or not j.user or not lane.get("feed") or not (feed / "brief.txt").is_file():
+            return None
+        pane = tmux_as_worker(j, "display-message", "-p", "-t", window, "#{pane_id}").strip()
+        if not pane.startswith("%"):
+            return None
+        a = ns(lane, step)
+        a.pinned = step.get("pinned") or work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
+        a.root, a.brief = a.pinned, str(feed / "brief.txt")
+        role = lane.get("role", "")
+        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
+                           "--attach", pane, "--base", lane.get("session_head") or "", *(("--role", role) if role else ()),
+                           *(() if step["state"] == "sent" else ("--idle",)))
+        return spawn(j, lane, cmd)
 
     def send(lane, text):
         p = Path(lane["feed"]) / f"msg-{lane['seq']}.txt"
@@ -2592,7 +2673,7 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
-                 ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
+                 ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane),
@@ -2874,6 +2955,13 @@ def main(a) -> int:
             p.chmod(0o644)
             save(lanes)
         journal.append("queue", lane=a.lane, step="-", state="told", detail=text[:300])
+        return 0
+    if a.action == "said-done":  # local.run.sessions-survive-watchers: a managed lane's missed DONE, recorded by hand
+        if why := said_done(a.lane or "", a.step or "", getattr(a, "sha", "") or "",
+                            lambda lane: subprocess.run(["git", "-c", "safe.directory=*", "-C", lane["worktree"], "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()):
+            print(f"REFUSED: {why}")
+            return 1
+        print(f"{a.lane} {a.step}: done; the loop checks it")
         return 0
     if a.action == "landed":  # a landing made by hand: the cursor step is landed at --sha
         if why := landed(a.lane or "", a.step or "", getattr(a, "sha", "") or ""):

@@ -76,6 +76,9 @@ def main(argv=None) -> int:
     r.add_argument("--feed", help="the queue's lane: a folder only the owner writes; DONE ends the step, not the session; msg-<seq+1>.txt is typed into the same pane; `stop` ends it")
     r.add_argument("--role", default="", help="the lane's model role in [models] (queue add --role): its context is the window the handoff mark is taken from")
     r.add_argument("--seq", type=int, default=0, help="with --feed: the first brief's message number")
+    r.add_argument("--attach", default="", help="watch the live session in this tmux pane instead of starting one (a watcher that died; local.run.sessions-survive-watchers)")
+    r.add_argument("--base", default="", help="with --attach: the head the step was sent at")
+    r.add_argument("--idle", action="store_true", help="with --attach: no step is out (the session waits for its next message)")
     r.add_argument("--rules", help="the queue's <feed>/rules.json: the caps and [models], re-read every tick in place of --root's (#6851)")
     r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE, else <[jail].workroot>/state, else the XDG state home)")
     c = sub.add_parser("check", help="run the ladder over SINCE..HEAD from the pinned copy; exit 1 if red")
@@ -145,7 +148,7 @@ def main(argv=None) -> int:
     tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
     tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     q = sub.add_parser("queue", help="one long-running worker per lane, fed step by step: no action prints the steps; add; run (the owner-side loop; push only with --push); pause (no new step is fed); stop (the worker commits what is green and its session ends; the tree is kept); resume")
-    q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell", "stop", "move", "park", "unpark", "drop", "landed", "moved"])
+    q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell", "stop", "move", "park", "unpark", "drop", "landed", "moved", "said-done"])
     q.add_argument("--to", type=int, help="move: the step's new index in the lane's steps (below the cursor = next; past the end = last)")
     q.add_argument("--grace", type=float, default=300.0, help="stop: seconds the worker has to commit what is green before its session is closed")
     q.add_argument("--text", help="tell: the finding to put into the lane's live session"), q.add_argument("--file", help="tell: read the finding from this file")
@@ -713,7 +716,7 @@ def main(argv=None) -> int:
         procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
                       tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role, rules=a.rules,
-                      provider=a.provider if a.kind == "pi" else "claude-code")
+                      provider=a.provider if a.kind == "pi" else "claude-code", attach=a.attach, outstanding=not a.idle, base_sha=a.base)
     return 0 if end in ("done", "done-unsaid", "lane-done", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
 
 

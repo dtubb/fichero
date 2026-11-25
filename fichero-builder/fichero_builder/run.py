@@ -205,7 +205,7 @@ def _spent_today(name: str) -> float:
 
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
         tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0, role: str = "",
-        rules=None, provider: str = "") -> str:
+        rules=None, provider: str = "", attach: str = "", outstanding: bool = True, base_sha: str = "") -> str:
     """Start, then watch until the worker is done (idle, its last text ends with the brief's `DONE <sha>` line, and the
     worktree's HEAD is that sha and has moved from the start: a worker's words alone never end a run),
     parked (a cap or a provider refusal) or gone. Returns the end as a word.
@@ -216,7 +216,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     `step` row (task, seq, sha, moved) for the owner, then the worker idles until `msg-<seq+1>.txt` appears and is typed into
     the same pane, or `stop` appears (end "lane-done").
     `rules` (the queue's `<feed>/rules.json`): the caps are read from it at every tick, never from `root`; an unreadable read keeps
-    the last figures and says so once."""
+    the last figures and says so once.
+    `attach` (local.run.sessions-survive-watchers): watch a live session in that pane instead of starting one (its watcher died; the
+    session did not). `outstanding`: its step is still out, so a DONE line already on screen is read at the first idle tick;
+    `base_sha`: the head the step was sent at, so its commits count as moved."""
     spend = rules_of(root, rules, role)
     provider = provider_of(root, rules, role, provider or ("claude-code" if kind == "claude" else ""))
     label = {"role": role} if role else {}  # the journal rows of a role's worker say which role
@@ -236,9 +239,9 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
     register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend))
     gen = 1
-    base = procs.head()
-    pane = procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
-    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label)
+    base = base_sha or procs.head()
+    pane = attach or procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
+    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label, **({"attached": True} if attach else {}))
     started = last_change = procs.now()
     seen = None
     told: set[str] = set()
@@ -246,7 +249,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     base0, first_commit = base, None
     rules_bad = False  # the last read of the rules failed (one alert per spell)
     unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
-    outstanding, sent_turn = True, -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
+    outstanding, sent_turn = (outstanding if attach else True), -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
     # #6589 2026-11-20: a DONE counts only if printed after THIS message was delivered: a prompt arrived since it was sent (the session
     # file's `prompts`; a state without the count falls back to the turn count) and the last text is not the one on screen when it went out
     sent = {"prompts": -1, "text": "", "at": started, "words": "", "again": 0}
