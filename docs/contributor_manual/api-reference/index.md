@@ -1788,3 +1788,15 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/recipes/prepare-images/check` — Prepare Images' pages to check: every page with an open proposal, then one confident page in twenty.
 - `GET /api/recipes/prepare-images/facts` — what the Prepare Images card shows besides its questions: answers suggested from five sample pages, the time estimate on this Mac, and how many pages need a check.
 - `PUT /api/recipes/project/cloud-cap` — change the project's monthly cloud cap (`cap_usd`) and/or its total cap (`project_cap_usd`, or `clear_project_cap`) without touching the rest of Set Up; one audited, undoable step.
+
+## Sign-in by key, comments, own devices, model bookmarks and segment types (2026-11)
+
+- `POST /api/auth/key-challenge` — a nonce for any valid P-256 key, whether or not it is registered yet (`multiuser.second-device-by-synced-key`); the device signs it for `sign-in-by-key`.
+- `POST /api/auth/sign-in-by-key` — sign in with a trusted key from a device the engine has not seen: on the first success the engine registers that device.
+- `GET /api/kg/comments` — the live comments on one node, oldest first; a reply carries its `parent_id`.
+- `PUT /api/pair/own-devices` — turn signing in on your own devices on or off (`signin.own.*`, #6568); turning it on mints a new enrollment secret, stored only as a hash.
+- `POST /api/recipes/candidates/add` — add a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card, filled in from the Hub; never chosen by the recipe rules until it is set up.
+- `POST /api/recipes/candidates/bookmark` — keep a found card without downloading it (`models.bookmark.kept-not-added`, #5460).
+- `DELETE /api/recipes/candidates/bookmark` — let a bookmark go; refused (409), naming the step, while a step of the open project's recipe uses it.
+- `POST /api/segments/document/{doc_id}/text-layer` — a PDF page's regions, lines and words as segments from its own text layer, with no model run.
+- `GET /api/segments/document/{doc_id}/types` — the region types the editor's Type menu and the Inspector's Type row offer for this page.
