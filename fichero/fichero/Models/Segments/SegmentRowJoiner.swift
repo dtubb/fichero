@@ -4,15 +4,21 @@ import Foundation
 /// share a row, say what it will do, send ONE audited `segment.join_rows` (one ⌘Z), say what it did. The notes go to
 /// `note` (the window's segment notice), before and after.
 @MainActor
-enum SegmentRowJoiner {
+struct SegmentRowJoiner {
     static let actionName = "Join Lines in the Same Row"
 
+    let documentId: String
+    let service: SegmentService
+    let store: SegmentStore
+    let actionsService: ActionsService
+    let steps: WindowSteps?
+    let windowState: WindowState?
+
     /// `segmentIds` nil: every line of the page. Nothing is thrown: a failure is said through `note`.
-    static func run(
-        segmentIds: [String]?, documentId: String, service: SegmentService, store: SegmentStore,
-        actionsService: ActionsService, steps: WindowSteps?, windowState: WindowState?, note: @escaping (String?) -> Void,
-        afterReread: @escaping @MainActor () async -> Void = {}
+    func run(
+        segmentIds: [String]?, note: @escaping (String?) -> Void, afterReread: @escaping @MainActor () async -> Void = {}
     ) async {
+        let documentId = documentId, store = store, windowState = windowState
         do {
             let (rows, leftAlone) = try await service.joinRowsPreview(documentId: documentId, segmentIds: segmentIds)
             guard !rows.isEmpty else { return note(SegmentEdit.joinRowsNothing) }
@@ -30,7 +36,7 @@ enum SegmentRowJoiner {
                 )
             }
             try await SegmentEditRunner(actionsService: actionsService, store: store).run(
-                call, documentId: documentId, actionName: actionName, steps: steps, afterChange: reselect
+                call, documentId: documentId, actionName: Self.actionName, steps: steps, afterChange: reselect
             )
             note(SegmentEdit.joinRowsDone(rows: rows, leftAlone: leftAlone))
         } catch {

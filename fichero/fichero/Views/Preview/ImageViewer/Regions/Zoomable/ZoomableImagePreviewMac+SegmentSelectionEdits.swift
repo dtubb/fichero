@@ -154,10 +154,12 @@ extension ZoomableImagePreview {
         let ids = selectedSegments(documentId).map(\.id)
         let steps = windowSteps, windowState = windowState
         Task {
-            await SegmentRowJoiner.run(
-                segmentIds: ids.isEmpty ? nil : ids, documentId: documentId, service: segmentService, store: store,
-                actionsService: actionsService, steps: steps, windowState: windowState,
-                note: { windowState?.segmentNotice = $0 }, afterReread: { await loadOCRGeometry() }
+            await SegmentRowJoiner(
+                documentId: documentId, service: segmentService, store: store, actionsService: actionsService,
+                steps: steps, windowState: windowState
+            ).run(
+                segmentIds: ids.isEmpty ? nil : ids, note: { windowState?.segmentNotice = $0 },
+                afterReread: { await loadOCRGeometry() }
             )
         }
     }

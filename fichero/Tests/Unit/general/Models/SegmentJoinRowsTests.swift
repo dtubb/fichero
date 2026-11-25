@@ -33,7 +33,8 @@ struct SegmentJoinRowsTests {
     @Test("no rows, or a line with no version, sends nothing")
     func refusals() {
         #expect(SegmentEdit.joinRows([], segments: []) == .failure(.tooFew))
-        #expect(SegmentEdit.joinRows([["a", "b"]], segments: [segment("a", version: 1), segment("b", version: nil)]) == .failure(.versionUnknown))
+        let unversioned = [segment("a", version: 1), segment("b", version: nil)]
+        #expect(SegmentEdit.joinRows([["a", "b"]], segments: unversioned) == .failure(.versionUnknown))
         #expect(SegmentEdit.joinRows([["a", "b"]], segments: [segment("a", version: 1)]) == .failure(.versionUnknown))
     }
 

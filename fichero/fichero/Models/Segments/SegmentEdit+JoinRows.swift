@@ -13,7 +13,7 @@ extension SegmentEdit {
         return .success(Call(
             action: "segment.join_rows",
             params: .joinRows(SegmentJoinRowsRequest(
-                groups: rows.map { SegmentJoinRowsRequest.Row(segmentIds: $0, keepId: $0[0]) }, expectedVersions: versions
+                groups: rows.map { SegmentJoinRow(segmentIds: $0, keepId: $0[0]) }, expectedVersions: versions
             ))
         ))
     }

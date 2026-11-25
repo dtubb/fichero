@@ -106,10 +106,10 @@ struct SegmentVerbMenu: View {
         guard let store, let segmentService, let actionsService = actionStore?.actionsService else { return }
         let ids = ids, documentId = documentId, steps = windowSteps, note = onNote, windowState = windowState
         Task {
-            await SegmentRowJoiner.run(
-                segmentIds: ids.isEmpty ? nil : ids, documentId: documentId, service: segmentService, store: store,
-                actionsService: actionsService, steps: steps, windowState: windowState, note: note
-            )
+            await SegmentRowJoiner(
+                documentId: documentId, service: segmentService, store: store, actionsService: actionsService,
+                steps: steps, windowState: windowState
+            ).run(segmentIds: ids.isEmpty ? nil : ids, note: note)
         }
     }
 
