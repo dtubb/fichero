@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 #if os(macOS)
