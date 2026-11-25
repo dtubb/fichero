@@ -141,6 +141,26 @@ def do_run(a, model: str) -> str:
     return ends[-1]
 
 
+REBASE_CONFLICT = "\n\nREBASE CONFLICT\n"  # do_rebase's why carries the worker's fix text after this mark (run.rebase-conflict-fix-round)
+
+
+def conflict_text(a, branch: str, files: list[str], applying: str) -> str:
+    """What the lane's worker is told when the loop's rebase stopped on a conflict: the files, the commits on origin/<branch> since the
+    branch's base that touched them (sha and subject), and the instruction to rebase itself keeping both sides. Read after the abort."""
+    g, wt = shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    base = as_worker(a, f"{g} -C {wt} merge-base HEAD origin/{shlex.quote(branch)}").stdout.strip()
+    paths = " ".join(shlex.quote(f) for f in files)
+    log = as_worker(a, f"{g} -C {wt} log --format='%h %s' {shlex.quote(base)}..origin/{shlex.quote(branch)} -- {paths}").stdout.strip() if base and files else ""
+    commits = "\n".join(f"- {ln}" for ln in log.splitlines()[:30]) or "- (none found: read `git log origin/" + branch + "` for the files)"
+    return (f"The loop's rebase of this branch onto origin/{branch} stopped on a conflict and was aborted: your branch is as you left it."
+            + (f" It stopped applying {applying}." if applying else "") + "\n"
+            + "Conflicting files:\n" + "\n".join(f"- {f}" for f in files) + "\n"
+            + f"Commits on origin/{branch} since your branch's base that touched them:\n{commits}\n"
+            + f"Rebase onto origin/{branch} yourself (`git fetch origin && git rebase origin/{branch}`). Resolve each conflict keeping BOTH "
+            + "sides: what those commits changed and what your branch changed; never drop either. Run the tests of the files you resolved, "
+            + "finish the rebase, and end with the DONE line.")
+
+
 NETWORK_BLIP = re.compile(r"unable to access|Could not resolve host|Failed to connect|Connection (timed out|reset)|early EOF")
 NETWORK_RETRY_S = 20
 
@@ -184,8 +204,13 @@ def do_rebase(a, branch: str) -> str:
         if r.returncode and not as_worker(a, f"{g} -C {wt} diff --name-only --diff-filter=U").stdout.strip():
             r = as_worker(a, f"cd {wt} && {g} rebase --skip")  # the commit held nothing but the generated files: empty now
     if r.returncode:
+        files = sorted(set(as_worker(a, f"{g} -C {wt} diff --name-only --diff-filter=U").stdout.split()))
+        applying = (re.search(r"Could not apply ([0-9a-f]{7,40}\.\.\. .*)", (r.stderr or "") + (r.stdout or "")) or [None, ""])[1].strip()
         as_worker(a, f"{g} -C {wt} rebase --abort")
-        return f"rebase onto origin/{branch} could not finish (conflict left to a person): {(r.stderr or r.stdout).strip()[-300:]}"
+        why = f"rebase onto origin/{branch} could not finish (conflict left to a person): {(r.stderr or r.stdout).strip()[-300:]}"
+        if files:  # run.rebase-conflict-fix-round: the lane's worker resolves it, keeping both sides
+            return f"rebase onto origin/{branch} stopped on a conflict in {', '.join(files)}" + REBASE_CONFLICT + conflict_text(a, branch, files, applying)
+        return why
     if rebaked:
         trailers = "\n".join(ln for ln in as_worker(a, f"{g} -C {wt} log -1 --format=%B").stdout.splitlines()
                               if ln.startswith(("Written-By:", "Directed-By:", "Co-Authored-By:")))
@@ -610,7 +635,10 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
     carry = None  # (base, files, head) of a green check whose base moved before its review
     while True:  # dev-workflows.run.loop-chain: a ready range whose base moved is rebased and re-checked
         why = do_rebase(a, branch)
-        if not step("rebase", not why, why or f"on top of origin/{branch}"):
+        if not step("rebase", not why, why.split(REBASE_CONFLICT)[0] if why else f"on top of origin/{branch}"):
+            if REBASE_CONFLICT in why:  # the lane's worker gets a fix round (run.rebase-conflict-fix-round)
+                head_line, text = why.split(REBASE_CONFLICT, 1)
+                return no("conflict", head_line, findings=text)
             return no("error", why)
         n = do_export(a, branch)
         if not step("patches", n > 0, f"{n} patch(es) under patches-{a.name} in the shared state"):

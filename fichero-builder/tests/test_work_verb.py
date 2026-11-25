@@ -819,7 +819,7 @@ def test_a_rebase_with_any_other_conflict_beside_the_identity_is_aborted_as_befo
     (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine f")
     (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs f")
     why = work.do_rebase(scratch.a, "integration")
-    assert "could not finish" in why and not (scratch.wt / ".git" / "rebase-merge").exists()
+    assert why.startswith("rebase onto origin/integration stopped on a conflict in f") and work.REBASE_CONFLICT in why and not (scratch.wt / ".git" / "rebase-merge").exists()
 
 
 def test_a_pinned_copy_removed_before_the_rebase_is_pinned_again_and_the_error_names_the_file_it_read(tmp_path):
@@ -929,3 +929,25 @@ def test_batches_sharing_only_generated_contract_files_get_two_slots_and_one_sha
                 pass
     rows = [r for r in journal.read() if r.get("event") == "lock" and r.get("state") == "clash"]
     assert len(rows) == 1 and "a.py" in rows[0]["detail"] and not any(g in rows[0]["detail"] for g in gen) and rows[0]["holder"] == "a"
+
+
+def test_a_rebase_conflict_names_the_files_and_the_commits_that_touched_them_for_the_worker(scratch):
+    """run.rebase-conflict-fix-round: the why carries, after REBASE_CONFLICT, the worker's fix text: the conflicting files, origin's
+    commits since the branch's base that touched them (sha and subject), and the instruction to rebase keeping both sides."""
+    (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine")
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "ci: theirs changed f")
+    (scratch.engine / "g").write_text("other"), _g(scratch.engine, "add", "g"), _g(scratch.engine, "commit", "-qm", "an unrelated file")
+    why = work.do_rebase(scratch.a, "integration")
+    head, text = why.split(work.REBASE_CONFLICT, 1)
+    assert head == "rebase onto origin/integration stopped on a conflict in f"
+    sha = _g(scratch.engine, "rev-parse", "--short", "HEAD~1")
+    assert "Conflicting files:\n- f\n" in text and f"- {sha} ci: theirs changed f" in text and "an unrelated file" not in text
+    assert "keeping BOTH sides" in text and "DONE" in text and "mine" in text, "it names the commit it stopped applying"
+    assert not (scratch.wt / ".git" / "rebase-merge").exists() and _g(scratch.wt, "log", "--format=%s", "-1") == "mine"
+
+
+def test_a_conflict_is_a_conflict_kind_for_the_loop(chain, monkeypatch, capsys):
+    monkeypatch.setattr(work, "do_rebase", lambda a, branch: "stopped on a conflict in f" + work.REBASE_CONFLICT + "Conflicting files:\n- f")
+    assert chain() == 2
+    assert "stopped on a conflict in f" in capsys.readouterr().out
+    assert [(r["step"], r["ok"], r["detail"]) for r in rows()][-1] == ("rebase", False, "stopped on a conflict in f")

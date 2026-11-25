@@ -609,7 +609,16 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 s["session"], lane["session_steps"] = "fresh", 0
             else:
                 if why := procs.rebase(lane):
-                    return block(s, why)
+                    if work.REBASE_CONFLICT not in why:
+                        return block(s, why)
+                    # run.rebase-conflict-fix-round: the live session gets the step with the conflict to resolve first, not a block
+                    head_line, text = why.split(work.REBASE_CONFLICT, 1)
+                    lane["seq"] += 1
+                    procs.send(lane, Path(s.get("resume_brief") or s["brief"]).read_text().rstrip("\n") + "\n\n" + fix_text(s["step"], "rebase", text))
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="conflict-told", detail=head_line[:300])
+                    lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)
+                    move(s, "sent", f"message {lane['seq']}, with a conflict to resolve first: {head_line}")
+                    return True
                 lane["seq"] += 1
                 if not s["rounds"] and not s.get("resume_brief"):
                     s["session"] = "kept"
@@ -796,6 +805,25 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""), red=True)
+    if r.get("kind") == "conflict" and s.get("conflict_rounds", 0) < 1 and lane.get("kind") != "external":
+        # run.rebase-conflict-fix-round (2026-11-25: 4 steps blocked on "conflict left to a person"): the loop's rebase stopped on a conflict;
+        # the lane's worker gets ONE fix round naming the files and the commits that touched them. A second conflict is an alert.
+        s["conflict_rounds"] = s.get("conflict_rounds", 0) + 1
+        text = fix_text(s["step"], "rebase", r.get("findings") or r["why"])
+        move(s, "red", r["why"])
+        live = handles.get(lane["id"])
+        if live is not None and procs.alive(live):
+            lane["seq"] += 1
+            procs.send(lane, text)
+            move(s, "sent", f"conflict fix round: {r['why']}")
+            return True
+        fix = journal.STATE / f"fix-{lane['id']}-{s['step']}-conflict.txt"  # no session: a new one on the brief plus the conflict
+        fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + text)
+        s["resume_brief"], lane["feed"] = str(fix), ""
+        move(s, "queued", f"conflict fix round, in a new session: {r['why']}")
+        return True
+    if r.get("kind") != "conflict":
+        s.pop("conflict_rounds", None)  # the rebase went through: a later conflict is a new one
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
         move(s, "red", r["why"])  # the failed check is its own state with its rung; the fix brief below moves the step on

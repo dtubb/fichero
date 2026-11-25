@@ -795,6 +795,20 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `test_queue_verb.py`, a queued step that never started is dropped with its reason in the row; a `sent` one is
   refused. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.run.rebase-conflict-fix-round` [OK] (#6589; built 2026-11-25) — when the loop's rebase of a lane onto origin's land
+  branch stops on a conflict it cannot resolve itself (anything beyond the generated identity), it aborts the rebase as before
+  and hands the conflict to the lane's worker instead of blocking: one fix round whose text names the conflicting files, the
+  commit it stopped applying, every commit on origin since the branch's base that touched those files (sha and subject), and
+  the instruction to rebase itself keeping both sides, then end on the DONE line. A live session gets it as its next message; a
+  lane with none starts a session on the step's brief plus the round. A conflict found before a step is sent into a kept session
+  goes with that step's brief (`conflict-told` row). Only when the worker's round also ends in a conflict is it an alert; a
+  rebase that goes through resets the count, so a later conflict has its own round. On 2026-11-25 four steps blocked on
+  "conflict left to a person" (seg-tools hands-5161, seg-finish seg-4, builder-batch ci-actions-1 twice). Tests:
+  `fichero-builder/tests/test_work_verb.py::test_a_rebase_conflict_names_the_files_and_the_commits_that_touched_them_for_the_worker`,
+  `fichero-builder/tests/test_loop.py::test_a_rebase_conflict_is_one_fix_round_for_the_lanes_worker_then_an_alert`,
+  `::test_a_conflict_with_no_live_session_starts_one_for_the_round`,
+  `::test_a_conflict_the_round_resolved_resets_so_a_later_one_gets_its_own_round`,
+  `::test_a_conflict_when_the_next_step_is_sent_goes_to_the_live_session_not_a_block`.
 - `local.run.recorded-move-is-not-a-stray-write` [OK] (#6589; built 2026-11-25: `queue.tree_check` excuses a landing, a `tree-moved` row at the state the tree has now, and a clean jail root whose head is origin's land tip with the old head its ancestor; the verb is `builder queue moved --worktree P --text WHY`; `queue.stray_alert` keeps one alert per move and a `stray-write-seen` row for each other step; tests `fichero-builder/tests/test_loop.py::test_a_jail_root_fast_forwarded_to_origins_tip_and_clean_raises_nothing`, `::test_a_dirty_or_off_origin_jail_root_still_alerts`, `::test_a_tree_moved_row_excuses_its_tree_at_the_state_it_recorded`, `::test_a_move_that_still_alerts_is_one_alert_for_every_step_that_saw_it`) — the check that no tree outside a step's own moved
   excuses a move the loop or the manager made and recorded. A tree is excused when a `landed` row for the jail root, or
   a `tree-moved` row naming the tree, the old head and the new head, was written since the step's snapshot; and the

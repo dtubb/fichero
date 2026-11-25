@@ -2012,3 +2012,58 @@ def test_a_move_that_still_alerts_is_one_alert_for_every_step_that_saw_it(state)
     assert [r["step"] for r in journal.read() if r.get("state") == "stray-write-seen"] == ["1.2", "2.1"]
     queue.stray_alert("m1", "3.1", [f"{JR}: r9 dirty 1 -> r10 clean"])
     assert len(_alerts()) == 2, "another move is another alert"
+
+
+CONFLICT = {"ok": False, "kind": "conflict", "why": "rebase onto origin/integration stopped on a conflict in .github/workflows/tests.yml",
+            "findings": "Conflicting files:\n- .github/workflows/tests.yml\nCommits on origin/integration since your branch's base that touched them:\n"
+                        "- ea876c50e ci: lane and integration pushes run the tests\nRebase onto origin/integration yourself ... keeping BOTH sides"}
+
+
+def test_a_rebase_conflict_is_one_fix_round_for_the_lanes_worker_then_an_alert(state):
+    """run.rebase-conflict-fix-round: 2026-11-25 builder-batch ci-actions-1 blocked twice, seg-tools hands-5161 and seg-finish seg-4
+    once each, on "conflict left to a person". The worker gets the files and the commits that touched them; a second conflict alerts."""
+    lane(state)
+    fake = Fake(chains={"1.1": [dict(CONFLICT), dict(CONFLICT)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    told = [t for t in fake.sent if "Conflicting files" in t]
+    assert len(told) == 1 and "ea876c50e ci: lane and integration pushes run the tests" in told[0] and "BOTH sides" in told[0]
+    assert "DONE" in told[0], "the fix brief ends on the DONE line"
+    (a,) = _alerts()
+    assert a["step"] == "1.1" and "conflict" in a["what"], "the worker's round also ended in a conflict: now the manager's call"
+
+
+def test_a_conflict_with_no_live_session_starts_one_for_the_round(state):
+    lane(state)
+    fake = Fake(chains={"1.1": [dict(CONFLICT)]})
+    started, base_chain, base_start = [], fake.procs.chain, fake.procs.start
+
+    def chain(lane_, step, stage):
+        if step["step"] == "1.1" and fake.chains.get("1.1"):
+            fake.alive_now = False
+        return base_chain(lane_, step, stage)
+
+    def start(lane_, step):
+        started.append(step.get("resume_brief") or step["brief"])
+        return base_start(lane_, step)
+    fake.procs.chain, fake.procs.start = chain, start
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    fix = open(started[1]).read()
+    assert "brief 1.1" in fix and "Conflicting files" in fix and "ea876c50e" in fix
+    assert steps()["1.1"]["state"] == "landed" and _alerts() == [], "the round resolved it: no alert"
+
+
+def test_a_conflict_the_round_resolved_resets_so_a_later_one_gets_its_own_round(state):
+    lane(state)
+    fake = Fake(chains={"1.1": [dict(CONFLICT), {"ok": False, "kind": "red", "why": "pytest red", "findings": "t1 failed"}, dict(CONFLICT)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert len([t for t in fake.sent if "Conflicting files" in t]) == 2 and _alerts() == []
+
+
+def test_a_conflict_when_the_next_step_is_sent_goes_to_the_live_session_not_a_block(state):
+    """procs.rebase before a step is sent into a kept session: the step goes with the conflict to resolve first."""
+    from fichero_builder import work
+    lane(state)
+    fake = Fake(rebase="rebase onto origin/integration stopped on a conflict in f" + work.REBASE_CONFLICT + "Conflicting files:\n- f")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert any(t.startswith("brief 1.2") and "Conflicting files" in t for t in fake.sent), fake.sent
+    assert _alerts() == [] and [r for r in journal.read() if r.get("state") == "conflict-told"]
