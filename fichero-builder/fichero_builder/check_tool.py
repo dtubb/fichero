@@ -406,6 +406,13 @@ def _runners(cfg: Config) -> tuple:
     return cfg.remotes or ((cfg.remote,) if cfg.remote else ())
 
 
+def _runners_for_base(cfg: Config) -> tuple:
+    """The runners in order for red-on-base's base runs: the first one holds the head run (its heavy lock), so the base runs start
+    on the next one; with one runner they wait on it."""
+    r = _runners(cfg)
+    return r[1:] + r[:1]
+
+
 def _ssh(host: str, script: str, timeout_s: float, stdin=None) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], input=stdin,
@@ -547,7 +554,7 @@ def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cw
     (manager 2026-11-03: the iMac was off and the tests went red on the jail user's own home); nothing is told to a lane about it."""
     if not remote:
         return _local(name, argv, root, timeout_s, cfg, extra, cwd, log)
-    runners = _runners(cfg)
+    runners = _runners_for_base(cfg) if BASE_RUN[0] else _runners(cfg)
     res, used = None, ""
     for rem in runners:
         if rem not in _DEAD and (res := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
@@ -1491,7 +1498,8 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
     sha = _git(root, "rev-parse", head)["stdout_tail"].strip()  # `HEAD` inside the scratch tree would be `since`
     base = _mkdtemp("check-base-tree-", readable=True)
     # the head's green run and the base runs go at once, each from its own shipped copy (its own gate dir): 2026-11-24 throughput
-    # review, the two ran in a row. ponytail: one runner's heavy lock still lets one pytest at a time there; two runners overlap.
+    # review, the two ran in a row. The base runs take the runners after the head run's (_runners_for_base); one runner's heavy lock
+    # still lets one pytest at a time there.
     # The pool's exit waits for the head run, so a refusal returns with no run left going.
     shipped = _MINE_ROOTS()  # the head thread records its remote copies here: this thread's set, dropped when the ladder ends
     pool = ThreadPoolExecutor(max_workers=1)
@@ -1516,7 +1524,11 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
                 journal.append("auto", rule="red-on-base-timeout-only", head=sha, file=f, detail="only timeout numbers, timeout marks or comments changed: no red owed; it runs green on head")
                 data_skipped.add(f)
                 continue
-            r = pytest_rung(base, [f], cfg, timeout_s)
+            BASE_RUN[0] = True
+            try:
+                r = pytest_rung(base, [f], cfg, timeout_s)
+            finally:
+                BASE_RUN[0] = False
             if f in have and not r["ok"] and (x := red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")):
                 return x
             if f not in have and r["ok"]:
@@ -1577,6 +1589,7 @@ class _PerThread(threading.local):
 HEAD_GREEN_ONLY = _PerThread(False)  # a kept rebase: red-on-base runs only its head-green half (the base run stood on the old base)
 ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
+BASE_RUN = _PerThread(False)  # this thread runs red-on-base's base tests: _run takes the runners after the head run's
 _KEY = _PerThread("")  # the running ladder's key, for its rung rows
 REUSE = _PerThread(None)  # {rung name: its green row} from the SAME head, base and pinned copy: an approve resumes there, it does not start over
 

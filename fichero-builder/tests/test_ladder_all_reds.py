@@ -103,3 +103,35 @@ def test_the_head_run_in_its_helper_thread_sees_the_ladders_cancel_marker(monkey
     finally:
         check_tool._KEY[0] = ""
     assert seen == [True], "the head run's thread had no ladder key, so a superseded check was never cancelled there"
+
+
+def test_the_head_run_and_the_base_runs_start_on_different_runners_at_the_same_time(monkeypatch, tmp_path):
+    from fichero_builder.check_tool import Config
+    cfg = Config(remotes=("imac:~/g", "air:~/g"))
+    started: dict = {}
+    both = threading.Barrier(2, timeout=10)
+
+    def fake_remote(name, argv, root, timeout_s, cfg, extra, cwd, remote=""):
+        started[name + ("-head" if str(root).endswith("/headtree") else "-base")] = remote
+        both.wait()  # a run that waited for the other one (the same runner's lock) would time out here
+        return {"name": name, "ok": str(root).endswith("/headtree"), "exit_code": 0, "stdout_tail": "", "stderr_tail": "", "argv": [], "seconds": 0, "remote": remote}
+
+    head_tree, base_tree = tmp_path / "headtree", tmp_path / "basetree"
+    head_tree.mkdir()
+    monkeypatch.setattr(check_tool, "_remote_run", fake_remote)
+    monkeypatch.setattr(check_tool, "_git", lambda *a, **k: {"ok": True, "stdout_tail": "abc\n", "stderr_tail": ""})
+    monkeypatch.setattr(check_tool, "_lines", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "already_built_files", lambda *a, **k: set())
+    monkeypatch.setattr(check_tool, "data_only", lambda *a, **k: False)
+    monkeypatch.setattr(check_tool, "_mkdtemp", lambda *a, **k: str(base_tree))
+    monkeypatch.setattr(check_tool, "_DEAD", set())
+    r = check_tool.red_on_base(tmp_path, "s" * 40, "h" * 40, ["t_test.py"], cfg, head_tree=head_tree)
+    assert r["ok"]
+    assert set(started.values()) == {"imac:~/g", "air:~/g"} and started["pytest-head"] != started["pytest-base"]
+
+
+def test_with_one_runner_the_base_runs_wait_on_the_same_one(monkeypatch):
+    from fichero_builder.check_tool import Config
+    cfg = Config(remotes=("imac:~/g",))
+    assert check_tool._runners_for_base(cfg) == ("imac:~/g",)
+    assert check_tool._runners_for_base(Config(remotes=("a", "b", "c"))) == ("b", "c", "a")
