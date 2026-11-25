@@ -281,6 +281,10 @@ extension SidebarView {
                         rebuiltRecently: SidebarView.rebuiltRecently(
                             at: max(lastTreeRebuildAt, selectionState.programmaticSelectionAt))
                     )
+                },
+                isAncestor: { ancestor, descendant in
+                    guard let item = cachedItem(id: ancestor.serializedID) else { return false }
+                    return Self.sidebarItem(item, containsDescendantId: descendant.serializedID)
                 }
             )
             if newValue == selectionState.selectedDestinations, newValue != proposed {
@@ -329,6 +333,17 @@ extension SidebarView {
     /// deselect. Additions and drops of resolvable rows pass through unchanged.
     /// Pure so the resilience rule is testable without a rendered List.
     static func sidebarResilientSelection(
+        current: Set<SidebarDestination>,
+        proposed: Set<SidebarDestination>,
+        isMomentarilyMissing: (SidebarDestination) -> Bool,
+        isAncestor: (_ ancestor: SidebarDestination, _ descendant: SidebarDestination) -> Bool
+    ) -> Set<SidebarDestination> {
+        // #7079: never a row plus its own ancestor; an ancestor of a proposed row is taken out.
+        let kept = keepingDroppedMissingRows(current: current, proposed: proposed, isMomentarilyMissing: isMomentarilyMissing)
+        return kept.filter { row in !proposed.contains { $0 != row && isAncestor(row, $0) } }
+    }
+
+    private static func keepingDroppedMissingRows(
         current: Set<SidebarDestination>,
         proposed: Set<SidebarDestination>,
         isMomentarilyMissing: (SidebarDestination) -> Bool

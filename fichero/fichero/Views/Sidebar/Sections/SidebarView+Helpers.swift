@@ -80,6 +80,10 @@ private func sidebarIndexItems(_ items: [SidebarItem], into index: inout [String
 }
 
 extension SidebarView {
+    /// Whether `descendantId` is a row somewhere under `item` in the tree.
+    static func sidebarItem(_ item: SidebarItem, containsDescendantId descendantId: String) -> Bool {
+        (item.children ?? []).contains { $0.id == descendantId || sidebarItem($0, containsDescendantId: descendantId) }
+    }
     func sidebarLibrarySelectionId(_ libraryId: UUID) -> String {
         "library:\(libraryId.uuidString)"
     }

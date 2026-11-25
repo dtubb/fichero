@@ -24,7 +24,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         let result = SidebarView.sidebarResilientSelection(
             current: [pageRow],
             proposed: [],
-            isMomentarilyMissing: { _ in true }
+            isMomentarilyMissing: { _ in true },
+            isAncestor: { _, _ in false }
         )
         XCTAssertEqual(result, [pageRow], "the rebuild's clear must not erase the click")
     }
@@ -35,7 +36,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         let result = SidebarView.sidebarResilientSelection(
             current: [pageRow, folderRow],
             proposed: [folderRow],
-            isMomentarilyMissing: { $0 == pageRow }
+            isMomentarilyMissing: { $0 == pageRow },
+            isAncestor: { _, _ in false }
         )
         XCTAssertEqual(result, [pageRow, folderRow])
     }
@@ -47,7 +49,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         let result = SidebarView.sidebarResilientSelection(
             current: [pageRow],
             proposed: [],
-            isMomentarilyMissing: { _ in false }
+            isMomentarilyMissing: { _ in false },
+            isAncestor: { _, _ in false }
         )
         XCTAssertTrue(result.isEmpty, "a deselect of a visible row must go through")
     }
@@ -56,7 +59,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         let result = SidebarView.sidebarResilientSelection(
             current: [pageRow],
             proposed: [folderRow],
-            isMomentarilyMissing: { _ in false }
+            isMomentarilyMissing: { _ in false },
+            isAncestor: { _, _ in false }
         )
         XCTAssertEqual(result, [folderRow], "clicking another row replaces the selection")
     }
@@ -71,7 +75,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
             isMomentarilyMissing: { _ in
                 consulted = true
                 return true
-            }
+            },
+            isAncestor: { _, _ in false }
         )
         XCTAssertEqual(result, [pageRow, folderRow])
         XCTAssertFalse(consulted)
@@ -85,7 +90,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         let result = SidebarView.sidebarResilientSelection(
             current: [pageRow],
             proposed: [folderRow],
-            isMomentarilyMissing: { $0 == pageRow }
+            isMomentarilyMissing: { $0 == pageRow },
+            isAncestor: { _, _ in false }
         )
         XCTAssertEqual(result, [folderRow])
     }
@@ -94,7 +100,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         let result = SidebarView.sidebarResilientSelection(
             current: [],
             proposed: [],
-            isMomentarilyMissing: { _ in true }
+            isMomentarilyMissing: { _ in true },
+            isAncestor: { _, _ in false }
         )
         XCTAssertTrue(result.isEmpty)
     }
@@ -164,7 +171,8 @@ final class SidebarSelectionResilienceTests: XCTestCase {
             isMomentarilyMissing: {
                 SidebarView.droppedRowIsMomentarilyMissing(
                     $0, cachedItemMissing: true, wasRecentlyDeleted: false, rebuiltRecently: false)
-            }
+            },
+            isAncestor: { _, _ in false }
         )
         XCTAssertEqual(result, [], "the deselect takes")
     }
@@ -184,5 +192,54 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         XCTAssertTrue(SidebarView.rebuiltRecently(at: rebuilt, now: rebuilt.addingTimeInterval(0.3)))
         XCTAssertFalse(SidebarView.rebuiltRecently(at: rebuilt, now: rebuilt.addingTimeInterval(1.5)))
         XCTAssertFalse(SidebarView.rebuiltRecently(at: .distantPast))
+    }
+
+    // MARK: - #7079: a click on a page never leaves its ancestor selected
+
+    private let sourcesRow = SidebarDestination.document("sources")
+    private let isSourcesAbovePage: (SidebarDestination, SidebarDestination) -> Bool = { ancestor, descendant in
+        ancestor == .document("sources") && descendant == .document("page-1")
+    }
+
+    func testPageClickAfterRebuildLeavesOnlyThePage() {
+        // Sources was selected, the click rebuilt the tree (Sources reads as missing), the List proposes both rows.
+        let result = SidebarView.sidebarResilientSelection(
+            current: [sourcesRow],
+            proposed: [sourcesRow, pageRow],
+            isMomentarilyMissing: { _ in true },
+            isAncestor: isSourcesAbovePage
+        )
+        XCTAssertEqual(result, [pageRow])
+    }
+
+    func testPageClickWithoutRebuildLeavesOnlyThePage() {
+        let result = SidebarView.sidebarResilientSelection(
+            current: [sourcesRow],
+            proposed: [sourcesRow, pageRow],
+            isMomentarilyMissing: { _ in false },
+            isAncestor: isSourcesAbovePage
+        )
+        XCTAssertEqual(result, [pageRow])
+    }
+
+    func testRebuildRuleNeverKeepsAnAncestorOfTheProposedRow() {
+        let result = SidebarView.sidebarResilientSelection(
+            current: [sourcesRow, pageRow],
+            proposed: [pageRow],
+            isMomentarilyMissing: { _ in true },
+            isAncestor: isSourcesAbovePage
+        )
+        XCTAssertEqual(result, [pageRow])
+    }
+
+    func testTreeContainmentFindsAGrandchild() {
+        let libraryId = UUID()
+        let page = SidebarItem.fromDocument(Document(id: "page-1", docType: .page, name: "p"), libraryId: libraryId)
+        let folder = SidebarItem.fromDocument(
+            Document(id: "folder-1", docType: .folder, name: "f"), libraryId: libraryId, children: [page])
+        let sources = SidebarItem.fromDocument(
+            Document(id: "sources", docType: .folder, name: "Sources"), libraryId: libraryId, children: [folder])
+        XCTAssertTrue(SidebarView.sidebarItem(sources, containsDescendantId: page.id))
+        XCTAssertFalse(SidebarView.sidebarItem(page, containsDescendantId: sources.id))
     }
 }
