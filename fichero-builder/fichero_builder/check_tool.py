@@ -89,6 +89,8 @@ class Config:
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
     perf: dict = field(default_factory=dict)      # [check.perf] (#6600): the engine perf rung: enforce, tests, timeout_s, dirs, declared
     security: dict = field(default_factory=dict)  # [check.security] (#6600): the security rung: enforce, where, pins, timeout_s, dirs
+    rungs: tuple = ()                   # [check].rungs: the rungs to run, in this order, by name (RUNGS and the [[check.rung]] names); () = every RUNGS rung
+    rung: tuple = ()                    # [[check.rung]]: {name, argv, timeout_s}: a rung that runs argv in the scratch tree, green on exit 0
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
@@ -101,7 +103,7 @@ def load(root) -> Config:
     c = doc.get("check", {})
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
-    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf"}):
+    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness"}):
         # forward compatible (manager 2026-11-02: a [machines] table stopped the running loop): the loop and the rules file can
         # differ by a batch, so a NEW table is ignored here and named once by `rules_warnings`; a table that is a near-miss of
         # a known one is a misspelling and still refuses, as an unknown key in [check] does
@@ -130,6 +132,7 @@ def load(root) -> Config:
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
+        rungs=tuple(c.get("rungs", d.rungs)), rung=tuple(dict(x) for x in c.get("rung", d.rung)),
         parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())))
 
 
@@ -166,7 +169,7 @@ def _auto_rules(names) -> tuple:
     return tuple(names)
 
 
-KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf"}
+KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness"}
 
 
 def rules_warnings(root) -> list[str]:
@@ -207,7 +210,7 @@ def rules_problems(root) -> list[str]:
     if c.engine_repo and not (Path(c.engine_repo) / ".git").exists():  # first real check 2026-11-01: a tree under ~ is unreadable to the jailed user
         out.append(f"[check].engine_repo {c.engine_repo!r} is not a git repository (clone the owner's repo there, readable by the jailed user)")
     land = tomllib.loads(f.read_text()).get("land", {})
-    if unknown := sorted(set(land) - {"branch", "boundary", "pinned_dir", "worktree_grace_hours"}):
+    if unknown := sorted(set(land) - {"branch", "boundary", "pinned_dir", "worktree_grace_hours", "repo", "release_branch"}):
         out.append(f"harness.toml [land]: unknown keys {unknown}")
     for k in ("branch", "boundary"):
         if not land.get(k):
@@ -2131,6 +2134,22 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
 RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "security", "contract-current", "since-guards", "build", "perf")  # the ladder below, in order
 
 
+def pick_rungs(all_rungs: list, cfg: Config, tree) -> list:
+    """The ladder's rungs: every one of RUNGS in order unless [check].rungs names which to run and in what order; a name there may also
+    be a [[check.rung]] (argv run in the scratch tree). A name that is neither refuses."""
+    if not cfg.rungs and not cfg.rung:
+        return all_rungs
+    have = dict(all_rungs)
+    for d in cfg.rung:
+        if not d.get("name") or not d.get("argv"):
+            raise ValueError(f"harness.toml [[check.rung]] needs a name and an argv: {d!r}")
+        have[d["name"]] = (lambda d=d: _run(d["name"], list(d["argv"]), tree, d.get("timeout_s", 600), cfg))
+    names = cfg.rungs or tuple(n for n, _ in all_rungs) + tuple(d["name"] for d in cfg.rung if d["name"] not in dict(all_rungs))
+    if unknown := [n for n in names if n not in have]:
+        raise ValueError(f"harness.toml [check].rungs names unknown rungs {unknown}")
+    return [(n, have[n]) for n in names]
+
+
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
                 approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     cfg = load(pinned)
@@ -2176,7 +2195,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         if tests and not HEAD_GREEN_ONLY[0] and green_only:
             journal.append("auto", rule="red-on-base-tests-only", head=head, file=",".join(tests),
                            detail="every changed path is a test, a tests directory file or a Markdown file: no red owed; the tests run green on head")
-        out = ladder([
+        out = ladder(pick_rungs([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
             ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if green_only
@@ -2188,7 +2207,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),
             ("perf", lambda: perf(tree, since, [f for _s, _m, f in _changes(root, since, head)], cfg)),
-        ])
+        ], cfg, tree))
     finally:
         drop_tree(root, tree)
         drop_tree(root, own)
