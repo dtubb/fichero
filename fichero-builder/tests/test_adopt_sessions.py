@@ -142,3 +142,10 @@ def test_the_real_head_check_passes_safe_directory_and_tells_ancestors_apart(tmp
     finally:
         queue.subprocess.run = real
     assert seen[0][:3] == ["git", "-c", "safe.directory=*"]
+
+
+def test_an_alert_row_with_no_id_is_skipped_not_a_crash(tmp_path, monkeypatch):
+    """2026-11-25 00:55: an old alert row without an `id` stopped the loop at start (KeyError: 'id')."""
+    from fichero_builder import journal, queue
+    monkeypatch.setattr(journal, "read", lambda: [{"event": "alert", "what": "a live session runs", "actions": ["retry"]}])
+    assert queue.auto_retry_mechanical() == []

@@ -1034,13 +1034,13 @@ def auto_retry_mechanical() -> list[str]:
     tried = {(r.get("lane"), r.get("step")) for r in rows if r.get("event") == "auto-retry"}
     out = []
     for a in rows:
-        if a.get("event") != "alert" or a["id"] in answered or not MECHANICAL.search(a.get("what", "")) or "retry" not in a.get("actions", []):
+        if a.get("event") != "alert" or not a.get("id") or a["id"] in answered or not MECHANICAL.search(a.get("what", "")) or "retry" not in a.get("actions", []):
             continue
         key = (a.get("lane"), a.get("step"))
         if key in tried:
             continue
         tried.add(key)
-        journal.append("auto-retry", lane=a["lane"], step=a["step"], id=a["id"], detail=a["what"][:200])
+        journal.append("auto-retry", lane=a.get("lane", ""), step=a.get("step", ""), id=a["id"], detail=a["what"][:200])
         code, _ = answer(a["id"], "retry")
         if code == 0:
             out.append(a["id"])
