@@ -794,6 +794,73 @@ def preview_simplify_segments(
     ])
 
 
+class JoinRowGroup(BaseModel):
+    #: The lines of one row in the page's reading order; the first keeps its id when they are joined.
+    segment_ids: list[str]
+    keep_id: str
+
+
+class JoinRowsPreview(BaseModel):
+    document_id: str
+    groups: list[JoinRowGroup]
+    #: The lines that sit in no row with another, so Join Lines in the Same Row leaves them as they are.
+    left_alone: list[str]
+
+
+@router.get("/document/{doc_id}/join-rows-preview", response_model=JoinRowsPreview)
+@off_loop
+def preview_join_rows(
+    doc_id: str,
+    segment_ids: Optional[list[str]] = Query(None, description="Only these lines are grouped; absent, every line of the page's working pass."),
+    db: Database = Depends(get_library_database),
+) -> JoinRowsPreview:
+    """The rows `segment.join_rows` would join, written nowhere (`segment-editor.join-rows-says-what-it-will-do`): the
+    groups of lines in one row and the lines left alone, so the menu can say it before it acts. Lines of different
+    regions are never one row."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+        working_pass,
+    )
+    from fichero_server.media import line_join
+
+    document = db.get(Document, doc_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    pass_id = working_pass(db, doc_id).pass_id
+    page = [row for row in db.query(Segment, document_id=doc_id) if row.deleted_at is None and row.pass_id == pass_id]
+    if segment_ids:
+        by_id = {row.id: row for row in page}
+        for segment_id in segment_ids:
+            if segment_id not in by_id:
+                raise HTTPException(status_code=404, detail=f"Segment not found on this page: {segment_id}")
+        chosen = set(segment_ids)
+        page_lines = [row for row in page if row.kind == "line" and row.id in chosen]
+    else:
+        page_lines = [row for row in page if row.kind == "line"]
+    outlined = [(row, line_join.outline_of(row.anchor)) for row in page_lines]
+    lines = [(row, outline) for row, outline in outlined if outline is not None]
+    rungs = direction_rungs(db, document)
+    vertical = _lines_are_vertical(page, document)
+    groups: list[JoinRowGroup] = []
+    grouped: set[str] = set()
+    for parent in dict.fromkeys(row.parent_segment_id for row, _outline in lines):
+        members = [(row, outline) for row, outline in lines if row.parent_segment_id == parent]
+        counted = _counting_readings(db, members[0][0].id)
+        _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        direction, _level = _direction_of(members[0][0], document, text, vertical, rungs)
+        for group in line_join.row_groups([outline for _row, outline in members], direction):
+            ids = [members[i][0].id for i in group]
+            groups.append(JoinRowGroup(segment_ids=ids, keep_id=ids[0]))
+            grouped.update(ids)
+    groups.sort(key=lambda group: min(line_join.bounds(dict((r.id, o) for r, o in lines)[sid])[1] for sid in group.segment_ids))
+    return JoinRowsPreview(
+        document_id=doc_id, groups=groups,
+        left_alone=[row.id for row, _outline in lines if row.id not in grouped] + [row.id for row, outline in outlined if outline is None],
+    )
+
+
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
 @off_loop
 def list_document_segments(
@@ -4083,6 +4150,114 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
     return {"segment_ids": restored_ids}, spec
 
 
+# --- join the lines of a row (segment-editor.join-lines-in-the-same-row) ------
+
+
+class SegmentJoinRowsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Each row as the preview answered it (the lines are objects, not bare id lists, so the write check
+    #: reads their ids as targets).
+    groups: list[JoinRowGroup] = Field(description="Each row's lines and the one that keeps its id.")
+    expected_versions: dict[str, int] = Field(description="Each line's version as last read, {segment_id: version}; a changed line refuses the whole join.")
+
+
+def _invert_join_rows(before, after, ctx: ActionContext):
+    """One `segment.unmerge_rows` carrying each group's own `segment.unmerge` params, worked out from `after` alone."""
+    if not after:
+        return None
+    steps = [_invert_merge(None, merged, ctx) for merged in after.get("merges", [])]
+    if not steps or any(step is None for step in steps):
+        return None
+    return "segment.unmerge_rows", {"steps": [params for _name, params in steps]}
+
+
+@action(
+    "segment.join_rows",
+    SegmentJoinRowsParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_join_rows,
+    redo_via_own_invert=True,
+)
+def _action_join_rows(db: Database, params: SegmentJoinRowsParams, ctx: ActionContext):
+    """Each group of lines joined by `segment.merge` (outlines, baselines, readings and words, across regions), all in
+    this one action, so one undo takes every group back. All or nothing: a refused group joins none."""
+    if not params.groups:
+        raise HTTPException(status_code=422, detail="groups is empty: nothing to join")
+    short = [group.segment_ids for group in params.groups if len(group.segment_ids) < 2]
+    if short:
+        raise HTTPException(status_code=422, detail=f"a row needs two or more lines: {short}")
+    _refuse_repeated_ids([segment_id for group in params.groups for segment_id in group.segment_ids])
+    merges: list[dict] = []
+    kept_ids: list[str] = []
+    representation_ids: list[str] = []
+    versions: dict[str, int] = {}
+    target_ids: list[str] = []
+    pass_ids: set[str] = set()
+    document_ids: set[str] = set()
+    for group in params.groups:
+        for segment_id in group.segment_ids:
+            _require_expected_version(params.expected_versions, segment_id)
+        result, merged = _action_merge(db, SegmentMergeParams(
+            segment_ids=group.segment_ids, keep_id=group.keep_id,
+            expected_versions={segment_id: params.expected_versions[segment_id] for segment_id in group.segment_ids},
+            join_geometry=True, move_into_region=True,
+        ), ctx)
+        merges.append(merged.after)
+        kept_ids.append(group.keep_id)
+        representation_ids.extend(result["representation_ids"])
+        versions.update(merged.after["versions"])
+        target_ids.extend(merged.target_ids)
+        pass_ids.update(merged.pass_ids)
+        document_ids.update(merged.document_ids)
+    spec = ChangeSpec(
+        audit_id=uuid.uuid4().hex,
+        domains=["segment"],
+        target_ids=target_ids,
+        before=None,
+        after={"kept_ids": kept_ids, "merges": merges, "versions": versions},
+        emit_type="segment.merged",
+        segment_ids=target_ids,
+        pass_ids=list(pass_ids),
+        document_ids=list(document_ids),
+    )
+    return {"kept_ids": kept_ids, "representation_ids": representation_ids}, spec
+
+
+class SegmentUnmergeRowsParams(BaseModel):
+    """Internal: `segment.join_rows`' inverse only, one `segment.unmerge` per group."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    steps: list[SegmentUnmergeParams]
+
+
+@action("segment.unmerge_rows", SegmentUnmergeRowsParams, domains=["segment"], undoable=False)
+def _action_unmerge_rows(db: Database, params: SegmentUnmergeRowsParams, ctx: ActionContext):
+    restored: list[str] = []
+    versions: dict[str, int] = {}
+    pass_ids: set[str] = set()
+    document_ids: set[str] = set()
+    for step in params.steps:
+        _result, spec = _action_unmerge(db, step, ctx)
+        restored.extend(spec.after["segment_ids"])
+        versions.update(spec.after["versions"])
+        pass_ids.update(spec.pass_ids)
+        document_ids.update(spec.document_ids)
+    return {"segment_ids": restored}, ChangeSpec(
+        audit_id=uuid.uuid4().hex,
+        domains=["segment"],
+        target_ids=restored,
+        before=None,
+        after={"segment_ids": restored, "versions": versions},
+        emit_type="segment.merged",
+        segment_ids=restored,
+        pass_ids=list(pass_ids),
+        document_ids=list(document_ids),
+    )
+
+
 # --- redraw an outline from its baseline (segment-editor) -----------------
 
 
@@ -6587,6 +6762,22 @@ async def merge_segments(
     )
     result = registry.invoke(db, "segment.merge", params.model_dump(mode="json"), ctx)
     return result.result
+
+
+@router.post("/join-rows")
+async def join_rows(
+    params: SegmentJoinRowsParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.join_rows", params.model_dump(mode="json"), ctx)
+    return {**result.result, "audit_id": result.audit_id}
 
 
 @router.post("/split")

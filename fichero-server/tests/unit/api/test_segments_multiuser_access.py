@@ -225,6 +225,15 @@ def _build_merge(db, doc_id):
     }
 
 
+def _build_join_rows(db, doc_id):
+    pass_row = _make_pass(db, doc_id)
+    a = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+    b = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.3, 0.1, 0.1, 0.1])
+    return "POST", "/api/segments/join-rows", {
+        "groups": [{"segment_ids": [a.id, b.id], "keep_id": a.id}], "expected_versions": {a.id: a.version, b.id: b.version},
+    }
+
+
 def _build_reparent(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     region = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.5, 0.5])
@@ -325,6 +334,7 @@ _WRITE_ROUTE_CHECKS: dict[tuple[str, str], object] = {
     ("POST", "/segments/matches/{match_id}/accept"): _build_match_accept,
     ("POST", "/segments/matches/{match_id}/reject"): _build_match_reject,
     ("POST", "/segments/merge"): _build_merge,
+    ("POST", "/segments/join-rows"): _build_join_rows,
     ("POST", "/segments/reparent"): _build_reparent,
     ("POST", "/segments/regenerate-outline"): _build_regenerate_outline,
     ("POST", "/segments/split"): _build_split,
@@ -396,6 +406,7 @@ _READ_ONLY_ROUTES = {
     ("GET", "/segments/document/{doc_id}/validate"),
     ("GET", "/segments/document/{doc_id}/simplify-preview"),
     ("GET", "/segments/document/{doc_id}/doubtful"),
+    ("GET", "/segments/document/{doc_id}/join-rows-preview"),
     ("GET", "/segments/document/{doc_id}/on-rendition/{rendition_id}"),
     # The scoped listing takes MANY documents, so it does not refuse -- it withholds the ones
     # the caller may not read and counts them (#5135). Its checks are
