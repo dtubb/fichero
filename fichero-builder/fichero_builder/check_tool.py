@@ -99,6 +99,21 @@ class Config:
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
+def newer_code_knows(root, keys: list[str]) -> str:
+    """The cause, when the builder package that came with these rules declares every unknown [check] key as a Config field
+    (2026-11-25 16:42, alerts 1902-1909: a landing added `[check].swift_tests`, the loop re-pinned the new rules, and its older
+    code refused every check for 80 minutes as "unknown keys"): '' when it does not, or there is no such package."""
+    f = Path(root) / client.package_dir(root) / "check_tool.py"
+    try:
+        text = f.read_text() if f.resolve() != Path(__file__).resolve() else ""
+    except OSError:
+        return ""
+    if not text or not all(re.search(rf"^    {re.escape(k)}\s*:", text, re.M) for k in keys):
+        return ""
+    return (f": a NEWER builder knows them (the package beside these rules, {f.parent}, declares them), so this process runs older "
+            "code than its pinned rules; update the loop's checkout to the landed commit and it re-execs")
+
+
 def load(root) -> Config:
     """`<root>/harness.toml` [check]; no file = the default Config."""
     f = Path(root) / "harness.toml"
@@ -107,7 +122,7 @@ def load(root) -> Config:
     doc = tomllib.loads(f.read_text())
     c = doc.get("check", {})
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
-        raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
+        raise ValueError(f"harness.toml [check]: unknown keys {unknown}" + newer_code_knows(root, unknown))
     if unknown := sorted(set(doc) - KNOWN_TABLES):
         # forward compatible (manager 2026-11-02: a [machines] table stopped the running loop): the loop and the rules file can
         # differ by a batch, so a NEW table is ignored here and named once by `rules_warnings`; a table that is a near-miss of

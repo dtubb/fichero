@@ -2162,6 +2162,12 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             journal.append("loop", state="tick", lanes=[f"{x['id']} {x['cursor']}/{len(x['steps'])}" for x in load()], busy=busy)
         if once or not (busy or forever):
             return 0
+        if heartbeat and root and time.time() - FOLLOWED_AT[0] >= FOLLOW_S:  # a landing (or a hand push) of builder code: the loop follows it
+            FOLLOWED_AT[0] = time.time()
+            try:
+                follow_landed(root, out)
+            except Exception:  # noqa: BLE001 - following is housekeeping, never the loop's death
+                journal.append("loop", state="follow-error", detail=traceback.format_exc()[-1000:])
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
         # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
         DRAIN[0] = heartbeat and code_mark(root) != mark  # serial chains never left a gap: stop starting them until it re-execs
@@ -2173,6 +2179,63 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             mark = code_mark(root)  # a test's reexec returns
         procs.sleep(tick_s)
 
+
+
+FOLLOW_S = 120  # how often the loop compares its own checkout with the land branch's tip
+FOLLOWED_AT = [0.0]
+
+
+def follow_landed(root, out=print) -> str:
+    """local.loop.follows-landed-code (2026-11-25 16:42, alerts 1902-1909: a landing added `[check].swift_tests`; the loop's older
+    checkout refused every check for 80 minutes until a person updated it). When the land branch's tip changed the builder
+    package or harness.toml since the loop's own checkout HEAD: with `[loop].follow_landed = true` the checkout goes to that tip,
+    its own harness.toml kept as it was, and the code-mark re-exec runs it at the next quiet tick (one `loop` row `followed`);
+    a checkout with other local changes, or follow_landed off while the tip's rules refuse this code, is ONE alert per tip.
+    '' or what it did."""
+    from fichero_builder import check_tool
+
+    def git(*a):
+        return subprocess.run(["git", "-c", "safe.directory=*", "-C", str(root), *a], capture_output=True, text=True)
+    try:
+        rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+        repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
+    except (OSError, ValueError, KeyError):
+        return ""
+    tip, head = land_tool.resolve_branch(repo, branch), git("rev-parse", "HEAD").stdout.strip()
+    if not tip or not head or tip == head or (journal.STATE / "follow.tip").is_file() and (journal.STATE / "follow.tip").read_text().strip() == tip:
+        return ""
+    paths = [client.package_dir(root), "harness.toml"]
+    changed = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "diff", "--name-only", head, tip, "--", *paths],
+                             capture_output=True, text=True)
+    behind = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "merge-base", "--is-ancestor", head, tip], capture_output=True).returncode == 0
+    if not behind or changed.returncode or not changed.stdout.strip():
+        return ""  # nothing of the builder's moved (or the loop's HEAD is not in the engine repo: a person's own checkout)
+    (journal.STATE / "follow.tip").write_text(tip + "\n")  # one action per tip, whatever it was
+
+    def say(why: str) -> str:
+        alert("-", "loop-code", f"the loop runs older code than the landed rules at {tip[:9]}: {why}", str(root), ["retry"])
+        return why
+    if not rules.get("loop", {}).get("follow_landed"):
+        shown = subprocess.run(["git", "-C", repo, "show", f"{tip}:harness.toml"], capture_output=True, text=True)
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "harness.toml").write_text(shown.stdout)
+            try:
+                check_tool.load(d)
+            except ValueError as e:
+                return say(f"{e}; set [loop].follow_landed = true, or update the loop's checkout to {tip[:9]} by hand ({root})")
+        return ""
+    dirty = [ln[3:] for ln in git("status", "--porcelain", "--untracked-files=no").stdout.splitlines() if ln[3:] != "harness.toml"]
+    if dirty:
+        return say(f"its checkout has local changes ({', '.join(dirty[:5])}): it was not updated; update {root} by hand")
+    keep = (Path(root) / "harness.toml").read_text()
+    r = git("fetch", "-q", repo, tip)
+    r = r if r.returncode else git("checkout", "-q", "-f", "--detach", tip)
+    (Path(root) / "harness.toml").write_text(keep)  # the loop's own rules stay as they were, whatever the checkout did
+    if r.returncode:
+        return say(f"the update to {tip[:9]} failed: {(r.stderr or r.stdout).strip()[-200:]}")
+    journal.append("loop", state="followed", detail=f"the loop's checkout went from {head[:9]} to the landed {tip[:9]} ({len(changed.stdout.split())} builder file(s)); it re-execs at the next quiet tick")
+    out(f"loop: followed the landed code to {tip[:9]}")
+    return f"followed {tip[:9]}"
 
 
 RULES_NEWER = re.compile(r"unknown keys|rules file refused")

@@ -1005,6 +1005,17 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   `--dry-run` prints what it would do and changes nothing. The loop runs it once on `[deps].day` at or after `[deps].hour`
   (after Dependabot's Monday run) when `[deps].enabled = true`; absent, the job is off. Tests: `fichero-builder/tests/test_deps.py`.
 
+- `local.loop.follows-landed-code` [OK] (#6589; built 2026-11-25) — the loop never runs older code than the rules it pins. On
+  2026-11-25 a landing added a `[check]` key; the loop re-pinned the new rules, and its own older checkout refused every check
+  from 16:41 to 18:05 as "unknown keys" (alerts 1902-1909) until a person updated it. Every two minutes the loop compares its
+  checkout's HEAD with the land branch's tip; when the tip is ahead and changed the builder package or harness.toml: with
+  `[loop].follow_landed = true` the checkout goes to the tip, its own harness.toml kept as it was, one `loop` row `followed`,
+  and the code-mark re-exec runs the new code at the next quiet tick (a step the old code blocked is retried there); a checkout
+  with other local changes is not touched and is one alert; with follow_landed off (the default), a tip whose rules this code
+  refuses is ONE alert per tip naming the refusal and the fix. A `[check]` key the code does not know, when the builder package
+  beside those rules declares it, is refused with that cause: "a NEWER builder knows them ... this process runs older code than
+  its pinned rules". Tests: `fichero-builder/tests/test_follow_landed.py`.
+
 ### L. A review is a step kind (owner 2026-11-21, #6847)
 
 On 2026-11-20 and 21 the manager ran area reviews by hand: one session read an area's code and specs, measured it, wrote
