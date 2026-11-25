@@ -187,6 +187,19 @@ extension ZoomableImagePreview {
         )
     }
 
+    /// After a move's re-read (the move, its undo, its redo) the moved segments stay selected: a box's identity key
+    /// includes its rect, so the old selection no longer found them once they had moved. Selected without a reveal.
+    func reselectAfterMove(_ moved: [String], documentId: String) -> @MainActor () -> Void {
+        { @MainActor in
+            guard let store = segmentEditStore else { return }
+            let live = Set(store.segments(documentId: documentId).map(\.id))
+            InspectorPath.select(
+                segmentIds: SegmentEdit.selectionAfterMove(moved: moved, live: live),
+                into: regionSelection, documentId: documentId, store: store
+            )
+        }
+    }
+
     /// The selection as segments, in the order picked, through the Inspector's one resolution.
     func selectedSegments(_ documentId: String) -> [Segment] {
         guard let store = segmentEditStore else { return [] }

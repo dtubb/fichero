@@ -209,6 +209,12 @@ enum SegmentEdit {
         joined.allSatisfy(live.contains) ? joined : Array(joined.prefix(1))
     }
 
+    /// The ids a Move leaves selected (`segment-editor.move-keeps-selection`): the moved ones the store still holds after
+    /// the re-read, in the order they were picked; after the move's undo or redo the same ids are all still there.
+    static func selectionAfterMove(moved: [String], live: Set<String>) -> [String] {
+        moved.filter(live.contains)
+    }
+
     /// The ids Make Region from Lines leaves selected: the new region the engine answered (`region_id`), or none when it
     /// answered none (the selection stays as it was).
     static func selectionAfterGroup(regionId: String?) -> [String] {

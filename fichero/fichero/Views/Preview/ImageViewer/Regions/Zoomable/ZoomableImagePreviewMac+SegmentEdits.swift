@@ -29,7 +29,8 @@ extension ZoomableImagePreview {
         let old = boxes[draggedIndex].bbox
         runSegmentEdit(
             SegmentEdit.translate(segments, by: [bbox[0] - old[0], bbox[1] - old[1]]), documentId: documentId,
-            name: segments.count == 1 ? "Move Segment" : "Move Segments"
+            name: segments.count == 1 ? "Move Segment" : "Move Segments",
+            afterReread: reselectAfterMove(segments.map(\.id), documentId: documentId)
         )
         return true
     }
@@ -39,7 +40,10 @@ extension ZoomableImagePreview {
         guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else { return false }
         guard let segment = store.segments(documentId: documentId)
             .first(where: { $0.passId == passId && $0.boxIndex == index }) else { return true }
-        runSegmentEdit(SegmentEdit.move(segment, to: bbox), documentId: documentId, name: "Move Segment")
+        runSegmentEdit(
+            SegmentEdit.move(segment, to: bbox), documentId: documentId, name: "Move Segment",
+            afterReread: reselectAfterMove([segment.id], documentId: documentId)
+        )
         return true
     }
 

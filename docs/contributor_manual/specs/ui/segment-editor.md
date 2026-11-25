@@ -205,6 +205,11 @@ targets are at least 44 pt.
   `keep_restore`) and redo; the Preview's Join sends both flags (`SegmentEdit.join(_:asLines:)`).
   The key is ⌥⌘J, the owner's ruling of 2026-11-08 in menus-and-commands.md. Lines measured on another image are refused, not carried. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
   hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
+- `segment-editor.move-keeps-selection` — **[OK]** (→ #7089; app) after a move of one or more segments by dragging, the moved
+  segments stay selected, in the Preview, the Inspector and the Segments list; ⌘Z puts them back and keeps them selected
+  (`SegmentEdit.selectionAfterMove`, written again by segment id after the store re-reads, since a box's identity key
+  includes its rect and a moved box was no longer found). *Tests:*
+  `fichero/Tests/Unit/general/Views/Source/SegmentMoveSelectionTests.swift`.
 - `segment-editor.join-selects-the-joined-segment` — **[OK]** (→ #7068; app) after a Join answers, the selection is the
   kept segment (the first picked), so the Inspector shows the joined line; after ⌘Z it is the segments that were joined,
   after ⇧⌘Z the kept one again. The Preview's Join and the segment menu's Join both do it, once the store has re-read the
