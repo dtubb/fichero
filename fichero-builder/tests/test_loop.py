@@ -1965,3 +1965,50 @@ def test_a_pinned_approve_holds_when_only_files_the_refusal_does_not_name_change
 def test_refused_files_reads_every_named_path():
     t = "scripts/x.py: a pinned check file was changed\nfichero/a.json: a pinned check file was deleted\nthe diff deletes or weakens existing tests (tests/a.py, tests/b.py)\nneeds-maintainer"
     assert queue.refused_files(t) == ["scripts/x.py", "fichero/a.json", "tests/a.py", "tests/b.py"]
+
+
+def _jail_root_moves(state, tmp_path, to, fast_forward=lambda p, old, new: False, record=False):
+    JR = _dirs(tmp_path)[0]
+    lane(state)
+    world = {JR: "r1 clean"}
+    fake = Fake()
+    fake.procs.jail_root, fake.procs.trees, fake.procs.fast_forward = JR, lambda paths: {p: world[p] for p in paths}, fast_forward
+    base_start = fake.procs.start
+
+    def start(lane_, step):
+        if step["step"] == "1.1":
+            world[JR] = to
+            if record:
+                assert queue.record_move(JR, "refreshed by hand after a pushed rules change", fake.procs.trees) == ""
+        return base_start(lane_, step)
+    fake.procs.start = start
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    return _alerts()
+
+
+def test_a_jail_root_fast_forwarded_to_origins_tip_and_clean_raises_nothing(state, tmp_path):
+    """local.run.recorded-move-is-not-a-stray-write (Step 2.13): on 2026-11-21 one clean hand refresh raised seven alerts."""
+    seen = []
+    assert _jail_root_moves(state, tmp_path, "r2 clean", fast_forward=lambda p, old, new: seen.append((p, old, new)) or True) == []
+    assert seen == [(str(tmp_path / "jail-root"), "r1", "r2")]
+
+
+def test_a_dirty_or_off_origin_jail_root_still_alerts(state, tmp_path):
+    assert len(_jail_root_moves(state, tmp_path, "r2 dirty 1234", fast_forward=lambda p, old, new: True)) == 1, "dirty: never a refresh"
+
+
+def test_a_tree_moved_row_excuses_its_tree_at_the_state_it_recorded(state, tmp_path):
+    JR = str(tmp_path / "jail-root")
+    assert _jail_root_moves(state, tmp_path, "r2 dirty 1234", record=True) == []
+    assert [r["to"] for r in journal.read() if r["event"] == "tree-moved"] == ["r2 dirty 1234"]
+    assert queue.record_move(JR, "", lambda paths: {JR: "r2 clean"}) == "moved needs --text: why the tree was moved"
+
+
+def test_a_move_that_still_alerts_is_one_alert_for_every_step_that_saw_it(state):
+    JR = "/w/jail-root"
+    moved = [f"{JR}: r1 clean -> r9 dirty 1"]
+    ids = {queue.stray_alert("m1", s, moved) for s in ("1.1", "1.2", "2.1")}
+    assert len(ids) == 1 and len(_alerts()) == 1
+    assert [r["step"] for r in journal.read() if r.get("state") == "stray-write-seen"] == ["1.2", "2.1"]
+    queue.stray_alert("m1", "3.1", [f"{JR}: r9 dirty 1 -> r10 clean"])
+    assert len(_alerts()) == 2, "another move is another alert"

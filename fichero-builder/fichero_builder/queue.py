@@ -250,6 +250,7 @@ class Procs:
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
     cleanup_ref: str = ""  # origin/<land branch>: what a landing leaves behind is removed once its head is on it; "" = off (#6589 item 16)
     trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
+    fast_forward: Callable[[str, str, str], bool] = lambda path, old, new: False  # the tree's new head is origin's land tip and the old one its ancestor
     jail_root: str = ""
     blob: Callable[[dict, dict, str], str] = lambda lane, step, path: ""  # (lane, step, path) -> the blob sha of path at the checked head, '' if none
     workroot: str = ""  # [jail].workroot: a managed lane's tree is wt-<lane> here (run.loop-dispatch)
@@ -290,12 +291,52 @@ def _others(lane: dict, handles: dict, procs: Procs) -> list[str]:
 
 def tree_check(lane: dict, s: dict, handles: dict, procs: Procs) -> list[str]:
     """After a step's DONE: each tree snapped when it started that is still quiet must be unmoved (HEAD and `git status`).
-    The jail root is skipped when a landing refreshed it meanwhile."""
+    Excused (local.run.recorded-move-is-not-a-stray-write): the jail root when a landing refreshed it meanwhile, or when it is clean
+    and its new head is the land branch's tip on origin with the old head an ancestor (what a refresh does); any tree a `tree-moved`
+    row recorded since the snapshot, at exactly the state it has now."""
     snap, since = s.pop("trees", None) or {}, s.pop("trees_at", "")
-    if procs.jail_root in snap and any(r.get("event") == "landed" and r.get("step") == "jail-root" and r.get("ts", "") >= since for r in journal.read()):
+    rows = [r for r in journal.read() if r.get("ts", "") >= since]
+    if procs.jail_root in snap and any(r.get("event") == "landed" and r.get("step") == "jail-root" for r in rows):
         snap.pop(procs.jail_root)
     now = procs.trees([p for p in _others(lane, handles, procs) if p in snap and os.path.isdir(p)])  # a tree removed meanwhile did not move by a stray write
-    return [f"{p}: {snap[p]} -> {now[p]}" for p in now if now[p] != snap[p]]
+    recorded = {(r.get("path"), r.get("to")) for r in rows if r.get("event") == "tree-moved"}
+    moved = []
+    for p in now:
+        if now[p] == snap[p] or (p, now[p]) in recorded:
+            continue
+        old, new = snap[p].split(" ")[0], now[p].split(" ")[0]
+        if p == procs.jail_root and now[p].endswith(" clean") and procs.fast_forward(p, old, new):
+            continue
+        moved.append(f"{p}: {snap[p]} -> {now[p]}")
+    return moved
+
+
+def stray_alert(lane_id: str, step: str, moved: list[str]) -> str:
+    """One alert per move, not one per step that saw it: a move an open alert already names is a `stray-write-seen` row naming
+    this step and that alert. Returns the alert id."""
+    rows = journal.read()
+    answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+    what = "a tree outside the step's own moved: " + "; ".join(moved)
+    for r in reversed(rows):
+        if r.get("event") == "alert" and r.get("id") not in answered and r.get("moves") == sorted(moved):
+            journal.append("queue", lane=lane_id, step=step, state="stray-write-seen", detail=f"the same move as alert {r['id']}: {'; '.join(moved)}"[:300])
+            return r["id"]
+    n = sum(1 for r in rows if r.get("event") == "alert") + 1
+    aid = f"{lane_id.lstrip('-') or 'harness'}-{step}-{n}"
+    journal.append("alert", id=aid, lane=lane_id, step=step, what=what[:300], evidence=str(journal.STATE / "journal.jsonl"), actions=[], moves=sorted(moved))
+    return aid
+
+
+def record_move(path: str, why: str, state: Callable[[list], dict]) -> str:
+    """`builder queue moved --worktree P --text WHY`: the manager moved a tree by hand (a jail-root refresh after a pushed rules change);
+    one `tree-moved` row with its state now, which excuses that state in every step's tree check."""
+    if not why.strip():
+        return "moved needs --text: why the tree was moved"
+    now = state([path]).get(path, "")
+    if not now or now.startswith("unreadable"):
+        return f"{path} cannot be read"
+    journal.append("tree-moved", path=path, to=now, detail=why.strip()[:300])
+    return ""
 
 
 def _gh_quiet(gh: str, args: list[str], cwd=None) -> str:
@@ -594,7 +635,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                             "send it back to name the parts it did not do, or retry")
         move(s, "done", "")
         if moved := tree_check(lane, s, handles, procs):  # an alert to read; the step goes on: the stray write was not in its tree
-            alert(lane["id"], s["step"], "a tree outside the step's own moved: " + "; ".join(moved), str(journal.STATE / "journal.jsonl"), [])
+            stray_alert(lane["id"], s["step"], moved)
     if s["state"] == "done" and (lane["paused"] or next((x.get("paused") for x in load() if x["id"] == lane["id"]), False)):
         lane["paused"] = True  # manager 2026-11-02: a paused lane is never checked; its DONE head waits for `queue resume`
         return False
@@ -2526,7 +2567,7 @@ def real_procs(root) -> Procs:
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
+                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, fast_forward=lambda p, old, new: refreshed(p, old, new, branch), tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))
@@ -2675,6 +2716,13 @@ def refresh_live(root, branch: str, git=None) -> str:
     journal.append("loop", state="live-tree", detail=f"{root} at origin/{branch} {head[:9]}{carried}")
     return f"moved to {head[:9]}{carried}"
 
+def refreshed(path: str, old: str, new: str, branch: str) -> bool:
+    """`new` is origin/<branch>'s tip in `path` and `old` is its ancestor: a refresh, not a stray write."""
+    g = [land_tool.GIT, "-c", "safe.directory=*", "-C", path]
+    tip = subprocess.run(g + ["rev-parse", f"refs/remotes/origin/{branch}"], capture_output=True, text=True).stdout.strip()
+    return bool(tip and new and tip.startswith(new) and subprocess.run(g + ["merge-base", "--is-ancestor", old, new], capture_output=True).returncode == 0)
+
+
 def trees(paths: list) -> dict:
     """{path: "HEAD sha1-of-status"} read as the owner (the jail's trees are the worker's: safe.directory); unreadable is its own word."""
     out = {}
@@ -2821,6 +2869,10 @@ def main(a) -> int:
         journal.append("queue", lane=a.lane, step="-", state="stop", detail=f"grace {a.grace:g} s" + ("; the worker was told" if told else "; no live session"))
         print(f"stopping {a.lane}: the session closes within {a.grace:g} s; `builder queue resume --lane {a.lane}` starts a fresh one")
         return 0
+    if a.action == "moved":  # local.run.recorded-move-is-not-a-stray-write: a hand move of a tree, recorded
+        why = record_move(os.path.abspath(a.worktree or ""), a.text or "", trees)
+        print(f"REFUSED: {why}" if why else f"recorded the move of {a.worktree}")
+        return 1 if why else 0
     if a.action in ("move", "park", "unpark", "drop"):  # #6467 (run.loop-plan): the console's Plan clicks, under the queue lock
         why = reorder(a.lane, a.step, a.action, a.to, a.text or "")
         print(f"REFUSED: {why}" if why else f"{a.lane} {a.step}: {a.action}")
