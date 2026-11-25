@@ -161,6 +161,7 @@ def conflict_text(a, branch: str, files: list[str], applying: str) -> str:
             + "finish the rebase, and end with the DONE line.")
 
 
+AUTOSTASH_KEPT = re.compile(r"autostash resulted in conflicts|applying them\s+resulted in conflicts")
 NETWORK_BLIP = re.compile(r"unable to access|Could not resolve host|Failed to connect|Connection (timed out|reset)|early EOF")
 NETWORK_RETRY_S = 20
 
@@ -175,13 +176,19 @@ def do_rebase(a, branch: str) -> str:
     lane's own trailers. One `rebake` journal row each."""
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
     before = as_worker(a, f"{g} -C {wt} rev-parse HEAD").stdout.strip()
+    stashes = as_worker(a, f"{g} -C {wt} stash list").stdout.count("\n")
     cmd = f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q --autostash origin/{q(branch)}"
     r = as_worker(a, cmd)
     if r.returncode and NETWORK_BLIP.search(r.stderr or r.stdout or ""):  # manager 2026-11-08: a GitHub blip is not a conflict; once more
         time.sleep(NETWORK_RETRY_S)
         r = as_worker(a, cmd)
-    if r.returncode == 0 and "autostash resulted in conflicts" in (r.stdout or "") + (r.stderr or ""):  # the unstaged edits no longer apply on the new base
-        return f"the rebase onto origin/{branch} went through but the tree's unstaged changes conflict with it (kept in the stash): {(r.stderr or r.stdout).strip()[-300:]}"
+    said = (r.stdout or "") + (r.stderr or "")
+    # the unstaged edits no longer apply on the new base. The autostash is left in the stash list; git's wording changed (2.56: "applying
+    # them resulted in conflicts"), so the stash count is read, the words only as a second sign (2026-11-25: Linux runners read it as clean)
+    if r.returncode == 0 and (AUTOSTASH_KEPT.search(said) or as_worker(a, f"{g} -C {wt} stash list").stdout.count("\n") > stashes):
+        files = as_worker(a, f"{g} -C {wt} stash show --name-only stash@{{0}}").stdout.split()
+        return (f"the rebase onto origin/{branch} went through but the tree's unstaged changes conflict with it (kept in the stash"
+                + (f": {', '.join(files)}" if files else "") + f"): {said.strip()[-300:]}")
     if r.returncode == 0:
         return regen(a, branch, before)
     cfg = check_tool.load(a.pinned)

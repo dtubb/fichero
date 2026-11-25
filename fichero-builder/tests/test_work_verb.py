@@ -951,3 +951,21 @@ def test_a_conflict_is_a_conflict_kind_for_the_loop(chain, monkeypatch, capsys):
     assert chain() == 2
     assert "stopped on a conflict in f" in capsys.readouterr().out
     assert [(r["step"], r["ok"], r["detail"]) for r in rows()][-1] == ("rebase", False, "stopped on a conflict in f")
+
+
+@pytest.mark.parametrize("words", ["Your local changes are stashed, however applying them\nresulted in conflicts.", "Successfully rebased."])
+def test_a_kept_autostash_is_said_whatever_git_prints(scratch, monkeypatch, words):
+    """2026-11-25: git 2.56 on GitHub's Linux runner prints "applying them resulted in conflicts", not "autostash resulted in
+    conflicts", and do_rebase called the rebase clean (an edit kept only in the stash). The stash count is read, the words second."""
+    real = work.as_worker
+
+    def reworded(a, cmd, *args, **kw):
+        r = real(a, cmd, *args, **kw)
+        if " rebase " in cmd and r.returncode == 0:
+            return subprocess.CompletedProcess(cmd, 0, "", words)
+        return r
+    monkeypatch.setattr(work, "as_worker", reworded)
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs")
+    (scratch.wt / "f").write_text("unstaged edit")
+    why = work.do_rebase(scratch.a, "integration")
+    assert why.startswith("the rebase onto origin/integration went through but the tree's unstaged changes conflict with it (kept in the stash: f)")
