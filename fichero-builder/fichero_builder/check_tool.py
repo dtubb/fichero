@@ -1538,6 +1538,8 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
     root = Path(root)
 
     approved: list[str] = []
+    not_red: list[str] = []  # every file that passes on base goes in ONE alert (2026-11-25, app-bugs nightly-green-1: three files,
+    # three approves at one head, a ladder each, because the rung stopped at the first)
 
     def red(msg: str) -> dict | None:  # the manager's approve (an alert) records the refusal and goes on to the green run
         # True: every refusal; a tuple: only one naming an approved test file (an approve binds to the tests its alert named)
@@ -1594,7 +1596,9 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
                 tail = " | ".join(ln.strip() for ln in (r.get("stdout_tail") or "").splitlines() if ln.strip())[-300:]
                 journal.append("red-on-base-base", head=sha, since=since, file=f, runner=where, tree=base, stdout_tail=(r.get("stdout_tail") or "")[-3000:])
                 if x := red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing (base ran on {where}, tree {base}: {tail})"):
-                    return x
+                    not_red.append(x["stderr_tail"].removesuffix("\nneeds-approval"))
+        if not_red and (x := red("\n".join(not_red))):  # each line names an unapproved file: still refused
+            return x
         changed = _lines(root, "diff", "--name-only", f"{since}...{head}") or []
         source = [n for n in changed if not any(fnmatch.fnmatch(Path(n).name, g) for g in cfg.test_globs) and (not cfg.red_paths or n.startswith(cfg.red_paths))]
         if source and files and set(files) <= have | data_skipped and (x := red(

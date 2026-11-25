@@ -751,6 +751,11 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   from the ladder's red rows before the alert's cut-off line, at full paths (a name that is the tail of a longer one found is
   dropped); a path in neither tree binds nothing. Tests: `::test_a_worker_lanes_red_on_base_approve_holds_at_the_same_head_from_the_ladders_file_names`,
   `::test_named_files_drop_a_cut_off_copy_of_a_longer_name`.
+  Fixed again 2026-11-25 (the same step asked as -1888 and -1891 at one head 1b42f9abc, three tests passing on base): the
+  red-on-base rung names every test that passes on base in one refusal, never one per ladder, so one approve binds them all; an
+  approve of some leaves the others asked. An approve drops stale bindings: a name bound to no blob, or the cut-off tail of a longer
+  bound name, along with its approved-tests entry. Tests: `fichero-builder/tests/test_ladder_all_reds.py::test_every_test_that_passes_on_base_is_named_in_one_refusal`,
+  `fichero-builder/tests/test_loop.py::test_an_approve_reads_the_not_red_on_base_line_and_drops_stale_entries`.
 - `local.check.stale-base-guards` [OK] (#6589) — when every red guard is a shrink-only allowlist's "no longer occurs" and the lane's
   base is older than the pinned copy's commit (integration now), the guards run again over head merged with that commit (a throwaway
   merge commit, never a branch); green there is green with the reason said and one `stale-base-guards` row. A lane already on the

@@ -84,6 +84,30 @@ def test_red_on_base_runs_the_base_and_head_runs_at_once(monkeypatch, tmp_path):
     assert r["ok"] and r["name"] == "red-on-base"
 
 
+def test_every_test_that_passes_on_base_is_named_in_one_refusal(monkeypatch, tmp_path):
+    """2026-11-25, app-bugs nightly-green-1 at 1b42f9abc: three tests passed on base, the rung stopped at the first, so each approve
+    (alerts 1888, 1891) named one file and the next ladder asked about the next. One refusal names them all; an approve of one leaves
+    the others asked."""
+    from fichero_builder import journal
+    from fichero_builder.check_tool import Config
+    files = ["fichero-server/tests/unit/execution/test_a_failed_jobs_reason_is_its_kinds_words_6597.py",
+             "fichero-server/tests/unit/execution/test_a_large_runs_tree_reads_fast_6732.py",
+             "fichero-server/tests/unit/execution/test_activity_engine_pins.py"]
+    monkeypatch.setattr(journal, "append", lambda *a, **k: None)
+    monkeypatch.setattr(check_tool, "pytest_rung", lambda *a, **k: {"ok": True, "remote": "imac", "stdout_tail": "5 passed, 77 warnings in 0.70s"})
+    monkeypatch.setattr(check_tool, "green_runs", lambda *a, **k: {"ok": True, "stdout_tail": "", "name": "pytest"})
+    monkeypatch.setattr(check_tool, "_git", lambda *a, **k: {"ok": True, "stdout_tail": "abc\n", "stderr_tail": ""})
+    monkeypatch.setattr(check_tool, "_lines", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "already_built_files", lambda *a, **k: set())
+    monkeypatch.setattr(check_tool, "data_only", lambda *a, **k: False)
+    monkeypatch.setattr(check_tool, "_mkdtemp", lambda *a, **k: str(tmp_path / "base"))
+    r = check_tool.red_on_base(tmp_path, "a40008b70" + "0" * 31, "h" * 40, files, Config())
+    assert not r["ok"] and all(f"NOT RED ON BASE: {f} passes at a40008b70" in r["stderr_tail"] for f in files)
+    assert r["stderr_tail"].endswith("\nneeds-approval") and r["stderr_tail"].count("needs-approval") == 1
+    r = check_tool.red_on_base(tmp_path, "a40008b70" + "0" * 31, "h" * 40, files, Config(), approve_red=(files[0],))
+    assert files[0] not in r["stderr_tail"] and all(f in r["stderr_tail"] for f in files[1:])
+
+
 def test_the_head_run_in_its_helper_thread_sees_the_ladders_cancel_marker(monkeypatch, tmp_path):
     from fichero_builder import journal
     from fichero_builder.check_tool import Config

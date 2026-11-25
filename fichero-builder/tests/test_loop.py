@@ -2108,6 +2108,39 @@ def test_named_files_drop_a_cut_off_copy_of_a_longer_name():
     assert queue.named_files(said, ladder, r"\.py") == ["fichero-server/tests/unit/jobs/test_a.py"]
 
 
+PINS_TEST = "fichero-server/tests/unit/execution/test_activity_engine_pins.py"
+PINS_LINE = (f"NOT RED ON BASE: {PINS_TEST} passes at a40008b70, so it proves nothing (base ran on imac, tree "
+             "/Users/Shared/fichero-worker/check-base-tree-2_g_nx_g: s.html | ====================== KNOWN BROKEN, SPECIFIED, NOT FIXED "
+             "====================== | 9 tests describe behaviour the code does not have yet. | Open: #4395, #4420, #5113, #5134, #5794 | "
+             "Listed in tests/known_specification_failures.txt — this is debt, not a pass. | 5 passed, 77 warnings in 0.70s)\nneeds-approval")
+
+
+def test_an_approve_reads_the_not_red_on_base_line_and_drops_stale_entries(state, tmp_path):
+    """2026-11-25, app-bugs nightly-green-1 at 1b42f9abc (alerts 1888, 1891): the red-on-base rung's stderr_tail named the file; the
+    step still held a cut-off "chero-server/..." name bound to no blob. The approve binds the line's file and drops both stale entries."""
+    wt, g = _ext_repo(tmp_path, commits=0)
+    (wt / PINS_TEST).parent.mkdir(parents=True)
+    (wt / PINS_TEST).write_text("def test_pins():\n    assert True\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a test that passes on base")
+    head = g(wt, "rev-parse", "HEAD")
+    queue.add("app-bugs", str(wt), "nightly-green-1", str(state / "b1.1"), [])
+    stale = "chero-server/tests/unit/jobs/test_a_failed_jobs_reason_is_its_kinds_words_6597.py"
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(approved_head="", approved_tests=[stale], approved_test_blobs={stale: {"base": "", "head": "", "kind": "approve_weakened"}})
+    queue.save(lanes)
+    ladder = state / "ladder-app-bugs.json"
+    ladder.write_text(json.dumps({"ok": False, "rungs": [{"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False,
+                                                         "seconds": 0, "stdout_tail": "", "stderr_tail": PINS_LINE}]}))
+    red = {"ok": False, "kind": "red-on-base", "approvals": ["approve_red"], "evidence": str(ladder), "why": APP_BUGS_WHAT.format(h=head[:9])}
+    queue.run(Fake(chains={"nightly-green-1": [dict(red)]}).procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(journal.STATE)]) == 0
+    s = next(x for x in queue.load() if x["id"] == "app-bugs")["steps"][0]
+    assert PINS_TEST in s["approved_tests"] and stale not in s["approved_tests"]
+    assert set(s["approved_test_blobs"]) == {PINS_TEST}, "the cut-off name bound to no blob is gone"
+    assert PINS_TEST in queue.content_approvals({**s, "approve_red": False}, str(wt), "origin/integration")["approve_red"]
+
+
 def test_a_fix_round_and_a_send_back_name_the_interpreter_that_has_pytest(state, monkeypatch):
     """local.run.worker-knows-its-test-python: 2026-11-25 13:55, builder-fixes reliab-1 said WAITING: no interpreter in its worktree had
     pytest (no .venv, no uv). [check].python has it; every fix round and send-back says so."""

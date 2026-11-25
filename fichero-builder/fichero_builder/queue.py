@@ -1258,8 +1258,12 @@ def named_files(said: str, ladder: str, ext: str) -> list[str]:
     """The files an approve names (2026-11-25, app-bugs nightly-green-1, alerts 1863/1869): the ladder's own red rows first, since an
     alert's one-line text is cut to 300 characters and named only ".html" or a path's tail ("chero-server/tests/..."). A name that is
     the tail of a longer name found is a cut-off copy of it and is dropped."""
-    found = list(dict.fromkeys(re.findall(r"[\w/][\w./-]*" + ext + r"\b", ladder + "\n" + said)))
-    return [f for f in found if not any(o != f and o.endswith(f) for o in found)]
+    return whole_names(list(dict.fromkeys(re.findall(r"[\w/][\w./-]*" + ext + r"\b", ladder + "\n" + said))))
+
+
+def whole_names(names) -> list[str]:
+    """The names that are not the cut-off tail of another name in the list."""
+    return [f for f in names if not any(o != f and o.endswith(f) for o in names)]
 
 
 def evidence_text(path: str, cap: int = 20000) -> str:
@@ -1372,6 +1376,11 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                 for f in named_files(said, evidence_text(a.get("evidence", "")), r"\.py"):
                     if h and (fp := test_fingerprint(repo_, h, f)) and (fp.get("head") or fp.get("base")):  # a path in neither tree binds nothing
                         s.setdefault("approved_test_blobs", {})[f] = {**fp, "kind": kind}
+                bound = s.get("approved_test_blobs") or {}  # stale entries go: a cut-off name or one bound to no blob never matches again
+                keep = set(whole_names([f for f, fp in bound.items() if not isinstance(fp, dict) or fp.get("base") or fp.get("head")]))
+                for f in [f for f in bound if f not in keep]:
+                    del bound[f]
+                    s["approved_tests"] = [t for t in s.get("approved_tests") or () if t != f]
             if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
                 s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
@@ -1381,7 +1390,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                 # each approve replacing the last one's files); a new head starts empty
                 had = set(s.get("approved_tests") or ()) if s.get("approved_head") == s.get("head", "") else set()
                 s["approved_head"] = s.get("head", "")
-                s["approved_tests"] = sorted(had | set(named_files(said, evidence_text(a.get("evidence", "")), r"\.(?:py|json)")))
+                s["approved_tests"] = sorted(whole_names(had | set(named_files(said, evidence_text(a.get("evidence", "")), r"\.(?:py|json)"))))
             if action == "approve":
                 _set_approval(s, s.get("approve_kind"), s.get("approvals"))
                 at_ = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged: the approve is remembered for it
