@@ -10178,6 +10178,16 @@
         "response_model": "StartPlan"
       },
       {
+        "method": "POST",
+        "path": "/recipes/project/reread-edited",
+        "operation_id": "reread_edited_segments_api_recipes_project_reread_edited_post",
+        "summary": "Reread Edited Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RereadEditedRequest",
+        "response_model": "RereadEditedResponse"
+      },
+      {
         "method": "GET",
         "path": "/recipes/project/review-instructions",
         "operation_id": "get_review_instructions_api_recipes_project_review_instructions_get",

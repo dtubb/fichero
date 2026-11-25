@@ -6992,6 +6992,14 @@ def fichero_recipes_change_project_layers(
     return _rt.call("POST", "/api/recipes/project/layers", json=_rt.body({"languages": languages, "layers": layers, "remove": remove}))
 
 
+def fichero_recipes_reread_edited_segments(
+    *,
+    segment_ids: Annotated[list[Any], Field(description='the lines whose shape was just changed (after the person stops dragging)')],
+) -> Any:
+    'Reread Edited Segments\n\n`segment-actions.automatic-rerun-after-an-edit`: read each edited line again on its own, with the local model that\nread it; a line a paid cloud model read is reported as `stale` and never run.\n\nRoute: POST /api/recipes/project/reread-edited (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/recipes/project/reread-edited", json=_rt.body({"segment_ids": segment_ids}))
+
+
 def fichero_recipes_get_review_instructions(
 ) -> Any:
     "Get Review Instructions\n\nEach review pass's instructions, the default built from the project's setup and the project's edit if it has one\n(`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`.\n\nRoute: GET /api/recipes/project/review-instructions (toolset `recipes`; reads)."
@@ -10517,6 +10525,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_use_bakeoff_choice", "recipes", "POST", "/api/recipes/project/bakeoffs/{bakeoff_id}/use", fichero_recipes_use_bakeoff_choice),
     GeneratedTool("fichero_recipes_change_cloud_cap", "recipes", "PUT", "/api/recipes/project/cloud-cap", fichero_recipes_change_cloud_cap),
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
+    GeneratedTool("fichero_recipes_reread_edited_segments", "recipes", "POST", "/api/recipes/project/reread-edited", fichero_recipes_reread_edited_segments),
     GeneratedTool("fichero_recipes_get_review_instructions", "recipes", "GET", "/api/recipes/project/review-instructions", fichero_recipes_get_review_instructions),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
     GeneratedTool("fichero_recipes_run_status", "recipes", "GET", "/api/recipes/project/runs/{job_id}", fichero_recipes_run_status),

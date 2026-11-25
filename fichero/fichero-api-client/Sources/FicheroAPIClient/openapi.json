@@ -19040,6 +19040,70 @@
         }
       }
     },
+    "/api/recipes/project/reread-edited": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Reread Edited Segments",
+        "description": "`segment-actions.automatic-rerun-after-an-edit`: read each edited line again on its own, with the local model that\nread it; a line a paid cloud model read is reported as `stale` and never run.",
+        "operationId": "reread_edited_segments_api_recipes_project_reread_edited_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RereadEditedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RereadEditedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/layers": {
       "post": {
         "tags": [
@@ -94676,6 +94740,116 @@
         ],
         "title": "RepresentationRevisionParams",
         "description": "A revision's params. Its `content` is audited in full, unchanged from\nbefore slice 8: this action predates the digest rule and changing what an\nexisting audit chain records would make old rows and new rows mean\ndifferent things. New writes go through `representation.create`."
+      },
+      "RereadEditedRequest": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Segment Ids",
+            "description": "the lines whose shape was just changed (after the person stops dragging)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_ids"
+        ],
+        "title": "RereadEditedRequest"
+      },
+      "RereadEditedResponse": {
+        "properties": {
+          "started": {
+            "items": {
+              "$ref": "#/components/schemas/RereadStarted"
+            },
+            "type": "array",
+            "title": "Started",
+            "description": "each re-read queued, one small run in Activity"
+          },
+          "stale": {
+            "items": {
+              "$ref": "#/components/schemas/RereadStale"
+            },
+            "type": "array",
+            "title": "Stale",
+            "description": "lines whose reading came from a paid cloud model: not run, to be offered"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/RereadSkipped"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "lines not read again, each with why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "started",
+          "stale",
+          "skipped"
+        ],
+        "title": "RereadEditedResponse"
+      },
+      "RereadSkipped": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "why"
+        ],
+        "title": "RereadSkipped"
+      },
+      "RereadStale": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the paid cloud model that made its reading"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "model"
+        ],
+        "title": "RereadStale"
+      },
+      "RereadStarted": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "the small run in Activity that reads this line again"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "job_id"
+        ],
+        "title": "RereadStarted"
       },
       "ResearchChecklist": {
         "properties": {

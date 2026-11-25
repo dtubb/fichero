@@ -3486,6 +3486,45 @@ def _refuse_unfit_for_segments(db: Database, plan: dict, segments: list[str]) ->
         refuse_unfit_selection(db, list(workflow.nodes) if workflow else [], selection)
 
 
+class RereadEditedRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    segment_ids: list[str] = Field(min_length=1, description="the lines whose shape was just changed (after the person stops dragging)")
+
+
+class RereadStarted(BaseModel):
+    segment_id: str
+    job_id: str = Field(description="the small run in Activity that reads this line again")
+
+
+class RereadStale(BaseModel):
+    segment_id: str
+    model: str = Field(description="the paid cloud model that made its reading")
+
+
+class RereadSkipped(BaseModel):
+    segment_id: str
+    why: str
+
+
+class RereadEditedResponse(BaseModel):
+    started: list[RereadStarted] = Field(description="each re-read queued, one small run in Activity")
+    stale: list[RereadStale] = Field(description="lines whose reading came from a paid cloud model: not run, to be offered")
+    skipped: list[RereadSkipped] = Field(description="lines not read again, each with why")
+
+
+@router.post("/project/reread-edited", response_model=RereadEditedResponse)
+async def reread_edited_segments(
+    request: RereadEditedRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RereadEditedResponse:
+    """`segment-actions.automatic-rerun-after-an-edit`: read each edited line again on its own, with the local model that
+    read it; a line a paid cloud model read is reported as `stale` and never run."""
+    from fichero_server.recipes.reread import reread_edited
+
+    return RereadEditedResponse(**await asyncio.to_thread(reread_edited, db, request.segment_ids, started_by=started_by_for(ctx)))
+
+
 @action("project.start", StartParams, domains=["project"], undoable=True, invert=_invert_start)
 def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.core.timeutil import utc_now_iso

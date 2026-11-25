@@ -131,7 +131,7 @@ def _plan(db: Any) -> dict[str, Any]:
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
             redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None, plan_reads: dict | None = None,
             run_cap_usd: float | None = None, allow_cloud_once: bool = False, over_cap_once: bool = False,
-            segments: list[str] | None = None) -> str:
+            segments: list[str] | None = None, reread_of: dict[str, str] | None = None) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
@@ -142,12 +142,14 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
     runs = [{**card, "segment_ids": list(segments)} for card in plan["runs"]] if segments else plan["runs"]
     detail = {"runs": runs, "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
               "folder_id": folder_id, "awaited": awaited,
+              # An edited line read again by itself (`segment-actions.automatic-rerun-after-an-edit`): its id and name.
+              **({"reread_of": reread_of["segment_id"], "reread_label": reread_of["label"]} if reread_of else {}),
               # Its name and page count in Activity (#5615), as they were when it was queued.
               "title": _recipe_title(db), "pages": _pages_counted(db, documents, plan_reads),
               **({"run_cap_usd": run_cap_usd} if run_cap_usd is not None else {}),
               # This run only (`ai.cloud.one-run-overrides`): kept on the run's row, read by `_run`, ended with the run.
               **({"allow_cloud_once": True} if allow_cloud_once else {}), **({"over_cap_once": True} if over_cap_once else {})}
-    words = "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
+    words = f"Waiting to read again: {reread_of['label']}" if reread_of else "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
                                            f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
     job_id = jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
@@ -178,6 +180,8 @@ def name_and_pages(db: Any, job_id: str) -> tuple[str, int | None]:
     never the kind's id ("run-a-recipe"). A run queued before these were kept is named by the project's recipe, its
     pages counted now."""
     detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+    if detail.get("reread_label"):
+        return f"Read again: {detail['reread_label']}", 1
     title = detail.get("title") or _recipe_title(db)
     pages = detail.get("pages")
     if pages is None:

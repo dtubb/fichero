@@ -14740,6 +14740,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("reread-edited-segments")
+    def recipes_reread_edited_segments_post(
+        ctx: typer.Context,
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='the lines whose shape was just changed (after the person stops dragging) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Reread Edited Segments (POST /api/recipes/project/reread-edited)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/reread-edited"
+            params = None
+            payload = _build_json_payload({
+                "segment_ids": segment_ids,
+            }, {
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Segment Ids', 'description': 'the lines whose shape was just changed (after the person stops dragging)', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-review-instructions")
     def recipes_get_review_instructions_get(
         ctx: typer.Context,
