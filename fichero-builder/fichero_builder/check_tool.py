@@ -140,7 +140,7 @@ AUTO_RULES = {
                                 "other changed line keeps the red owed (manager 2026-11-05)",
     "red-on-base-tests-only": "a batch whose every changed path (a deletion or rename too) is a test file, a file in a tests directory or a "
                               "Markdown file, and none is under [check].red_paths, owes no red on base: there is no source change for a red to "
-                              "prove, and every changed test still runs green on head; code outside red_paths (scripts/, pipeline/) is source, "
+                              "prove, and every changed test still runs green on head; code outside red_paths is source, "
                               "and with red_paths unset the rule never applies",
     "red-on-base-trim-only": "a changed test file whose diff adds no assert and no new test function (a renamed one is a rename) "
                              "owes no red on base: it can only have lost checks, and it still runs green on head",
