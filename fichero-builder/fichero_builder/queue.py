@@ -1678,8 +1678,10 @@ def real_watchdog(root, stop: Callable[[dict], None], tell: Callable[[dict, str]
     from fichero_builder import watchdog
 
     cfg = check_tool.load(root)
-    limits = {"guards": cfg.guard_timeout_s, "build": cfg.build_timeout_s, "perf": float(cfg.perf.get("timeout_s", 0) or 0),
-              "security": float(cfg.security.get("timeout_s", 0) or 0)}
+    # the rungs whose figure is a whole-rung budget the ladder enforces; guard_timeout_s is per guard and perf's timeout_s is not
+    # passed to its run, so those are unknown: watchdog.RUNG_S (and no rung is given less, for its lock wait)
+    limits = {"build": cfg.build_timeout_s, "security": float(cfg.security.get("timeout_s", 0) or 0)}
+    started = time.time()  # rung-starts older than this died with an earlier loop
 
     def last_output(lane):
         j = jail.load(root)
@@ -1708,7 +1710,7 @@ def real_watchdog(root, stop: Callable[[dict], None], tell: Callable[[dict, str]
         return "" if rc == 0 else said
 
     def run(lanes):
-        return watchdog.check(lanes, journal.read(), time.time(), last_output=last_output, rung_timeout=lambda r: limits.get(r) or 3600.0,
+        return watchdog.check(lanes, journal.read(), time.time(), last_output=last_output, rung_timeout=lambda r: limits.get(r, 0.0), only=ONLY[0], loop_start=started,
                               nudge=nudge, stop_retry=stop_retry, cancel=lambda head: check_tool.cancel_file(head).write_text("watchdog"),
                               alert=lambda lane, step, why: alert(lane, step, why, str(journal.STATE / "journal.jsonl"), ["retry", "park", "dismiss"]))
     return run

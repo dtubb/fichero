@@ -758,14 +758,22 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `nightly.pid` lock under the state dir): a loop re-exec neither waits for it nor ends it, a second start while it runs is a row,
   a restarted loop adopts it by pid (one `adopted` row), and a dead one whose night has no result is one alert. `[nightly]` is a
   known table. Tests: `fichero-builder/tests/test_nightly.py` (the detached section).
-- `local.watchdog.slow-work` [OK] (#6589) — every tick the loop looks for work taking too long, three causes: a running step past
-  twice its lane's median land time (`nightly.median_land_s`, from its first `sent` row), a working session whose tmux window has
-  shown no output for 20 minutes, and a check rung started longer ago than its `[check]` timeout (one hour when it has none). The
-  first strike raises ONE alert with the evidence and the action taken (the session is nudged with a line asking for WAITING or
-  DONE; a hung rung is only named). The same cause one period later is the second strike: the session is stopped (a hung rung's
-  ladder cancelled) and the alert answered with retry, once, with one `watchdog` row naming the alert; after that the cause is the
-  person's. A cause that ends is forgotten. An error in the watchdog is a `watchdog-error` row, never a stopped tick.
-  Tests: `fichero-builder/tests/test_watchdog.py`.
+- `local.watchdog.slow-work` [OK] (#6589) — every tick the loop looks for work taking too long, in the lanes it is running only:
+  in `[loop].only`, not paused, the cursor step sent, done, checking, reviewing or fixing (a parked, held, queued or blocked step
+  is never judged). Three causes: a running step past twice its lane's median land time (`nightly.median_land_s`, from its LATEST
+  `sent` row, so a retry or restart starts the clock again), a working session whose tmux window has shown no output for 20
+  minutes, and a rung of the lane's CURRENT check (its key ends in the cursor step's head) that started after this loop did and
+  has run past its timeout: the rung's own whole-rung figure (`build_timeout_s`, `[check.security].timeout_s`), one hour when it
+  has none (`guard_timeout_s` is per guard, perf's figure is not passed to its run), and never under one hour, since a rung's
+  wall time includes its wait for a lock. A rung-start from a check that died with an earlier loop never ends and is never a
+  timeout. The first strike raises ONE alert with the evidence and the action taken (the session is nudged with a line asking
+  for WAITING or DONE; a hung rung is only named). A nudge that reaches no session is the `local.run.sent-needs-a-live-session`
+  case: the alert says there is no live session and the cause never escalates. Otherwise the same cause one period later is the
+  second strike: the session is stopped (a hung rung's ladder cancelled) and the alert answered with retry, once, with one
+  `watchdog` row naming the alert; after that the cause is the person's. A cause that ends is forgotten. An error in the
+  watchdog is a `watchdog-error` row, never a stopped tick. Fixed 2026-11-25 after its first live tick raised 22 false alerts
+  (paused and parked lanes, rung-starts of checks dead for days). Tests: `fichero-builder/tests/test_watchdog.py`, the real
+  cases in `::test_the_dead_rows_of_2026_11_25_and_lanes_the_loop_does_not_run_raise_nothing_and_one_live_slow_step_does`.
 - `local.nightly.notarize-own-timeout` [OK] (#6589) — `[nightly].notarize_timeout_min` (default 90) is each notarization's own
   budget: `scripts/notarize.sh` submits and polls (never `--wait`) that many minutes, and the DMG part's timeout is the build's two
   hours plus two such budgets (the bundle inside, then the disk image). Tests: `fichero-builder/tests/test_nightly.py::test_notarization_has_its_own_budget_and_polls_never_waits`.

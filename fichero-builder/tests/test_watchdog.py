@@ -20,9 +20,9 @@ class World:
         self.state = tmp_path / "watchdog.json"
         self.output: dict = {}
 
-    def run(self, lanes, rows, now, median=lambda rows, lane: 600.0, timeout=lambda r: 300.0):
+    def run(self, lanes, rows, now, median=lambda rows, lane: 600.0, timeout=lambda r: 0.0, only=(), loop_start=0.0, delivered=""):
         return watchdog.check(lanes, rows, now, last_output=lambda lane: self.output.get(lane["id"]), rung_timeout=timeout,
-                              nudge=lambda lane, text: self.nudges.append((lane["id"], text)) or "",
+                              nudge=lambda lane, text: self.nudges.append((lane["id"], text)) or delivered, only=only, loop_start=loop_start,
                               stop_retry=lambda lane, step, aid: self.retries.append((lane, step, aid)) or "",
                               cancel=self.cancels.append, alert=lambda lane, step, why: self.alerts.append((lane, step, why)) or f"a{len(self.alerts)}",
                               state=self.state, median=median)
@@ -34,8 +34,8 @@ def w(tmp_path, monkeypatch):
     return World(tmp_path)
 
 
-def lanes(state="sent"):
-    return [{"id": "l1", "cursor": 0, "steps": [{"step": "s1", "state": state}]}]
+def lanes(state="sent", head="bbbbbbbbbbbb"):
+    return [{"id": "l1", "cursor": 0, "steps": [{"step": "s1", "state": state, "head": head}]}]
 
 
 SENT = [{"event": "queue", "lane": "l1", "step": "s1", "state": "sent", "ts": _ts(T0)}]
@@ -66,19 +66,73 @@ def test_a_session_with_no_output_for_twenty_minutes_is_nudged(w):
 
 def test_a_step_not_running_is_never_watched(w):
     w.output["l1"] = T0
-    for st in ("queued", "landed", "parked", "blocked"):
+    for st in ("queued", "landed", "parked", "blocked", "red"):
         w.run(lanes(st), SENT, T0 + 99999)
     assert w.alerts == [] and w.nudges == []
 
 
 def test_a_rung_past_its_timeout_is_named_then_its_ladder_cancelled_and_the_step_retried(w):
+    """A rung with no figure of its own (guards: guard_timeout_s is per guard) gets RUNG_S, one hour; the alert of 2026-11-25 said 1 min."""
     rows = [{"event": "activity", "kind": "check", "key": "check aaaaaaaaa..bbbbbbbbb", "state": "rung-start", "rung": "guards", "lane": "l1", "ts": _ts(T0)}]
-    w.run(lanes("checking"), rows, T0 + 200, median=lambda rows, lane: None)
-    assert w.alerts == []
-    w.run(lanes("checking"), rows, T0 + 400, median=lambda rows, lane: None)
-    assert len(w.alerts) == 1 and "guards rung" in w.alerts[0][2] and w.nudges == [] and w.cancels == []
-    w.run(lanes("checking"), rows, T0 + 400 + 300, median=lambda rows, lane: None)
+    w.run(lanes("checking"), rows, T0 + 59 * 60, median=lambda rows, lane: None, timeout=lambda r: 60.0)
+    assert w.alerts == [], "never under an hour, whatever the figure"
+    w.run(lanes("checking"), rows, T0 + 61 * 60, median=lambda rows, lane: None)
+    assert len(w.alerts) == 1 and "guards rung" in w.alerts[0][2] and "past its 60 min timeout" in w.alerts[0][2] and w.nudges == [] and w.cancels == []
+    w.run(lanes("checking"), rows, T0 + 61 * 60 + 3600, median=lambda rows, lane: None)
     assert w.cancels == ["bbbbbbbbb"] and w.retries == [("l1", "s1", "a1")]
+
+
+def test_a_rung_with_a_longer_figure_waits_for_it(w):
+    rows = [{"event": "activity", "kind": "check", "key": "check aaaaaaaaa..bbbbbbbbb", "state": "rung-start", "rung": "build", "lane": "l1", "ts": _ts(T0)}]
+    w.run(lanes("checking"), rows, T0 + 90 * 60, median=lambda rows, lane: None, timeout=lambda r: 7200.0)
+    assert w.alerts == []
+    w.run(lanes("checking"), rows, T0 + 121 * 60, median=lambda rows, lane: None, timeout=lambda r: 7200.0)
+    assert len(w.alerts) == 1 and "past its 120 min timeout" in w.alerts[0][2]
+
+
+def test_the_slow_clock_starts_at_the_latest_sent_row(w):
+    """A retry or restart sends the step again: it is timed from then, not from its first send days ago."""
+    rows = [*SENT, {"event": "queue", "lane": "l1", "step": "s1", "state": "sent", "ts": _ts(T0 + 86400)}]
+    w.run(lanes(), rows, T0 + 86400 + 1100)
+    assert w.alerts == []
+    w.run(lanes(), rows, T0 + 86400 + 1300)
+    assert len(w.alerts) == 1 and "has run 22 min" in w.alerts[0][2]
+
+
+def test_a_slow_step_with_no_session_is_said_and_never_escalates(w):
+    """2026-11-25: a nudge to a lane with no window said "not delivered: no window" and still counted a strike. With no session
+    there is nothing to nudge or stop: the alert says so (the sent-with-no-live-session case) and there is no stop and retry."""
+    w.run(lanes(), SENT, T0 + 1300, delivered="no window")
+    assert len(w.alerts) == 1 and "no live session to nudge (no window)" in w.alerts[0][2] and "nudged" not in w.alerts[0][2]
+    w.run(lanes(), SENT, T0 + 9000, delivered="no window")
+    assert w.retries == [] and len(w.alerts) == 1 and not [r for r in journal.read() if r["event"] == "watchdog"]
+
+
+def test_the_dead_rows_of_2026_11_25_and_lanes_the_loop_does_not_run_raise_nothing_and_one_live_slow_step_does(w):
+    """The first live tick raised 22 false alerts: slow steps in paused, parked or not-run lanes (kg-store-and-query 2.4 at 3801
+    min), and rung-starts of checks that died with a loop restart days before (lane-onboard red-on-base at 32736 min)."""
+    now = T0 + 40000 * 60
+    loop_start = now - 600
+    ls = [{"id": "kg-store-and-query", "cursor": 0, "paused": True, "steps": [{"step": "2.4", "state": "sent", "head": "111111111aaa"}]},
+          {"id": "kg-readable-representation", "cursor": 0, "steps": [{"step": "2.1", "state": "sent", "head": "222222222aaa"}]},  # not in only
+          {"id": "ios-nav", "cursor": 0, "steps": [{"step": "nav-3", "state": "parked", "head": "333333333aaa"}]},
+          {"id": "training", "cursor": 0, "hold": True, "steps": [{"step": "1b", "state": "queued"}]},
+          {"id": "lane-onboard", "cursor": 0, "steps": [{"step": "o1", "state": "checking", "head": "444444444aaa"}]},
+          {"id": "ux", "cursor": 0, "steps": [{"step": "u1", "state": "checking", "head": "555555555new"}]},
+          {"id": "live", "cursor": 0, "steps": [{"step": "l1", "state": "sent", "head": "666666666aaa"}]}]
+    only = ("kg-store-and-query", "ios-nav", "training", "lane-onboard", "ux", "live")
+    old = now - 32736 * 60
+    rows = [{"event": "queue", "lane": x["id"], "step": x["steps"][0]["step"], "state": "sent", "ts": _ts(now - 3801 * 60)} for x in ls[:4]]
+    rows += [{"event": "activity", "kind": "check", "key": "check 000000000..444444444", "state": "rung-start", "rung": "red-on-base", "lane": "lane-onboard", "ts": _ts(old)},
+             {"event": "activity", "kind": "check", "key": "check 000000000..555555555", "state": "rung-start", "rung": "guards", "lane": "ux", "ts": _ts(old)},
+             {"event": "activity", "kind": "check", "key": "check 000000000..999999999", "state": "rung-start", "rung": "guards", "lane": "lane-ie", "ts": _ts(old)},
+             {"event": "activity", "kind": "check", "key": "check 000000000..888888888", "state": "rung-start", "rung": "perf", "lane": "ux", "ts": _ts(now - 500)}]
+    w.run(ls[:-1], rows, now, only=only, loop_start=loop_start)
+    w.run(ls[:-1], rows, now + 86400, only=only, loop_start=loop_start)
+    assert w.alerts == [] and w.nudges == [], "zero: no lane the loop runs is slow, and no rung is of a current check"
+    rows.append({"event": "queue", "lane": "live", "step": "l1", "state": "sent", "ts": _ts(now - 1300)})
+    w.run(ls, rows, now, only=only, loop_start=loop_start)
+    assert [(a[0], a[1]) for a in w.alerts] == [("live", "l1")]
 
 
 def test_a_rung_that_ended_is_not_open():
