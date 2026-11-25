@@ -218,6 +218,20 @@ targets are at least 44 pt.
   kept one is lit, not the first. *Tests:*
   `fichero/Tests/Unit/general/Views/Source/SegmentJoinSelectionTests.swift` (`joinedSelectsTheKept`,
   `undoneSelectsTheRestored`, `zeroRectBoxesAreToldApartByTheirId`).
+- `segment-editor.join-lines-in-the-same-row` — **[OK]** (→ #7071; engine + app) Edit › Segments ▸ Join Lines in the Same
+  Row (⌥⇧⌘J), the Preview's context menu and the line verb menu join the lines that share a row into one line each: the
+  selection's lines, or the page's when none is selected. A row is lines of one region (the same parent) whose heights
+  (widths for vertical text) overlap by at least half of the shorter, chained; the first line in reading order keeps its
+  id. The engine's `GET /api/segments/document/{doc_id}/join-rows-preview` names the rows and the lines left alone, and
+  one `segment.join_rows` (`POST /api/segments/join-rows`) joins every row in one undo step (`segment.unmerge_rows` is its inverse). *Tests:*
+  `fichero-server/tests/unit/api/test_segment_join_rows.py`,
+  `fichero/Tests/Unit/general/Models/SegmentJoinRowsTests.swift`.
+- `segment-editor.join-rows-keeps-parts-as-words` — **[OK]** (→ #7071; engine) the words of the joined lines become the
+  kept line's words, in page order. *Tests:* `fichero-server/tests/unit/api/test_segment_join_rows.py` (`TestPartsAsWords`).
+- `segment-editor.join-rows-says-what-it-will-do` — **[OK]** (→ #7071; app) before it joins, the page's notice says how
+  many lines go into how many rows and how many lines are left alone; once done it says what it did; when no two lines
+  share a row it says so and sends nothing (`SegmentEdit.joinRowsWillSay`, `joinRowsDone`, `joinRowsNothing`). *Tests:*
+  `fichero/Tests/Unit/general/Models/SegmentJoinRowsTests.swift`.
 - `segment-editor.merge-regions` — **[PARTIAL]** (→ #4941; engine) two or more selected regions and ⌥⌘J become one region
   whose outline is the union; their lines become the kept region's lines, interleaved into its
   order by page position (`layout_order`), with the result shown before it lands as a
@@ -979,6 +993,7 @@ Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across t
 | Lasso | ⌥-drag on empty page |
 | Select all (level) / same kind | ⌘A / ⌘⇧A |
 | Merge (Join) | ⌥⌘J |
+| Join Lines in the Same Row | ⌥⇧⌘J |
 | Split under pointer | ⌘⇧K |
 | Redraw Outline from Baseline | ⌘⇧R |
 | Simplify outline | ⌘⌥S |
@@ -1347,6 +1362,7 @@ hand, so the cut marks on such a line are the fallback's and say so.
 |---|---|---|---|---|
 | `segment-editor.tool.knife` | Knife | Cut every line the stroke crosses (K; hold for one stroke) | `segmentEditor.tool.knife` | [MISSING] |
 | `segment-editor.verb.merge` | Join | Join the selected lines into one (⌥⌘J) | `segmentEditor.verb.merge` | [MISSING] |
+| `segment-editor.verb.join-rows` | Join Lines in the Same Row | Join the lines that share a row, one line per row (⌥⇧⌘J) | `segmentEditor.verb.joinRows` | [MISSING] |
 | `segment-editor.verb.redraw` | Redraw Outline | Draw the outline again from the baseline (⌘⇧R) | `segmentEditor.verb.redraw` | [MISSING] |
 | `segment-editor.verb.cut-words` | Cut Words | Make word boxes from the reading's character positions (⌘⇧W) | `segmentEditor.verb.cutWords` | [MISSING] |
 | (every other control above) | its name | its one-line rule above with its key | `segmentEditor.*` | [MISSING] |
