@@ -198,6 +198,10 @@ class Card:
     #: The most lines the model is asked to read in one request (its card's `lines_per_request`), None: the default
     #: (`line_reader.LINES_PER_CALL`). A request never exceeds it (#5722).
     lines_per_request: int | None = None
+    #: What using it costs, in words ("Free, on this Mac"; a cloud model: billed by its provider) and the page of its own source
+    #: (`models.cards.richer-and-more`); empty where nothing states them.
+    cost: str = ""
+    source_url: str = ""
     #: False when the card's runtime is not in this build (its seed row says `runs_here: false`): never a
     #: candidate for the recipe, but the bake-off names it (Tesseract, `source.onboard.bakeoff-tesseract-baseline`).
     runs_here: bool = True

@@ -294,6 +294,13 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
 #: Apple Intelligence as a card: the on-device Foundation Models through this build's fm-bridge (`llm.providers`,
 #: provider `apple`, the text model `apple-intelligence` the factory defaults name).
 APPLE_INTELLIGENCE_PIN = {"cloud": "apple", "model": "apple-intelligence"}
+APPLE_INTELLIGENCE_URL = "https://developer.apple.com/documentation/foundationmodels"
+#: Where each cloud provider lists its own models (`models.cards.richer-and-more`); a provider not here has no link on its cards.
+PROVIDER_MODELS_URL = {
+    "anthropic": "https://platform.claude.com/docs/en/about-claude/models/overview",
+    "openai": "https://developers.openai.com/api/docs/pricing",
+    "google": "https://aistudio.google.com/docs/pricing",
+}
 #: The cloud model a person adds for text work when none is configured (#5660 item 4: "a cloud model (Claude)").
 CLAUDE_PROVIDER = "anthropic"
 
@@ -321,6 +328,7 @@ def other_text_cards() -> list[Card]:
         note="Apple Intelligence, on this Mac", source="installed", runs_here=apple_here, offered_only=True,
         cannot_run_because="" if apple_here else "Apple Intelligence is not available in this build or on this Mac",
         offered_because="Apple's on-device model (Foundation Models): free, and the pages stay on this Mac",
+        cost="Free, on this Mac", source_url=APPLE_INTELLIGENCE_URL,
     )]
     store = get_mlx_model_store()
     for name, spec in MANAGED_MLX_MODELS.items():
@@ -406,6 +414,8 @@ def _cloud_text_cards() -> list[Card]:
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
                 note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,
                 offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
+                cost=f"Billed by {row.name} for each use; its pages leave this Mac",
+                source_url=PROVIDER_MODELS_URL.get(ptype, ""),
                 **gone,
             ))
     if CLAUDE_PROVIDER not in seen_types:
@@ -415,6 +425,7 @@ def _cloud_text_cards() -> list[Card]:
             open_licence=True, licence="", note="Claude (Anthropic), in the cloud", source="installed", offered_only=True,
             runs_here=False, cannot_run_because="add Claude (Anthropic) in Settings › AI first",
             offered_because="a cloud model through your provider settings: its pages leave this Mac",
+            cost="Billed by Anthropic for each use; its pages leave this Mac", source_url=PROVIDER_MODELS_URL[CLAUDE_PROVIDER],
         ))
     return out
 
