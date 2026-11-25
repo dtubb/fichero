@@ -562,6 +562,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             if h is None:
                 lane["seq"] += 1
                 handles[lane["id"]] = procs.start(lane, s)
+                lane["session_pid"] = getattr(handles[lane["id"]], "pid", 0)  # #6589: a restarted loop adopts a session whose window was renamed by this pid
                 s["session"], lane["session_steps"] = "fresh", 0
             else:
                 if why := procs.rebase(lane):
@@ -2149,14 +2150,29 @@ def live_windows(j, lane: dict) -> list:
     return [wid for wid, cmd in worker_windows(j, lane["id"], with_command=True) if cmd and cmd.lstrip("-") not in SHELLS]
 
 
+def pid_alive(pid) -> bool:
+    """Is a process with this id running (any user's: a permission error means it exists)? The seam the tests replace."""
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+    except PermissionError:
+        return True
+    except (ProcessLookupError, ValueError, OverflowError):
+        return False
+    return True
+
+
 def adopt_session(j, lane: dict):
-    """#6589: a handle on the lane's live session, or None: its `builder run` still watches its feed and a window named for the lane
-    runs something other than an idle shell. The seams are `run_alive` and `tmux_as_worker`."""
-    if j is None or not j.user or not lane.get("feed") or not run_alive(j, lane["feed"]):
+    """#6589: a handle on the lane's live session, or None. A session is alive when a window named for the lane runs more than an
+    idle shell, or the process id recorded when it started is running. The seams are `tmux_as_worker` and `pid_alive`."""
+    if j is None or not j.user:
         return None
-    if not any(cmd and cmd.lstrip("-") not in SHELLS for _, cmd in worker_windows(j, lane["id"], with_command=True)):
+    pid = lane.get("session_pid")
+    window = lambda: bool(live_windows(j, lane))  # noqa: E731
+    if not window() and not pid_alive(pid):
         return None
-    return Adopted(lambda: run_alive(j, lane["feed"]) and bool(worker_windows(j, lane["id"])))
+    return Adopted(lambda: window() or pid_alive(pid))
 
 
 class Adopted:

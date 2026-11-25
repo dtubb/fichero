@@ -47,20 +47,61 @@ def test_a_restarted_loop_still_stops_a_session_it_cannot_adopt(state):
 
 def test_adopt_session_takes_a_live_window_named_for_the_lane_with_a_fake_session(monkeypatch):
     j = types.SimpleNamespace(user="w", sudo="sudo")
-    up = {"run": True, "cmd": "node"}
-    monkeypatch.setattr(queue, "run_alive", lambda j_, feed: up["run"])
-    monkeypatch.setattr(queue, "tmux_as_worker", lambda j_, *a: f"@1\tm1\t{up['cmd']}\n@2\tother\tnode\n")
+    up = {"cmd": "node"}
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j_, *a: f"@1\tm1\t{up['cmd']}\n@2\tother\tnode\n" if up["cmd"] else "")
+    monkeypatch.setattr(queue, "pid_alive", lambda pid: False)
     ln = {"id": "m1", "feed": "/f"}
     h = queue.adopt_session(j, ln)
-    assert h is not None and h.poll() is None, "watched, and alive while the window is"
-    up["run"] = False
-    assert h.poll() == 0, "gone with its watcher"
-    assert queue.adopt_session(j, ln) is None, "no `builder run` watching: not adopted"
-    up.update(run=True, cmd="zsh")
+    assert h is not None and h.poll() is None, "alive while the window is"
+    up["cmd"] = ""
+    assert h.poll() == 0, "gone with its window"
+    up["cmd"] = "zsh"
     assert queue.adopt_session(j, ln) is None, "an idle shell is not a session"
     up["cmd"] = "node"
     assert queue.adopt_session(j, {"id": "m2", "feed": "/f"}) is None, "a window of another name is not this lane's"
-    assert queue.adopt_session(j, {"id": "m1", "feed": ""}) is None and queue.adopt_session(None, ln) is None
+    assert queue.adopt_session(None, ln) is None
+
+
+def test_a_re_exec_with_five_live_windows_and_no_watcher_adopts_five_and_stops_none(state, monkeypatch):
+    """#6589 local.run.reexec-adopts-by-window-or-pid: no `builder run` on any feed, five lanes whose window runs a session."""
+    j = types.SimpleNamespace(user="w", sudo="sudo")
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j_, *a: "".join(f"@{i}\tm{i}\tnode\n" for i in range(1, 6)))
+    monkeypatch.setattr(queue, "pid_alive", lambda pid: False)
+    monkeypatch.setattr(queue, "run_alive", lambda j_, feed: False)
+    handles = [queue.adopt_session(j, {"id": f"m{i}", "feed": ""}) for i in range(1, 6)]
+    assert all(h is not None and h.poll() is None for h in handles), "five adopted"
+    fake, hs = _restarted_with_a_lost_handle(state, lambda ln: queue.adopt_session(j, {**ln, "id": "m1"}))
+    assert fake.stops == [] and "m1" in hs and steps()["1.1"]["state"] == "sent", "none stopped, the step keeps its state"
+    assert [r["state"] for r in journal.read() if r.get("state") == "adopted"] == ["adopted"], "one adopted row"
+
+
+def test_a_live_process_id_with_a_renamed_window_is_adopted(monkeypatch):
+    j = types.SimpleNamespace(user="w", sudo="sudo")
+    alive = {"pid": True}
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j_, *a: "@1\trenamed\tnode\n")
+    monkeypatch.setattr(queue, "pid_alive", lambda pid: alive["pid"] and pid == 4242)
+    h = queue.adopt_session(j, {"id": "m1", "feed": "/f", "session_pid": 4242})
+    assert h is not None and h.poll() is None
+    alive["pid"] = False
+    assert h.poll() == 0
+
+
+def test_a_lane_with_neither_a_live_window_nor_a_live_process_is_queued_once(state, monkeypatch):
+    j = types.SimpleNamespace(user="w", sudo="sudo")
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j_, *a: "")
+    monkeypatch.setattr(queue, "pid_alive", lambda pid: False)
+    fake, handles = _restarted_with_a_lost_handle(state, lambda ln: queue.adopt_session(j, ln))
+    assert fake.stops == ["m1"] and handles == {} and steps()["1.1"]["state"] == "queued"
+    assert len([r for r in journal.read() if r.get("state") == "queued" and "lost track" in r.get("detail", "")]) == 1
+
+
+def test_start_records_the_process_id_the_lane_can_be_adopted_by(state):
+    lane(state)
+    fake = Fake()
+    fake.start = lambda ln, st: types.SimpleNamespace(pid=4242, poll=lambda: None)
+    fake.procs.start = fake.start
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert queue.load()[0]["session_pid"] == 4242
 
 
 def test_the_loop_agent_abandons_its_process_group_so_a_kickstart_leaves_the_workers(state):
