@@ -29,7 +29,7 @@ import threading
 import time
 import uuid
 import tomllib
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 
 from fichero_builder import client, journal
@@ -89,6 +89,11 @@ class Config:
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
     perf: dict = field(default_factory=dict)      # [check.perf] (#6600): the engine perf rung: enforce, tests, timeout_s, dirs, declared
     security: dict = field(default_factory=dict)  # [check.security] (#6600): the security rung: enforce, where, pins, timeout_s, dirs
+    always_tests: tuple = ()            # test files the unit rung always runs (contract tests, smoke set); () = no unit rung (speed-tests-1)
+    ui_tests: tuple = ()                # -only-testing ids of the segment editor's UI tests; () = no ui rung
+    ui_runner: str = ""                 # "host:dir" with a logged-in GUI session; "" = build_remote
+    ui: dict = field(default_factory=dict)  # [check.ui]: enforce (report-only until three green runs)
+    swift_tests: tuple = ()             # the build tool's argv up to the action (project, scheme, destination, -testPlan fichero): `swift_tests()` appends build-for-testing, then test-without-building
     rungs: tuple = ()                   # [check].rungs: the rungs to run, in this order, by name (RUNGS and the [[check.rung]] names); () = every RUNGS rung
     rung: tuple = ()                    # [[check.rung]]: {name, argv, timeout_s}: a rung that runs argv in the scratch tree, green on exit 0
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
@@ -129,6 +134,7 @@ def load(root) -> Config:
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
+        always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -987,6 +993,9 @@ SOURCE_ERROR = re.compile(r"\.swift:\d+:\d+: error: ")
 BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
 
 
+SHARED_DERIVED = ("build", "test", "ui")  # these share the runner's one `<gate>/derived`, kept between checks so a build is incremental
+STALE_CACHE = re.compile(r"No such module '|module '[^']+' not found|PCM|precompiled module|was compiled with module cache path|module file '[^']+' is out of date")
+TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed")  # a failing test is the code's red, not the runner's
 WARNING_PLATFORMS = {"build": "mac", "ios-sim": "ios"}  # the remote build rung holds the mac count, the iOS daily build the iOS count (the Swift test target holds none; iPad waits for a scheme that carries the iPad plan)
 RATCHET_SCRIPT = client.scripts_dir() / "check_xcode_warning_ratchet.py"  # the harness's own copy judges: a batch's own script never runs, jailed or not
 
@@ -1122,7 +1131,7 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
         journal.append("check", state="build-reused", rung=name, detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
         return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
                                                            "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
-    tree, derived = f"{rbase}/{'security-tree' if keep_git else 'build-tree'}", f"{rbase}/derived" + ("" if name == "build" else f"-{name}")  # a daily build: its own derived data
+    tree, derived = f"{rbase}/{'security-tree' if keep_git else 'build-tree'}", f"{rbase}/derived" + ("" if name in SHARED_DERIVED else f"-{name}")  # a daily build: its own derived data
     if keep_git:
         # the exact commit, never the shared `scan` ref: another ladder's push may have moved it since this run's push
         head = (_lines(root, "rev-parse", "HEAD") or [""])[0]
@@ -1149,12 +1158,23 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
     if r["exit_code"] == 255:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=r["stderr_tail"][-200:])
         return None
+    if not r["ok"] and not r.get("timed_out") and name != "perf" and STALE_CACHE.search((r.get("errors") or "") + (r.get("stdout_tail") or "") + (r.get("stderr_tail") or "")):
+        # a stale module cache (a module not found, a PCM mismatch) is the runner's kept DerivedData, not the code: clear it, build once more
+        journal.append("check", state="retry", rung=name, runner=host, detail=f"stale-cache signature: {derived} cleared, built once more")
+        _ssh(host, f"rm -rf {shlex.quote(derived)}/* {shlex.quote(derived)}/.[!.]* 2>/dev/null; true", 300)
+        r = {**run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], src, timeout_s or cfg.build_timeout_s, None,
+                           as_jail=False, log=log.with_suffix(".clean.log")), "retried": "clean"}
+        r["stdout_tail"] = f"retried once with {derived} cleared (a stale-cache signature)\n" + (r.get("stdout_tail") or "")
+        if r["exit_code"] == 255:
+            journal.append("check", state="build-remote-down", rung=name, runner=host, detail=r["stderr_tail"][-200:])
+            return None
     if not r["ok"] and not r.get("timed_out") and name == "perf":
         # a perf run that exits non-zero crashed over there: its stderr is the row, never "unreachable"
         journal.append("check", state="build-remote-crash", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
         _build_env_red(host, name, (r.get("stderr_tail") or "")[-200:])
         return {"ok": False, "skipped": False, "crashed": True, "remote_env_red": True, "remote": host, "results": [r]}
-    if not r["ok"] and name != "perf" and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")):
+    if not r["ok"] and name != "perf" and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")) \
+            and not (name in ("test", "ui") and TEST_FAILED.search(r.get("stdout_tail") or "")):
         # a red that names no Swift source error is that Mac's (a missing component, a package fetch, a timeout), never the code's
         journal.append("check", state="build-remote-env-red", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
         _build_env_red(host, name, (r.get("stderr_tail") or "")[-200:])
@@ -1785,6 +1805,138 @@ def _perf_swift(root, cfg: Config) -> dict:
     return _report_only("perf", cfg.perf, True, [line], {"results": [row]})
 
 
+def unit(root, changed: list[str], cfg: Config, tests_run_elsewhere: bool = True) -> dict:
+    """The unit rung (speed-tests-1): the tests this batch can affect (`affected.select`: the importers of every changed source file, the
+    changed tests, `[check].always_tests`), or the whole suite when a change cannot be placed. A changed test file already ran in
+    red-on-base (`tests_run_elsewhere`) and is not run twice, unless the whole suite runs. The nightly `verify-all --full` runs everything.
+    Journals how many test files ran, how many tests passed, and why. Off with no `[check].always_tests`."""
+    from . import affected
+    if not cfg.always_tests:
+        return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].always_tests", "results": []}
+    all_py = _lines(root, "ls-files", "*.py") or []
+    tree_hash = (_lines(root, "rev-parse", "HEAD^{tree}") or [""])[0]
+    sel = affected.select(root, changed, all_py, cfg.test_globs, cfg.python_path, cfg.always_tests, tree_hash, journal.STATE)
+    if sel["whole"]:
+        whole = tuple(sorted({v for v in cfg.whole_tests.values() if isinstance(v, str)}))
+        dirs = sorted(f"{p.parent.name}/tests" for p in Path(root).glob("*/tests") if p.is_dir() and f"{p.parent.name}/tests" not in whole)
+        files, why = dirs, f"the whole suite: {sel['whole']}"
+    else:
+        whole = ()
+        files = [t for t in sel["tests"] if not (tests_run_elsewhere and t in sel["changed_tests"])]
+        why = f"{len(sel['tests'])} affected test files ({len(sel['changed_tests'])} changed, {len(sel['always'])} always-run)"
+    if not files:
+        journal.append("check", state="unit-selection", rung="unit", files=0, tests=0, why=why)
+        return {"ok": True, "skipped": True, "stdout_tail": f"not required: {why}, none left to run here", "stderr_tail": "", "results": []}
+    r = green_runs(root, files, whole, cfg, 1800)
+    n = sum(int(m.group(1)) for x in r.get("runs", []) for m in [re.search(r"(\d+) passed", x.get("stdout_tail") or "")] if m)
+    journal.append("check", state="unit-selection", rung="unit", files=len(files), tests=n, why=why, ok=r["ok"])
+    return {**r, "stdout_tail": f"unit: ran {len(files)} test files, {n} tests passed; {why}\n" + (r.get("stdout_tail") or "")}
+
+
+UI_VIEW_PATH = "fichero/fichero/Views/Preview"
+UI_GREENS_NEEDED = 3
+
+
+def ui_required(changed: list[str]) -> bool:
+    """A batch that changes Swift under Views/Preview or a Swift file named for a segment."""
+    return any(f.endswith(".swift") and (f.startswith(UI_VIEW_PATH) or "Segment" in Path(f).name) for f in changed)
+
+
+def _ui_greens(ok: bool | None = None) -> int:
+    """The consecutive green runs of the ui rung, kept in the state dir; `ok` records a run (a red resets it)."""
+    f = journal.STATE / "ui-greens.json"
+    try:
+        n = int(json.loads(f.read_text()).get("greens", 0)) if f.is_file() else 0
+    except ValueError:
+        n = 0
+    if ok is not None:
+        n = n + 1 if ok else 0
+        journal.STATE.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"greens": n}))
+    return n
+
+
+def _ui_not_run(reason: str, detail: str = "") -> dict:
+    """A ui rung that could not run: a NOT RUN row with its reason, never a red, enforcing or not."""
+    journal.append("check", state="not-run", rung="ui", reason=reason, detail=detail[-300:])
+    return {"ok": True, "skipped": False, "not_run": True, "stdout_tail": f"NOT RUN: {reason}" + (f"\n{detail[-300:]}" if detail else ""), "stderr_tail": "", "results": []}
+
+
+def ui(root, changed: list[str], cfg: Config) -> dict:
+    """One UI test pass per batch (speed-tests-1): `[check].ui_tests` (the segment editor's UI tests) on `[check].ui_runner` (default the
+    build runner), the Mac with a logged-in GUI session, only when the batch changes the segment editor's Swift. Report-only
+    (`[check.ui].enforce` false) until it has run green three times. No GUI session, or an unreachable runner, is NOT RUN, never red."""
+    if not cfg.ui_tests:
+        return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].ui_tests", "results": []}
+    if not ui_required(changed):
+        return {"ok": True, "skipped": True, "stdout_tail": f"not required: no Swift under {UI_VIEW_PATH} or named Segment changed", "stderr_tail": "", "results": []}
+    runner = cfg.ui_runner or cfg.build_remote
+    if not runner:
+        return _ui_not_run("no runner: neither [check].ui_runner nor [check].build_remote is set")
+    host = runner.partition(":")[0]
+    gui = _ssh(host, "launchctl print gui/$(id -u) >/dev/null 2>&1", 30)
+    if gui.returncode == 255:
+        return _ui_not_run(f"runner {host} unreachable", gui.stderr.decode(errors="replace"))
+    if gui.returncode:
+        return _ui_not_run(f"no logged-in GUI session for the ssh user on {host}")
+    argv = (*cfg.build[:-1], *(f"-only-testing:{t}" for t in cfg.ui_tests), "test")
+    r = _remote_build(root, replace(cfg, build_remote=runner), argv, "ui", reuse=False)
+    if r is None:
+        return _ui_not_run(f"runner {host} unreachable")
+    row = r["results"][0]
+    if r.get("remote_env_red"):
+        return _ui_not_run(f"the UI tests could not run on {host} (not a test failure)", row.get("stderr_tail") or "")
+    greens = _ui_greens(r["ok"])
+    enforce = bool(cfg.ui.get("enforce", False))
+    names = sorted(set(re.findall(r"Test [Cc]ase '([^']+)' failed", row.get("stdout_tail") or "")))
+    lines = [f"ui: {len(cfg.ui_tests)} UI test filters on {host}: " + ("green" if r["ok"] else "RED " + ", ".join(names)) + f" ({greens}/{UI_GREENS_NEEDED} green runs before enforcing)"]
+    if not r["ok"] and not enforce:
+        _rung_alert("ui", "ui (report-only) would be red: " + lines[0])
+    return {"ok": r["ok"] or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines), "stderr_tail": "", "results": [row]}
+
+
+def swift_tests(root, cfg: Config) -> dict:
+    """The Swift unit tests (not a per-step rung; the merge train runs it once per train): `[check].swift_tests` with build-for-testing,
+    then test-without-building, on `[check].build_remote` in the runner's one kept DerivedData. A test target that does not compile
+    is RED with the compiler errors; failing tests are RED naming them. No runner, or one that cannot run it, is a not-run row (never green)."""
+    def not_run(why: str, detail: str = "") -> dict:
+        journal.append("check", state="not-run", rung="swift-tests", reason=why, detail=detail[-300:])
+        return {"ok": False, "skipped": False, "not_run": True, "stdout_tail": f"NOT RUN: {why}\n{detail[-300:]}".strip(), "stderr_tail": "", "results": []}
+
+    if not cfg.swift_tests:
+        return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].swift_tests", "results": []}
+    if not cfg.build_remote:
+        return not_run("no [check].build_remote: the Swift tests never run on the manager's Mac")
+    t0 = time.time()
+    base = cfg.swift_tests if "-derivedDataPath" in cfg.swift_tests else (*cfg.swift_tests, "-derivedDataPath", "derived")  # the runner's kept dir is put in by _remote_build
+    b = _remote_build(root, cfg, (*base, "build-for-testing"), "test", reuse=False)
+    if b is None:
+        return not_run("the build runner is unreachable")
+    if b.get("remote_env_red"):
+        return not_run("the runner could not build (not a compile error)", b["results"][0].get("stderr_tail") or "")
+    if not b["ok"]:
+        row = b["results"][0]
+        return {"ok": False, "skipped": False, "stdout_tail": "RED: the test target does not compile\n" + (row.get("errors") or row.get("stdout_tail") or "")[-3000:],
+                "stderr_tail": row.get("stderr_tail") or "", "results": [row]}
+    t = _remote_build(root, cfg, (*base, "test-without-building"), "test", reuse=False)
+    if t is None:
+        return not_run("the build runner became unreachable")
+    if t.get("remote_env_red"):
+        return not_run("the runner could not run the tests (not a test failure)", t["results"][0].get("stderr_tail") or "")
+    row = t["results"][0]
+    out = (row.get("stdout_tail") or "")
+    ran = re.findall(r"Executed (\d+) tests?, with (\d+) failures?", out)
+    count, failed = (int(ran[-1][0]), int(ran[-1][1])) if ran else (0, 0)
+    names = sorted(set(re.findall(r"Test [Cc]ase '([^']+)' failed", out)))
+    secs = round(time.time() - t0, 1)
+    journal.append("check", state="swift-tests", rung="swift-tests", ok=t["ok"], seconds=secs, tests=count, failures=failed)
+    head = f"swift-tests: {count} tests, {failed} failed, {secs} s"
+    if not t["ok"]:
+        return {"ok": False, "skipped": False, "stdout_tail": f"RED: {head}\nfailing: {', '.join(names) or '(no test name read)'}\n" + out[-2000:],
+                "stderr_tail": row.get("stderr_tail") or "", "results": [row]}
+    return {"ok": True, "skipped": False, "stdout_tail": head, "stderr_tail": "", "results": [row]}
+
+
 def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
     """The perf rung: the engine half, and, when a changed path is under `fichero/`, the Swift half. ok = both ok; a Swift-only batch is
     never "not required"."""
@@ -2189,7 +2341,7 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
     return {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}
 
 
-RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "security", "contract-current", "since-guards", "build", "perf")  # the ladder below, in order
+RUNGS = ("ready", "diff-bound", "red-on-base", "unit", "guards", "security", "contract-current", "since-guards", "build", "ui", "perf")  # the ladder below, in order
 
 
 def pick_rungs(all_rungs: list, cfg: Config, tree) -> list:
@@ -2259,11 +2411,12 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
             ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if green_only
              else red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
              else _no_red_row(own, whole, cfg)),
+            ("unit", lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg)),
             ("guards", lambda: guards_on_current_base(root, since, head, pinned, cfg, tree, data_from_head=tuple(guard_data), stricter_from_head=stricter)),
-            ("security", lambda: security(tree, since, head, names, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),
+            ("ui", lambda: ui(tree, [f for _s, _m, f in _changes(root, since, head)], cfg)),
             ("perf", lambda: perf(tree, since, [f for _s, _m, f in _changes(root, since, head)], cfg)),
         ], cfg, tree))
     finally:
