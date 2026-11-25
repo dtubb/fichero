@@ -4,10 +4,12 @@ Pure rules first (the night's window, a lane's median land time, the order of th
 hands to `run_night`; the tests give it fakes and a fake clock. Nothing here builds in the loop's own checkout."""
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import statistics
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from dataclasses import dataclass
@@ -17,6 +19,14 @@ from typing import Callable
 from fichero_builder import client, journal
 
 KEYS = ("no_new_steps_at", "freeze_at", "check_runner", "build_machine", "smoke_machine", "publish", "check_footprint_mb")
+OPTIONAL = {"notarize_timeout_min": 90}  # local.nightly.notarize-own-timeout
+BUILD_S = 7200  # the DMG part's build budget; notarization (the app and the DMG, two round trips) gets its own on top (notarize_budget_s)
+NOTARY_POLL_S = 20  # scripts/notarize.sh polls `notarytool info` this often (FICHERO_NOTARY_POLL_SECONDS)
+
+
+def notarize_budget_s(cfg: "Cfg") -> int:
+    """Seconds the DMG part allows for notarization: two submit-then-poll round trips (the app, then the DMG) of the configured minutes."""
+    return 2 * cfg.notarize_timeout_min * 60
 GRACE = timedelta(hours=6)  # a loop that is down over the freeze starts that night's nightly only until six hours after it
 MEDIAN_OF = 10  # a lane's median land time is over its last ten landed steps
 
@@ -30,6 +40,7 @@ class Cfg:
     smoke_machine: str
     publish: str
     check_footprint_mb: int
+    notarize_timeout_min: int = 90  # [nightly].notarize_timeout_min: each notarization's own submit-then-poll budget, beside the build's
 
 
 def _hm(key: str, text: str) -> tuple[int, int]:
@@ -49,8 +60,13 @@ def load(rules: dict) -> Cfg | None:
         return None
     if missing := [k for k in KEYS if not n.get(k)]:
         raise ValueError(f"[nightly] lacks {', '.join(missing)}")
+    if unknown := sorted(set(n) - set(KEYS) - set(OPTIONAL)):
+        raise ValueError(f"[nightly]: unknown keys {unknown}")
+    nt = n.get("notarize_timeout_min", OPTIONAL["notarize_timeout_min"])
+    if not isinstance(nt, int) or nt <= 0:
+        raise ValueError("[nightly].notarize_timeout_min must be a whole number of minutes above 0")
     return Cfg(_hm("no_new_steps_at", n["no_new_steps_at"]), _hm("freeze_at", n["freeze_at"]), n["check_runner"], n["build_machine"],
-               n["smoke_machine"], n["publish"], int(n["check_footprint_mb"]))
+               n["smoke_machine"], n["publish"], int(n["check_footprint_mb"]), nt)
 
 
 def window(now: datetime, cfg: Cfg) -> tuple[datetime, datetime]:
@@ -154,9 +170,11 @@ def run_night(cfg: Cfg, r: Runners, sha: str, night: str, alert: Callable[[str],
     return True
 
 
-def when_due(cfg: Cfg | None, r: Runners | None, now: datetime, alert: Callable[[str], None], chains, threads: list) -> None:
+def when_due(cfg: Cfg | None, r: Runners | None, now: datetime, alert: Callable[[str], None], chains, threads: list,
+             spawn: Callable[[str, str], object] | None = None) -> None:
     """At each tick: past the freeze with no candidate row for the night, journal the integration head as the candidate and start the
-    nightly in its own thread (inline when `chains` is None, as the loop's other long jobs)."""
+    nightly: inline when `chains` is None (the tests, a one-shot loop), else through `spawn` (local.nightly.detached: its own process,
+    which a loop re-exec neither waits for nor kills), else in a thread as before."""
     if cfg is None or r is None:
         return
     night = candidate_due(now, cfg, journal.read)
@@ -166,6 +184,8 @@ def when_due(cfg: Cfg | None, r: Runners | None, now: datetime, alert: Callable[
     journal.append("nightly", state="candidate", night=night, sha=sha, detail="the integration head at the freeze")
     if chains is None:
         run_night(cfg, r, sha, night, alert)
+    elif spawn is not None:
+        spawn(sha, night)
     else:
         t = threading.Thread(target=run_night, args=(cfg, r, sha, night, alert), name="nightly", daemon=True)
         threads.append(t)
@@ -230,7 +250,10 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
     def dmg(sha):
         t = tree(cfg.build_machine, "dmg")
         version = f"$(sed -n 's/^MARKETING_VERSION = //p' {_q(t)}/fichero/Configs/Version.xcconfig | head -1)"
-        return _on(cfg.build_machine, f"{_clean_tree(origin, sha, t)} && cd {_q(t)} && python3 scripts/release_guard.py auto-notes {version} && scripts/release-all.sh --dev --skip-testflight", 7200)
+        polls = cfg.notarize_timeout_min * 60 // NOTARY_POLL_S  # scripts/notarize.sh submits, then polls this many times (never --wait)
+        return _on(cfg.build_machine, f"{_clean_tree(origin, sha, t)} && cd {_q(t)} && python3 scripts/release_guard.py auto-notes {version} && "
+                   f"FICHERO_NOTARY_POLL_SECONDS={NOTARY_POLL_S} FICHERO_NOTARY_MAX_POLLS={polls} scripts/release-all.sh --dev --skip-testflight",
+                   BUILD_S + notarize_budget_s(cfg))
 
     def smoke(sha):
         built, here = tree(cfg.build_machine, "dmg"), tree(cfg.smoke_machine, "smoke")
@@ -284,3 +307,88 @@ def text_owner(msg: str) -> None:
 def _as(s: str) -> str:
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
+
+
+# --- the detached nightly (local.nightly.detached, #6589: the loop's re-exec killed the nightly thread seconds after its candidate row) ---
+
+PID = "nightly.pid"  # under the state dir: {"pid", "night", "sha", "started"} of the running nightly process; the lock and the adoption key
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def running(state, alive: Callable[[int], bool] = _alive) -> dict:
+    """The pid file's record when that process is alive, else {}."""
+    try:
+        doc = json.loads((Path(state) / PID).read_text())
+    except (OSError, ValueError):
+        return {}
+    return doc if isinstance(doc.get("pid"), int) and alive(doc["pid"]) else {}
+
+
+def start_detached(root, state, sha: str, night: str, popen=subprocess.Popen, alive: Callable[[int], bool] = _alive) -> int:
+    """`builder nightly-run` as its own session (setsid): no loop thread holds it, so a re-exec neither waits for it nor ends it. One at a
+    time: a live pid file refuses a second (a row says so). Returns the pid, or 0 when one already runs."""
+    state = Path(state)
+    if cur := running(state, alive):
+        journal.append("nightly", state="already-running", night=night, sha=sha, detail=f"pid {cur['pid']} runs the night of {cur.get('night')}")
+        return 0
+    state.mkdir(parents=True, exist_ok=True)
+    pkg = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "PYTHONPATH": str(pkg)}
+    with open(state / "nightly.log", "a") as log:
+        p = popen([sys.executable, "-m", "fichero_builder", "nightly-run", "--root", str(root), "--state", str(state), "--sha", sha, "--night", night],
+                  stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True, cwd=str(pkg), env=env)
+    tmp = state / f"{PID}.tmp"
+    tmp.write_text(json.dumps({"pid": p.pid, "night": night, "sha": sha, "started": datetime.now().isoformat(timespec="seconds")}))
+    tmp.replace(state / PID)
+    journal.append("nightly", state="detached", night=night, sha=sha, detail=f"pid {p.pid}: its own process, adopted by pid after a restart")
+    return p.pid
+
+
+ADOPTED: set = set()  # the pids this loop process has said it adopted (one row each)
+
+
+def adopt(state, alert: Callable[[str], None], alive: Callable[[int], bool] = _alive) -> None:
+    """Each tick: a live nightly process from the pid file is adopted (one row per loop process); a dead one whose night has no
+    `published` and no red row ended without its result: one alert, and the pid file goes."""
+    f = Path(state) / PID
+    try:
+        doc = json.loads(f.read_text())
+    except (OSError, ValueError):
+        return
+    pid, night = doc.get("pid"), doc.get("night", "")
+    if isinstance(pid, int) and alive(pid):
+        if pid not in ADOPTED:
+            ADOPTED.add(pid)
+            journal.append("nightly", state="adopted", night=night, sha=doc.get("sha", ""), detail=f"pid {pid} still runs: watched by pid")
+        return
+    f.unlink(missing_ok=True)
+    ended = any(r.get("event") == "nightly" and r.get("night") == night and (r.get("state") == "published" or str(r.get("state", "")).endswith("-red"))
+                for r in journal.read())
+    if not ended:
+        alert(f"the nightly of {str(doc.get('sha', ''))[:9]} (night {night}) ended with no result: pid {pid} is gone")
+
+
+def run_detached(root, state, sha: str, night: str, alert: Callable[[str], None], runners: Runners | None = None) -> bool:
+    """The body of `builder nightly-run`: the night's parts with the real runners; the pid file goes when it ends, if it is still this one."""
+    import tomllib
+    cfg = load(tomllib.loads((Path(root) / "harness.toml").read_text()))
+    if cfg is None:
+        raise ValueError("harness.toml has no [nightly]")
+    try:
+        return run_night(cfg, runners or real_runners(root, cfg, client.land_branch(root), state), sha, night, alert)
+    finally:
+        f = Path(state) / PID
+        try:
+            if json.loads(f.read_text()).get("pid") == os.getpid():
+                f.unlink()
+        except (OSError, ValueError):
+            pass

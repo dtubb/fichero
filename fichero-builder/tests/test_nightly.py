@@ -188,3 +188,78 @@ def test_the_real_clear_removes_the_trees_releases_and_the_loops_old_dmgs_and_th
     clear, size = seen
     assert f"rm -rf {tmp_path}/s/nightly/dmg/build/releases" in clear[1] and f"{tmp_path}/build/releases" in clear[1]
     assert "du -sh" in size[1] and f"{tmp_path}/s/nightly/dmg/build" in size[1]
+
+
+# local.nightly.detached and local.nightly.notarize-own-timeout (#6589): the loop's re-exec killed the nightly thread seconds after its
+# candidate row, and the DMG part's 2-hour timeout cut off notarization
+
+def test_with_a_spawn_the_nightly_starts_detached_never_as_a_thread(state):
+    n, spawned, threads = Night(), [], []
+    nightly.when_due(CFG, n.runners, datetime(2026, 11, 18, 0, 0, 5), n.alerts.append, {}, threads, spawn=lambda sha, night: spawned.append((sha, night)))
+    assert spawned == [("f" * 40, "2026-11-17")] and threads == [] and n.calls == []
+
+
+class P:
+    def __init__(self, pid):
+        self.pid = pid
+
+
+def test_the_detached_nightly_is_one_process_with_a_pid_file_and_a_second_start_refuses(state):
+    seen = []
+    popen = lambda argv, **k: seen.append((argv, k)) or P(4242)  # noqa: E731
+    assert nightly.start_detached(state, journal.STATE, "a" * 40, "2026-11-17", popen=popen, alive=lambda pid: False) == 4242
+    argv, k = seen[0]
+    assert argv[2:4] == ["fichero_builder", "nightly-run"] and "--sha" in argv and k["start_new_session"] is True, "its own session: a re-exec never ends it"
+    assert nightly.running(journal.STATE, alive=lambda pid: pid == 4242)["night"] == "2026-11-17"
+    assert nightly.start_detached(state, journal.STATE, "b" * 40, "2026-11-18", popen=popen, alive=lambda pid: True) == 0 and len(seen) == 1
+    assert [r["state"] for r in journal.read() if r["event"] == "nightly"] == ["detached", "already-running"]
+
+
+def test_a_restarted_loop_adopts_a_live_nightly_by_pid_and_a_dead_one_with_no_result_is_one_alert(state):
+    alerts = []
+    nightly.ADOPTED.clear()
+    nightly.start_detached(state, journal.STATE, "a" * 40, "2026-11-17", popen=lambda argv, **k: P(77), alive=lambda pid: False)
+    nightly.adopt(journal.STATE, alerts.append, alive=lambda pid: True)
+    nightly.adopt(journal.STATE, alerts.append, alive=lambda pid: True)
+    assert [r["state"] for r in journal.read() if r["event"] == "nightly"].count("adopted") == 1 and alerts == []
+    nightly.adopt(journal.STATE, alerts.append, alive=lambda pid: False)
+    assert len(alerts) == 1 and "ended with no result" in alerts[0] and not (journal.STATE / nightly.PID).exists()
+    nightly.start_detached(state, journal.STATE, "a" * 40, "2026-11-18", popen=lambda argv, **k: P(78), alive=lambda pid: False)
+    journal.append("nightly", state="published", night="2026-11-18", sha="a" * 40, detail="")
+    nightly.adopt(journal.STATE, alerts.append, alive=lambda pid: False)
+    assert len(alerts) == 1, "a night that published is not an alert"
+
+
+def test_the_nightly_run_verb_runs_the_night_and_clears_its_own_pid_file(state, monkeypatch):
+    import json
+    import os
+
+    (state / "harness.toml").write_text((state / "harness.toml").read_text() + '[nightly]\nno_new_steps_at = "22:00"\nfreeze_at = "00:00"\n'
+                                        'check_runner = "m4"\nbuild_machine = "local"\nsmoke_machine = "local"\npublish = "dev"\ncheck_footprint_mb = 14336\n')
+    journal.STATE.mkdir(parents=True, exist_ok=True)
+    (journal.STATE / nightly.PID).write_text(json.dumps({"pid": os.getpid(), "night": "2026-11-17", "sha": "a" * 40}))
+    n = Night()
+    assert nightly.run_detached(state, journal.STATE, "a" * 40, "2026-11-17", n.alerts.append, runners=n.runners) is True
+    assert not (journal.STATE / nightly.PID).exists() and n.texts == ["try aaaaaaa"]
+
+
+def test_notarization_has_its_own_budget_and_polls_never_waits(monkeypatch, tmp_path):
+    ok = {"no_new_steps_at": "22:00", "freeze_at": "00:00", "check_runner": "m4", "build_machine": "local", "smoke_machine": "local", "publish": "dev", "check_footprint_mb": 14336}
+    assert nightly.load({"nightly": ok}).notarize_timeout_min == 90
+    cfg = nightly.load({"nightly": {**ok, "notarize_timeout_min": 120}})
+    with pytest.raises(ValueError, match="unknown keys"):
+        nightly.load({"nightly": {**ok, "notarise_timeout_min": 120}})
+    seen = []
+    monkeypatch.setattr(nightly, "_on", lambda machine, script, timeout: seen.append((script, timeout)) or (0, ""))
+    monkeypatch.setattr(nightly.subprocess, "run", lambda *a, **k: type("P", (), {"returncode": 0, "stdout": "git@x:o/r.git\n", "stderr": ""})())
+    nightly.real_runners(tmp_path, cfg, "integration", tmp_path / "s").dmg("c" * 40)
+    script, timeout = seen[0]
+    assert "FICHERO_NOTARY_MAX_POLLS=360" in script and "FICHERO_NOTARY_POLL_SECONDS=20" in script and "--wait" not in script
+    assert timeout == nightly.BUILD_S + 2 * 120 * 60
+
+
+def test_nightly_is_a_known_table(tmp_path):
+    from fichero_builder import check_tool
+
+    (tmp_path / "harness.toml").write_text('[nightly]\nfreeze_at = "00:00"\n')
+    assert check_tool.rules_warnings(tmp_path) == []

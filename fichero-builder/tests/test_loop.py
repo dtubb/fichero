@@ -2,6 +2,7 @@
 review -> landed --push -> the next step; a red goes back to the worker; every tick a heartbeat row. Processes are fakes."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -1910,3 +1911,57 @@ def test_the_same_head_going_on_by_itself_after_an_approve_runs_the_recheck_with
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "auto-approve"]
     assert seen[1] == (True, ("t/test_x.py",)), "the re-check of the same head runs with the approval for the named file"
+
+
+def test_a_red_on_base_approve_binds_the_test_the_ladder_file_names_when_the_alert_line_names_none(state, tmp_path):
+    """#6589 (app-bugs bug-7084, 13 rounds): the alert's one line was the end of the base run's output and named no test file, so the
+    approve bound to no file and was asked again after every rebase. The red rung's text in the ladder file names it: that is bound."""
+    wt, g = _ext_repo(tmp_path, commits=1)
+    (wt / "tests").mkdir()
+    (wt / "tests" / "test_x.py").write_text("def test_x():\n    assert True\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a test that passes on base")
+    head_a = g(wt, "rev-parse", "HEAD")
+    ladder = tmp_path / "ladder-ext.json"
+    ladder.write_text(json.dumps({"ok": False, "failed": "red-on-base", "rungs": [
+        {"name": "pinned-checks", "ok": True, "stderr_tail": "tests/other_ok.py"},
+        {"name": "red-on-base", "ok": False, "stderr_tail": "NOT RED ON BASE: tests/test_x.py passes at abc123456, so it proves nothing\n.html | 11 pass"}]}))
+    queue.add("ext", str(wt), "batch-1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "ext", head_a, "--state", str(state / "s")]) == 0
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "red-on-base", "approvals": ["approve_red"], "evidence": str(ladder),
+                                     "why": f"red-on-base at {head_a[:9]}: .html | ===== KNOWN BROKEN ===== | 11 pass"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    s = queue.load()[0]["steps"][0]
+    assert list(s["approved_test_blobs"]) == ["tests/test_x.py"], "the green rung's text binds nothing"
+    (wt / "other").write_text("o")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a rebase brought more")
+    assert queue.content_approvals({**s, "head": g(wt, "rev-parse", "HEAD")}, str(wt))["approve_red"] == ("tests/test_x.py",)
+
+
+def test_a_pinned_approve_holds_when_only_files_the_refusal_does_not_name_changed(state, tmp_path):
+    """#6589: the pinned diff an approve binds to carries every test file of the batch too, so a rebase or a new test changed its
+    patch-id and the same pinned file was asked about again. Each file the refusal names, with its own diff, is what is compared."""
+    lane(state)
+    diff, later, changed = tmp_path / "pinned-m1.diff", tmp_path / "pinned-m1-later.diff", tmp_path / "pinned-m1-changed.diff"
+    pinned = "diff --git a/scripts/x.py b/scripts/x.py\nindex 1111111..2222222 100644\n--- a/scripts/x.py\n+++ b/scripts/x.py\n@@ -1 +1 @@\n-a\n+b\n"
+    test = "diff --git a/tests/test_y.py b/tests/test_y.py\nindex 4444444..{0} 100644\n--- a/tests/test_y.py\n+++ b/tests/test_y.py\n@@ -1 +1 @@\n-x\n+{1}\n"
+    diff.write_text(pinned + test.format("5555555", "y"))
+    later.write_text(pinned.replace("@@ -1 +1 @@", "@@ -3 +3 @@") + test.format("6666666", "z"))
+    changed.write_text(pinned.replace("+b", "+c") + test.format("5555555", "y"))
+    why = "pinned-checks at abc1234ef: scripts/x.py: a pinned check file was changed"
+    refusal = {"ok": False, "kind": "needs-maintainer", "why": why, "findings": "scripts/x.py: a pinned check file was changed\nneeds-maintainer", "approvals": ["maintainer"]}
+    fake = Fake(chains={"1.1": [{**refusal, "evidence": str(diff)}, {**refusal, "evidence": str(later), "head": "h1.1b"}],
+                        "1.2": [{**refusal, "evidence": str(changed)}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    assert set(next(s for s in queue.load()[0]["steps"] if s["step"] == "1.1")["approved_diff_files"]) == {"scripts/x.py", "tests/test_y.py"}
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "landed", "another test file changed and the pinned file's own diff did not: approved by itself"
+    assert len(_alerts()) == 2 and _alerts()[-1]["step"] == "1.2", "the pinned file's own diff changed: the manager's call"
+
+
+def test_refused_files_reads_every_named_path():
+    t = "scripts/x.py: a pinned check file was changed\nfichero/a.json: a pinned check file was deleted\nthe diff deletes or weakens existing tests (tests/a.py, tests/b.py)\nneeds-maintainer"
+    assert queue.refused_files(t) == ["scripts/x.py", "fichero/a.json", "tests/a.py", "tests/b.py"]

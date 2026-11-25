@@ -53,17 +53,48 @@ def pinned_worktrees(repo) -> dict[str, str]:
     return out
 
 
-def pin(repo, sha: str, pinned_dir: Path, keep_others: bool = False) -> str:
-    """`pinned-<sha7>` as a branch and a worktree under pinned_dir; every other pinned-* branch and worktree goes, unless
-    `keep_others` (a check is reading one: the next landing removes them)."""
+KEEP_NEWEST_PINS = 3  # local.pin.prune-keeps-live-pins (#6589): the newest pinned copies always stay, beside every one in use
+
+
+def pins_in_use(lanes: list[dict] | None = None) -> set[str]:
+    """`pinned-<sha7>` names a live worker session or a queued step names: a step not landed or parked whose `pinned` (the copy its
+    session started from) or whose brief's `(base <sha>)` names one. A brief that cannot be read names none."""
+    from fichero_builder import queue
+
+    out: set[str] = set()
+    for lane in queue.load() if lanes is None else lanes:
+        for s in lane.get("steps", []):
+            if s.get("state") in ("landed", "parked"):
+                continue
+            if s.get("pinned"):
+                out.add(Path(s["pinned"]).name)
+            try:
+                m = re.search(r"\(base ([0-9a-f]{7,40})\)", Path(s.get("brief", "")).read_text().split("\n", 1)[0]) if s.get("brief") else None
+            except OSError:
+                m = None
+            if m:
+                out.add(f"pinned-{m.group(1)[:7]}")
+    return out
+
+
+def _newest_pins(repo, n: int) -> list[str]:
+    refs = _git(repo, "for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads/pinned-*").stdout.split()
+    return refs[:n]
+
+
+def pin(repo, sha: str, pinned_dir: Path, keep_others: bool = False, keep: set | None = None) -> str:
+    """`pinned-<sha7>` as a branch and a worktree under pinned_dir; the other pinned-* branches and worktrees go, unless
+    `keep_others` (a check is reading one: the next landing removes them). Never removed (local.pin.prune-keeps-live-pins): a pin
+    in `keep` (default: `pins_in_use()`, the ones a live session or a queued step names) and the newest KEEP_NEWEST_PINS."""
     name = f"pinned-{sha[:7]}"
     if name not in pinned_worktrees(repo):  # git refuses `branch -f` on a branch its own worktree has out: a rerun finds it in place
         _ok(_git(repo, "branch", "-f", name, sha), "branch -f")
+    held = {name} if keep_others else {name, *(pins_in_use() if keep is None else keep), *_newest_pins(repo, KEEP_NEWEST_PINS)}
     for b, path in ({} if keep_others else pinned_worktrees(repo)).items():
-        if b != name:
+        if b not in held:
             _ok(_git(repo, "worktree", "remove", "--force", path), f"worktree remove {path}")
     for b in ([] if keep_others else _git(repo, "branch", "--list", "pinned-*", "--format=%(refname:short)").stdout.split()):
-        if b != name:
+        if b not in held:
             _ok(_git(repo, "branch", "-D", b), f"branch -D {b}")
     dest = pinned_dir / name
     with journal.Lock("pin", what=f"making {name}"):  # #6381: one maker at a time; a chain re-pinning waits for a copy being made

@@ -189,6 +189,8 @@ def main(argv=None) -> int:
     la.add_argument("--root", default=str(Path.cwd())), la.add_argument("--state"), la.add_argument("--tick", type=float, default=30.0)
     la.add_argument("--port", type=int, default=8766, help="the console's port"), la.add_argument("--load", action="store_true", help="launchctl bootout + bootstrap each agent")
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
+    nr = sub.add_parser("nightly-run", help="one night's nightly in this process (the loop starts it detached, local.nightly.detached)")
+    nr.add_argument("--root", default=str(Path.cwd())), nr.add_argument("--state"), nr.add_argument("--sha", required=True), nr.add_argument("--night", required=True)
     rl = sub.add_parser("release", help="run (or resume) tonight's release stages; a model is started only when a stage is red (#6726)")
     rl.add_argument("--root", default=str(Path.cwd())), rl.add_argument("--state"), rl.add_argument("--run", help="the run id to resume (default: today's date)")
     rl.add_argument("--branch", required=True, help="the branch whose origin head is frozen as the candidate")
@@ -404,6 +406,12 @@ def main(argv=None) -> int:
             if a.restart:
                 print(f"loop restarted, pid {queue.restart_loop(a.restart, a.tick)}")
         return 1 if aid else 0
+    if a.cmd == "nightly-run":
+        from fichero_builder import nightly, queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        ok = nightly.run_detached(a.root, journal.STATE, a.sha, a.night, lambda why: queue.alert("-", "nightly", why, str(journal.STATE), ["retry"]))
+        return 0 if ok else 1
     if a.cmd == "release":
         from fichero_builder import nightly, release_run, start_tool
 

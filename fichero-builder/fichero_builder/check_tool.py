@@ -103,7 +103,7 @@ def load(root) -> Config:
     c = doc.get("check", {})
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
-    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness"}):
+    if unknown := sorted(set(doc) - KNOWN_TABLES):
         # forward compatible (manager 2026-11-02: a [machines] table stopped the running loop): the loop and the rules file can
         # differ by a batch, so a NEW table is ignored here and named once by `rules_warnings`; a table that is a near-miss of
         # a known one is a misspelling and still refuses, as an unknown key in [check] does
@@ -169,7 +169,7 @@ def _auto_rules(names) -> tuple:
     return tuple(names)
 
 
-KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness"}
+KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly"}
 
 
 def rules_warnings(root) -> list[str]:
@@ -755,6 +755,39 @@ def guards(root, cfg: Config) -> dict:
     machine's heavy lock, where it waited 65 min for a dev build; the guards are light (about 4 min of one core)."""
     with journal.Lock("guards", what="the guards rung"):
         return _guards(root, cfg)
+
+
+STALE_ENTRY = re.compile(r"no longer occur", re.I)  # a shrink-only allowlist's red: an entry the tree no longer has
+
+
+def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tree, **scratch) -> dict:
+    """local.check.stale-base-guards (#6589): the guards over `tree` (head on its own base). When every red is a shrink-only allowlist's
+    "no longer occurs" and the lane's base is older than the pinned copy's (integration now), the guards run again over head merged with
+    that tip: integration's allowlist names code the old base never had, so the merge is what lands and what is judged. Green there =
+    green, with the reason said; a conflict or a red there keeps the first red."""
+    r = guards(tree, cfg)
+    reds = [x for x in r.get("results") or [] if not x.get("ok")]
+    if r["ok"] or not reds or not all(STALE_ENTRY.search(f"{x.get('stdout_tail', '')}\n{x.get('stderr_tail', '')}") for x in reds):
+        return r
+    tip = (_lines(pinned, "rev-parse", "HEAD") or [""])[0]
+    if not tip or tip.startswith(since) or _git(root, "merge-base", "--is-ancestor", tip, head)["ok"]:
+        return r  # the lane already has integration's tip: a real red
+    tree_id = (_lines(root, "merge-tree", "--write-tree", head, tip) or [""])[0]  # None (a conflict, exit 1) = no tree
+    who = ("-c", "user.name=builder", "-c", "user.email=builder@localhost")  # a throwaway commit object, never on a branch
+    merged = (_lines(root, *who, "commit-tree", tree_id, "-p", head, "-p", tip, "-m", "check: head merged with the current base") or [""])[0] if tree_id else ""
+    if not merged:
+        return {**r, "reason": (r.get("reason") or "") + f" (head does not merge cleanly with {tip[:9]}: the stale-base re-run was not possible)"}
+    mtree = _scratch_tree(root, merged, pinned, cfg, **scratch)
+    try:
+        again = guards(mtree, cfg)
+    finally:
+        drop_tree(root, mtree)
+    if not again["ok"]:
+        return r
+    names = ", ".join(x.get("name", "?") for x in reds)
+    journal.append("check", state="stale-base-guards", rung="guards", head=head, base=tip, detail=f"{names}: green on head merged with {tip[:9]}")
+    return {**again, "reason": f"{names} reported allowlist entries that no longer occur on the lane's older base; on head merged with "
+                               f"the current base {tip[:9]} every guard is green (integration still needs those entries)", "stale_base": True}
 
 
 def _guards(root, cfg: Config) -> dict:
@@ -2222,7 +2255,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
             ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if green_only
              else red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
              else _no_red_row(own, whole, cfg)),
-            ("guards", lambda: guards(tree, cfg)),
+            ("guards", lambda: guards_on_current_base(root, since, head, pinned, cfg, tree, data_from_head=tuple(guard_data), stricter_from_head=stricter)),
             ("security", lambda: security(tree, since, head, names, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),

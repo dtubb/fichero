@@ -259,6 +259,7 @@ class Procs:
     ahead_of_origin: Callable[[dict], bool] = lambda lane: False  # lane -> its tree has commits past origin/<branch> (#6507: a retried batch's DONE)
     nightly: object = None  # nightly.Cfg from [nightly] (run.nightly-build); None = the project has none
     nightly_runners: object = None  # nightly.Runners; None = no nightly
+    nightly_spawn: Callable[[str, str], object] | None = None  # (sha, night) -> start the night detached (local.nightly.detached); None = a thread
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
@@ -730,7 +731,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             move(s, "done", "pinned diff matches [loop.approved_pinned]: the check runs again as the maintainer")
             return True
     if (r.get("kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and s.get("approved_diff")
-            and patch_id(r.get("evidence", "")) == s["approved_diff"]):  # the diff the manager approved, at another head: approved by itself
+            and (patch_id(r.get("evidence", "")) == s["approved_diff"] or same_refused_diffs(r, s))):  # the diff the manager approved, at another head: approved by itself
         for k in r.get("approvals") or ["maintainer"]:
             s[k] = True
         s["approved_head"] = s.get("head", "")
@@ -1086,6 +1087,50 @@ def patch_id(diff_path: str) -> str:
     return r.stdout.decode().split(" ")[0] if r.returncode == 0 and r.stdout else hashlib.sha256(text).hexdigest()
 
 
+def file_patch_ids(diff_path: str) -> dict:
+    """{path: patch-id of that file's own section} of a diff file; {} when unreadable (local.approve.keyed-by-content, #6589)."""
+    try:
+        text = Path(diff_path).read_text(errors="replace")
+    except OSError:
+        return {}
+    out = {}
+    for sec in re.split(r"(?m)^(?=diff --git )", text):
+        if m := re.match(r"diff --git a/(\S+) b/", sec):
+            r = subprocess.run(["git", "patch-id", "--stable"], input=sec.encode(), capture_output=True)
+            out[m.group(1)] = (r.stdout.decode().split(" ")[0] if r.returncode == 0 and r.stdout else "") or hashlib.sha256(sec.encode()).hexdigest()
+    return out
+
+
+def same_refused_diffs(r: dict, s: dict) -> bool:
+    """local.approve.keyed-by-content (#6589): every file the new refusal names has, in the new diff, the patch-id it had in the diff the
+    manager approved; files the refusal does not name (other tests, a rebase's base) never matter. No named file: no match."""
+    named, had = refused_files(r.get("findings", "")), s.get("approved_diff_files") or {}
+    if not named or not had:
+        return False
+    now = file_patch_ids(r.get("evidence", ""))
+    return all(f in had and now.get(f) == had[f] for f in named)
+
+
+def refused_files(findings: str) -> list[str]:
+    """The files a pinned-checks refusal names: `<path>: <reason>` lines and the weakened tests' `(a, b)` list."""
+    named = re.findall(r"(?m)^([\w./-]+\.[\w]+): ", findings or "")
+    for group in re.findall(r"weakens existing tests \(([^)]*)\)", findings or ""):
+        named += [x.strip() for x in group.split(",") if x.strip()]
+    return list(dict.fromkeys(named))
+
+
+def evidence_text(path: str, cap: int = 20000) -> str:
+    """What a red alert's ladder file says (its red rungs' output): the file names an alert's one-line `what` leaves out (#6589: a
+    red-on-base approve named no test file, so it bound to nothing and was asked again after each of 13 rebases)."""
+    try:
+        doc = json.loads(Path(path).read_text()) if str(path).endswith(".json") else {}
+    except (OSError, ValueError):
+        return ""
+    keys = ("reason", "stdout_tail", "stderr_tail")
+    rows = [r for r in doc.get("rungs") or [] if isinstance(r, dict) and not r.get("ok")]
+    return "\n".join(str(r.get(k, "")) for r in rows for k in keys if r.get(k))[:cap]
+
+
 def _alert_kind(r: dict) -> tuple:
     """What makes two alerts the same alert for Dismiss: lane, step, and the text before its first `;`, its numbers masked."""
     return (r.get("lane"), r.get("step"), re.sub(r"\d+", "N", str(r.get("what", "")).split(";")[0]).strip())
@@ -1181,12 +1226,13 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged first, never a newer step head (review)
                 h, repo_ = (at.group(1) if at else s.get("head", "")), s.get("land_tree") or lane["worktree"]
                 kind = "approve_weakened" if s.get("approve_kind") == "weakened-tests" or "approve_weakened" in (s.get("approvals") or ()) else "approve_red"
-                for f in re.findall(r"[\w./-]+\.py", said):
+                for f in dict.fromkeys(re.findall(r"[\w./-]+\.py", said + "\n" + evidence_text(a.get("evidence", "")))):
                     if h and (fp := test_fingerprint(repo_, h, f)):
                         s.setdefault("approved_test_blobs", {})[f] = {**fp, "kind": kind}
             if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
                 s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
+                s["approved_diff_files"] = file_patch_ids(a.get("evidence", ""))  # and per file: a rebase that changed only other files still holds
             if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
                 # one head's approvals ACCUMULATE (manager 2026-11-03: sharing bb3 was asked about the same test three times,
                 # each approve replacing the last one's files); a new head starts empty
@@ -1545,8 +1591,12 @@ def uv_prune_when_due(procs: Procs, chains: dict | None) -> None:
 
 
 def nightly_when_due(procs: Procs, chains: dict | None) -> None:
-    """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts (its own thread)."""
-    nightly.when_due(procs.nightly, procs.nightly_runners, procs.now(), lambda why: alert("-", "nightly", why, str(journal.STATE), ["retry"]), chains, BUILDS)
+    """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts: its own
+    process when `procs.nightly_spawn` is set (local.nightly.detached; a running one is adopted by pid each tick), else its own thread."""
+    say = lambda why: alert("-", "nightly", why, str(journal.STATE), ["retry"])  # noqa: E731
+    if procs.nightly_spawn is not None:
+        nightly.adopt(journal.STATE, say)
+    nightly.when_due(procs.nightly, procs.nightly_runners, procs.now(), say, chains, BUILDS, spawn=procs.nightly_spawn)
 
 
 ONLY: list = [()]  # [loop].only: the lanes the loop ticks; () = every lane in the queue (tests); the verb sets it (manager 2026-11-04)
@@ -2213,6 +2263,7 @@ def real_procs(root) -> Procs:
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
+        step["pinned"] = a.pinned  # local.pin.prune-keeps-live-pins: a landing's prune keeps the copy this session runs from
         a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
         j = work._jail(a)
         for wid, cmd in worker_windows(j, lane["id"], with_command=True):  # #6496: a second session of one name is unreachable by name
@@ -2386,7 +2437,7 @@ def real_procs(root) -> Procs:
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
+                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))

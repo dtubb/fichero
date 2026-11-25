@@ -740,6 +740,27 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `{branch}` and `{base}` filled, replaces the code-shaped part of a cluster brief's preamble ("Fixes #N", "Test first, see it fail",
   "Already built"); the first line with the branch and base stays. None set = today's words. A named file that is missing refuses.
   Built: `fichero-builder/tests/test_client_unjailed.py` (the brief section).
+- `local.approve.keyed-by-content` [OK] (#6589; one step looped 13 times) — an approve is never asked again only because the head moved.
+  A red-on-base approve binds each test file the red rung names (the alert's one line often names none: the ladder file's red rung
+  text is read too) by its blob at base and head, so a rebase that leaves the file alone carries it. A pinned-checks approve also
+  binds each file of its diff by that file's own patch-id: a later refusal whose named files have the same per-file diff is approved
+  by itself, whatever other files (the batch's tests, the base) changed. Tests: `fichero-builder/tests/test_loop.py::test_a_red_on_base_approve_binds_the_test_the_ladder_file_names_when_the_alert_line_names_none`,
+  `::test_a_pinned_approve_holds_when_only_files_the_refusal_does_not_name_changed`, `::test_refused_files_reads_every_named_path`.
+- `local.check.stale-base-guards` [OK] (#6589) — when every red guard is a shrink-only allowlist's "no longer occurs" and the lane's
+  base is older than the pinned copy's commit (integration now), the guards run again over head merged with that commit (a throwaway
+  merge commit, never a branch); green there is green with the reason said and one `stale-base-guards` row. A lane already on the
+  tip, a conflict, or any other kind of red keeps its red. Tests: `fichero-builder/tests/test_stale_base_guards.py`.
+- `local.pin.prune-keeps-live-pins` [OK] (#6589) — a landing's re-pin never removes a `pinned-<sha>` copy that a step not landed or
+  parked names (the copy its session started from, recorded as the step's `pinned`, or its brief's `(base <sha>)`), nor the newest
+  three by commit date. Tests: `fichero-builder/tests/test_landed_verb.py::test_a_pin_prune_keeps_the_newest_three_and_every_pin_a_live_or_queued_step_names`
+  (and `::test_a_second_landing_replaces_the_previous_pinned_branch_and_worktree`, now keeping the previous pin).
+- `local.nightly.detached` [OK] (#6589) — the loop starts the night as its own process (`builder nightly-run`, a new session, a
+  `nightly.pid` lock under the state dir): a loop re-exec neither waits for it nor ends it, a second start while it runs is a row,
+  a restarted loop adopts it by pid (one `adopted` row), and a dead one whose night has no result is one alert. `[nightly]` is a
+  known table. Tests: `fichero-builder/tests/test_nightly.py` (the detached section).
+- `local.nightly.notarize-own-timeout` [OK] (#6589) — `[nightly].notarize_timeout_min` (default 90) is each notarization's own
+  budget: `scripts/notarize.sh` submits and polls (never `--wait`) that many minutes, and the DMG part's timeout is the build's two
+  hours plus two such budgets (the app and the DMG). Tests: `fichero-builder/tests/test_nightly.py::test_notarization_has_its_own_budget_and_polls_never_waits`.
 - `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
