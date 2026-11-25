@@ -83,6 +83,10 @@ build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fich
          "-destination", "platform=macOS", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-jobs", "4",
          "-skipPackagePluginValidation", "-disableAutomaticPackageResolution", "CODE_SIGNING_ALLOWED=NO", "build"]
 build_timeout_s = 3600
+# The Swift unit tests (the merge train runs them once per train, never per step): `builder` appends build-for-testing, then
+# test-without-building, and runs both on [check].build_remote in the runner's one kept derived data. The UI test target stays out.
+swift_tests = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "platform=macOS",
+               "-testPlan", "fichero", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO"]
 # Only the owner's process takes this lock, so it lives in the owner's own state dir (~ expands), not the shared area.
 build_lock = "~/.local/state/fichero-builder/build.lock"
 # one STABLE tree for the build rung (and build-check), so xcodebuild is incremental (manager 2026-11-03: every ladder built
