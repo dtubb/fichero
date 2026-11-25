@@ -333,7 +333,7 @@ def main(a) -> int:
         return f"fast-forward of origin/{branch}"
 
     def boundary():
-        if hits := land_tool.boundary(repo, base, sha, land["boundary"]):
+        if hits := land_tool.boundary(repo, base, sha, list(land.get("boundary", land_tool.DEFAULT_BOUNDARY))):
             raise Red("the public boundary: " + "; ".join(hits))
         return "clear"
 

@@ -33,6 +33,7 @@ problems = S.refusals(a.root, jail)
 if problems:
     print("harness_start refuses:\n- " + "\n- ".join(problems), file=sys.stderr)
     sys.exit(1)
+J.note_unjailed(jail, "start", worker=a.name, kind="claude")
 claude = S.find_claude(Path.home(), jail.workroot)
 if not claude:
     print("harness_start refuses: no `claude` on the worker user's PATH (install it for that user)", file=sys.stderr)

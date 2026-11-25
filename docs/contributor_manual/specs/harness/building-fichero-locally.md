@@ -720,6 +720,26 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `scripts/` when it holds the wrappers, else the package's own `scripts/`, so an install outside a Fichero checkout finds its scripts. The guard scripts
   `check_*.py` and `perf_trial.py` stay in `scripts/`. Acceptance: `fichero-builder/tests/test_client_scripts.py` (each wrapper and its target give the same
   result; the package finds its scripts when copied to a tmp dir with no `scripts/` beside it).
+- `builder.client.jail-optional` [OK] (#6589) — `[jail].enabled = false` is the one explicit way to run with no wall: workers, the ladder and
+  tests run as the invoking user (a pass-through stands in for `sudo`, the probe proves nothing and is skipped), `[jail].workroot` is still
+  needed, and every run (a check, a test run, a worker start) writes one `unjailed` journal row naming the user. An ABSENT `[jail]` still
+  refuses everywhere, and Fichero's own file keeps its jail. With no probe, an `engine_repo` inside a home folder is allowed. Built:
+  `fichero-builder/tests/test_client_unjailed.py` (the jail section).
+- `builder.client.empty-rungs` [OK] (#6589) — `[check].ready`, `contract_guards`, `check_paths`, `contract_paths` and `pytest_config` may be
+  declared EMPTY (`ready = []`); left out they still refuse. An empty `ready` or contract key makes that rung a NOT RUN row naming the key,
+  an empty `check_paths` adds one `pinned-paths` NOT RUN row to every ladder (nothing is pinned), and an empty `pytest_config` runs
+  pytest with its own config search (pinned names still stop a batch changing it). Never a green, never a crash. Built:
+  `fichero-builder/tests/test_client_unjailed.py` (the empty-keys section).
+- `builder.client.land-boundary-default` [OK] (#6589) — the land boundary's patterns come only from `[land].boundary`; left out, they are
+  today's four (an owner's home path, an Anthropic key, a GitHub token, a private key block: `land_tool.DEFAULT_BOUNDARY`, tested equal to
+  Fichero's file); declared empty is refused, so the boundary is never off. Built: `fichero-builder/tests/test_client_unjailed.py`.
+- `builder.client.scripts-from-the-root` [OK] (#6589) — every script lookup takes the configured root, so `[harness].scripts_dir` resolves
+  against the client's root: the start hooks, `harness_start.py`, the review script and the build-order guard (`milestone.guard_for`, the
+  package's copy when the client's folder has none). Built: `fichero-builder/tests/test_client_unjailed.py` (the scripts section).
+- `builder.client.brief-template` [OK] (#6589) — `[brief].template` names a file (relative to the root) whose text, with `{numbers}`,
+  `{branch}` and `{base}` filled, replaces the code-shaped part of a cluster brief's preamble ("Fixes #N", "Test first, see it fail",
+  "Already built"); the first line with the branch and base stays. None set = today's words. A named file that is missing refuses.
+  Built: `fichero-builder/tests/test_client_unjailed.py` (the brief section).
 - `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a

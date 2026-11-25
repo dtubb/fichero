@@ -104,17 +104,48 @@ def build(issue: dict, *, repo: str) -> str:
     return "\n".join(out)
 
 
-def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "", where: list[str] = ()) -> str:
+def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "", where: list[str] = (), template: str = "") -> str:
     """One brief for a cluster: two preamble lines, the project's [brief].rules from harness.toml as the THIRD line with
     `#N` filled from the cluster's issues (so no brief needs a hand edit), the rest of the preamble, then every issue's
-    build(). The worker needs no issue tool: everything it may read is in the brief."""
+    build(). The worker needs no issue tool: everything it may read is in the brief. `template` (the text of [brief].template,
+    `{numbers}`, `{branch}` and `{base}` filled) replaces the code-shaped rest of the preamble (Fixes #N, test first, DONE)."""
     numbers = ", ".join(f"#{i['number']}" for i in issues)
     head = [f"You are a worker in the dev harness. Branch {branch} in this worktree (base {base}). No push.",
             "Everything you need is below: the issues' text, trusted comments and where the code is. There is no issue "
             "tool to call; do not try to read the issues again."]
     if rules.strip():
         head.append(" ".join(rules.strip().replace("#N", numbers).split("\n")))
-    head += [f"This step owes {numbers}. Put `Fixes #N` on its own line on the commit that finishes issue N, and `Part of #N` on any commit before that: "
+    if template.strip():  # [brief].template (builder.client.brief-template): the client's own words replace the code-shaped ones below
+        filled = template.replace("{numbers}", numbers).replace("{branch}", branch).replace("{base}", base)
+        head += [filled.rstrip("\n"), ""]
+    else:
+        head += _CODE_PREAMBLE(numbers)
+    if where:
+        head += ["## Where to start (found by the tool; your code tools find the rest)", *[f"- {w}" for w in where], ""]
+    return "\n".join(head + [build(i, repo=repo) for i in issues])
+
+
+def template_text(root) -> str:
+    """The text of root's `[brief].template` file (relative to root), "" when none is set: the default preamble stays."""
+    import tomllib
+    f = Path(root) / "harness.toml"
+    name = tomllib.loads(f.read_text()).get("brief", {}).get("template", "") if f.is_file() else ""
+    if not name:
+        return ""
+    p = Path(name) if Path(name).is_absolute() else Path(root) / name
+    if not p.is_file():
+        raise ValueError(f"harness.toml [brief].template {name!r} is not a file")
+    return p.read_text()
+
+
+def cluster_for(root):
+    """`cluster` with root's [brief].template bound: what every verb that writes a cluster brief passes on."""
+    import functools
+    return functools.partial(cluster, template=template_text(root))
+
+
+def _CODE_PREAMBLE(numbers: str) -> list[str]:  # noqa: N802 (the default words, as they always were)
+    return [f"This step owes {numbers}. Put `Fixes #N` on its own line on the commit that finishes issue N, and `Part of #N` on any commit before that: "
              "an issue closes only through that line when the step lands.",
              "One commit per issue. Test first, see it fail, then fix. Before changing a shared function, grep every "
              "reader and run their tests. If the behaviour is already in place, do not commit a test alone: commit the "
@@ -122,9 +153,6 @@ def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str
              "the base by design, so the check owes it no red; the landing comments the issue with the test).",
              "When all are committed print on its own line: DONE <short sha of branch head>, then the list of commits and "
              "which tests you ran.", ""]
-    if where:
-        head += ["## Where to start (found by the tool; your code tools find the rest)", *[f"- {w}" for w in where], ""]
-    return "\n".join(head + [build(i, repo=repo) for i in issues])
 
 
 OWNER_PATH = re.compile(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)")  # what a jail user cannot read (queue.brief_preflight refuses it)

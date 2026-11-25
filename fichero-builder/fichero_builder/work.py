@@ -350,11 +350,6 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     return r
 
 
-def _script(name: str, *argv) -> tuple[bool, str]:
-    r = subprocess.run([sys.executable, str(SCRIPTS / name), *argv], capture_output=True, text=True)
-    return r.returncode == 0, (r.stdout + r.stderr).strip()
-
-
 def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str, holder: dict | None = None) -> tuple[bool, str]:
     """The review script; with `holder`, its process is kept there so a later red rung can kill it (speed 2)."""
     key = f"review {head[:9]}"

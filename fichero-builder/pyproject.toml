@@ -20,7 +20,7 @@ builder = "fichero_builder.__main__:main"
 packages = ["fichero_builder"]
 
 [tool.setuptools.package-data]
-fichero_builder = ["console.html", "scripts/harness_brief.py", "scripts/harness_check.py", "scripts/harness_handoff_hook.py", "scripts/harness_land.py", "scripts/harness_policy_hook.py", "scripts/harness_review.py", "scripts/harness_setup.sh", "scripts/harness_start.py", "scripts/lane_ready_check.sh"]
+fichero_builder = ["console.html", "scripts/harness_brief.py", "scripts/harness_check.py", "scripts/harness_handoff_hook.py", "scripts/harness_land.py", "scripts/harness_policy_hook.py", "scripts/harness_review.py", "scripts/harness_setup.sh", "scripts/harness_start.py", "scripts/lane_ready_check.sh", "nosudo.sh"]
 
 [tool.pytest.ini_options]
 markers = ["slow: builds a venv and installs the package; run with -m slow"]

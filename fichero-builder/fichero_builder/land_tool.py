@@ -265,6 +265,11 @@ def review_groups(root, base: str, head: str, cap: int) -> list[tuple[str, str]]
     return groups + [(start, prev)] if prev != start else groups
 
 
+# [land].boundary left out of the rules file (builder.client.land-boundary-default): the patterns Fichero's file has always declared,
+# an owner's home path, an Anthropic key, a GitHub token, a private key block
+DEFAULT_BOUNDARY = ("/Users/(?!Shared/)[A-Za-z0-9._-]+/", "sk-ant-[A-Za-z0-9_-]{8,}", "gh[ps]_[A-Za-z0-9]{20,}", "BEGIN [A-Z ]*PRIVATE KEY")
+
+
 def boundary(root, base: str, head: str, patterns: list[str], cap: int = 30) -> list[str]:
     """The public/private boundary: every ADDED line of the diff and every commit message matching a pattern from
     harness.toml [land].boundary. Empty = clear; at most `cap` hits are returned (more is itself a refusal reason).
@@ -320,7 +325,7 @@ def gate(repo, head: str, pinned, verdicts, log) -> tuple[bool, str]:
     if stop := unreviewed(repo, branch, head, verdicts):
         row(refused="verdict", detail=stop)
         return False, "REFUSED:\n  " + "\n  ".join(stop)
-    if hits := boundary(repo, base, head, land_cfg.get("boundary", [])):
+    if hits := boundary(repo, base, head, list(land_cfg.get("boundary", DEFAULT_BOUNDARY))):
         row(refused="boundary", detail=hits)
         return False, "REFUSED (boundary):\n  " + "\n  ".join(hits)
     row(check_row=True)

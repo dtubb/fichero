@@ -2568,7 +2568,7 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
         if not issues:
             continue
         spec_path = root / triage.SPECS / spec
-        planned = milestone.plan(issues, milestone.build_order(spec_path), milestone.spec_slug(spec_path))
+        planned = milestone.plan(issues, milestone.build_order(spec_path, root=root), milestone.spec_slug(spec_path))
         for q in planned["questions"]:
             journal.append("queue", lane=lane, step="-", state="question", detail=q[-300:])
         if planned["questions"]:  # the owner places them: ONE alert for the milestone listing every question (not 25)
@@ -2580,7 +2580,7 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
             continue
         written = milestone.write_briefs(planned, out=journal.STATE / f"briefs-{lane}", repo_dir=str(root), base="", lane=lane,
                                          rules=rules.get("brief", {}).get("rules", ""), fetch=lambda n: brief_tool.fetch_issue(n, gh=gh),
-                                         cluster=brief_tool.cluster, spec_path=str(spec_path), binary=codemap.owner_binary(root))
+                                         cluster=brief_tool.cluster_for(root), spec_path=str(spec_path), binary=codemap.owner_binary(root))
         worktree = str(Path(rules["jail"]["workroot"]) / f"wt-{lane}")
         return lane, worktree, [{"step": c["step"], "brief": str(b), "issues": [i["number"] for i in c["issues"]], "waits": c["waits"]}
                                 for c, b in zip(planned["clusters"], written)]
@@ -2725,7 +2725,7 @@ def lane_from_issues(root, lane_id: str, issues: list[int], gh: str = "gh") -> t
     except (RuntimeError, OSError, ValueError) as e:
         return 1, f"gh could not read the issues: {e}"
     base = land_tool.resolve_branch(str(root), branch) or f"origin/{branch}"
-    text = brief_tool.cluster(got, repo=str(root), branch=branch, base=base, rules=rules.get("brief", {}).get("rules", ""))
+    text = brief_tool.cluster_for(root)(got, repo=str(root), branch=branch, base=base, rules=rules.get("brief", {}).get("rules", ""))
     out = journal.STATE / f"briefs-{lane_id}"
     out.mkdir(parents=True, exist_ok=True)
     step = "issues-" + "-".join(str(n) for n in issues[:4])

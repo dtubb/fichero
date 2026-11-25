@@ -186,6 +186,7 @@ def pi_procs(*, root, scratch, provider: str, session_dir, agent_dir=None, pi_bi
 
         if bad := start_tool.refusals(root_, jail.load(root_)):  # the same wall as the Claude start path (review 1 M4)
             raise RuntimeError("; ".join(bad))
+        jail.note_unjailed(jail.load(root_), "start", worker=name, kind="pi")
         pi = start(worktree, root=root_, scratch=scratch, model=model, provider=provider, session_dir=session_dir,
                    agent_dir=agent_dir, pi_bin=pi_bin)
         handle = f"pi:{pi.proc.pid}"

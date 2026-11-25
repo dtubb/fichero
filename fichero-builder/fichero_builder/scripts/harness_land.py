@@ -41,7 +41,7 @@ except RuntimeError as e:
 if stop := land_tool.unreviewed(a.repo, branch, a.head, a.verdicts):
     row(refused="verdict", detail=stop)
     sys.exit("REFUSED:\n  " + "\n  ".join(stop))
-if hits := land_tool.boundary(a.repo, base, a.head, land_cfg["boundary"]):
+if hits := land_tool.boundary(a.repo, base, a.head, list(land_cfg.get("boundary", land_tool.DEFAULT_BOUNDARY))):
     row(refused="boundary", detail=hits)
     sys.exit("REFUSED (boundary):\n  " + "\n  ".join(hits))
 r = check_tool.run_ladder(a.repo, base, a.head, a.pinned)

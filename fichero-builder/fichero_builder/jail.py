@@ -45,15 +45,22 @@ class Jail:
     sudo: str = "sudo"
     owner_home: str = ""               # what `~` means in deny_read/floor when the probe runs AS the jail user (else its own home)
     floor: tuple | None = None         # paths always probed; None = the owner's home and libraries (tests with a same-uid stand-in pass ())
+    enabled: bool = True               # False = [jail].enabled = false: no wall, everything runs as the invoking user (builder.client.jail-optional)
     _checked: list = field(default_factory=list, compare=False, repr=False, hash=False)
 
     def is_self(self) -> bool:
         """The process already runs as the jail user (a worker's own `check`): run directly, no sudo (review 3 B5)."""
+        if not self.enabled:
+            return True  # unjailed: the "jail user" is the invoking user
         r = subprocess.run(["id", "-u", self.user], capture_output=True, text=True) if self.user else None
         return bool(r and r.returncode == 0 and int(r.stdout) == os.getuid())
 
     def require(self) -> None:
-        """Refuse unless the user exists and we are that user or `sudo -n -u user` works."""
+        """Refuse unless the user exists and we are that user or `sudo -n -u user` works. Unjailed: only the workroot is checked."""
+        if not self.enabled:
+            if self.workroot and not os.access(self.workroot, os.W_OK | os.X_OK):
+                raise JailMissing(f"workroot {self.workroot!r} is missing or not writable")
+            return
         if not self.user:
             raise JailMissing("no jail user configured")
         r = subprocess.run(["id", "-u", self.user], capture_output=True, text=True)
@@ -88,7 +95,9 @@ class Jail:
 
     def probe(self) -> list[str]:
         """The once-per-setup proof (M7): as the jailed user, every `deny_read` path is unreadable and `gh` has no login.
-        Returns the failures (empty = the wall holds)."""
+        Returns the failures (empty = the wall holds). Unjailed there is no wall to prove, so nothing is probed."""
+        if not self.enabled:
+            return []
         bad = []
         # floor (review 3 B1): the owner's home and the real libraries are always probed, whatever the rules file lists
         home = self.owner_home or str(Path.home())
@@ -106,11 +115,15 @@ class Jail:
         return bad
 
 
-_KNOWN = {"user", "workroot", "deny_read", "sudo", "owner_home", "code_map", "doc_map", "doc_index", "require_index"}
+_KNOWN = {"user", "workroot", "deny_read", "sudo", "owner_home", "code_map", "doc_map", "doc_index", "require_index", "enabled"}
+NOSUDO = Path(__file__).resolve().parent / "nosudo.sh"  # unjailed: stands in for sudo, drops `-n -H -u <user>`, execs the rest
 
 
 def load(root) -> Jail | None:
-    """`[jail]` of `<root>/harness.toml`; none configured = None (callers decide whether that is allowed)."""
+    """`[jail]` of `<root>/harness.toml`; none configured = None (callers decide whether that is allowed).
+    `enabled = false` (builder.client.jail-optional) is the one explicit way to run without the wall: a Jail whose user is the
+    invoking user, whose `sudo` is a pass-through and whose probe proves nothing. An ABSENT [jail] still refuses everywhere."""
+    import getpass
     import tomllib
     f = Path(root) / "harness.toml"
     c = tomllib.loads(f.read_text()).get("jail") if f.is_file() else None
@@ -118,5 +131,16 @@ def load(root) -> Jail | None:
         return None
     if unknown := sorted(set(c) - _KNOWN):  # fail closed: a misspelt key is not silently ignored
         raise ValueError(f"harness.toml [jail]: unknown keys {unknown}")
+    if not isinstance(c.get("enabled", True), bool):
+        raise ValueError("harness.toml [jail].enabled must be true or false")
+    if c.get("enabled", True) is False:
+        return Jail(user=getpass.getuser(), workroot=c.get("workroot", ""), sudo=str(NOSUDO), enabled=False)
     return Jail(user=c.get("user", ""), workroot=c.get("workroot", ""), deny_read=tuple(c.get("deny_read", ())),
                 sudo=c.get("sudo", "sudo"), owner_home=c.get("owner_home", ""))
+
+
+def note_unjailed(j: Jail | None, what: str, **fields) -> None:
+    """One journal row per unjailed run (builder.client.jail-optional): the record says this ran with no wall, and as whom."""
+    if j is not None and not j.enabled:
+        from fichero_builder import journal
+        journal.append("unjailed", what=what, user=j.user, **fields)

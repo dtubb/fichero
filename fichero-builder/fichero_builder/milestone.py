@@ -27,10 +27,17 @@ def spec_slug(spec_path) -> str:
     return m.group(1)
 
 
-def build_order(spec_path, guard=GUARD) -> list[dict]:
-    """The spec's steps in build order: [{number, title, depends_on, behaviours}], via the guard's parser."""
+def guard_for(root=None) -> Path:
+    """The build-order guard in root's [harness].scripts_dir when that folder has one (builder.client.scripts-from-the-root), else GUARD."""
+    own = client.script(root, GUARD.name, GUARD)
+    return own if own.is_file() else GUARD
+
+
+def build_order(spec_path, guard=None, root=None) -> list[dict]:
+    """The spec's steps in build order: [{number, title, depends_on, behaviours}], via the guard's parser (root's own, see guard_for)."""
     import sys
 
+    guard = guard or guard_for(root)
     spec = importlib.util.spec_from_file_location("build_order_guard", guard)
     mod = importlib.util.module_from_spec(spec)
     sys.path.insert(0, str(Path(guard).parent))  # the guard imports helpers beside it

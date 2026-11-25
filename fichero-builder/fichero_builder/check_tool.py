@@ -110,7 +110,7 @@ def load(root) -> Config:
         if misspelt := [u for u in unknown if difflib.get_close_matches(u, KNOWN_TABLES, 1, 0.75)]:
             raise ValueError(f"harness.toml: unknown tables {misspelt}")
     brief = doc.get("brief", {})
-    if unknown := sorted(set(brief) - {"rules"}):
+    if unknown := sorted(set(brief) - {"rules", "template"}):
         raise ValueError(f"harness.toml [brief]: unknown keys {unknown}")
     if not isinstance(brief.get("rules", ""), str):
         raise ValueError("harness.toml [brief]: rules must be text")
@@ -180,6 +180,15 @@ def rules_warnings(root) -> list[str]:
     return [f"harness.toml: unknown tables {new} (newer than this code?)"] if new else []
 
 
+EMPTY_OK = ("ready", "contract_guards", "check_paths", "contract_paths", "pytest_config")  # may be declared empty (builder.client.empty-rungs)
+
+
+def not_configured(name: str, why: str) -> dict:
+    """A rung a declared-empty key turns off: NOT RUN with the reason, never a green and never a crash (builder.client.empty-rungs)."""
+    return {"name": name, "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0, "skipped": True, "not_run": True,
+            "stdout_tail": f"NOT RUN: {why}", "stderr_tail": "", "results": []}
+
+
 def rules_problems(root) -> list[str]:
     """Every reason the rules file is not good enough to start, check or land on; empty = fine (review 4 B5).
     One function for start, the ladder and land: a file the start refuses never lands."""
@@ -194,16 +203,22 @@ def rules_problems(root) -> list[str]:
     except (ValueError, tomllib.TOMLDecodeError) as e:
         return [f"harness.toml: {e}"]
     out: list[str] = []
-    if j is None:
-        out.append("harness.toml has no [jail]: nothing runs unjailed")
+    if j is None:  # an ABSENT [jail] refuses; only `[jail].enabled = false` runs unjailed (builder.client.jail-optional)
+        out.append("harness.toml has no [jail]: nothing runs unjailed (set [jail].enabled = false to run as yourself)")
+    elif not j.enabled:  # unjailed on purpose: no user, no deny_read, no probe; each run journals an `unjailed` row
+        if not j.workroot:
+            out.append("[jail].workroot is not set: unjailed runs still keep their worktrees, scratch and state there")
     elif not j.user:
         out.append("[jail].user is not set")
     elif not j.deny_read:
         out.append("[jail].deny_read is empty: the probe needs paths to prove unreadable")
+    declared = tomllib.loads(f.read_text()).get("check", {})
     for name, val in (("python", c.python), ("ready", c.ready), ("guard_glob", c.guard_glob), ("min_guards", c.min_guards),
                       ("contract_guards", c.contract_guards), ("check_paths", c.check_paths), ("contract_paths", c.contract_paths),
                       ("pytest_config", c.pytest_config)):  # review-2 H10: an unlisted key must not fail open
-        if not val:
+        # builder.client.empty-rungs: these may be declared EMPTY (`ready = []`): the rung that needs one is then a NOT RUN row
+        # naming why; left out of the file they still refuse
+        if not val and not (name in EMPTY_OK and name in declared):
             out.append(f"harness.toml [check].{name} is not declared")
     if c.python and not Path(c.python).is_absolute():
         out.append(f"[check].python {c.python!r} must be an absolute path (no PATH lookup, no shim)")
@@ -212,9 +227,10 @@ def rules_problems(root) -> list[str]:
     land = tomllib.loads(f.read_text()).get("land", {})
     if unknown := sorted(set(land) - {"branch", "boundary", "pinned_dir", "worktree_grace_hours", "repo", "release_branch"}):
         out.append(f"harness.toml [land]: unknown keys {unknown}")
-    for k in ("branch", "boundary"):
-        if not land.get(k):
-            out.append(f"harness.toml [land].{k} is not declared")
+    if not land.get("branch"):
+        out.append("harness.toml [land].branch is not declared")
+    if "boundary" in land and not land["boundary"]:  # left out = today's patterns (land_tool.DEFAULT_BOUNDARY); declared empty = no boundary, refused
+        out.append("harness.toml [land].boundary is empty: leave it out for the default patterns, never turn the boundary off")
     return out
 
 
@@ -597,7 +613,7 @@ def _remove_scratch(d: str) -> None:
 
 def ready(root, cfg: Config, timeout_s: float = 600) -> dict:
     if not cfg.ready:
-        return _skipped("ready")
+        return not_configured("ready", "[check].ready is empty: no ready check is declared")
     argv = [str(Path(root) / cfg.ready[0]) if "/" in cfg.ready[0] and not cfg.ready[0].startswith("/") else cfg.ready[0],
             *cfg.ready[1:]]
     return _run("ready", argv, root, timeout_s, cfg)
@@ -900,7 +916,11 @@ def _guard_cache_save(cache: dict) -> None:
 
 def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 300) -> dict:
     """The project's contract guards, only when the diff touches its contract paths."""
-    if not cfg.contract_guards or not any(f.startswith(cfg.contract_paths) for f in changed):
+    if not cfg.contract_guards:
+        return not_configured("contract-current", "[check].contract_guards is empty: no contract guard is declared")
+    if not cfg.contract_paths:
+        return not_configured("contract-current", "[check].contract_paths is empty: no path makes the contract guards run")
+    if not any(f.startswith(cfg.contract_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
     root = Path(root)
     results = [_run(Path(g).stem, _isolated(root / g, root, cfg), root, timeout_s, cfg)
@@ -2088,6 +2108,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
     _jail_enter(j)
     _KEY[0] = f"check {since[:9]}..{str(head)[:9]}"
+    _jailmod.note_unjailed(j, "check", since=since, head=str(head))
     sweep_cancels()
     ACTIVITY(kind="check", key=_KEY[0], state="start")
     ended: dict = {}
@@ -2211,7 +2232,12 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     finally:
         drop_tree(root, tree)
         drop_tree(root, own)
-    return {**out, "rungs": [ok_pin, *out["rungs"]]}
+    return {**out, "rungs": [ok_pin, *unpinned_rows(cfg), *out["rungs"]]}
+
+
+def unpinned_rows(cfg: Config) -> list[dict]:
+    """With [check].check_paths declared empty no check file is pinned: one NOT RUN row says so on every ladder (builder.client.empty-rungs)."""
+    return [] if cfg.check_paths else [not_configured("pinned-paths", "[check].check_paths is empty: no check file is pinned, so none is protected from the diff")]
 
 
 def run_tests(root, head: str, pinned, paths: list[str], jail_required: bool = True) -> dict:
@@ -2225,6 +2251,7 @@ def run_tests(root, head: str, pinned, paths: list[str], jail_required: bool = T
     if j is not None:
         j.require()
     _jail_enter(j)
+    _jailmod.note_unjailed(j, "tests", head=str(head))
     tree = _scratch_tree(root, head, pinned, cfg, overlay=False)  # tests run on head as it is (manager 2026-11-02)
     try:
         return {**green_runs(tree, list(paths), (), cfg, 3600), "name": "tests"}

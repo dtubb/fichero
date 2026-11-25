@@ -289,13 +289,13 @@ def main(argv=None) -> int:
         if not a.spec:
             print("REFUSED: --spec is needed when the milestone is named")
             return 1
-        order = milestone.build_order(a.spec)
+        order = milestone.build_order(a.spec, root=a.repo_dir)
         planned = milestone.plan(milestone.list_issues(a.name, gh=a.gh, cwd=str(a.repo_dir)), order, milestone.spec_slug(a.spec))
         rules_doc = tomllib.loads((Path(a.repo_dir) / "harness.toml").read_text())
         base = a.base or resolve(a.repo_dir, "origin/" + rules_doc.get("land", {}).get("branch", ""))
         rules = rules_doc.get("brief", {}).get("rules", "")
         written = milestone.write_briefs(planned, out=a.out, repo_dir=a.repo_dir, base=base, rules=rules,
-                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster,
+                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster_for(a.repo_dir),
                                          spec_path=a.spec, binary=codemap.owner_binary(a.repo_dir), lane=queue.slug(a.name) if a.enqueue else "")
         for c, p in zip(planned["clusters"], written):
             print(f"Step {c['step']}: {', '.join('#%d' % i['number'] for i in c['issues'])} -> {p}")
