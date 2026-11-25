@@ -101,7 +101,6 @@ def install(root, machine: str, dmg: str = "", wait: int = 20) -> tuple[int, str
     One `install` row. The owner tests on that machine next."""
     doc = tomllib.loads((Path(root) / "harness.toml").read_text())
     m = doc.get("machines", {}).get(machine)
-    python = python or default_python(root)
 
     def row(rc: int, out: str, **kw) -> tuple[int, str]:
         journal.append("install", machine=machine, dmg=dmg, rc=rc, detail=out[-800:], **kw)
@@ -162,6 +161,7 @@ def sync(root, machine: str, python: str = "") -> tuple[int, str]:
     first; one `machines` row."""
     doc = tomllib.loads((Path(root) / "harness.toml").read_text())
     m = doc.get("machines", {}).get(machine)
+    python = python or default_python(root)
 
     def row(rc: int, out: str) -> tuple[int, str]:
         journal.append("machines", machine=machine, step="sync", rc=rc, detail=out[-800:])
