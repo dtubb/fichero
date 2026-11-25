@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 /// #5652: the menu verbs that every surface renders as ONE item (Activity's Stop and Read Again, a trained model's

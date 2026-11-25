@@ -119,7 +119,7 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
             [
                 "App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift",
                 "Views/Library/LibraryView+ContextMenu.swift",
-                "Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift",
+                "Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift"
             ]
         )
         // No surface calls the service itself any more.
@@ -156,14 +156,14 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
             [
                 "App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift",
                 "Views/Library/LibraryView+ContextMenu.swift",
-                "Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift",
+                "Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift"
             ]
         )
         // The shared item starts a folder's run from a menu; `LibraryManager.runAgainOnMissed` is the one other
         // caller, Run Again on what a finished run missed (`source.recipe.run-again-on-what-was-missed`, #6170).
         XCTAssertEqual(startSites, [
             "App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift",
-            "Models/LibraryManager+Operations.swift",
+            "Models/LibraryManager+Operations.swift"
         ], "only the shared item and Run Again on what was missed start a folder's run")
     }
 
