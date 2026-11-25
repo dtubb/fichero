@@ -20,8 +20,9 @@ def state_dir(rules_root, explicit) -> Path:
     both users can read, so the owner reads the worker's journal without sudo), else the XDG default."""
     if explicit:
         return Path(explicit)
-    if os.environ.get(client.state_env(rules_root)):
-        return Path(os.environ[client.state_env(rules_root)])
+    env = client.state_env(rules_root)
+    if os.environ.get(env):
+        return Path(os.environ[env])
     f = Path(rules_root) / "harness.toml"
     if f.is_file():
         import tomllib

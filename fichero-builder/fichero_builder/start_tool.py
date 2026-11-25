@@ -18,7 +18,7 @@ from pathlib import Path
 from fichero_builder import adapters, check_tool, client, journal, mcp_servers, profiles
 from fichero_builder.jail import Jail
 
-_HOOK = client.scripts_dir() / "harness_policy_hook.py"  # [harness].scripts_dir, else the checkout's scripts folder
+_HOOK = client.scripts_dir() / "harness_policy_hook.py"  # the checkout's scripts folder; the functions below take [harness].scripts_dir from their root
 _HANDOFF = _HOOK.with_name("harness_handoff_hook.py")
 
 
@@ -38,7 +38,7 @@ def refusals(root, jail: Jail | None) -> list[str]:
 
 
 def _hook_cmd(root, worktree, scratch) -> str:
-    return " ".join(shlex.quote(str(x)) for x in (sys.executable, _HOOK, "--root", root, "--worktree", worktree, "--scratch", scratch))
+    return " ".join(shlex.quote(str(x)) for x in (sys.executable, client.script(root, "harness_policy_hook.py", _HOOK), "--root", root, "--worktree", worktree, "--scratch", scratch))
 
 
 def find_claude(*homes) -> str | None:
@@ -85,7 +85,7 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
     hook = {"type": "command", "command": _hook_cmd(root, worktree, scratch)}
-    handoff = {"hooks": [{"type": "command", "command": " ".join(shlex.quote(str(x)) for x in (sys.executable, _HANDOFF))}]}
+    handoff = {"hooks": [{"type": "command", "command": " ".join(shlex.quote(str(x)) for x in (sys.executable, client.script(root, "harness_handoff_hook.py", _HANDOFF)))}]}
     settings = {"skipDangerousModePermissionPrompt": True, "hooks": {
         "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}],
         "PostToolUse": [handoff], "Stop": [handoff]}}
@@ -112,7 +112,7 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
                            capture_output=True, text=True, check=True).stdout.strip()
     cm = Path(hooks) / "commit-msg"
     cm.parent.mkdir(parents=True, exist_ok=True)
-    cm.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(_HOOK))} --root {shlex.quote(str(root))} --commit-msg "$1"\n')
+    cm.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(client.script(root, "harness_policy_hook.py", _HOOK)))} --root {shlex.quote(str(root))} --commit-msg "$1"\n')
     cm.chmod(cm.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     (scratch / "prompt.md").write_text(profiles.assemble(root, worktree=worktree, scratch=scratch, harness=adapters.ClaudeCode.harness, model=model,
                                role=role, stack=stack, project=project, servers=list(servers)))  # a file, never the text on tmux's line

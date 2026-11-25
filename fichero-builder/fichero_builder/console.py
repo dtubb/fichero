@@ -758,10 +758,11 @@ def landing(root, lanes: list[dict], branch: str = "integration") -> dict:
     commits of the last 7 days; head, commits, files, the Fixes issues, and the stage the queue gives it."""
     srcs = [(x["id"], x["worktree"], x) for x in lanes if Path(x["worktree"]).is_dir()]
     seen = {os.path.realpath(w) for _n, w, _x in srcs}
+    release = client.release_branch(root)
     for block in _git_text(str(root), "worktree", "list", "--porcelain").strip().split("\n\n"):
         f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
         name = f.get("branch", "").removeprefix("refs/heads/")
-        if name and name not in (branch, client.release_branch(root)) and f.get("worktree") and os.path.realpath(f["worktree"]) not in seen:
+        if name and name not in (branch, release) and f.get("worktree") and os.path.realpath(f["worktree"]) not in seen:
             srcs.append((name, f["worktree"], None))
     stage_of = {"queued": "waiting", "sent": "building", "done": "waiting for the check", "checking": "checking", "reviewing": "reviewing",
                 "blocked": "question", "landed": "landed"}

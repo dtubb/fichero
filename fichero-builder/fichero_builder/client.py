@@ -10,7 +10,11 @@ PACKAGE = Path(__file__).resolve().parent
 
 
 def _doc(root) -> dict:
-    f = Path(root if root is not None else ".") / "harness.toml"
+    """root's harness.toml; no root = no file: a caller names a trusted root (--root, the pinned copy), never the start directory,
+    which a jailed worker owns."""
+    if root is None:
+        return {}
+    f = Path(root) / "harness.toml"
     return tomllib.loads(f.read_text()) if f.is_file() else {}
 
 
@@ -55,7 +59,12 @@ def label_prefix(root=None) -> str:
 def scripts_dir(root=None) -> Path:
     """[harness].scripts_dir: where harness_*.py live (default: the checkout holding this package)."""
     v = _get(root, "harness", "scripts_dir", "")
-    return Path(v) if v else PACKAGE.parents[1] / "scripts"
+    return (Path(root) / v) if v else PACKAGE.parents[1] / "scripts"  # a relative value is relative to root; an absolute one wins
+
+
+def script(root, name: str, default: Path) -> Path:
+    """`name` in root's [harness].scripts_dir when it sets one, else `default` (a module's own constant, which tests may point elsewhere)."""
+    return scripts_dir(root) / name if _get(root, "harness", "scripts_dir", "") else default
 
 
 def package_dir(root=None) -> str:

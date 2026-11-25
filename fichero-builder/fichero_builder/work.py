@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fichero_builder import check_tool, client, codemap, jail, journal, land_tool, models
 
-SCRIPTS = client.scripts_dir()  # [harness].scripts_dir of the harness.toml in the start directory
+SCRIPTS = client.scripts_dir()  # the checkout's scripts; do_review takes [harness].scripts_dir from the pinned rules
 
 
 def _git(repo, *args) -> subprocess.CompletedProcess:
@@ -359,7 +359,7 @@ def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str, h
     """The review script; with `holder`, its process is kept there so a later red rung can kill it (speed 2)."""
     key = f"review {head[:9]}"
     journal.append("activity", kind="review", key=key, state="start", lane=a.name, model=model)  # which reviewer (6a)
-    argv = [sys.executable, str(SCRIPTS / "harness_review.py"), repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model]
+    argv = [sys.executable, str(client.script(a.pinned, "harness_review.py", SCRIPTS / "harness_review.py")), repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model]
     # the review's review-scratch folder is under the state dir; this loop may have got its state dir from --state, so say it, or the sweep looks elsewhere
     p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env={**os.environ, client.state_env(a.pinned): str(journal.STATE)})
     if holder is not None:

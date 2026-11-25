@@ -50,7 +50,7 @@ class Procs:
 
 
 def _start(root, worktree, brief, name, model, tmux_session) -> str:
-    r = subprocess.run([sys.executable, str(START), "--root", str(root), "--worktree", str(worktree), "--brief", str(brief),
+    r = subprocess.run([sys.executable, str(client.script(root, "harness_start.py", START)), "--root", str(root), "--worktree", str(worktree), "--brief", str(brief),
                         "--name", name, "--model", model, "--session", tmux_session], capture_output=True, text=True)
     if r.returncode:
         raise RuntimeError(r.stderr.strip() or "harness_start failed")
