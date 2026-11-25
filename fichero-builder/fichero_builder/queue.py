@@ -1023,6 +1023,9 @@ def landed(lane_id: str, step: str, sha: str) -> str:
 MECHANICAL = re.compile(r"holds a live session|a live session runs in tmux window|said DONE with no commit")  # the two alerts the manager answered `retry` to, unread
 
 
+RETRY_SCANNED = [-1]  # the journal size at the loop's last scan for mechanical alerts
+
+
 def auto_retry_mechanical() -> list[str]:
     """Throughput review 2026-11-24, item 7 (54 plain `retry` answers): an open alert that says "live session" or "DONE with no commit"
     is answered `retry` once per lane and step by the loop itself, with an `auto-retry` row. The second one is a person's."""
@@ -1579,6 +1582,11 @@ def _cg(cwd, *a) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(cwd), *a], capture_output=True, text=True)
 
 
+def tree_descends(tree, sha) -> bool:
+    """The tree's HEAD is `sha` or a commit after it. `safe.directory=*` as on every other read of a lane tree: the jail's worker owns it."""
+    return bool(sha) and subprocess.run(["git", "-c", "safe.directory=*", "-C", str(tree), "merge-base", "--is-ancestor", sha, "HEAD"], capture_output=True).returncode == 0
+
+
 def _cleanup_row(lane: dict, step: str, path: str, state: str, detail: str) -> None:
     journal.append("cleanup", lane=lane["id"], step=step, path=path, state=state, detail=detail)
 
@@ -1828,8 +1836,11 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             if x.get("kind") == "external" and not x.get("hold") and cur in ("queued", "landed") and (sha := procs.intake(x)):
                 why = done(x["id"], sha)
                 out(f"{x['id']}: intake at {sha[:9]}" + (f" refused: {why}" if why else ""))
-        for aid in auto_retry_mechanical():  # the two mechanical alerts, once each (throughput review 2026-11-24, item 7)
-            out(f"{aid}: retried by the loop")
+        seen = journal.path().stat().st_size if journal.path().exists() else 0
+        if seen != RETRY_SCANNED[0]:  # the journal is read only when it has grown since the last scan
+            RETRY_SCANNED[0] = seen
+            for aid in auto_retry_mechanical():  # the two mechanical alerts, once each (throughput review 2026-11-24, item 7)
+                out(f"{aid}: retried by the loop")
         took = feed(procs, lanes_n, out) if feed_milestones else False  # the verb: only when [loop].feed_milestones (manager 2026-11-04)
         busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took
         if heartbeat:  # dev-workflows.run.loop: a watchdog reads the gap between these
@@ -2347,7 +2358,7 @@ def real_procs(root) -> Procs:
                  drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
                  head_of=lambda lane: lane_head(lane["worktree"]),
-                 descends=lambda lane, sha: bool(sha) and _cg(lane["worktree"], "merge-base", "--is-ancestor", sha, "HEAD").returncode == 0,
+                 descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",

@@ -124,3 +124,21 @@ def test_queue_landed_refuses_an_unknown_lane_a_step_off_the_cursor_and_a_bad_sh
     lane(state)
     assert queue.landed(lane_id, step, sha) != ""
     assert queue.load()[0]["cursor"] == 0 and steps()["1.1"]["state"] != "landed"
+
+
+def test_the_real_head_check_passes_safe_directory_and_tells_ancestors_apart(tmp_path):
+    import subprocess
+    g = ["git", "-c", "user.email=a@b", "-c", "user.name=n", "-C", str(tmp_path)]
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run([*g, "commit", "-q", "--allow-empty", "-m", "one"], check=True)
+    first = subprocess.run([*g, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    subprocess.run([*g, "commit", "-q", "--allow-empty", "-m", "two"], check=True)
+    assert queue.tree_descends(tmp_path, first) and not queue.tree_descends(tmp_path, "0" * 40) and not queue.tree_descends(tmp_path, "")
+    seen = []
+    real = subprocess.run
+    queue.subprocess.run = lambda cmd, **kw: (seen.append(cmd), real(cmd, **kw))[1]
+    try:
+        queue.tree_descends(tmp_path, first)
+    finally:
+        queue.subprocess.run = real
+    assert seen[0][:3] == ["git", "-c", "safe.directory=*"]
