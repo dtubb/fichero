@@ -200,6 +200,8 @@ daily_tests = [
   "fichero-server/tests/unit/llm/test_kraken_runtime.py",
 ]
 "fichero-server/src/fichero_server/" = [
+  "fichero-server/tests/contracts/test_docs_coverage.py",  # both contract tests run in about 3 s, so every engine source change runs them (#6589)
+  "fichero-server/tests/contracts/test_extensibility_guarantee.py",
   "fichero-server/tests/unit/db/test_shared_connection_lock.py",
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
   "fichero-server/tests/unit/api/test_no_alias_modules_in_routes.py",
