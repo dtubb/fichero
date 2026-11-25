@@ -542,8 +542,7 @@ Hands and ink
   `fichero/Tests/Unit/general/Models/HandAssignmentTests.swift` (the call each surface builds; Swift, not run by the worker).
   Built 2026-11-25 (#5161): the row menu and the Reader's line menu (`HandMenu`), Edit › Segments ▸ Hand with ⌃⌘H and
   Remove Hand. Not built: the Source pane's menu, a hand picker on a shortcut, the toolbar icon, the Inspector's own
-  verbs on a multi-selection, listing a hand's attributions from a menu, and the ⌃⌘H chord not yet checked against the
-  menu bar's other chords.
+  verbs on a multi-selection, listing a hand's attributions from a menu. ⌃⌘H checked 2026-11-25: no other `keyboardShortcut("h"` in the app uses it.
 - `source.hand.mixed-selection-shows-mixed` — **[PARTIAL]** (#5161; owner 2026-11-24) the selection's hand is shown: "No hand",
   the hand's label, "a + b" when every segment has the same, "Mixed" when they differ
   (`HandAssignment.summary`, `HandAssignmentTests.swift`). Built in the Hand menu's title; not yet in the Inspector.
