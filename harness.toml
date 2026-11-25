@@ -59,13 +59,13 @@ pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
 # synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
 # rung and the guards that call git stay on the Pro
-remote = ["imac:~/fichero-gate", "imac:~/fichero-gate2", "localhost:~/fichero-gate", "air:~/fichero-gate"]  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
+remote = ["localhost:~/fichero-gate", "imac:~/fichero-gate", "imac:~/fichero-gate2", "air:~/fichero-gate"]  # owner 2026-11-25: the Pro first while the iMac is nearly full;  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
 # manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
 # or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
 remote_guards = "auto"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
-build_remote = "imac:~/fichero-gate"  # owner 2026-11-23: the M4 Air is taken away; the iMac has Xcode 27.2
+build_remote = "localhost:~/fichero-gate"  # owner 2026-11-25: Swift builds and the daily builds on the Pro (290 GB free) while the iMac is at 10 GB; back to imac when it has room.  # owner 2026-11-23: the M4 Air is taken away; the iMac has Xcode 27.2
 remote_min_free_gb = 4  # manager 2026-11-22: checks need about 1-2 GB of /tmp; the M4 internal disk sits near 5 GB with the work on its external disk
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
