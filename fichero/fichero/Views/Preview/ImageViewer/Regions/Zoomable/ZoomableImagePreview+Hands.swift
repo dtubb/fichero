@@ -25,8 +25,7 @@ extension ZoomableImagePreview {
         let service = HandService(client: segmentService.client)
         Task {
             let hands = (try? await service.hands()) ?? []
-            var attributions: [String: [InspectorHands.Attribution]] = [:]
-            for id in ids { attributions[id] = (try? await service.attributions(segmentId: id)) ?? [] }
+            let attributions = await service.attributions(segmentIds: ids)
             guard let call = plan(ids, hands, attributions) else { return }
             _ = try? await AuditedAction.run(
                 call.action, params: call.params, actionName: call.name, actionsService: actionsService, steps: steps

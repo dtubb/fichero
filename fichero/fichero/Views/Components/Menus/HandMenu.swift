@@ -40,9 +40,7 @@ struct HandMenu: View {
     private func reload() async {
         guard let handService else { return }
         hands = (try? await handService.hands()) ?? []
-        var found: [String: [InspectorHands.Attribution]] = [:]
-        for id in ids { found[id] = (try? await handService.attributions(segmentId: id)) ?? [] }
-        attributions = found
+        attributions = await handService.attributions(segmentIds: ids)
     }
 
     private func attribute(to handId: String) {

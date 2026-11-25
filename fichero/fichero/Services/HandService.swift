@@ -46,6 +46,24 @@ struct HandService {
         }
     }
 
+    /// The attributions of many segments, at most `limit` reads in flight at once; a segment whose read fails has none.
+    func attributions(segmentIds: [String], limit: Int = 8) async -> [String: [InspectorHands.Attribution]] {
+        var found: [String: [InspectorHands.Attribution]] = [:]
+        await withTaskGroup(of: (String, [InspectorHands.Attribution]).self) { group in
+            var next = segmentIds.makeIterator()
+            func start() {
+                guard let id = next.next() else { return }
+                group.addTask { (id, (try? await self.attributions(segmentId: id)) ?? []) }
+            }
+            for _ in 0..<min(limit, segmentIds.count) { start() }
+            while let (id, items) = await group.next() {
+                found[id] = items
+                start()
+            }
+        }
+        return found
+    }
+
     /// Everything attributed to one hand across sources, that this reader may read, and how many
     /// were left out (#5180). The segment ids are what the Segments pane gathers (#4942).
     func everything(handId: String) async throws -> (attributions: [InspectorHands.Attribution], withheld: Int) {
