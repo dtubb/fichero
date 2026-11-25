@@ -14817,6 +14817,7 @@ def register_generated_openapi_commands(
         over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`) Default: false."),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         run_cap_usd: Optional[float] = typer.Option(None, '--run-cap-usd', help="the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone."),
+        segments: Optional[list[str]] = typer.Option(None, '--segments', help="run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does (`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with `folder_id`, `documents` or `first_pages`. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         steps: Optional[list[str]] = typer.Option(None, '--steps', help="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe. A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Start Project (POST /api/recipes/project/start)."""
@@ -14832,6 +14833,7 @@ def register_generated_openapi_commands(
                 "over_cap_once": over_cap_once,
                 "redo": redo,
                 "run_cap_usd": run_cap_usd,
+                "segments": segments,
                 "steps": steps,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
@@ -14842,6 +14844,7 @@ def register_generated_openapi_commands(
                 "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
                 "run_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Run Cap Usd', 'description': "the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone", 'x-cli-required': False},
+                "segments": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Segments', 'description': "run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does (`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with `folder_id`, `documents` or `first_pages`", 'x-cli-required': False},
                 "steps": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Steps', 'description': "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe", 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)

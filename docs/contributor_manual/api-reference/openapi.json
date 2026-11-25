@@ -103486,6 +103486,15 @@
             "title": "Steps",
             "description": "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe"
           },
+          "segments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Segments",
+            "description": "run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does (`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with `folder_id`, `documents` or `first_pages`"
+          },
           "run_cap_usd": {
             "type": "number",
             "minimum": 0.0,

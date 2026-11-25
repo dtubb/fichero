@@ -130,14 +130,17 @@ def _plan(db: Any) -> dict[str, Any]:
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
             redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None, plan_reads: dict | None = None,
-            run_cap_usd: float | None = None, allow_cloud_once: bool = False, over_cap_once: bool = False) -> str:
+            run_cap_usd: float | None = None, allow_cloud_once: bool = False, over_cap_once: bool = False,
+            segments: list[str] | None = None) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
     so each step on one waits for it to land (`awaited`, #5660)."""
     awaited = [{"steps": d["steps"], "job_id": d["job_id"], "name": d.get("name") or d["model"]}
                for d in plan.get("downloads") or [] if d.get("downloading")]
-    detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
+    # A run on segments: each step's run is scoped to them (`segment-actions.run-step-on-selection`).
+    runs = [{**card, "segment_ids": list(segments)} for card in plan["runs"]] if segments else plan["runs"]
+    detail = {"runs": runs, "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
               "folder_id": folder_id, "awaited": awaited,
               # Its name and page count in Activity (#5615), as they were when it was queued.
               "title": _recipe_title(db), "pages": _pages_counted(db, documents, plan_reads),
@@ -329,6 +332,7 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     )
 
     from fichero_server.workflows.default_workflows import resolve_shipped_workflow
+    from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
 
     thread_id = f"thread-{uuid.uuid4().hex[:12]}"
     # By the shipped preset's stable id; a project seeded before ids were stable holds it under another (#5497).
@@ -359,7 +363,10 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         for node in workflow.nodes:
             node["config"] = {**(node.get("config") or {}), **(card["tool_config"].get(node.get("tool")) or {})}
     once = run_overrides.for_run(parent)  # the recipe's own "once" answers, given to this step's run
+    segment_ids = card.get("segment_ids")
     request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs={"selected_doc_ids": documents},
+                                     **({"selection": WorkflowSelection(kind=SelectionKind.segments, ids=segment_ids)}
+                                        if segment_ids else {}),
                                      thread_id=thread_id, provider_override=card["provider_override"],
                                      model_override=card["model_override"], skip_cache=True,
                                      allow_cloud_once=once.get("allow_cloud", False), over_cap_once=once.get("over_cap", False))
