@@ -80,15 +80,6 @@ private func sidebarIndexItems(_ items: [SidebarItem], into index: inout [String
 }
 
 extension SidebarView {
-    /// True unless Command or Shift is held: those build a deliberate multi-selection (delete.target-is-the-selection-exactly).
-    static var sidebarClickIsPlain: Bool {
-        #if os(macOS)
-        let modifiers = sidebarClickModifiers()
-        return !modifiers.shift && !modifiers.command
-        #else
-        return true
-        #endif
-    }
     /// Whether `descendantId` is a row somewhere under `item` in the tree.
     static func sidebarItem(_ item: SidebarItem, containsDescendantId descendantId: String) -> Bool {
         (item.children ?? []).contains { $0.id == descendantId || sidebarItem($0, containsDescendantId: descendantId) }

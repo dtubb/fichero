@@ -283,7 +283,7 @@ extension SidebarView {
                     )
                 },
                 isAncestor: { ancestor, descendant in
-                    guard Self.sidebarClickIsPlain, let item = cachedItem(id: ancestor.serializedID) else { return false }
+                    guard let item = cachedItem(id: ancestor.serializedID) else { return false }
                     return Self.sidebarItem(item, containsDescendantId: descendant.serializedID)
                 }
             )
@@ -338,16 +338,6 @@ extension SidebarView {
         isMomentarilyMissing: (SidebarDestination) -> Bool,
         isAncestor: (_ ancestor: SidebarDestination, _ descendant: SidebarDestination) -> Bool
     ) -> Set<SidebarDestination> {
-        // #7079: never a row plus its own ancestor; an ancestor of a proposed row is taken out.
-        let kept = keepingDroppedMissingRows(current: current, proposed: proposed, isMomentarilyMissing: isMomentarilyMissing)
-        return kept.filter { row in !proposed.contains { $0 != row && isAncestor(row, $0) } }
-    }
-
-    private static func keepingDroppedMissingRows(
-        current: Set<SidebarDestination>,
-        proposed: Set<SidebarDestination>,
-        isMomentarilyMissing: (SidebarDestination) -> Bool
-    ) -> Set<SidebarDestination> {
         // A write that ADDS a row is always a genuine gesture — the List's
         // rebuild reconciliation only ever REMOVES tags it cannot resolve. So a
         // replacement click (new row in, old row out) wins outright, even if
@@ -355,7 +345,8 @@ extension SidebarView {
         guard proposed.subtracting(current).isEmpty else { return proposed }
         let dropped = current.subtracting(proposed)
         guard !dropped.isEmpty else { return proposed }
-        let spurious = dropped.filter(isMomentarilyMissing)
+        // #7079: a carried-over row is never an ancestor of a newly proposed row; a row in the proposal stays.
+        let spurious = dropped.filter { row in isMomentarilyMissing(row) && !proposed.contains { child in isAncestor(row, child) } }
         return proposed.union(spurious)
     }
 

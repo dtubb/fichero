@@ -201,28 +201,20 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         ancestor == .document("sources") && descendant == .document("page-1")
     }
 
-    func testPageClickAfterRebuildLeavesOnlyThePage() {
-        // Sources was selected, the click rebuilt the tree (Sources reads as missing), the List proposes both rows.
-        let result = SidebarView.sidebarResilientSelection(
-            current: [sourcesRow],
-            proposed: [sourcesRow, pageRow],
-            isMomentarilyMissing: { _ in true },
-            isAncestor: isSourcesAbovePage
-        )
-        XCTAssertEqual(result, [pageRow])
+    func testFolderAndChildInTheProposalStayBoth() {
+        // A Command-click selection of a folder plus a child has the folder in the proposal (delete.target-is-the-selection-exactly).
+        for missing in [true, false] {
+            let result = SidebarView.sidebarResilientSelection(
+                current: [sourcesRow],
+                proposed: [sourcesRow, pageRow],
+                isMomentarilyMissing: { _ in missing },
+                isAncestor: isSourcesAbovePage
+            )
+            XCTAssertEqual(result, [sourcesRow, pageRow])
+        }
     }
 
-    func testPageClickWithoutRebuildLeavesOnlyThePage() {
-        let result = SidebarView.sidebarResilientSelection(
-            current: [sourcesRow],
-            proposed: [sourcesRow, pageRow],
-            isMomentarilyMissing: { _ in false },
-            isAncestor: isSourcesAbovePage
-        )
-        XCTAssertEqual(result, [pageRow])
-    }
-
-    func testRebuildRuleNeverKeepsAnAncestorOfTheProposedRow() {
+    func testCarryOverNeverKeepsAnAncestorOfTheProposedRow() {
         let result = SidebarView.sidebarResilientSelection(
             current: [sourcesRow, pageRow],
             proposed: [pageRow],
