@@ -571,8 +571,8 @@ targets are at least 44 pt.
 - `source.editor.inspector-form-keyboard-and-voiceover` — **[PARTIAL]** (→ #7074; app) every row is reachable by Tab in the
   engine's order and reads as its label, its value and how it stands ("Mixed: a, b", "inherited from page", "Not set").
   Each row carries the identifier `inspector.form.<key>`, the form `inspector.form`. *Built:* `InspectorForm.Row.accessibilityValue`
-  and the identifiers in `InspectorFormView`. *Not built:* the chords ⌥⇧⌘J (row join) and ⌥ArrowKeys / ⌃⌥ArrowKeys (edges),
-  which no menu uses and no step builds yet; a window never seen. *Tests:* `SegmentInspectorFormTests.swift`.
+  and the identifiers in `InspectorFormView`. *Not built:* the chords ⌥ArrowKeys / ⌃⌥ArrowKeys (edges),
+  which no menu uses and no step builds yet (the row-join chord ⌥⇧⌘J is built by `segment-editor.join-lines-in-the-same-row`); a window never seen. *Tests:* `SegmentInspectorFormTests.swift`.
 
 #### What the person sees: the Inspector form
 
