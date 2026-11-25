@@ -85,3 +85,13 @@ struct HandMenu: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Hand menu on two lines (hands load from the engine)") {
+    Menu("Line 2") {
+        HandMenu(ids: ["line-1", "line-2"])
+    }
+    .padding()
+    .frame(width: 240)
+}
+#endif
