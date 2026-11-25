@@ -283,7 +283,10 @@ extension SidebarView {
                     )
                 },
                 isAncestor: { ancestor, descendant in
-                    guard let item = cachedItem(id: ancestor.serializedID) else { return false }
+                    // Only a plain click: ⌘/⇧ build a deliberate multi-selection, which may
+                    // hold a folder and its children (sidebar-crud delete.target-is-the-selection-exactly).
+                    guard NSEvent.modifierFlags.isDisjoint(with: [.command, .shift]),
+                          let item = cachedItem(id: ancestor.serializedID) else { return false }
                     return Self.sidebarItem(item, containsDescendantId: descendant.serializedID)
                 }
             )

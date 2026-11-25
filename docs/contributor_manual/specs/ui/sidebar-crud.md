@@ -203,6 +203,14 @@ Both issues are already on this milestone (#291); no new issues were needed.
   takes whether the tree was rebuilt recently (`SidebarView.rebuiltRecently`, stamped where the index is rebuilt).
   *Not built:* a look on screen. *Tests:* `Views/Sidebar/SidebarSelectionResilienceTests.swift`.
 
+- `sidebar.click-selects-one-row` — **[PARTIAL]** (#7079, owner: selecting a page left its grandparent Sources
+  highlighted) a plain click on a row leaves exactly that row selected: a row that is an ancestor of a proposed row is
+  not kept, whether the List proposed it or the rebuild guard restored it. ⌘-click and ⇧-click build a deliberate
+  multi-selection and keep a folder together with its children, as `delete.target-is-the-selection-exactly` needs.
+  *Built:* `sidebarResilientSelection` takes `isAncestor`; the call site answers it from the tree index and answers
+  false while ⌘ or ⇧ is held. *Not built:* a test of the modifier gate (it reads `NSEvent.modifierFlags` at the call
+  site), a look on screen. *Tests:* `Views/Sidebar/SidebarSelectionResilienceTests.swift`.
+
 ### Bottom bar (owner 2026-11-13, Xcode's navigator as the reference)
 
 - `sidebar.bottom-bar.flush-in-sidebar-material` — **[PARTIAL]** (#6526) (owner 2026-11-13) the sidebar's bottom bar sits at
