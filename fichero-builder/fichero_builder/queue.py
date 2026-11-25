@@ -154,12 +154,45 @@ def load() -> list[dict]:
 def save(lanes: list[dict]) -> None:
     path().parent.mkdir(parents=True, exist_ok=True)
     tmp = path().with_suffix(".tmp")
-    tmp.write_text(json.dumps({"lanes": lanes}, indent=1))
+    tmp.write_text(json.dumps({"lanes": [{k: v for k, v in x.items() if k != "_base"} for x in lanes]}, indent=1))
     tmp.replace(path())
 
 
+def snapshot(lane: dict) -> None:
+    """What the file held for this lane when the tick took its copy (kept in the copy as `_base`, never written): `store` tells a change
+    made from outside since then from the tick's own."""
+    lane["_base"] = {"cursor": lane["cursor"], "order": [x["step"] for x in lane["steps"]],
+                     "steps": {x["step"]: json.dumps(x, sort_keys=True) for x in lane["steps"]}}
+
+
+def _merge_outside(lane: dict, fresh: dict) -> None:
+    """#6589 reliab-1: a `queue park`, `move` or `drop` made while the tick held its copy is kept: a step the tick left as it loaded
+    it takes the file's version, goes when the file dropped it, and the file's order and cursor stand when the tick did not move them."""
+    base = lane.get("_base")
+    if base is None:
+        return
+    theirs = {x["step"]: x for x in fresh["steps"]}
+    mine = []
+    for x in lane["steps"]:
+        was = base["steps"].get(x["step"])
+        if was is not None and json.dumps(x, sort_keys=True) == was:  # the tick did not touch it
+            if x["step"] not in theirs:
+                continue  # dropped from outside
+            x = theirs[x["step"]]
+        mine.append(x)
+    names = {x["step"] for x in mine}
+    mine += [x for x in fresh["steps"] if x["step"] not in names]  # a step added from outside
+    if [x["step"] for x in lane["steps"]] == base["order"]:  # the tick did not reorder: the file's order stands
+        rank = {x["step"]: i for i, x in enumerate(fresh["steps"])}
+        mine.sort(key=lambda x: rank.get(x["step"], len(rank)))
+    lane["steps"][:] = mine
+    if lane["cursor"] == base["cursor"]:
+        lane["cursor"] = fresh["cursor"]
+
+
 def store(lane: dict, expect: tuple | None = None) -> bool:
-    """This lane's row back in the file; a step added or a pause set while the chain ran is kept. `expect` = (step, head): the
+    """This lane's row back in the file; a step added or a pause set while the chain ran is kept, and so is a park, move or drop made from
+    outside since the tick took its copy (`_merge_outside`). `expect` = (step, head): the
     write happens only if the file's step still holds that head, checked UNDER the queue lock (a `builder done` at a newer head
     holds that lock through its git work and saves last: a check made before taking the lock would pass and then overwrite it)."""
     with journal.Lock("queue"):
@@ -172,9 +205,11 @@ def store(lane: dict, expect: tuple | None = None) -> bool:
             for k in ("pane", "hold", "maintainer"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
                 if k in fresh:
                     lane[k] = fresh[k]
+            _merge_outside(lane, fresh)
             have = {s["step"] for s in lane["steps"]}
             lane["steps"] += [s for s in fresh["steps"] if s["step"] not in have]
         save([lane if x["id"] == lane["id"] else x for x in lanes])
+        snapshot(lane)
         return True
 
 
@@ -437,6 +472,23 @@ def claim(lane: dict, s: dict) -> bool:
     return True
 
 
+ACTIVE = ("sent", "said-done", "done", "checking", "reviewing", "fixing", "done-not-landed")  # a step state in which a worker or a check is at work
+
+
+def _working(handles: dict) -> int:
+    """#6589 reliab-1: the lanes with a live session whose cursor step is in flight; a window idle at a prompt (its step landed, re-queued
+    or parked) holds no slot of [loop].lanes."""
+    lanes = {x["id"]: x for x in load()}
+    return sum(1 for k in handles if (x := lanes.get(k)) and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ACTIVE)
+
+
+def _close_idle(lane: dict, s: dict | None, handles: dict, procs: Procs, why: str) -> None:
+    procs.stop(lane)
+    del handles[lane["id"]]
+    lane["feed"] = ""
+    journal.append("queue", lane=lane["id"], step=s["step"] if s else "-", state="idle-window-closed", detail=f"the lane's tmux window was idle: {why}")
+
+
 def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out, chains: dict | None = None) -> bool:
     """One pass over one lane. False when it can do nothing more without a person: finished, blocked or paused."""
     def move(s, state, detail="", only_head=None):
@@ -503,11 +555,23 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return False
     if lane["cursor"] >= len(lane["steps"]):
         if h is not None:
-            procs.stop(lane)
-            del handles[lane["id"]]
+            _close_idle(lane, None, handles, procs, "its lane has no step left")
         return False
     s = lane["steps"][lane["cursor"]]
+    while lane["cursor"] < len(lane["steps"]) - 1 and s["state"] in ("parked", "landed") and any(x["state"] == "queued" for x in lane["steps"][lane["cursor"] + 1:]):
+        # #6589 reliab-1: the cursor sat on a parked step (or one already landed) with a queued step behind it, and the lane idled for hours
+        if s["state"] == "landed":
+            lane["cursor"] += 1
+        else:
+            lane["steps"].remove(s)  # to the end of the lane, still parked: `unpark` and `retry` find it there
+            lane["steps"].append(s)
+        journal.append("queue", lane=lane["id"], step=s["step"], state="cursor-advanced", detail=f"the cursor stood on a {s['state']} step with a queued one behind it")
+        store(lane)
+        s = lane["steps"][lane["cursor"]]
     if s["state"] == "parked":
+        if h is not None:  # a parked step holds no slot: its idle window is closed
+            _close_idle(lane, s, handles, procs, "its step is parked")
+            h = None
         return False  # the lane's last step, parked: an answer `retry` or `builder done` takes it again
     if s["state"] == "blocked":  # #6466 (run.loop-blocked-watchdog): never forever
         if not s.get("blocked_at"):
@@ -613,7 +677,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
             if h is None:
-                if len(handles) >= workers_n:
+                if _working(handles) >= workers_n:
                     return True
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0]:
                     why = f"{free:.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts"
@@ -2019,6 +2083,38 @@ def clean_up(lane: dict, ref: str, on_removed: Callable[[str], None] = lambda tr
         _cleanup_row(lane, "", wt, "removed" if r.returncode == 0 else "kept", f"branch {branch} " + ("removed" if r.returncode == 0 else f"kept: {r.stderr.strip()[-200:]}"))
 
 
+IDLE_S = 600  # reliab-1: queued work and nothing running, unexplained, this long is one alert
+IDLE: dict = {"since": 0.0, "alerted": set()}
+
+
+def idle_alert(chains: dict | None) -> None:
+    """#6589 reliab-1: queued steps, no step in flight, no hold that explains it (paused lane, disk floor, night hold, drain, a heavy-lock
+    hold) for IDLE_S: one `idle-queue` alert naming each queued lane and why it does not start; a (lane, reason) is said once until the
+    idleness ends."""
+    lanes = load()
+    running = any(x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ACTIVE for x in lanes) or any(
+        not f.done() for k, f in (chains or {}).items() if k != "pool")
+    causes = {}
+    for x in lanes:
+        if not _ours(x) or x.get("kind") == "external" or x["cursor"] >= len(x["steps"]) or x["steps"][x["cursor"]]["state"] != "queued":
+            continue
+        st = x["steps"][x["cursor"]]
+        if x["paused"] or x["id"] in DISK_HELD or st.get("held") or DRAIN[0] or journal.manual_hold():
+            continue  # a hold the journal or the console already shows
+        undone = [w for w in st.get("waits", []) if not any(y["step"] == w and y["state"] == "landed" for z in lanes for y in z["steps"])]
+        causes[x["id"]] = f"step {st['step']} waits for {', '.join(undone)}, which has not landed" if undone else f"step {st['step']} is queued and nothing starts it"
+    if running or not causes:
+        IDLE["since"], IDLE["alerted"] = 0.0, set()
+        return
+    IDLE["since"] = IDLE["since"] or time.time()
+    new = {(k, v) for k, v in causes.items()} - IDLE["alerted"]
+    if time.time() - IDLE["since"] >= IDLE_S and new:
+        IDLE["alerted"] |= new
+        why = f"queued work and nothing running for {IDLE_S // 60} min: " + "; ".join(f"{k}: {v}" for k, v in sorted(new))
+        journal.append("loop", state="idle-queue", detail=why[:500])
+        alert("-", "idle-queue", why, str(journal.STATE / "journal.jsonl"), [])
+
+
 def park_alert() -> None:
     """#6851: a cap parks every running worker in the same tick; the alert is one row listing the lanes. Only `kill-window` ever
     stops a worker here, so a park leaves the tmux server and the other sessions alone."""
@@ -2060,6 +2156,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         try:
             if manage(lane, procs):
                 lane = next(x for x in load() if x["id"] == lane["id"])
+            snapshot(lane)  # #6589 reliab-1: what a `store` of this copy tells an outside change from
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
             if procs.cleanup_ref:
                 with journal.Lock("queue"):  # a concurrent `builder done` resets land-<lane>; re-read the lane inside the lock, so HEAD is checked against the current queue
@@ -2069,6 +2166,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
+    idle_alert(chains)
     park_alert()
     disk_floor_alerts(procs)
     daily_when_due(procs, chains)
