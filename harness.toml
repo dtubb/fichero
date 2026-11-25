@@ -65,7 +65,7 @@ remote = ["air:~/fichero-gate", "imac:~/fichero-gate", "imac:~/fichero-gate2", "
 remote_guards = "auto"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
-build_remote = "localhost:~/fichero-gate"  # owner 2026-11-25: Swift builds and the daily builds on the Pro (290 GB free) while the iMac is at 10 GB; back to imac when it has room.  # owner 2026-11-23: the M4 Air is taken away; the iMac has Xcode 27.2
+build_remote = "imac:~/fichero-gate"  # 2026-11-25 12:25: back to the iMac (27 GB free); the Pro swapped 14 GB running Swift builds beside the owner's work
 remote_min_free_gb = 4  # manager 2026-11-22: checks need about 1-2 GB of /tmp; the M4 internal disk sits near 5 GB with the work on its external disk
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
