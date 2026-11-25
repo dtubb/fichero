@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable
 
-from fichero_builder import journal
+from fichero_builder import client, journal
 
 KEYS = ("no_new_steps_at", "freeze_at", "check_runner", "build_machine", "smoke_machine", "publish", "check_footprint_mb")
 GRACE = timedelta(hours=6)  # a loop that is down over the freeze starts that night's nightly only until six hours after it
@@ -250,7 +250,8 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
         return _on(cfg.build_machine, f"cd {_q(tree(cfg.build_machine, 'dmg'))} && scripts/release-all.sh --{cfg.publish} --skip-dmg --github --prerelease", 7200)
 
     def test_list(sha):
-        p = subprocess.run(["git", "-C", str(root), "log", "--format=- %s", f"origin/main..{sha}"], capture_output=True, text=True)
+        rel = client.release_branch(root)  # "" = no release branch: the last 30 commits
+        p = subprocess.run(["git", "-C", str(root), "log", "--format=- %s", f"origin/{rel}..{sha}" if rel else sha], capture_output=True, text=True)
         return f"Fichero dev build {sha[:9]} is published. To try:\n" + "\n".join(p.stdout.splitlines()[:30])
 
     def cleanup(sha):

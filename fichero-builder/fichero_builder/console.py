@@ -20,7 +20,7 @@ import time
 import tomllib
 from pathlib import Path
 
-from fichero_builder import journal, queue, review_page
+from fichero_builder import client, journal, queue, review_page
 
 ROOT = Path.cwd()  # set by main: the checkout whose harness.toml the verbs read
 TOKEN = secrets.token_urlsafe(24)
@@ -581,7 +581,8 @@ def _git_text(repo: str, *args: str) -> str:
 
 def git_reads(root, lanes: list[dict], branch: str) -> tuple[dict, str, set]:
     """The unlanded log of every lane's worktree, the land branch's log (90 days) and its shas not on main."""
-    _git_text(str(root), "fetch", "-q", "origin", branch, "main")
+    main = client.release_branch(root)  # "" = no release branch: nothing is unreleased
+    _git_text(str(root), "fetch", "-q", "origin", branch, *([main] if main else []))
     fmt = "--format=%x1e%H%x00%B"
     branches = {x["id"]: _git_text(x["worktree"], "log", fmt, f"origin/{branch}..HEAD") for x in lanes if Path(x["worktree"]).is_dir()}
     # the landing queue: every branch worktree of the repo (land-*, lanes started by hand) with unlanded commits.
@@ -589,11 +590,11 @@ def git_reads(root, lanes: list[dict], branch: str) -> tuple[dict, str, set]:
     for block in _git_text(str(root), "worktree", "list", "--porcelain").strip().split("\n\n"):
         f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
         name = f.get("branch", "").removeprefix("refs/heads/")
-        if name and name not in (branch, "main") and name not in branches:
+        if name and name not in (branch, main) and name not in branches:
             if log := _git_text(f["worktree"], "log", fmt, "--since=7.days", f"origin/{branch}..HEAD"):
                 branches[name] = log
     landing = _git_text(str(root), "log", fmt, "--since=90.days", f"origin/{branch}")
-    unreleased = set(_git_text(str(root), "rev-list", f"origin/main..origin/{branch}").split())
+    unreleased = set(_git_text(str(root), "rev-list", f"origin/{main}..origin/{branch}").split()) if main else set()
     return branches, landing, unreleased
 
 
@@ -760,7 +761,7 @@ def landing(root, lanes: list[dict], branch: str = "integration") -> dict:
     for block in _git_text(str(root), "worktree", "list", "--porcelain").strip().split("\n\n"):
         f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
         name = f.get("branch", "").removeprefix("refs/heads/")
-        if name and name not in (branch, "main") and f.get("worktree") and os.path.realpath(f["worktree"]) not in seen:
+        if name and name not in (branch, client.release_branch(root)) and f.get("worktree") and os.path.realpath(f["worktree"]) not in seen:
             srcs.append((name, f["worktree"], None))
     stage_of = {"queued": "waiting", "sent": "building", "done": "waiting for the check", "checking": "checking", "reviewing": "reviewing",
                 "blocked": "question", "landed": "landed"}
@@ -851,10 +852,13 @@ def since_build(root, rows: list[dict], branch: str = "integration", gh: str = "
 def release(root, branch: str = "integration", gh: str = "gh", pr=None, rows: list[dict] | None = None, issue=None) -> dict:
     """View D: the commits on origin/<branch> not on main, the last release tag, an open release PR (gh, on Refresh), and what
     landed since the last dev build (#6524)."""
-    log = _git_text(str(root), "log", "--format=%h %s", f"origin/main..origin/{branch}").splitlines()
-    tag = _git_text(str(root), "describe", "--tags", "--abbrev=0", "origin/main").strip()
+    main = client.release_branch(root)  # "" = no release branch: no ahead count, no tag, no release PR
+    log = _git_text(str(root), "log", "--format=%h %s", f"origin/{main}..origin/{branch}").splitlines() if main else []
+    tag = _git_text(str(root), "describe", "--tags", "--abbrev=0", f"origin/{main}").strip() if main else ""
+    if pr is None and not main:
+        pr = []
     if pr is None:
-        r = subprocess.run([gh, "pr", "list", "--base", "main", "--head", branch, "--state", "open", "--json", "number,url,title"],
+        r = subprocess.run([gh, "pr", "list", "--base", main, "--head", branch, "--state", "open", "--json", "number,url,title"],
                            capture_output=True, text=True, timeout=60, cwd=str(root))
         pr = json.loads(r.stdout or "[]") if r.returncode == 0 else []
     return {"ts": _ts(time.time()), "ahead": len(log), "commits": log[:40], "tag": tag, "prs": pr,
