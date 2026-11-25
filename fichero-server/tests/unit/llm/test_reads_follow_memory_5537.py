@@ -191,6 +191,7 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_a_server_that_dies_mid_read_names_it_logs_its_output_and_the_page_is_read_again(
     tmp_path, monkeypatch, caplog

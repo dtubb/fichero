@@ -31,6 +31,7 @@ def test_each_default_workflow_starts_or_says_why(client, db, pages, path):  # n
         assert isinstance(sentence, str) and sentence.strip(), f"{_name(path)} refused with no sentence: {answer.text[:300]}"
 
 
+@pytest.mark.macos_only(reason='Apple Vision reads the page')
 def test_translate_from_a_workflow_translates_a_page_that_has_text_and_says_plainly_when_it_has_none(client, db, pages, monkeypatch):  # noqa: F811
     import time
 

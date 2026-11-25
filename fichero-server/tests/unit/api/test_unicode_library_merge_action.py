@@ -500,6 +500,7 @@ def global_db(tmp_path, monkeypatch) -> Database:
         db.close()
 
 
+@pytest.mark.macos_only(reason='APFS treats NFC and NFD names as one; ext4 keeps two files')
 def test_unicode_merge_action_merges_synthetic_pair_and_writes_audit(tmp_path, global_db) -> None:
     left, right = _seed_sidecar_merge_pair(tmp_path, global_db)
 
@@ -514,6 +515,7 @@ def test_unicode_merge_action_merges_synthetic_pair_and_writes_audit(tmp_path, g
     _assert_rich_merged_state(right, global_db, result)
 
 
+@pytest.mark.macos_only(reason='APFS treats NFC and NFD names as one; ext4 keeps two files')
 def test_unicode_merge_action_double_trigger_only_merges_once(tmp_path, global_db) -> None:
     left, right = _seed_sidecar_merge_pair(tmp_path, global_db)
 
@@ -571,6 +573,7 @@ def test_unicode_merge_action_aborts_on_snapshot_failure(tmp_path, global_db, mo
     assert _library_tree_fingerprint(right) == before_right
 
 
+@pytest.mark.macos_only(reason='APFS treats NFC and NFD names as one; ext4 keeps two files')
 def test_unicode_merge_action_recovers_cleanly_after_interrupt_before_rename(
     tmp_path,
     global_db,

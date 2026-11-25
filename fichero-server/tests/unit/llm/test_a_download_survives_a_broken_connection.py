@@ -164,7 +164,7 @@ def reader_from(monkeypatch, tmp_path):
     monkeypatch.setattr(local_models, "PROGRESS_EVERY_SECONDS", 0.0)
     import types
 
-    import htrmopo
+    htrmopo = pytest.importorskip("htrmopo")  # ci.python-tiers: it comes with scripts/setup_venv.sh, not uv.lock; a Linux runner has none
 
     monkeypatch.setattr(htrmopo, "get_description", lambda doi: types.SimpleNamespace(
         model_type=["recognition"], software_name="kraken"), raising=False)

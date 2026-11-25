@@ -1518,6 +1518,7 @@ def test_auto_remote_guards_go_in_one_batch_a_git_guard_stays_here_and_a_remote_
     assert len(r["results"]) == 22 and not any(x.get("remote") for x in r["results"]), "no runner: every guard runs here"
 
 
+@pytest.mark.macos_only(reason='the probe is BSD df -g, run on the Mac check runners')
 def test_the_remote_free_space_probe_takes_the_smaller_of_the_base_dir_and_tmp(tmp_path, monkeypatch):
     """#6589 2026-11-20: only the runner's base dir (52 GiB) was measured while pytest wrote to its /tmp (0.2 GiB): a check died
     'No space left on device'. The probe asks `df -g` for both and takes the smallest."""

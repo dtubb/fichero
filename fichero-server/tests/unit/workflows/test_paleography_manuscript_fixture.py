@@ -158,6 +158,7 @@ APPLE_VISION_CER_CEILING = 0.45
 # page — it is inert BETWEEN Latin-script locales, which share a recognizer.
 
 
+@pytest.mark.macos_only(reason='Apple Vision reads the page')
 def test_apple_vision_cheap_tier_cer_on_the_gold_page() -> None:
     """What the free on-device tier actually scores against a verified reading.
 
@@ -199,6 +200,7 @@ def test_apple_vision_cheap_tier_cer_on_the_gold_page() -> None:
     assert scores[ACCENT_BLIND.name] <= scores[DIPLOMATIC.name]
 
 
+@pytest.mark.macos_only(reason='Apple Vision reads the page')
 def test_the_recognition_language_reaches_vision_and_changes_nothing_here() -> None:
     """Both halves of #4497's answer, measured on the same free page.
 
@@ -244,6 +246,7 @@ def test_the_recognition_language_reaches_vision_and_changes_nothing_here() -> N
 WHOLE_PAGE_PATH_CER_CEILING = 0.45
 
 
+@pytest.mark.macos_only(reason='Apple Vision reads the page')
 def test_auto_detect_htr_branch_really_transcribes_with_free_on_device_ocr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
