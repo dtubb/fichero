@@ -1,6 +1,4 @@
-import tempfile
 import threading
-from pathlib import Path
 
 import pytest
 
@@ -55,13 +53,14 @@ def test_the_fix_brief_carries_every_red_rungs_words():
                                       {"name": "guards", "ok": False, "stderr_tail": "guard X red"}]}
     t = work._tail(r)
     assert "lint broke" in t and "guard X red" in t and "ready" in t and "guards" in t
+    mid = {"failed": "ready", "rungs": [{"name": "ready", "ok": False, "stderr_tail": "lint broke"}, {"name": "guards", "ok": True}, {"name": "since-guards", "ok": True}]}
+    assert "lint broke" in work._tail(mid), "one red rung followed by green cheap rungs: its words, not the last row's"
     one = {"failed": "ready", "rungs": [{"name": "ready", "ok": False, "stderr_tail": "only"}]}
     assert work._tail(one) == "only"
 
 
-def test_red_on_base_runs_the_base_and_head_runs_at_once(monkeypatch):
+def test_red_on_base_runs_the_base_and_head_runs_at_once(monkeypatch, tmp_path):
     from fichero_builder.check_tool import Config
-    tmp_path = Path(tempfile.mkdtemp())
     head_started, base_started = threading.Event(), threading.Event()
 
     def base(root, files, cfg, t):

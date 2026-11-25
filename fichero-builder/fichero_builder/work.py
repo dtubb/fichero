@@ -414,7 +414,7 @@ def _tail(r: dict) -> str:
     rungs = r.get("rungs") or [{}]
     reds = [x for x in rungs if x.get("name") and not x.get("ok")]
     if len(reds) < 2:
-        return said(rungs[-1])[-3000:]  # one red rung ends the ladder: it is the last row
+        return said(reds[0] if reds else rungs[-1])[-3000:]  # cheap rungs after the one red may be green rows
     return "\n".join(f"[{x['name']} red]\n{said(x)}" for x in reds)[-3000:]
 
 
