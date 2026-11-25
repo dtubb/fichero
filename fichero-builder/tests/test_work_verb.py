@@ -369,7 +369,7 @@ def test_rebase_puts_the_worktree_on_top_of_the_branch_another_lane_moved(scratc
     assert work.do_rebase(scratch.a, "integration") == ""
     assert _g(scratch.wt, "rev-parse", "HEAD^") == _g(scratch.engine, "rev-parse", "HEAD")
     assert _g(scratch.wt, "log", "--format=%s", "-1") == "mine"
-    assert any("rebase -q origin/integration" in r for r in scratch.ran), "run as the worker (through as_worker), not as the owner"
+    assert any("rebase -q --autostash origin/integration" in r for r in scratch.ran), "run as the worker (through as_worker), not as the owner"
 
 
 def test_a_rebase_conflict_is_aborted_and_said_never_resolved(scratch):
