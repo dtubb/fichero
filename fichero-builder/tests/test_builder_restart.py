@@ -209,6 +209,33 @@ def test_a_watcher_that_exits_while_its_session_lives_is_re_attached_with_no_res
     assert len(fake.starts) == 1, "no second session beside the live one"
 
 
+def test_an_idle_session_after_done_gets_no_new_watcher_and_its_ready_chain_is_collected(state):
+    """2026-11-25, seg-inspector swift-green-2: READY at 14:52, then 64 "watcher ended ... a new watcher on window @22" rows to 15:29.
+    The session idled after DONE, so each new watcher ended at once, and the re-attach's `return` came before the finished chain was
+    collected: the READY never landed. Past `sent` the watcher is not replaced, the feed stays, and the READY lands that tick."""
+    from concurrent.futures import Future, ThreadPoolExecutor
+    lane(state)
+    fake = Fake()
+    fake.procs.live_windows = lambda ln: ["@22"]
+    attached = []
+    fake.procs.attach = lambda ln, st, w: attached.append(st["state"]) or "watcher-2"
+    handles: dict = {}
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    _feed("/w/feed")
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"] = "reviewing"
+    queue.save(lanes)
+    ready: Future = Future()
+    ready.set_result({"ok": True, "head": "bf62549fc" + "0" * 31})
+    ready.head = ""  # a worker lane's step has no head until its chain is green
+    chains = {"pool": ThreadPoolExecutor(max_workers=1), "m1": ready}
+    fake.alive_now = False  # the watcher read the old DONE and ended; the window lives
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None, chains=chains)
+    assert attached == [] and "m1" not in handles, "no watcher for an idle session past its DONE"
+    assert fake.landed_calls == [("bf62549fc" + "0" * 31, False)], "the READY chain is collected the same tick"
+    assert not [r for r in journal.read() if r.get("state") == "attached"]
+
+
 def test_a_kept_session_with_no_step_out_and_no_watcher_is_closed_and_the_step_sent_afresh(state):
     lane(state)
     fake = Fake()

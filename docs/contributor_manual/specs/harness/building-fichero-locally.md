@@ -821,10 +821,11 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   session lived, with no restart), and the loop watches it again instead of alerting. A live window named for the lane whose step
   is sent gets a new `builder run --attach <pane>` on the lane's existing feed and seq, with the head the step was sent at as its
   base; it starts no session and reads a `DONE <sha>` already on screen at its first idle tick (2026-11-25 13:46: seg-tools and
-  builder-fixes sat at the prompt after `DONE eab0a2072e` and `DONE 23462609bb`, unread). A step past sent (done, checking,
-  reviewing, fixing, red) whose session has no watcher gets one with `--idle`, so its fix round is typed into the session. A
-  watcher that exits while its window lives is re-attached in the same tick, with no restart counted and no second session
-  started. A kept session with no step in flight and no watcher is closed and the step starts afresh. The "this loop cannot watch
+  builder-fixes sat at the prompt after `DONE eab0a2072e` and `DONE 23462609bb`, unread). A sent step's watcher that exits while
+  its window lives is re-attached in the same tick, with no restart counted and no second session started. A step past sent
+  (done, checking, reviewing, red) gets no new watcher: its session idles after DONE, the feed stays so a fix round reaches it,
+  and the step goes on to collect its finished chain (fixed 2026-11-25, seg-inspector swift-green-2: a new watcher every tick,
+  each ended at once, held its READY uncollected for 37 min; test `::test_an_idle_session_after_done_gets_no_new_watcher_and_its_ready_chain_is_collected`). A kept session with no step in flight and no watcher is closed and the step starts afresh. The "this loop cannot watch
   it" alert stays only for a session that cannot be attached (another step's, a tree that moved, or an attach that fails).
   `builder queue said-done --lane L --step S --sha SHA` records a managed lane's missed DONE by hand: the cursor step, sent, whose
   tree's HEAD is that sha, goes to done (`builder done` stays the external lanes' verb). Tests:

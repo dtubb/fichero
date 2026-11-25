@@ -542,20 +542,27 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True  # its check or review is running in its own thread
     if h is not None and not procs.alive(h):
         del handles[lane["id"]]
-        if (s["state"] in ATTACHABLE and lane.get("feed") and procs.end_of(lane) not in ("parked", "lane-done")
+        live = lane.get("feed") and procs.end_of(lane) not in ("parked", "lane-done")
+        if (live and s["state"] == "sent"
                 and (hh := attach_live(lane, s, procs, "the session's watcher ended while the session lives"))):
             handles[lane["id"]] = hh
             return True
-        h, lane["feed"], end = None, "", procs.end_of(lane)
-        if end == "parked":
-            PARKED.append(lane["id"])
-            return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
-        if s["state"] == "sent":
-            s["restarts"] += 1
-            if s["restarts"] > RESTARTS:
-                return block(s, f"the worker ended {end!r} {s['restarts']} times on this step")
-            move(s, "queued", f"the worker ended {end!r}: a new session next tick")
-            return True
+        # past its DONE the session idles at its prompt and needs no watcher (2026-11-25, seg-inspector swift-green-2: a new watcher
+        # every tick, each ended at once, and the `return` above starved the READY chain's collection below for 37 min). The feed stays,
+        # so a fix round reaches the same session; the step goes on to collect its chain.
+        if live and s["state"] in ATTACHABLE and procs.live_windows(lane):
+            h = None
+        else:
+            h, lane["feed"], end = None, "", procs.end_of(lane)
+            if end == "parked":
+                PARKED.append(lane["id"])
+                return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
+            if s["state"] == "sent":
+                s["restarts"] += 1
+                if s["restarts"] > RESTARTS:
+                    return block(s, f"the worker ended {end!r} {s['restarts']} times on this step")
+                move(s, "queued", f"the worker ended {end!r}: a new session next tick")
+                return True
     if h is None and (s["state"] == "sent" or (s["state"] == "queued" and lane["feed"])):  # no handle: this loop restarted; the old session may be up
         mismatch = "" if s["state"] != "sent" else (f"the session was sent step {lane.get('session_step') or '-'}, the queue is at {s['step']}" if lane.get("session_step") != s["step"]
                     else f"the tree's HEAD does not descend from the head the session was sent at ({(lane.get('session_head') or '-')[:9]})"
@@ -650,10 +657,6 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)  # what an adopting loop checks (items: step and head must match)
         move(s, "sent", f"message {lane['seq']}")
         return True
-    if h is None and s["state"] in ATTACHABLE and s["state"] != "sent" and lane.get("feed") and not (chains or {}).get(lane["id"]) \
-            and (hh := attach_live(lane, s, procs, "the session of a step in flight had no watcher")):
-        handles[lane["id"]] = hh  # its next message (a fix round) reaches the session; the step itself goes on below
-        h = hh
     if s["state"] == "sent":
         row = procs.row(lane)
         if row is None:
