@@ -66,7 +66,8 @@ extension ZoomableImagePreview {
     }
 
     /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`, ⌥⌘S): one ⌘Z.
-    func simplifySelectedSegments(tolerance: Double = SegmentEdit.simplifyTolerance) {
+    func simplifySelectedSegments(tolerance: Double? = nil) {
+        let tolerance = tolerance ?? SegmentEdit.menuSimplifyTolerance(imageWidth: Double(imageSize.width))
         guard let documentId else { return }
         runSegmentEdit(
             SegmentEdit.simplify(selectedSegments(documentId), tolerance: tolerance), documentId: documentId,
