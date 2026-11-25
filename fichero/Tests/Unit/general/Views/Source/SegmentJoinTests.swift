@@ -67,7 +67,8 @@ struct SegmentJoinTests {
         let window = WindowState(libraryId: UUID())
         window.flashOrderOverlay(for: 0.05)
         #expect(window.orderOverlayFlash)
-        try await Task.sleep(for: .milliseconds(400))
+        // Wait for the flash to end rather than guess how long a loaded test host takes to run its timer.
+        for _ in 0..<100 where window.orderOverlayFlash { try await Task.sleep(for: .milliseconds(50)) }
         #expect(!window.orderOverlayFlash, "the numbers go again by themselves")
     }
 }

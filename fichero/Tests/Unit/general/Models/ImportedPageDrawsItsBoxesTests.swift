@@ -980,12 +980,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
         let fetched = try await service.readings(segmentId: "seg-0003")
         let text = try XCTUnwrap(fetched)
-        XCTAssertEqual(text.readings.map(\.id), ["rep-0001", "rep-0002"])
+        XCTAssertEqual(Set(text.readings.map(\.id)), ["rep-0001", "rep-0002"], "the engine's order is not the contract")
+        let file = try XCTUnwrap(text.readings.first { $0.id == "rep-0001" })
+        let correction = try XCTUnwrap(text.readings.first { $0.id == "rep-0002" })
         XCTAssertEqual(text.counting["transcription"]?.readingId, "rep-0002")
         XCTAssertEqual(text.counting["transcription"]?.why, .correction, "the correction counts, and says why")
-        XCTAssertEqual(text.readings[1].correctsId, "rep-0001", "the correction says what it corrects")
+        XCTAssertEqual(correction.correctsId, "rep-0001", "the correction says what it corrects")
 
-        let params = try XCTUnwrap(ReadingChoice.choose(text.readings[0], of: "seg-0003", in: text))
+        let params = try XCTUnwrap(ReadingChoice.choose(file, of: "seg-0003", in: text))
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
         let steps = WindowSteps()

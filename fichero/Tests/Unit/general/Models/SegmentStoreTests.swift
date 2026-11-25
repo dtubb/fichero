@@ -41,9 +41,10 @@ final class SegmentStoreTests: XCTestCase {
         }
 
         /// The segment LISTING requests only. A load also fetches `/text` for line directions
-        /// (best effort, added after these tests), which is a second request per load, not a refetch.
+        /// (best effort, added after these tests) and `/types` for the region-type picker (same), which are extra
+        /// requests per load, not a refetch.
         static func listingRequests() -> [URLRequest] {
-            recorded().filter { $0.url?.path.hasSuffix("/text") != true }
+            recorded().filter { $0.url?.path.hasSuffix("/text") != true && $0.url?.path.hasSuffix("/types") != true }
         }
 
         // swiftlint:disable:next static_over_final_class
