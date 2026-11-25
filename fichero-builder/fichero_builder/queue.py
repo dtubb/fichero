@@ -53,6 +53,7 @@ BOUNDARY_HIT = re.compile(r"(?m)^\s*([0-9a-f]{7,40}) (\S.*?): pattern \d+$")
 REWRITE = "rewrite that commit; a later commit does not clear it (history is pushed)"
 
 
+TEST_PYTHON: list = [""]  # [check].python: the interpreter with pytest a worker runs its tests with (local.run.worker-knows-its-test-python)
 CFG: dict = {"batch_max": 4, "session": "lane", "session_max_context": 0.70, "session_max_steps": 5}  # [queue]: batching and session keeping
 PART_HEAD = re.compile(r"(?m)^## PART (\d+) \(((?:#\d+(?:, )?)+)\)$")  # a batch brief's part heading: the part number and its issues
 
@@ -70,6 +71,7 @@ def load_cfg(root) -> None:
     if cfg["batch_max"] < 1 or cfg["session_max_steps"] < 1 or not 0 < cfg["session_max_context"] <= 1:
         raise ValueError(f"[queue] batch_max and session_max_steps are at least 1, session_max_context is in (0, 1]: {cfg}")
     CFG.update(cfg)
+    TEST_PYTHON[0] = str((tomllib.loads(f.read_text()).get("check", {}) if f.is_file() else {}).get("python") or "")
 
 
 def parts_of(text: str) -> dict[int, tuple[list[int], str]]:
@@ -128,7 +130,13 @@ def fix_text(step: str, kind: str, findings: str) -> str:
     findings = OWNER_PATH.sub("<a path outside the jail>", findings)
     if "REFUSED (boundary)" in findings:
         findings = BOUNDARY_HIT.sub(lambda m: f"{m.group(0)} -- commit {m.group(1)[:10]}, {m.group(2)}: {REWRITE}", findings)
-    return FIX.format(step=step, kind=kind, findings=findings)
+    return FIX.format(step=step, kind=kind, findings=findings) + test_python_line()
+
+
+def test_python_line() -> str:
+    """2026-11-25, builder-fixes reliab-1: a worker asked to run tests found no interpreter with pytest (no .venv, no uv) and said
+    WAITING. Every fix round and send-back names the one that has it, `[check].python`."""
+    return f"Run tests with `{TEST_PYTHON[0]} -m pytest <files> -q` (that interpreter has pytest).\n" if TEST_PYTHON[0] else ""
 
 
 def slug(name: str) -> str:
@@ -1384,7 +1392,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                         kinds.append(s["approve_kind"])
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
-                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")))
+                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")) + test_python_line())
                 s["resume_brief"] = str(fix)
             lane["paused"] = False
             save(lanes)

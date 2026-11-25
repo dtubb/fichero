@@ -465,12 +465,21 @@ def hints(r: dict, repo: str, head: str, cfg) -> list[str]:
     blocks = []
     for rung in r.get("rungs") or []:
         for x in rung.get("results") or []:
-            if not x.get("ok"):
+            if not x.get("ok") and not x.get("timed_out"):  # a guard the load timed out judged nothing: no fix for it (2026-11-25)
                 path = x["name"] if x["name"].endswith(".py") else f"{glob_dir}/{x['name']}.py"
                 blocks.append(f"FAIL: {path}\n{x.get('stdout_tail') or ''}\n{x.get('stderr_tail') or ''}")
         if rung.get("name") == "ready" and not rung.get("ok"):
             blocks.append(f"{rung.get('stdout_tail') or ''}\n{rung.get('stderr_tail') or ''}")
     return autofix.fix_hints("\n".join(blocks), lambda f: _git(repo, "show", f"{head}:{f}").stdout, regen_shown(cfg), tuple(cfg.contract_guards), cfg.rebake_issue)
+
+
+def timed_out_only(r: dict) -> list[str]:
+    """The guards of a red guards rung when every one of its failures is a timeout (the rung's own retry included) and no other rung
+    failed; [] otherwise."""
+    if r.get("failed") != "guards" or r.get("also_failed"):
+        return []
+    bad = [x for rung in r.get("rungs") or [] if rung.get("name") == "guards" for x in rung.get("results") or [] if not x.get("ok")]
+    return [x["name"] for x in bad] if bad and all(x.get("timed_out") for x in bad) else []
 
 
 def regen_shown(cfg) -> tuple:
@@ -728,6 +737,16 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                         widen = f" (the approval at this head named only {', '.join(have)}; widened to all of them)" if have else ""
                         return {**no("guard-data", f"guards red at {head[:9]} with guard data changed by the batch: {', '.join(union)}; approve lays HEAD's copy of "
                                      f"exactly these files under the pinned guards (the scripts stay pinned){widen}", _tail(r), str(diff)), "approvals": ["approve_guard_data"]}
+                if (slow := timed_out_only(r)) and not getattr(a, "timeout_rerun", False):
+                    # local.check.guard-timeout-is-not-red (2026-11-25, builder-fixes reliab-1: check_openapi_route_set_current printed all
+                    # [ok], timed out twice at load 66, and the worker was told to regenerate the contracts; it could not, and WAITED):
+                    # a red whose every failed guard timed out judged nothing. The ladder runs once more, never a fix round
+                    a.timeout_rerun = True
+                    step("check", False, f"guards timed out under load ({', '.join(slow)}): the ladder runs once more")
+                    continue
+                if slow:
+                    return no("timed-out", f"guards timed out twice under load at {head[:9]} ({', '.join(slow)}): they judged nothing; retry when the machine is quieter",
+                              _tail(r), ladder)
                 fixes = hints(r, repo, head, check_tool.load(a.pinned))  # the exact command for a mechanical red (2026-11-14)
                 fix = ("\nFix: " + "\nFix: ".join(fixes)) if fixes else ""
                 also = r.get("also_failed") or []

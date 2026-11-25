@@ -2106,3 +2106,18 @@ def test_named_files_drop_a_cut_off_copy_of_a_longer_name():
     said = "weakens existing tests (...chero-server/tests/unit/jobs/test_a.py"
     ladder = "fichero-server/tests/unit/jobs/test_a.py: 2 asserts fewer"
     assert queue.named_files(said, ladder, r"\.py") == ["fichero-server/tests/unit/jobs/test_a.py"]
+
+
+def test_a_fix_round_and_a_send_back_name_the_interpreter_that_has_pytest(state, monkeypatch):
+    """local.run.worker-knows-its-test-python: 2026-11-25 13:55, builder-fixes reliab-1 said WAITING: no interpreter in its worktree had
+    pytest (no .venv, no uv). [check].python has it; every fix round and send-back says so."""
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\npython = "/Users/Shared/w/venv/bin/python"\n[land]\nbranch = "integration"\n')
+    monkeypatch.setattr(queue, "TEST_PYTHON", [""])
+    queue.load_cfg(state)
+    assert "Run tests with `/Users/Shared/w/venv/bin/python -m pytest <files> -q`" in queue.fix_text("1.1", "red", "t1 failed")
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "t1 failed"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert any("/Users/Shared/w/venv/bin/python -m pytest" in t for t in fake.sent)
+    monkeypatch.setattr(queue, "TEST_PYTHON", [""])
+    assert "Run tests with" not in queue.fix_text("1.1", "red", "x"), "no [check].python: nothing is said"

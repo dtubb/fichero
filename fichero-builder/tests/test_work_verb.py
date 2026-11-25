@@ -969,3 +969,42 @@ def test_a_kept_autostash_is_said_whatever_git_prints(scratch, monkeypatch, word
     (scratch.wt / "f").write_text("unstaged edit")
     why = work.do_rebase(scratch.a, "integration")
     assert why.startswith("the rebase onto origin/integration went through but the tree's unstaged changes conflict with it (kept in the stash: f)")
+
+
+ROUTE_OK = ("check_openapi_route_set_current: [ok] fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json\n"
+            "The route set (1015 operations) matches all 3 contracts.")
+
+
+def _timed_out_guards(also=()):
+    return {"ok": False, "failed": "guards", "also_failed": list(also), "rungs": [{"name": "guards", "ok": False, "results": [
+        {"name": "check_openapi_route_set_current", "ok": False, "timed_out": True, "retried": True, "exit_code": -9, "stdout_tail": ROUTE_OK},
+        {"name": "check_spec_citations", "ok": True}]}]}
+
+
+def test_a_guards_red_that_is_only_timeouts_runs_the_ladder_once_more_and_is_never_a_fix_round(chain, monkeypatch, capsys):
+    """local.check.guard-timeout-is-not-red: 2026-11-25 12:27, builder-fixes reliab-1. check_openapi_route_set_current printed every
+    contract [ok], timed out twice at load 66, and the fix round told the worker to regenerate the contracts; it could not, and said
+    WAITING. A red whose every failed guard timed out judged nothing: the ladder runs once more, then it is a timed-out question."""
+    results = [_timed_out_guards(), _timed_out_guards()]
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder: results.pop(0))
+    assert chain() == 2
+    out = capsys.readouterr().out
+    assert "guards timed out twice under load" in out and "check_openapi_route_set_current" in out
+    assert "regenerate" not in out and "Fix:" not in out, "no fix the worker cannot do"
+    assert results == [], "the ladder ran twice"
+    assert any(r["detail"].startswith("guards timed out under load (check_openapi_route_set_current)") for r in rows() if r["step"] == "check")
+
+
+def test_a_timeout_that_passes_the_second_time_goes_on_green(chain, monkeypatch):
+    results = [_timed_out_guards(), {"ok": True, "failed": ""}]
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder: results.pop(0))
+    assert chain() == 0
+
+
+def test_a_timeout_beside_a_real_red_is_the_real_red_with_no_fix_for_the_timed_out_guard():
+    r = _timed_out_guards(also=["ruff"])
+    assert work.timed_out_only(r) == []
+    r2 = _timed_out_guards()
+    r2["rungs"][0]["results"].append({"name": "check_x", "ok": False, "stdout_tail": "FAIL"})
+    assert work.timed_out_only(r2) == []
+    assert work.timed_out_only(_timed_out_guards()) == ["check_openapi_route_set_current"]

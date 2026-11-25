@@ -746,7 +746,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   binds each file of its diff by that file's own patch-id: a later refusal whose named files have the same per-file diff is approved
   by itself, whatever other files (the batch's tests, the base) changed. Tests: `fichero-builder/tests/test_loop.py::test_a_red_on_base_approve_binds_the_test_the_ladder_file_names_when_the_alert_line_names_none`,
   `::test_a_pinned_approve_holds_when_only_files_the_refusal_does_not_name_changed`, `::test_refused_files_reads_every_named_path`.
-  Fixed 2026-11-25 (app-bugs nightly-green-1, approved as alert -1863 and asked again as -1869 at the same head f8dd07262): a
+  Fixed 2026-11-25 (step nightly-green-1 of a worker lane, approved as alert -1863 and asked again as -1869 at the same head f8dd07262): a
   worker lane's step has no head until a chain is green, so the binding is read at the tree's HEAD; the approved file set is read
   from the ladder's red rows before the alert's cut-off line, at full paths (a name that is the tail of a longer one found is
   dropped); a path in neither tree binds nothing. Tests: `::test_a_worker_lanes_red_on_base_approve_holds_at_the_same_head_from_the_ladders_file_names`,
@@ -800,6 +800,17 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `test_queue_verb.py`, a queued step that never started is dropped with its reason in the row; a `sent` one is
   refused. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.check.guard-timeout-is-not-red` [OK] (#6589; built 2026-11-25) — a guards rung whose every failed guard timed out (its
+  own re-run included) judged nothing, so it is never a fix round: the chain runs the ladder once more, and a second such red is a
+  `timed-out` question for the manager (retry when the machine is quieter), never a red with a `Fix:` line. A timed-out guard
+  also gets no `Fix:` line beside a real red. On 2026-11-25 at 12:27 builder-fixes reliab-1's check_openapi_route_set_current
+  printed every contract [ok], timed out twice at load 66, and the worker was told to regenerate the contracts; it could not, and
+  said WAITING. Tests: `fichero-builder/tests/test_work_verb.py::test_a_guards_red_that_is_only_timeouts_runs_the_ladder_once_more_and_is_never_a_fix_round`,
+  `::test_a_timeout_that_passes_the_second_time_goes_on_green`, `::test_a_timeout_beside_a_real_red_is_the_real_red_with_no_fix_for_the_timed_out_guard`.
+- `local.run.worker-knows-its-test-python` [OK] (#6589; built 2026-11-25) — every fix round and send-back names the interpreter
+  that has pytest, `[check].python` (`Run tests with <python> -m pytest <files> -q`); with no `[check].python` nothing is said.
+  On 2026-11-25 at 13:55 builder-fixes reliab-1 said WAITING because no interpreter in its worktree had pytest. Test:
+  `fichero-builder/tests/test_loop.py::test_a_fix_round_and_a_send_back_name_the_interpreter_that_has_pytest`.
 - `local.run.sessions-survive-watchers` [OK] (#6589; built 2026-11-25) — a worker session outlives its `builder run` watcher (a
   loop restart, or a watcher that exits on its own: on 2026-11-25 run-seg-tools.log ended at 11:24 with `seg-tools: gone` while the
   session lived, with no restart), and the loop watches it again instead of alerting. A live window named for the lane whose step
