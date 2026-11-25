@@ -538,7 +538,7 @@ Hands and ink
   `hand.attribute`, several are one `hand.attribute_many`, Remove Hand is `hand.unattribute` or one `hand.unattribute_many`
   (the file's attribution too, kept in the record), each one audit row and one ⌘Z. *Acceptance:* select two lines of an
   imported page, choose a hand from the row menu, and both lines carry it with one ⌘Z taking it back. *Test:*
-  `fichero-server/tests/unit/api/test_hands_from_every_surface_5161.py` (the calls, on a real imported papyrus),
+  `fichero-server/tests/unit/api/test_inspector_batch_actions_6082.py` and `test_hands.py` (the engine calls the surfaces send, on a real imported papyrus; no engine change was needed),
   `fichero/Tests/Unit/general/Models/HandAssignmentTests.swift` (the call each surface builds; Swift, not run by the worker).
   Built 2026-11-25 (#5161): the row menu and the Reader's line menu (`HandMenu`), Edit › Segments ▸ Hand with ⌃⌘H and
   Remove Hand. Not built: the Source pane's menu, a hand picker on a shortcut, the toolbar icon, the Inspector's own
