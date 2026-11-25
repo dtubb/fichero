@@ -87,7 +87,7 @@ class TestDatabaseBasics:
         assert temp_db.conn is not None
         assert temp_db.path.exists()
 
-    def test_default_path(self, monkeypatch):
+    def test_default_path(self, monkeypatch, tmp_path):
         """Default Database() path should be in Application Support — when
         FICHERO_BASE_PATH isn't set. Conftest sets it for test isolation,
         so clear it here and patch in a `StorageSettings()` read from the (now-empty) env.
@@ -127,10 +127,17 @@ class TestDatabaseBasics:
         # a reload left `storage.settings` pointing at the REAL home for every later test, and the
         # next fixture to open `settings.global_library_path` opened the maintainer's own registry.
         import fichero_server.db.storage as _storage_mod
-        monkeypatch.setattr(_storage_mod, "settings", _storage_mod.StorageSettings())
+        from fichero_server.db.paths import default_server_state_dir
+
+        # The default IS Application Support/Fichero under the home; the Database is then opened on that layout under
+        # a home of its own, because opening it makes the folder, and on a machine without one (a Linux runner, GitHub
+        # run 45676804358) that was a write into the real state (#5530).
+        assert _storage_mod.StorageSettings().base_path == Path.home() / "Library/Application Support/Fichero"
+        home = tmp_path / "home"
+        monkeypatch.setattr(_storage_mod, "settings", _storage_mod.StorageSettings(base_path=default_server_state_dir(home)))
         from fichero_server.db import Database as _Database
         db = _Database()
-        expected = Path.home() / "Library/Application Support/Fichero/library.duckdb"
+        expected = home / "Library/Application Support/Fichero/library.duckdb"
         assert db.path == expected
         db.close()
 
