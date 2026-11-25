@@ -21,11 +21,11 @@ struct StaleReadingBar: View {
 }
 
 #Preview("A cloud-read line whose shape changed") {
-    let _ = SegmentRereadState.shared.markStale(["line-1"])
     StaleReadingBar(segmentId: "line-1").frame(width: 360)
+        .onAppear { SegmentRereadState.shared.markStale(["line-1"]) }
 }
 
 #Preview("A re-read that could not be queued") {
-    let _ = SegmentRereadState.shared.markFailed(["line-2"], "No reading model is set up")
     StaleReadingBar(segmentId: "line-2").frame(width: 360)
+        .onAppear { SegmentRereadState.shared.markFailed(["line-2"], "No reading model is set up") }
 }
