@@ -550,7 +550,7 @@ targets are at least 44 pt.
 - `source.editor.inspector-form-edits-the-selection-at-once` — **[PARTIAL]** (→ #7074; app + engine) a change in the form
   is ONE `segment.update_many` over every selected segment (type, furniture, language, script, direction; a region's
   line_progression), so one ⌘Z undoes it, and the form is read again after it. *Built:* `InspectorForm.edit`,
-  `SegmentEdit.Attribute.kindRaw` and `.lineProgression`, `update_many` taking `line_progression` and `kind_raw`.
+  `SegmentEdit.Attribute.lineProgression`, `update_many` taking `line_progression`.
   *Not built:* `updated_at` and `line_progression` on the app's `Segment`. *Tests:* `test_segment_inspect.py`,
   `SegmentInspectorFormTests.swift`.
 - `source.editor.inspector-form-keyboard-and-voiceover` — **[PARTIAL]** (→ #7074; app) every row is reachable by Tab in the

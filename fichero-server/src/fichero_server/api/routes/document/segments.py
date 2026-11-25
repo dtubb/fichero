@@ -2553,8 +2553,6 @@ class SegmentAttributeUpdate(BaseModel):
     language: Optional[str] = None
     script: Optional[str] = None
     direction: Optional[str] = None
-    #: The region type a person chose (`source.editor.region-type-is-seen-and-set`); the version history keeps the model's.
-    kind_raw: Optional[str] = None
     #: A region's lines-or-columns succession (ltr, rtl, ttb, btt); refused on any other kind.
     line_progression: Optional[str] = None
 

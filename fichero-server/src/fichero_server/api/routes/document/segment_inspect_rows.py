@@ -80,15 +80,20 @@ def rows_for_levels(levels: list[str]) -> tuple[str, list[str]]:
     return (levels[0] if len(set(levels)) == 1 else "mixed"), keys
 
 
-def _seen_values(db: Database, rows: list[Segment], field: str) -> list[str]:
-    """What the selection's pages already state for a fact: the codes a person would pick again."""
-    seen: set[str] = set()
-    for document_id in {row.document_id for row in rows}:
-        seen.update(v for v in (getattr(s, field) for s in db.query(Segment, document_id=document_id) if s.deleted_at is None) if v)
-    return sorted(seen)
+def _seen_codes(db: Database, rows: list[Segment]) -> dict[str, list[str]]:
+    """What the selection's pages already state for language and script: the codes a person would pick again (one read)."""
+    ids = sorted({row.document_id for row in rows})
+    marks = ", ".join("?" for _ in ids)
+    found = db.execute_fetchall(
+        f"SELECT DISTINCT language, script FROM segments WHERE document_id IN ({marks}) AND deleted_at IS NULL", ids
+    )
+    return {
+        "language": sorted({r[0] for r in found if r[0]}),
+        "script": sorted({r[1] for r in found if r[1]}),
+    }
 
 
-def _choices(key: str, db: Database, rows: list[Segment], values: list[str]) -> list[InspectChoice]:
+def _choices(key: str, seen: dict[str, list[str]], values: list[str]) -> list[InspectChoice]:
     if key == "type":
         return [InspectChoice(value=t, label=t.capitalize()) for t in REGION_TYPES]
     if key == "direction":
@@ -96,7 +101,7 @@ def _choices(key: str, db: Database, rows: list[Segment], values: list[str]) -> 
     if key == "line_progression":
         return [InspectChoice(value=d, label=_DIRECTION_LABELS[d]) for d in LINE_PROGRESSIONS]
     if key in ("language", "script"):
-        codes = sorted(set(_seen_values(db, rows, key)) | set(values))
+        codes = sorted(set(seen[key]) | set(values))
         return [InspectChoice(value=c, label=c) for c in codes]
     return []
 
@@ -107,6 +112,7 @@ def inspect_selection(db: Database, rows: list[Segment], withheld: int) -> Segme
 
     level, keys = rows_for_levels([row.kind for row in rows])
     resolved = {row.id: {s.key: s for s in _resolved_for(db, row.id, None).settings} for row in rows}
+    seen = _seen_codes(db, rows)
     out: list[InspectRow] = []
     for key in keys:
         entries: list[tuple[str | None, str | None, str | None]] = []  # (own, effective, inherited level)
@@ -122,7 +128,7 @@ def inspect_selection(db: Database, rows: list[Segment], withheld: int) -> Segme
                 entries.append((flag, flag, None))
             else:
                 entries.append((row.line_progression, row.line_progression, None))
-        out.append(_row(key, entries, db, rows))
+        out.append(_row(key, entries, seen))
     return SegmentInspectRead(level=level, count=len(rows), withheld=withheld, rows=out)
 
 
@@ -133,7 +139,7 @@ def _came_from(answer: Any, row: Segment) -> str:
     return answer.level or answer.source
 
 
-def _row(key: str, entries: list[tuple[str | None, str | None, str | None]], db: Database, rows: list[Segment]) -> InspectRow:
+def _row(key: str, entries: list[tuple[str | None, str | None, str | None]], seen: dict[str, list[str]]) -> InspectRow:
     effective = [e[1] for e in entries]
     distinct = sorted({v for v in effective if v is not None})
     owned = [e[0] is not None for e in entries]
@@ -152,6 +158,6 @@ def _row(key: str, entries: list[tuple[str | None, str | None, str | None]], db:
         inherited_from = next((e[2] for e in entries if e[2]), None)
     return InspectRow(
         key=key, label=_LABELS[key], kind="toggle" if key == "furniture" else "choice", state=state, value=value,
-        values=values, inherited_from=inherited_from, choices=_choices(key, db, rows, distinct),
+        values=values, inherited_from=inherited_from, choices=_choices(key, seen, distinct),
         free_text=key in ("language", "script"),
     )
