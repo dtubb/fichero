@@ -234,6 +234,10 @@ def _build_join_rows(db, doc_id):
     }
 
 
+def _build_text_layer(db, doc_id):
+    return "POST", f"/api/segments/document/{doc_id}/text-layer", None
+
+
 def _build_reparent(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     region = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.5, 0.5])
@@ -335,6 +339,7 @@ _WRITE_ROUTE_CHECKS: dict[tuple[str, str], object] = {
     ("POST", "/segments/matches/{match_id}/reject"): _build_match_reject,
     ("POST", "/segments/merge"): _build_merge,
     ("POST", "/segments/join-rows"): _build_join_rows,
+    ("POST", "/segments/document/{doc_id}/text-layer"): _build_text_layer,
     ("POST", "/segments/reparent"): _build_reparent,
     ("POST", "/segments/regenerate-outline"): _build_regenerate_outline,
     ("POST", "/segments/split"): _build_split,
@@ -407,6 +412,10 @@ _READ_ONLY_ROUTES = {
     ("GET", "/segments/document/{doc_id}/simplify-preview"),
     ("GET", "/segments/document/{doc_id}/doubtful"),
     ("GET", "/segments/document/{doc_id}/join-rows-preview"),
+    # The Type menu's region types for a page, and the Inspector's form for a selection: reads.
+    # `doc_id` is in the path for the first; the second withholds ids the caller may not read.
+    ("GET", "/segments/document/{doc_id}/types"),
+    ("GET", "/segments/inspect"),
     ("GET", "/segments/document/{doc_id}/on-rendition/{rendition_id}"),
     # The scoped listing takes MANY documents, so it does not refuse -- it withholds the ones
     # the caller may not read and counts them (#5135). Its checks are
