@@ -45,6 +45,7 @@ struct SegmentVerbMenu: View {
         }
         if !ids.isEmpty {
             Divider()
+            HandMenu(ids: ids, onNote: onNote)
             Button("Convert to Line") { run("Convert to Line") { SegmentEdit.convertLevel($0, to: "line") } }
             Button("Convert to Region") { run("Convert to Region") { SegmentEdit.convertLevel($0, to: "region") } }
             Divider()

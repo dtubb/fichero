@@ -197,6 +197,8 @@ extension ZoomableImagePreview {
             joinBrokenWords: { joinBrokenWords() },
             addBaseline: { addBaselineToSelectedLines() },
             types: shownRegionTypes,
+            attributeToLastHand: { attributeSelectedToLastHand() },
+            removeHand: { removeHandFromSelected() },
             apply: { setSelectedSegments($0) }
         )
     }

@@ -44,6 +44,9 @@ struct SegmentMenuTarget {
     var addBaseline: () -> Void = {}
     /// The region types the engine offers for the shown page, for the Type submenu.
     var types: [RegionTypeChoice] = []
+    /// Attribute to Last Hand (⌃⌘H) and Remove Hand: the selection's hand, through `HandAssignment` (#5161).
+    var attributeToLastHand: () -> Void = {}
+    var removeHand: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -120,6 +123,12 @@ struct SegmentMenuContent: View {
             .disabled(count == 0)
         Button("Join Broken Words") { target?.joinBrokenWords() }
             .disabled(target?.hasBrokenWords != true)
+        Menu("Hand") {
+            Button("Attribute to Last Hand") { target?.attributeToLastHand() }
+                .keyboardShortcut("h", modifiers: [.control, .command])
+            Button("Remove Hand") { target?.removeHand() }
+        }
+        .disabled(count == 0)
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) }, types: target?.types ?? [])
             .disabled(count == 0)
