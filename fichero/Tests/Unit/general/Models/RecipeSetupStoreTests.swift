@@ -408,10 +408,12 @@ struct RecipeSetupStoreTests {
     func saveSendsAnswersAndRecipe() async throws {
         defer { RecipesMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
+            // The save is followed by a read of the redo steps (GET, #6744): only the PUT's body is the save.
             if request.url?.path == "/api/recipes/project" {
-                #expect(request.httpMethod == "PUT")
-                RecipesMockURLProtocol.bodies["/api/recipes/project"] =
-                    (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
+                if request.httpMethod == "PUT" {
+                    RecipesMockURLProtocol.bodies["/api/recipes/project"] =
+                        (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
+                }
                 return Self.reply(request, 200, #"{"answers":{},"recipe":null}"#)
             }
             return Self.reply(request, 200, Self.recipeJSON)
