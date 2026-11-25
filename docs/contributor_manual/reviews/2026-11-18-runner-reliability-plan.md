@@ -115,7 +115,7 @@ harness can file one issue per step. Sizes are the spec's.
   (the typed fields on the row, #6592); `installed` after a load check in the local-models list (#6591); downloads recorded
   in the global project and resumed at launch (#5649 option A, the owner to confirm); `recipes/runner._await_downloads`
   treats a `None` row as failed, never landed.
-- Tests: `fichero-server/tests/unit/activity/test_download_says_bytes_6592.py`, a new `test_download_row_gone_is_not_landed.py`,
+- Tests: `fichero-server/tests/unit/llm/test_every_download_reports_bytes_6592.py`, a new `test_download_row_gone_is_not_landed.py`,
   `test_search_model_downloads_in_the_app.py` (installed only after a load), an Apple worker test with a stub that stops
   (said once).
 - Closes: #6592, #6591, #5649 (with the ruling), part of #6288 (the saying-once half; the root cause stays open).

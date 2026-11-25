@@ -207,7 +207,7 @@ pages, Kraken's segmenter and the shipped reader fetched into the temp store, no
 | Leave out | done, no per-page figure |
 | Read each line (Kraken reader), 110 pages | 1,343 s = **12.2 s a page of wall**; median **46.9 s a page** |
 | Find documents | 67.5 s, 0 pages (synthetic text; nothing to group) |
-| Model loads | the engine log has **no `model-lane: loaded` lines**: the harness starts uvicorn with `--log-level warning` (`scripts/_engine_harness.py:220-224`), so the INFO lines `recipes-run.timing.slow-path-logged` promises are not written; only two WARNINGs survive: the RSS line and **"model loaded again: embedder BAAI/bge-m3, 561 s after its last load (load 2 in this engine, 3.7 s): something let it go mid-run"** |
+| Model loads | the engine log has **no `model-lane: loaded` lines**: the harness starts uvicorn with `--log-level warning` (`fichero-server/scripts/_engine_harness.py:220-224`), so the INFO lines `recipes-run.timing.slow-path-logged` promises are not written; only two WARNINGs survive: the RSS line and **"model loaded again: embedder BAAI/bge-m3, 561 s after its last load (load 2 in this engine, 3.7 s): something let it go mid-run"** |
 | Memory per step | `steps[].memory` (the `recipes-run.memory.recorded-per-step` [OK] field) is **not in the run status the script saved**; the per-step RAM, swap and pressure figures could not be read back from the report |
 | Health | not sampled by the script (the perf test samples it; it could not run, above) |
 
@@ -429,7 +429,7 @@ Issues to file (title; one paragraph each in the body, cited above):
 20. The measured ceilings table (#6076) from the load leg's `peak_footprint_bytes` and per-step `memory`, into
     `recipes-run.memory.peak-ceiling-per-model-kind`; this run's 6.3 GiB engine RSS and 7.9 GB peak as the first row.
 21. The load leg cannot run: `tests/_engine_home_guard.py:56` refuses the real HOME and a temp HOME alike (`REAL_HOME` is
-    read from the same `$HOME`), the `_engine_wait._share_real_model_cache` it names does not exist, and `scripts/_engine_harness.py`
+    read from the same `$HOME`), the `_engine_wait._share_real_model_cache` it names does not exist, and `fichero-server/scripts/_engine_harness.py`
     never sets the child's HOME; the harness must give the engine a temp HOME with the model cache shared, and the test
     must run on the iMac gate (`recipes-run.reliability.hundred-pages-finish`).
 22. The one-venv recipe (`scripts/setup_venv.sh`, `uv.lock` only) leaves out Kraken, htrmopo, psutil, MLX and the spaCy
