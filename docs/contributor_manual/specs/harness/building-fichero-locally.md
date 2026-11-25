@@ -995,6 +995,15 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   24.90 USD this week starts Pi, 25.00 parks before it).
   Serves: reliable (no spend without a cap), local.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.deps.weekly` [OK] (owner-approved 2026-11-25; built 2026-11-25) — `builder deps` reads the open Dependabot pull requests
+  against the land branch with the manager's gh (workers hold none) and judges each by its required checks only. A grouped
+  minor/patch bump or a GitHub Actions bump (its tag moves, majors included: the green checks ran the new action) whose
+  required checks are all green is squash-merged, one `deps` row. A major-version bump or one with a red required check is
+  never merged: it becomes step `dep-<n>` on the `[deps].lane` lane, its brief built from the pull request (each package from
+  -> to, the release-notes links, the failing required check names). Checks still running, no required check, or an ungrouped
+  minor bump waits (one row); a pull request against another base is left alone; a land branch named main refuses the run.
+  `--dry-run` prints what it would do and changes nothing. The loop runs it once on `[deps].day` at or after `[deps].hour`
+  (after Dependabot's Monday run) when `[deps].enabled = true`; absent, the job is off. Tests: `fichero-builder/tests/test_deps.py`.
 
 ### L. A review is a step kind (owner 2026-11-21, #6847)
 

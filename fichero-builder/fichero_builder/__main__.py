@@ -147,6 +147,10 @@ def main(argv=None) -> int:
     tr.add_argument("--dry", action="store_true"), tr.add_argument("--gh", default="gh")
     tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
     tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
+    dp = sub.add_parser("deps", help="the open Dependabot PRs against the land branch: merge a green grouped or Actions bump, queue a step for a major or red one; --dry-run prints only")
+    dp.add_argument("--dry-run", action="store_true"), dp.add_argument("--gh", default="gh")
+    dp.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml; gh runs from it")
+    dp.add_argument("--state", help="where the journal and queue live (default: the owner's journal dir)")
     q = sub.add_parser("queue", help="one long-running worker per lane, fed step by step: no action prints the steps; add; run (the owner-side loop; push only with --push); pause (no new step is fed); stop (the worker commits what is green and its session ends; the tree is kept); resume")
     q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell", "stop", "move", "park", "unpark", "drop", "landed", "moved", "said-done"])
     q.add_argument("--to", type=int, help="move: the step's new index in the lane's steps (below the cursor = next; past the end = last)")
@@ -324,6 +328,10 @@ def main(argv=None) -> int:
         from fichero_builder import triage
 
         return triage.main(a)
+    if a.cmd == "deps":
+        from fichero_builder import deps
+
+        return deps.main(a)
     if a.cmd == "build":
         from fichero_builder import build
 
