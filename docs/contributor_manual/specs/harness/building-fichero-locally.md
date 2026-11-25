@@ -769,7 +769,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
 - `local.nightly.notarize-own-timeout` [OK] (#6589) — `[nightly].notarize_timeout_min` (default 90) is each notarization's own
   budget: `scripts/notarize.sh` submits and polls (never `--wait`) that many minutes, and the DMG part's timeout is the build's two
   hours plus two such budgets (the app and the DMG). Tests: `fichero-builder/tests/test_nightly.py::test_notarization_has_its_own_budget_and_polls_never_waits`.
-- `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
+- `local.queue.add-refuses-a-repeated-brief` [OK] (#6589; built 2026-11-25, `queue.repeated_brief` and `queue.continuation`: a continuation lists each step the lane landed since the continued one was first sent, its landed head commit with subject and files; test `fichero-builder/tests/test_queue_verb.py::test_add_refuses_a_repeated_brief_by_name_and_a_continuation_appends_the_landed_and_the_left`) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
   continuation needs: the commits the lane has landed since that step began (sha and subject), the files they
@@ -780,7 +780,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `--continues` and `--left` the kept brief ends with the landed commits and the left text; `--continues` with no
   `--left` is refused. Serves: builds Fichero, reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.queue.drop-takes-a-queued-step` [GAP] (#6589) — `builder queue drop --lane L --step S --text WHY` removes a step
+- `local.queue.drop-takes-a-queued-step` [OK] (#6589; built 2026-11-25: a queued step with a round, a head, a restart, a resume brief or a pinned copy has started and is refused; test `fichero-builder/tests/test_queue_verb.py::test_a_queued_step_that_never_started_is_dropped_with_its_reason_and_a_sent_one_is_refused`) — `builder queue drop --lane L --step S --text WHY` removes a step
   that has not started: `queued` with no round, no head and no session, at the cursor or behind it. It writes the same
   `dropped` row as for a parked step. A step in flight, blocked or landed is refused as before. Today `queue.reorder`
   takes `drop` for a `parked` step only, so a step queued by mistake has to be parked first. Test (owed):

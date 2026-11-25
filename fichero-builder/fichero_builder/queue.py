@@ -801,6 +801,42 @@ def _park(lane: dict, s: dict, why: str) -> None:
     journal.append("queue", lane=lane["id"], step=s["step"], state="parked", detail=why[-300:])
 
 
+def repeated_brief(lane_id: str, step: str, text: str) -> str:
+    """local.queue.add-refuses-a-repeated-brief: the step of the lane (landed or not, not `step` itself) whose kept brief has this
+    text, '' when none; whitespace at the ends does not count."""
+    want = text.strip()
+    lane = next((x for x in load() if x["id"] == lane_id), None)
+    for s in (lane or {}).get("steps", []):
+        try:
+            if s["step"] != step and Path(s.get("brief", "")).read_text().strip() == want:
+                return s["step"]
+        except OSError:
+            continue
+    return ""
+
+
+def continuation(lane_id: str, step: str, left: str) -> str:
+    """What a continuation of `step` is told beyond the repeated brief: each step the lane landed since `step` was first sent (its
+    landed head: sha, subject and files), then what is left."""
+    rows = journal.read()
+    start = next((r["ts"] for r in rows if r.get("event") == "queue" and r.get("lane") == lane_id and r.get("step") == step and r.get("state") == "sent"), "")
+    lane = next((x for x in load() if x["id"] == lane_id), {})
+    lines = [f"## Continues {step}", "", "Landed since it began:"]
+    for r in rows:
+        if r.get("event") != "queue" or r.get("lane") != lane_id or r.get("state") != "landed" or (start and r.get("ts", "") < start):
+            continue
+        sha = (re.match(r"landed ([0-9a-f]{7,40})", r.get("detail", "")) or [None, ""])[1]
+        if not sha:
+            continue
+        g = ["git", "-c", "safe.directory=*", "-C", lane.get("worktree", ".")]
+        subj = subprocess.run(g + ["log", "-1", "--format=%h %s", sha], capture_output=True, text=True).stdout.strip() or sha
+        files = subprocess.run(g + ["show", "--name-only", "--format=", sha], capture_output=True, text=True).stdout.split()
+        lines.append(f"- {r.get('step')}: {subj}" + (f" ({', '.join(files[:20])})" if files else ""))
+    if len(lines) == 3:
+        lines.append("- nothing yet")
+    return "\n".join(lines + ["", "Left:", left.strip()])
+
+
 def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: str = "") -> str:
     """`builder queue move|park|unpark` (#6467): among the steps from the cursor on, `move` puts a queued or parked step at
     index `to` of the lane's steps (clamped: below the cursor = the cursor's place, past the end = last); `park` sends a queued or blocked one to the end as parked;
@@ -814,8 +850,11 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: st
             return f"no lane {lane_id!r}" if lane is None else f"no step {step!r} in {lane_id}"
         i, cur = lane["steps"].index(s), lane["cursor"]
         if i < cur or s["state"] not in {"move": ("queued", "parked"), "park": ("queued", "blocked"), "unpark": ("parked",),
-                                         "drop": ("parked",)}[action]:
+                                         "drop": ("parked", "queued")}[action]:
             return f"{lane_id} {step} is {s['state']}: a step that landed or is in flight is left as it is"
+        if action == "drop" and s["state"] == "queued" and (started := [k for k in ("rounds", "head", "restarts", "resume_brief", "pinned") if s.get(k)]):
+            # local.queue.drop-takes-a-queued-step: only a step that never started; one with a round, a head or a session is in flight
+            return f"{lane_id} {step} is queued but has started ({', '.join(started)}): park it first"
         if action == "move":
             lane["steps"].remove(s)
             at = min(max(cur, to if to is not None else cur), len(lane["steps"]))
@@ -823,7 +862,7 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: st
             journal.append("queue", lane=lane_id, step=step, state="moved", detail=f"to index {at} (the cursor is at {cur})")
         elif action == "park":
             _park(lane, s, "parked from the console")
-        elif action == "drop":  # #6589: a parked step that is superseded leaves the lane; its record is this journal row
+        elif action == "drop":  # #6589: a parked step that is superseded, or a queued one that never started, leaves the lane; its record is this row
             if not why.strip():
                 return "drop needs --text: why the step is no longer wanted"
             lane["steps"].remove(s)
@@ -2705,9 +2744,20 @@ def main(a) -> int:
             return 1
         kept = journal.STATE / "manager" / "briefs"  # a lane never depends on a loose file (#6589 item 21)
         dest = kept / f"{slug(a.lane)}-{slug(a.step)}.txt"
+        continues, left = getattr(a, "continues", "") or "", getattr(a, "left", "") or ""
+        if continues and not left.strip():
+            print("REFUSED: --continues needs --left: what is left of the step it continues")
+            return 1
+        if (twin := repeated_brief(a.lane, a.step, src.read_text())) and twin != continues:
+            print(f"REFUSED: {a.lane} {twin} already has this brief; a continuation is `--continues {twin} --left TEXT`")
+            journal.append("queue", lane=a.lane, step=a.step, state="add-refused", detail=f"the same brief as {twin}")
+            return 1
         if src.resolve() != dest.resolve():
             kept.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dest)
+        if continues:
+            with dest.open("a") as f:
+                f.write("\n" + continuation(a.lane, continues, left) + "\n")
         milestone = ""
         if a.issues:  # the lane joins the work tree under its issues' milestone (builder-console.ordered-work.one-source)
             from fichero_builder import work_store, work_tree
