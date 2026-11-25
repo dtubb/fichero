@@ -277,8 +277,9 @@ struct PreviewMarkupSelectionVerbGuardTests {
 /// mark the markup row drew saved correctly and rendered invisible.
 struct PreviewWhatToShowMenuGuardTests {
     /// Five since 2026-09-27 (Q2, ruled: the switches are LAYERS -- the image on or off, the overlays
-    /// on or off; af98d696b added Show Image). Seven now: Show Bounding Box and Show Order Numbers.
-    @Test("the menu offers exactly the seven display switches: the image and the six overlays")
+    /// on or off; af98d696b added Show Image). Seven with Show Bounding Box and Show Order Numbers; eight with Show Lines, one switch per segment level
+    /// (`source.editor.two-switches`, #6674).
+    @Test("the menu offers exactly the eight display switches: the image and the seven overlays")
     func fiveSwitchesByName() throws {
         let toolbar = try String(
             contentsOf: AppSource.root().appendingPathComponent(
@@ -287,12 +288,12 @@ struct PreviewWhatToShowMenuGuardTests {
         )
         for title in [
             "Show Image", "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline",
-            "Show Bounding Box", "Show Order Numbers"
+            "Show Bounding Box", "Show Order Numbers", "Show Lines"
         ] {
             #expect(toolbar.contains("Toggle(\"\(title)\", isOn:"), "missing \(title)")
         }
         let toggles = toolbar.components(separatedBy: "Toggle(\"Show ").count - 1
-        #expect(toggles == 7, "the what-to-show menu grew or lost a switch (\(toggles))")
+        #expect(toggles == 8, "the what-to-show menu grew or lost a switch (\(toggles))")
     }
 
     @Test("annotation overlays default to ON")
@@ -382,7 +383,7 @@ struct DocumentOverlayWiringGuardTests {
     @Test("the Mac canvas feeds the document overlay and turns the SwiftUI box drawing off")
     func boxesAreDrawnInsideTheScrollView() throws {
         let overlays = try source("Views/Preview/ImageViewer/ZoomableImagePreviewMac+Overlays.swift")
-        #expect(overlays.contains("documentOverlay: documentOverlay"))
+        #expect(overlays.contains("documentOverlay: PreviewPointerProfile.timingOverlay { documentOverlay }"))
         #expect(overlays.contains("drawsBoxes: false"))
         #expect(overlays.contains("drawsGeometricMarks: false"))
         #expect(overlays.contains("drawsInlineText: false"))

@@ -49,7 +49,12 @@ struct PreviewFitViewportTests {
         scrollView.scrollerStyle = .legacy
         scrollView.allowsMagnification = true
         let image = CGSize(width: 1000, height: 1500)
-        let content = scrollView.contentSize
+        // The room legacy scrollers take, stated rather than read: a headless host ignores `scrollerStyle` and reports
+        // the overlay style's `contentSize == bounds`, which would make this premise vacuous.
+        let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+        let content = CGSize(
+            width: scrollView.bounds.width - thickness, height: scrollView.bounds.height - thickness
+        )
         // Legacy scrollers eat real room — the premise of the bug.
         #expect(content.width < scrollView.bounds.width || content.height < scrollView.bounds.height)
 

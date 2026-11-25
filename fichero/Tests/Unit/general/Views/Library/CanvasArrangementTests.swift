@@ -320,7 +320,8 @@ struct CanvasArrangeWiringGuardTests {
         for path in canvases {
             let source = try appSource(path)
             #expect(source.contains("@AppStorage(CanvasArrangement.storageKey)"), "\(path) forked the choice")
-            #expect(source.contains("arrangement: CanvasArrangement.stored(arrangementRaw)"))
+            // A canvas may be handed an arrangement to show (`arrangement ?? ...`); with none it reads the persisted one.
+            #expect(source.contains("arrangement: arrangement ?? CanvasArrangement.stored(arrangementRaw)"))
         }
     }
 

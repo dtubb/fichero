@@ -51,7 +51,7 @@ struct PreviewSelectionDefaultsTests {
     @Test("the select tool band-selects on empty ground")
     func selectBandSelects() throws {
         let layer = try appSource("Views/Preview/ImageViewer/Regions/RegionInteractionLayer.swift")
-        #expect(layer.contains("private var isBandSelecting: Bool"))
+        #expect(layer.contains("var isBandSelecting: Bool"))
         #expect(layer.contains("func selectRegions(inBand band: [Double])"))
         // The degenerate band still deselects — click-away must keep working.
         #expect(layer.contains("handleTap(at: start, in: size)"))
@@ -69,7 +69,7 @@ struct PreviewSelectionDefaultsTests {
     @Test("promoting a marquee focuses the artifact it wrote")
     func promoteFocusesItsArtifact() throws {
         let regions = try appSource(
-            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreview+RegionPromotion.swift"
         )
         let focusCalls = regions.components(
             separatedBy: "FocusedArtifact.shared.select("
