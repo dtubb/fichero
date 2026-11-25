@@ -99,8 +99,12 @@ def test_artifact_type_is_open_and_round_trips(db: Database):
     assert loaded.data == artifact.data
 
 
-def test_entity_type_registry_accepts_new_keys_without_schema_change(db: Database, test_package: Path):
-    """A new entity-type key is data, not a new table/column."""
+def test_entity_type_registry_accepts_new_keys_without_schema_change(db: Database, test_package: Path, hashed_text_embedder):
+    """A new entity-type key is data, not a new table/column.
+
+    Saving the entity queues an embedding; `hashed_text_embedder` answers it, so a machine without the pinned model
+    does not try to fetch one into the test base (the real-state guard then errors the test at teardown).
+    """
 
     db._ensure_table(ClassificationValue)
     db._ensure_table(LibraryEntityType)
