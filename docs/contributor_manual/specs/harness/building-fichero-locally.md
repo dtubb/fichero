@@ -592,7 +592,7 @@ that day's journal and placed in the code. The owner asked for them to be specif
 (paraphrased). Caps read once per session, and the disk floor's rows and alert, are specified by the performance review of
 the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026-11-21.
 
-- `local.run.reexec-adopts-by-window-or-pid` [OK] (#6589) — a loop that starts with no handle for a lane (a re-exec, a
+- `local.run.reexec-adopts-by-window-or-pid` [PARTIAL] (#6589) — a loop that starts with no handle for a lane (a re-exec, a
   crash, a login) adopts every session that is alive, and stops none. A session is alive when the tmux window the lane
   recorded at its start still runs more than an idle shell, or when the process id it recorded is running. The loop
   watches it again (a watcher that died is started again on the same session and feed), writes one `adopted` row, and
@@ -612,8 +612,8 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   Test (owed): `test_builder_restart.py`, a re-exec with five live windows and no watcher adopts five and stops none; a
   live process id with a renamed window is adopted; a lane with neither is queued once. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-  Built: the process id is recorded at start (`session_pid`) and a window or that process makes a lane alive. Tests
-  `fichero-builder/tests/test_builder_restart.py::test_a_re_exec_with_five_live_windows_and_no_watcher_adopts_five_and_stops_none`,
+  Built: the process id is recorded at start (`session_pid`) and a window or that process makes a lane alive, while its `builder run` still watches the feed (an unwatched session is the #6850 alert). Not built: the window id recorded at start, and a watcher started again on the same feed. Tests
+  `fichero-builder/tests/test_builder_restart.py::test_a_re_exec_with_five_live_windows_adopts_five_and_stops_none`,
   `fichero-builder/tests/test_builder_restart.py::test_a_live_process_id_with_a_renamed_window_is_adopted`,
   `fichero-builder/tests/test_builder_restart.py::test_a_lane_with_neither_a_live_window_nor_a_live_process_is_queued_once`.
 - `local.run.drain-expired-one-row` [OK] (#6589) — when the wait for a re-exec passes its limit, the loop says so once

@@ -2164,15 +2164,15 @@ def pid_alive(pid) -> bool:
 
 
 def adopt_session(j, lane: dict):
-    """#6589: a handle on the lane's live session, or None. A session is alive when a window named for the lane runs more than an
-    idle shell, or the process id recorded when it started is running. The seams are `tmux_as_worker` and `pid_alive`."""
-    if j is None or not j.user:
+    """#6589: a handle on the lane's live session, or None. Its `builder run` must still watch the lane's feed (an unwatched session
+    reports no DONE and reads no message: that is the #6850 alert, never an adoption), and the session is alive when a window named
+    for the lane runs more than an idle shell, or the process id recorded at start is running. Seams: `run_alive`, `tmux_as_worker`, `pid_alive`."""
+    if j is None or not j.user or not lane.get("feed") or not run_alive(j, lane["feed"]):
         return None
     pid = lane.get("session_pid")
-    window = lambda: bool(live_windows(j, lane))  # noqa: E731
-    if not window() and not pid_alive(pid):
+    if not live_windows(j, lane) and not pid_alive(pid):
         return None
-    return Adopted(lambda: window() or pid_alive(pid))
+    return Adopted(lambda: run_alive(j, lane["feed"]) and (bool(live_windows(j, lane)) or pid_alive(pid)))
 
 
 class Adopted:
