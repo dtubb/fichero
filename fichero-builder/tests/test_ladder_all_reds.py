@@ -82,3 +82,24 @@ def test_red_on_base_runs_the_base_and_head_runs_at_once(monkeypatch, tmp_path):
     monkeypatch.setattr(check_tool, "_mkdtemp", lambda *a, **k: str(tmp_path / "base"))
     r = check_tool.red_on_base(tmp_path, "s" * 40, "h" * 40, ["t_test.py"], Config())
     assert r["ok"] and r["name"] == "red-on-base"
+
+
+def test_the_head_run_in_its_helper_thread_sees_the_ladders_cancel_marker(monkeypatch, tmp_path):
+    from fichero_builder import journal
+    from fichero_builder.check_tool import Config
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    check_tool.cancel_file("hhhhhhhhh").write_text("newer")
+    seen = []
+    monkeypatch.setattr(check_tool, "pytest_rung", lambda *a, **k: {"ok": False})
+    monkeypatch.setattr(check_tool, "green_runs", lambda *a, **k: seen.append(check_tool.cancel_requested()) or {"ok": True, "stdout_tail": ""})
+    monkeypatch.setattr(check_tool, "_git", lambda *a, **k: {"ok": True, "stdout_tail": "abc\n", "stderr_tail": ""})
+    monkeypatch.setattr(check_tool, "_lines", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "already_built_files", lambda *a, **k: set())
+    monkeypatch.setattr(check_tool, "data_only", lambda *a, **k: False)
+    monkeypatch.setattr(check_tool, "_mkdtemp", lambda *a, **k: str(tmp_path / "base"))
+    check_tool._KEY[0] = "check s..hhhhhhhhh"
+    try:
+        check_tool.red_on_base(tmp_path, "s" * 40, "h" * 40, ["t_test.py"], Config())
+    finally:
+        check_tool._KEY[0] = ""
+    assert seen == [True], "the head run's thread had no ladder key, so a superseded check was never cancelled there"

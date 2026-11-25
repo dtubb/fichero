@@ -1461,9 +1461,10 @@ def _MINE_ROOTS() -> set:
     return _MINE.roots
 
 
-def _in_thread(shipped: set, fn, *a):
+def _in_thread(shipped: set, key: str, fn, *a):
     """`fn` in a helper thread: the remote copies it ships are recorded in `shipped`, for the calling ladder's thread to drop."""
     _MINE.roots = shipped
+    _KEY[0] = key  # the ladder's key: cancel_requested() reads it, so a superseded check stops this run too
     return fn(*a)
 
 
@@ -1494,7 +1495,7 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
     # The pool's exit waits for the head run, so a refusal returns with no run left going.
     shipped = _MINE_ROOTS()  # the head thread records its remote copies here: this thread's set, dropped when the ladder ends
     pool = ThreadPoolExecutor(max_workers=1)
-    here_f = pool.submit(_in_thread, shipped, green_runs, head_tree or root, files, also_green, cfg, timeout_s) if files or also_green else None
+    here_f = pool.submit(_in_thread, shipped, _KEY[0], green_runs, head_tree or root, files, also_green, cfg, timeout_s) if files or also_green else None
     try:
         r0 = _git(root, "worktree", "add", "--detach", "-q", base, since, timeout_s=SCRATCH_CHECKOUT_S)
         if not r0["ok"]:  # infra, never a code verdict: an approve would skip the proof (manager 2026-11-07, alert 416)
