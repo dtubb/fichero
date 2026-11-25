@@ -476,10 +476,10 @@ ACTIVE = ("sent", "said-done", "done", "checking", "reviewing", "fixing", "done-
 
 
 def _working(handles: dict) -> int:
-    """#6589 reliab-1: the lanes with a live session whose cursor step is in flight; a window idle at a prompt (its step landed, re-queued
-    or parked) holds no slot of [loop].lanes."""
+    """#6589 reliab-1: the lanes with a live session whose cursor step is in flight or queued for it (its next message goes to that session);
+    a window idle at a prompt (its steps landed, or its cursor step parked) holds no slot of [loop].lanes."""
     lanes = {x["id"]: x for x in load()}
-    return sum(1 for k in handles if (x := lanes.get(k)) and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ACTIVE)
+    return sum(1 for k in handles if (x := lanes.get(k)) and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ACTIVE + ("queued",))
 
 
 def _close_idle(lane: dict, s: dict | None, handles: dict, procs: Procs, why: str) -> None:
