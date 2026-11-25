@@ -24,3 +24,4 @@ fichero_builder = ["console.html"]
 
 [tool.pytest.ini_options]
 markers = ["slow: builds a venv and installs the package; run with -m slow"]
+addopts = "-m 'not slow'"
