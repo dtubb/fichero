@@ -13,7 +13,11 @@ struct ActivityMadeList: View {
                 Button { open(item.documentId) } label: {
                     Text(item.name == item.type ? item.name : "\(item.name) · \(item.type)")
                 }
+                #if os(macOS)
                 .buttonStyle(.link)
+                #else
+                .buttonStyle(.borderless)  // .link is macOS only (#6390)
+                #endif
                 .font(.callout)
                 .accessibilityIdentifier("activity.details.made.item")
             }
