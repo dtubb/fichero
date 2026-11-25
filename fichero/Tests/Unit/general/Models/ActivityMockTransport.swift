@@ -48,7 +48,8 @@ final class ActivityMockTransport: URLProtocol {
         let method = request.httpMethod ?? ""
         Self.lock.lock()
         Self.requests.append(request)
-        let stub = Self.stubs.first { path.hasSuffix($0.pathSuffix) && $0.method == method }
+        let stub = Self.stubs.first { (path.hasSuffix($0.pathSuffix) || path.hasSuffix($0.pathSuffix.trimmingSuffix("/")))
+                && $0.method == method }
         Self.lock.unlock()
 
         let resolved = stub ?? ActivityStubbedResponse(pathSuffix: "", method: "", status: 404, body: Data(#"{"detail":"no stub"}"#.utf8))
@@ -66,4 +67,9 @@ final class ActivityMockTransport: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+private extension String {
+    /// `URL.path` drops a trailing slash, so a stub for `/api/artifacts/` must also match `/api/artifacts`.
+    func trimmingSuffix(_ suffix: String) -> String { hasSuffix(suffix) ? String(dropLast(suffix.count)) : self }
 }

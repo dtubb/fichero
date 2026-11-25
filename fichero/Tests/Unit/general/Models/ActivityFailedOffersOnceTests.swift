@@ -27,7 +27,16 @@ struct ActivityFailedOffersOnceTests {
         var tree = try Self.recorded("recipe_run_tree")
         tree["state"] = "failed"
         tree["summary"] = summary
-        let node = ActivityJobNode(try JSONDecoder().decode(
+        // The recorded tree's stage timings are date-times, as the client reads them: not the decoder's default Double.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let text = try decoder.singleValueContainer().decode(String.self)
+            guard let date = parseEngineDate(text) else {
+                throw DecodingError.dataCorruptedError(in: try decoder.singleValueContainer(), debugDescription: text)
+            }
+            return date
+        }
+        let node = ActivityJobNode(try decoder.decode(
             Components.Schemas.JobTree.self, from: try JSONSerialization.data(withJSONObject: tree)))
 
         let failed = try #require(ActivityDetails.summary(of: node)?.failed)
