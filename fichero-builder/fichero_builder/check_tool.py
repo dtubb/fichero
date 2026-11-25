@@ -2413,6 +2413,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
              else _no_red_row(own, whole, cfg)),
             ("unit", lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg)),
             ("guards", lambda: guards_on_current_base(root, since, head, pinned, cfg, tree, data_from_head=tuple(guard_data), stricter_from_head=stricter)),
+            ("security", lambda: security(tree, since, head, names, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),
