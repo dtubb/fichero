@@ -2455,7 +2455,7 @@ TRAIN_THREAD: list = [None]  # the first train in flight
 FIRST_TID: list = [""]
 SECOND: dict = {}  # local.train.second-train-on-the-first: {"tid", "thread", "base"} of a train started on the first one's candidate
 TRAIN_DONE: dict = {}  # tid -> its Result, for the second train to read the first's outcome
-RECENT: list = []  # the last train results, newest last (in memory: a restart waits for four greens again)
+RECENT: list = []  # the last train results, newest last (kept with TRAIN_SIZE in the state dir)
 
 
 def _waiting_for_train() -> list[tuple[dict, dict]]:
@@ -2474,7 +2474,23 @@ def _under_first(got: list) -> list:
     return out
 
 
-TRAIN_SIZE: list = [0]  # the next train's size (0 = [train].max_steps); ponytail: in memory, a restart starts again at max_steps
+TRAIN_SIZE: list = [0]  # the next train's size (0 = [train].max_steps); kept in the state dir (train-memory.json) across a restart
+MEMORY_READ: list = [False]
+
+
+def _train_memory(save_it: bool = False) -> None:
+    """TRAIN_SIZE and RECENT in `<state>/train-memory.json`: read once per process, written after every train. A missing or bad file
+    starts at max_steps with no results, as before."""
+    f = journal.STATE / "train-memory.json"
+    if save_it:
+        f.write_text(json.dumps({"size": TRAIN_SIZE[0], "recent": RECENT[-5:]}) + "\n")
+        return
+    if MEMORY_READ[0]:
+        return
+    MEMORY_READ[0] = True
+    with contextlib.suppress(OSError, ValueError, TypeError, AttributeError):
+        d = json.loads(f.read_text())
+        TRAIN_SIZE[0], RECENT[:] = int(d.get("size", 0)), [str(r) for r in d.get("recent", [])][-5:]
 
 
 def train_when_due(procs: Procs, chains: dict | None) -> None:
@@ -2482,6 +2498,7 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
     (a thread; inline when `chains` is None). One at a time; a step's cheap rungs never wait for it."""
     if not train_on(procs):
         return
+    _train_memory()
     first = TRAIN_THREAD[0] is not None and TRAIN_THREAD[0].is_alive()
     base_tid = ""
     if first:  # local.train.second-train-on-the-first: one more, on the running train's candidate, only when the trains are mostly green
@@ -2545,6 +2562,7 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
         RECENT.append(res.result)
         del RECENT[:-5]
         TRAIN_SIZE[0] = train.next_size(size, res.result, TRAIN[0])
+        _train_memory(save_it=True)
         apply_train(res, spec)
     if base_tid:
         SECOND.update(tid=tid, base=base_tid, thread=threading.Thread(target=run_it, name="merge-train-2", daemon=True))

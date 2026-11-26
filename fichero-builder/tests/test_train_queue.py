@@ -24,6 +24,8 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(queue, "_now", clock)
     monkeypatch.setattr(queue, "TRAIN", [train.Cfg()])
     monkeypatch.setattr(queue, "TRAIN_SIZE", [0])
+    monkeypatch.setattr(queue, "RECENT", [])
+    monkeypatch.setattr(queue, "MEMORY_READ", [False])
     return tmp_path, clock
 
 
@@ -366,3 +368,20 @@ def test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs(world):
     for _ in range(4):
         queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
     assert states()["l1"] == "landed"
+
+
+def test_the_train_size_and_the_last_results_survive_a_restart(world):
+    t = Trained(*world, ["1", "2"], cfg=train.Cfg(min_steps=1, max_steps=4))
+    t.result = "red"
+    t.fake.procs.train_run = lambda spec, tid: t.trains.append(spec) or train.Result(id=tid, candidate="c", steps=[x["key"] for x in spec],
+                                                                                     again=[x["key"] for x in spec], result="unresolved")
+    queue.TRAIN_SIZE[0] = 4
+    hs: dict = {}
+    for _ in range(4):
+        queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
+    assert t.trains, "a train ran"
+    size, recent = queue.TRAIN_SIZE[0], list(queue.RECENT)
+    assert size < 4 and recent
+    queue.TRAIN_SIZE[0], queue.RECENT[:], queue.MEMORY_READ[0] = 0, [], False  # a restart
+    queue._train_memory()
+    assert (queue.TRAIN_SIZE[0], queue.RECENT) == (size, recent)
