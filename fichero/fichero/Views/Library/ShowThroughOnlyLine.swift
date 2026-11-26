@@ -83,7 +83,7 @@ struct ShowThroughPageRow: View {
         let included = ShowThroughOnly.isIncluded(page)
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(page.name).font(.callout).lineLimit(1)
+                Text(DocumentTitle.displayName(for: page, parent: documents.first { $0.id == page.parentId })).font(.callout).lineLimit(1)
                 Text(ShowThroughOnly.words(page, in: documents)).font(.caption).foregroundStyle(.secondary)
             }
             .opacity(included ? 1 : 0.5)

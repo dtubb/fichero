@@ -23,12 +23,14 @@ struct CleanupStep: Equatable, Identifiable {
 struct CleanupPageRef: Equatable, Identifiable {
     let id: String
     let name: String
+    var title: String { DocumentTitle.displayName(for: Document(id: id, docType: .page, name: name)) }
 }
 
 /// A page's picture before and after the step, small JPEG bytes; nothing is written to make it.
 struct CleanupPreviewPage: Equatable, Identifiable {
     let id: String
     let name: String
+    var title: String { DocumentTitle.displayName(for: Document(id: id, docType: .page, name: name)) }
     let before: Data
     let after: Data
 }
