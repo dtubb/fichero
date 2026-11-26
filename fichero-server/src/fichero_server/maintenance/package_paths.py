@@ -3,7 +3,7 @@
 A path that points inside an earlier location of this package (an absolute path through a `.fichero` folder into its
 `files` or `storage` folder) bakes that location in: copied to another Mac or renamed, the project lost every original.
 On open, such a path whose tail exists in THIS package becomes `files/<tail>` (or `storage/<tail>`), resolved against
-wherever the package is opened (`db.storage.resolve_source`). Run on every open in one pass over the documents (paths are stat-ed only where they match): a rewritten path is relative and no
+wherever the package is opened (`db.storage.resolve_source`). Run on every open over only the documents whose path or metadata mention a `.fichero/` folder (a SQL pre-filter; the rest are never read): a rewritten path is relative and no
 longer matches, so a second run changes nothing. A tail with a `..` segment, or one that resolves outside the package, is never rewritten. Only a document's `path` and its path-valued metadata change; ids never
 do. A path outside any package (a linked original) or whose tail is not in this package is left alone. What it did is
 one audited action.
@@ -46,7 +46,15 @@ def relativize_package_paths(db: Any) -> dict[str, Any]:
 
     package = Path(db.path).parent
     changes: list[tuple[Any, str | None, dict[str, str]]] = []
-    for doc in db.query(Document):
+    # Only rows that mention a `.fichero/` folder can match: filter in SQL, never read the whole table on an open.
+    table = db._sql_table_name(Document)
+    db._ensure_table(Document)
+    rows, _ = db._execute_fetch_with_columns(
+        f"SELECT id FROM {table} WHERE path LIKE '/%.fichero/%' OR CAST(metadata AS VARCHAR) LIKE '%.fichero/%'")
+    for (doc_id,) in rows:
+        doc = db.get(Document, doc_id)
+        if doc is None:
+            continue
         path = _relative(doc.path, package)
         meta = doc.metadata if isinstance(doc.metadata, dict) else {}
         moved = {k: r for k in _PATH_KEYS if (r := _relative(meta.get(k), package))}

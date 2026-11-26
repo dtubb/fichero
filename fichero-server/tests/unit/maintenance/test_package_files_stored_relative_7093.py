@@ -79,3 +79,18 @@ def test_a_tail_that_climbs_out_of_the_package_is_never_rewritten(db, test_packa
     climbing = _doc(db, f"{OLD}/files/../../secret.txt")
     package_paths.relativize_on_open(db)
     assert db.get(Document, climbing.id).path == f"{OLD}/files/../../secret.txt"
+
+
+def test_the_open_reads_only_rows_that_mention_a_package_folder(db, test_package, app_db):
+    _own_file(test_package)
+    for i in range(5):
+        _doc(db, f"/Volumes/Archive/scans/page{i}.png", note="plain")
+    mine = _doc(db, f"{OLD}/files/62/fcd61f1a_page.png")
+    seen = []
+    real_get = db.get
+    db.get = lambda model, id: (seen.append(id), real_get(model, id))[1]
+    try:
+        done = package_paths.relativize_on_open(db)
+    finally:
+        db.get = real_get
+    assert done["rewritten"] == [mine.id] and seen == [mine.id]
