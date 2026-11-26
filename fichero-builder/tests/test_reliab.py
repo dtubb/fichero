@@ -115,3 +115,56 @@ def test_a_paused_lane_or_a_disk_hold_explains_the_idleness_and_raises_nothing(s
     queue.IDLE["since"] = time.time() - queue.IDLE_S - 1
     queue.idle_alert(None)
     assert not [r for r in journal.read() if r["event"] == "alert"]
+    queue.DISK_HELD[:] = ["m1"]  # the disk floor holds it instead
+    lanes = queue.load()
+    lanes[0]["paused"] = False
+    queue.save(lanes)
+    queue.idle_alert(None)
+    queue.DISK_HELD.clear()
+    assert not [r for r in journal.read() if r["event"] == "alert"], "a disk hold explains it"
+    queue.IDLE["since"] = time.time() - queue.IDLE_S - 1
+    queue.idle_alert(None)
+    assert [r for r in journal.read() if r["event"] == "alert"], "control: with no hold the same state alerts"
+
+
+def test_a_night_hold_the_drain_and_a_heavy_lock_explain_the_idleness_and_raise_nothing(state, monkeypatch):
+    queue.add("m1", "/w/m1", "1.1", str(state / "b1.1"), [7])
+    alerts = lambda: [r for r in journal.read() if r["event"] == "alert"]  # noqa: E731
+    queue.IDLE["since"] = time.time() - queue.IDLE_S - 1
+    lanes = queue.load()
+    lanes[0]["steps"][0]["held"] = "night"
+    queue.save(lanes)
+    queue.idle_alert(None)
+    assert not alerts(), "a night hold"
+    lanes[0]["steps"][0].pop("held")
+    queue.save(lanes)
+    monkeypatch.setattr(queue, "DRAIN", [True])
+    queue.idle_alert(None)
+    assert not alerts(), "the drain"
+    monkeypatch.setattr(queue, "DRAIN", [False])
+    monkeypatch.setattr(journal, "manual_hold", lambda: "heavy: xcode")
+    queue.idle_alert(None)
+    assert not alerts(), "a heavy-lock hold"
+
+
+def test_blocked_and_red_windows_keep_their_slot(state):
+    handles = {}
+    for i, st in enumerate(("blocked", "blocked")):
+        queue.add(f"b{i}", f"/w/b{i}", "1.1", str(state / "b1.1"), [i])
+        _set(f"b{i}", **{"1.1": st})
+        handles[f"b{i}"] = object()
+    queue.add("q0", "/w/q0", "1.1", str(state / "b1.1"), [100])
+    fake = Fake()
+    _tick(fake, handles, workers_n=2)
+    assert not fake.starts, "two live blocked sessions fill a cap of two"
+    assert not fake.stops
+
+
+def test_a_red_window_counts_against_the_lanes_cap(state):
+    # a tick moves a red step on at once, so the count is asserted on the step state itself
+    queue.add("r0", "/w/r0", "1.1", str(state / "b1.1"), [1])
+    queue.add("p0", "/w/p0", "1.1", str(state / "b1.1"), [2])
+    _set("r0", **{"1.1": "red"})
+    _set("p0", **{"1.1": "parked"})
+    handles = {"r0": object(), "p0": object()}
+    assert queue._working(handles) == 1, "the red window counts, the parked one does not"
