@@ -137,6 +137,12 @@ def _stage_cases():
 
 
 @pytest.fixture(autouse=True)
+def _the_search_model_is_not_fetched(hashed_text_embedder):
+    """Saving the pages starts a background claim embedding; the pinned model is never fetched by a test (#5188), and a fetch
+    that begins there makes a directory in the Fichero models folder after the test ends (#5530)."""
+
+
+@pytest.fixture(autouse=True)
 def _memory_is_not_the_question(monkeypatch):
     """The stub reader loads nothing: the memory guard (`throttle.memory_short`) must not hold it on a busy test Mac."""
     monkeypatch.setattr("fichero_server.execution.throttle.memory_short", lambda **kw: None)
