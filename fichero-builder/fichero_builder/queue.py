@@ -358,6 +358,11 @@ class Procs:
     gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
     premerge: Callable[[dict, str], list] | None = None  # (lane, head) -> [(waiting step key, [files])] its head conflicts with (merge-tree)
+    # local.step.stacks-on-a-waiting-step: (lane, step, under head) -> '' or why: the step's work as commits under stack/<lane>/<step>
+    # (its uncommitted work as one `wip: <step>` commit) and the tree reset to the head under it
+    stack_hold: Callable[[dict, dict, str], str] = lambda lane, step, under: ""
+    # (lane, step, the under head it was held at) -> '' or why (work.REBASE_CONFLICT marks a conflict): the kept commits onto the tree's head
+    stack_resume: Callable[[dict, dict, str], str] = lambda lane, step, under: ""
     build_free: Callable[[], bool] = lambda: True  # a runner that can build the app is free for a second train (local.train.second-train-on-the-first)
     train_run: Callable[[list, str], train.Result] | None = None  # ([{key, head}] in queue order, train id) -> the merge train's result; None = no train, each step lands by itself
 
@@ -544,6 +549,123 @@ def _in_flight_full(lane: dict, s: dict, workers_n: int) -> bool:
     return True
 
 
+STACK_DEPTH: list = [0]  # [loop].stack_depth: 1 = a lane's next step starts on its step waiting for the train; 0 = after it lands
+STACK_RESUMED = ("Continue from the tree: this step was set aside while the step under it was fixed, and its work is back: its commits on "
+                 "that step's new head and its uncommitted changes as you left them. Go on from there under the same rules.")
+
+
+def live_steps(x: dict) -> list[dict]:
+    """The lane's steps in flight: its cursor step, and before it the step it is stacked on (local.step.stacks-on-a-waiting-step)."""
+    if x["cursor"] >= len(x["steps"]):
+        return []
+    s, i = x["steps"][x["cursor"]], x["cursor"]
+    u = x["steps"][i - 1] if s.get("stacked_on") and i and x["steps"][i - 1]["step"] == s["stacked_on"] and x["steps"][i - 1]["state"] != "landed" else None
+    return [u, s] if u is not None else [s]
+
+
+def _stack(lane: dict, s: dict, procs: Procs, handles: dict, chains: dict | None, out) -> bool | None:
+    """local.step.stacks-on-a-waiting-step, before the cursor's step is ticked; None = tick it as usual. The cursor's step N waits for
+    the train and the next is queued: the cursor moves to N+1, which starts on N's head (stacked). N leaves the train (sent back, cleared
+    to land, moved by hand) or N+1 is parked: N+1's work is set aside under its ref, the tree goes to N's head and the cursor back to N.
+    N green again, or landed: the kept work goes back on the tree's head and N+1 goes on."""
+    i, fut = lane["cursor"], (chains or {}).get(lane["id"])
+
+    def row(st: dict, state: str, detail: str) -> None:
+        journal.append("queue", lane=lane["id"], step=st["step"], state=state, detail=detail[-300:])
+        out(f"{lane['id']} {st['step']}: {state} ({detail[:120]})")
+
+    def resume(t: dict, onto: dict | None) -> bool:
+        held = t.pop("stack_held")
+        why = procs.stack_resume(lane, t, held["under_head"])
+        t["entered_at"] = _now()
+        if why and work.REBASE_CONFLICT in why:  # the conflict fix round of section J: the worker puts its commits back itself
+            head_line, text = why.split(work.REBASE_CONFLICT, 1)
+            t["conflict_rounds"] = t.get("conflict_rounds", 0) + 1
+            fix = journal.STATE / f"fix-{lane['id']}-{t['step']}-stack.txt"
+            fix.write_text(Path(t["brief"]).read_text().rstrip("\n") + "\n\n" + fix_text(t["step"], "rebase", text))
+            t.update(state="queued", why=head_line[-500:], resume_brief=str(fix))
+            row(t, "stack-conflict", head_line)
+        elif why:  # the tree could not be read or written: a person's call; the step under it goes on alone
+            t.update(state="blocked", why=why[-500:], blocked_at=_now(), stack_held=held)
+            store(lane)
+            row(t, "blocked", why)
+            alert(lane["id"], t["step"], f"its set-aside work could not be put back: {why}", str(journal.path()), ["retry", "park"])
+            return True
+        else:
+            if held["was"] in PAST_DONE:
+                t.update(state="done", why="its work is back on the head under it: checked again")
+            else:
+                t["state"], t["why"] = "queued", "its work is back on the head under it"
+                if held["was"] != "queued":
+                    cont = journal.STATE / f"stacked-{lane['id']}-{t['step']}.txt"
+                    cont.write_text(Path(brief_of(t)).read_text().rstrip("\n") + "\n\n" + STACK_RESUMED)
+                    t["resume_brief"] = str(cont)
+            row(t, "stack-resumed", f"its kept commits are back on {(onto or {}).get('head', 'the tree head')[:9]}")
+        if onto is not None:
+            t["stacked_on"], t["stack_base"] = onto["step"], onto["head"]
+            lane["cursor"] = i + 1
+            row(t, "stacked", f"on {onto['step']} at {onto['head'][:9]}, which waits for the train")
+        store(lane)
+        return True
+
+    if s.get("stacked_on"):
+        u = lane["steps"][i - 1] if i and lane["steps"][i - 1]["step"] == s["stacked_on"] else None
+        if u is None or u["state"] == "landed":  # N landed: N+1 is a step like any other; its chain rebases it onto the land branch
+            s.pop("stacked_on", None)
+            s.pop("stack_base", None)
+            store(lane)
+            return None
+        if u["state"] == "train" and "train_back" not in u and s["state"] != "parked":
+            return None  # N waits for its train; N+1 goes on
+        if fut is not None and not fut.done():
+            return True  # N+1's check ends first; its result is dropped
+        if fut is not None:
+            chains.pop(lane["id"])
+            row(s, "stack-cancelled", "its check is dropped: the step under it left the train")
+        if s["state"] != "queued" or s.get("resume_brief"):  # it was started: its work is set aside, never lost
+            if handles.pop(lane["id"], None) is not None or lane.get("feed"):
+                procs.stop(lane)
+                lane["feed"] = ""
+            if why := procs.stack_hold(lane, s, u["head"]):
+                if s.get("stack_hold_err") != why:
+                    s["stack_hold_err"] = why
+                    store(lane)
+                    alert(lane["id"], s["step"], f"its work could not be set aside for {u['step']}: {why}", str(journal.path()), ["retry", "park"])
+                return True
+            s["stack_held"] = {"under_head": u["head"], "was": s["state"]}
+        s.pop("stack_hold_err", None)
+        if s.get("train_cleared") != u.get("train_cleared") or not s.get("train_cleared"):
+            s.pop("train_cleared", None)  # cleared with N's old head only: it is checked again
+        for k in ("stacked_on", "stack_base", "train_back", "train_id"):
+            s.pop(k, None)
+        why_u = "was sent back by its train" if "train_back" in u else "was cleared to land" if u.get("train_cleared") else f"is {u['state']}"
+        if s["state"] != "parked":
+            s.update(state="queued", entered_at=_now(), why=f"set aside: {u['step']} {why_u}")
+        lane["cursor"] = i - 1
+        store(lane)
+        row(s, "stack-held", f"{u['step']} {why_u}: the work is kept under {stack_ref(lane['id'], s['step'])} and the tree is at {u['head'][:9]}")
+        return True
+    if s.get("stack_held") and s["state"] != "parked":  # the step under it landed: the kept work goes on the tree's head
+        return resume(s, None)
+    nxt = lane["steps"][i + 1] if i + 1 < len(lane["steps"]) else None
+    if (nxt is None or s["state"] != "train" or "train_back" in s or not s.get("head") or s.get("part2") or s.get("left")
+            or nxt["state"] == "parked" or (fut is not None and not fut.done())):
+        return None
+    if nxt.get("stack_held"):  # N is green again: N+1's kept work goes on its new head
+        return resume(nxt, s)
+    if STACK_DEPTH[0] < 1 or nxt["state"] != "queued":
+        return None
+    nxt["stacked_on"], nxt["stack_base"] = s["step"], s["head"]
+    lane["cursor"] = i + 1
+    store(lane)
+    row(nxt, "stacked", f"on {s['step']} at {s['head'][:9]}, which waits for the train")
+    return True
+
+
+def stack_ref(lane_id: str, step: str) -> str:
+    return f"stack/{lane_id}/{step}"
+
+
 def _close_idle(lane: dict, s: dict | None, handles: dict, procs: Procs, why: str) -> None:
     procs.stop(lane)
     del handles[lane["id"]]
@@ -622,6 +744,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             _close_idle(lane, None, handles, procs, "its lane has no step left")
         return False
     s = lane["steps"][lane["cursor"]]
+    if (STACK_DEPTH[0] or s.get("stacked_on") or s.get("stack_held")) and lane.get("kind") != "external":
+        if (stk := _stack(lane, s, procs, handles, chains, out)) is not None:
+            return stk
     while lane["cursor"] < len(lane["steps"]) - 1 and s["state"] in ("parked", "landed") and any(x["state"] == "queued" for x in lane["steps"][lane["cursor"] + 1:]):
         # #6589 reliab-1: the cursor sat on a parked step (or one already landed) with a queued step behind it, and the lane idled for hours
         if s["state"] == "landed":
@@ -782,7 +907,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 lane["session_pid"] = getattr(handles[lane["id"]], "pid", 0)  # #6589: a restarted loop adopts a session whose window was renamed by this pid
                 s["session"], lane["session_steps"] = "fresh", 0
             else:
-                if why := procs.rebase(lane):
+                if not s.get("stacked_on") and (why := procs.rebase(lane)):  # a stacked step stays on the head under it
                     if work.REBASE_CONFLICT not in why:
                         return block(s, why)
                     # run.rebase-conflict-fix-round: the live session gets the step with the conflict to resolve first, not a block
@@ -2320,9 +2445,9 @@ def train_on(procs: Procs) -> bool:
 
 def train_waits(lane: dict, s: dict) -> bool:
     """A step the train cleared waits while an earlier step of the same train is still on its way to landing."""
-    return any(x["id"] != lane["id"] and x["cursor"] < len(x["steps"]) and (
-        ((o := x["steps"][x["cursor"]]).get("train_cleared") == s["train_cleared"] and o.get("train_pos", 0) < s.get("train_pos", 0))
-        or (s.get("train_base") and o.get("train_cleared") == s["train_base"])) and o["state"] in ("done", "checking", "reviewing") for x in load())
+    return any(x["id"] != lane["id"] and (
+        (o.get("train_cleared") == s["train_cleared"] and o.get("train_pos", 0) < s.get("train_pos", 0))
+        or (s.get("train_base") and o.get("train_cleared") == s["train_base"])) and o["state"] in ("done", "checking", "reviewing") for x in load() for o in live_steps(x))
 
 
 TRAIN_THREAD: list = [None]  # the first train in flight
@@ -2333,10 +2458,19 @@ RECENT: list = []  # the last train results, newest last (in memory: a restart w
 
 
 def _waiting_for_train() -> list[tuple[dict, dict]]:
-    """[(lane, step)] of every lane's current step in state `train`, oldest first (the train's queue order)."""
-    got = [(x, x["steps"][x["cursor"]]) for x in filter(_ours, load()) if x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] == "train"
-           and "train_back" not in x["steps"][x["cursor"]]]
-    return sorted(got, key=lambda p: p[1].get("train_since", 0))
+    """[(lane, step)] of every lane's steps in flight in state `train`, oldest first (the train's queue order); a stacked step comes
+    right behind the step under it, and not at all while that one is not waiting (local.step.stacks-on-a-waiting-step)."""
+    got = sorted([(x, st) for x in filter(_ours, load()) for st in live_steps(x) if st["state"] == "train" and "train_back" not in st],
+                 key=lambda p: p[1].get("train_since", 0))
+    return _under_first(got)
+
+
+def _under_first(got: list) -> list:
+    out = [p for p in got if not p[1].get("stacked_on")]
+    for x, st in got:
+        if st.get("stacked_on") and (j := next((k for k, (y, u) in enumerate(out) if y["id"] == x["id"] and u["step"] == st["stacked_on"]), None)) is not None:
+            out.insert(j + 1, (x, st))
+    return out
 
 
 TRAIN_SIZE: list = [0]  # the next train's size (0 = [train].max_steps); ponytail: in memory, a restart starts again at max_steps
@@ -2363,9 +2497,9 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
                     journal.append("queue", lane=x["id"], step=st["step"], state="train-requeued", detail="the train that held it did not finish: it waits for the next one")
         if requeued:
             save(lanes)
-    waiting = [(x, s) for x, s in _waiting_for_train() if not s.get("train_id")]  # a step another train holds is not taken twice
+    waiting = _under_first([(x, s) for x, s in _waiting_for_train() if not s.get("train_id")])  # a step another train holds is not taken twice
     keys = {f"{x['id']}/{s['step']}" for x, s in waiting}
-    waiting = [(x, s) for x, s in waiting if not set(s.get("train_after") or ()) & keys]  # it merges after the step it conflicts with
+    waiting = _under_first([(x, s) for x, s in waiting if not set(s.get("train_after") or ()) & keys])  # it merges after the step it conflicts with
     if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]) or (base_tid and len(waiting) < TRAIN[0].min_steps):
         return
     size = min(TRAIN_SIZE[0] or TRAIN[0].max_steps, TRAIN[0].max_steps)
@@ -2498,7 +2632,7 @@ DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
-PER_TICK_KEYS = ("max_in_flight", "rounds", "only", "dispatch", "blocked_hours", "sent_hours", "approved_pinned", "disk_floor_gb", "disk_thin_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
+PER_TICK_KEYS = ("stack_depth", "max_in_flight", "rounds", "only", "dispatch", "blocked_hours", "sent_hours", "approved_pinned", "disk_floor_gb", "disk_thin_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
 
 
 def code_mark(root="") -> tuple:
@@ -2613,6 +2747,7 @@ def apply_loop_cfg(cfg: dict) -> None:
     STALE_H[0] = {**stale.HOURS, **{str(k): float(v) for k, v in dict(cfg.get("stale_hours", {})).items()}}
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
     MAX_IN_FLIGHT[0] = int(cfg.get("max_in_flight", 0))
+    STACK_DEPTH[0] = min(1, int(cfg.get("stack_depth", 0)))  # one step stacks on one
 
 
 def restart_due(mark: tuple, root, chains, builds=(), followed: bool = False) -> bool:
@@ -3178,7 +3313,8 @@ def real_procs(root) -> Procs:
                                      guard_data=guard_data_for(step, tree), retry=bool(step and step.get("retry_rungs")),
                                      reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1],
-                                     train=TRAIN[0].enabled)  # a merge train runs the build and ui rungs once for many steps
+                                     train=TRAIN[0].enabled,  # a merge train runs the build and ui rungs once for many steps
+                                     stack_base=(step or {}).get("stack_base", "") if (step or {}).get("stacked_on") else "")
 
     def start(lane, step):
         kind = worker_kind(mdl, lane.get("role", ""))  # a role on a Pi provider (openrouter) runs Pi under the same caps; refused before any tree is made
@@ -3209,7 +3345,7 @@ def real_procs(root) -> Procs:
             a.base_bundle = str(bundle)
         if why := work.ensure_worktree(a, f"lane-{lane['id']}"):
             raise RuntimeError(why)
-        if lane.get("fresh") and lane["seq"] > 0 and (why := work.do_rebase(a, branch)):  # the tree of the last batch, onto origin's tip
+        if lane.get("fresh") and lane["seq"] > 0 and not step.get("stacked_on") and (why := work.do_rebase(a, branch)):  # the tree of the last batch, onto origin's tip
             raise RuntimeError(why)
         # the owner's folder: a worker cannot write its own next brief. The workroot is world-writable, so the name is one no worker can
         # plant a link at: made exclusively, then opened to reading (the sticky bit keeps a worker from replacing it)
@@ -3404,6 +3540,8 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, thin=thin_snapshots, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
+                 stack_hold=lambda lane, step, under: work.stack_hold(ns(lane), step["step"], under),
+                 stack_resume=lambda lane, step, under: work.stack_resume(ns(lane), step["step"], under),
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),

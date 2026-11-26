@@ -1327,14 +1327,14 @@ are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-
   it gives none and a ladder already on it finishes. `[check].parallel`, when set, is a ceiling; with no runner counted
   one ladder runs on the loop's machine. A change of the count is one `slots` row naming each runner and why it counts
   or not. This replaces the fixed count of `local.perf.ladder-slots-follow-runners`. Tests: `fichero-builder/tests/test_heavy_lock.py::test_ladder_slots_are_the_sum_of_runners_under_the_load_and_memory_limits_and_parallel_is_a_ceiling`, `fichero-builder/tests/test_heavy_lock.py::test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_row_says_why`. Serves: reliable, fast.
-- `local.flow.writers-are-not-capped-by-checks` [OK] (#6589; built 2026-11-26; stacking the same lane's next step comes with local.step.stacks-on-a-waiting-step) — `[loop].lanes` counts writers: a lane holds one of
+- `local.flow.writers-are-not-capped-by-checks` [OK] (#6589; built 2026-11-26; the same lane's next step stacks with local.step.stacks-on-a-waiting-step) — `[loop].lanes` counts writers: a lane holds one of
   them only while its cursor step is `sent` or `fixing` (a model session at work). A step that is said-done, done,
   checking, reviewing or waiting for the train holds none, so another lane's step starts, or the same lane stacks its
   next step (`local.step.stacks-on-a-waiting-step`). Steps past DONE and not yet landed are capped by
   `[loop].max_in_flight` (default three times `[loop].lanes`): at the cap no new step starts, with one `queue` row
   `in-flight-cap`, so finished work never piles up faster than the checks land it. A blocked or red step keeps its
   writer, as built. When built this replaces the list of states in `local.run.idle-windows-hold-no-slot`. Tests: `fichero-builder/tests/test_loop_lane_set.py::test_a_step_waiting_for_its_check_or_the_train_holds_no_writer_so_the_next_queued_step_starts`, `fichero-builder/tests/test_loop_lane_set.py::test_no_step_starts_past_max_in_flight_and_one_row_says_so`. Serves: fast.
-- `local.step.stacks-on-a-waiting-step` [GAP] (#6589) — with `[loop].stack_depth = 1` (default 0: a lane's next step
+- `local.step.stacks-on-a-waiting-step` [OK] (#6589; built 2026-11-26; on with [loop].stack_depth = 1 (default 0); N landing alone also sets N+1 aside, lands N, and puts N+1 back on the landed head) — with `[loop].stack_depth = 1` (default 0: a lane's next step
   starts when the one before it lands, as before) a lane's step N+1 starts in the lane's worktree on N's head once N is
   green and READY and waits for the train. N+1's checks and review read the range from N's head to its own, with N's
   head as the base of red-on-base. N+1 enters a train only behind N in the same train, or after N has landed, never
@@ -1344,12 +1344,8 @@ are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-
   is cancelled. When N is green again the loop rebases the kept commits onto N's new head, puts the `wip` commit back as
   uncommitted work and resumes N+1; a conflict in that rebase is N+1's conflict fix round of section J. A rebased N+1 is
   checked and reviewed whole (`local.check.fix-round-reuses-verdicts` keeps nothing over a rebase). One step stacks on
-  one; a third waits. Test (owed): `test_work_tree.py`
-  `test_step_two_starts_on_step_ones_head_while_one_waits_for_the_train_and_is_checked_over_its_own_range`,
-  `test_when_step_one_goes_back_step_twos_commits_are_kept_under_a_ref_and_rebased_onto_the_fixed_head`,
-  `test_a_conflict_in_that_rebase_is_step_twos_fix_round`; `test_train_queue.py`
-  `test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it`. Serves: fast.
-- `local.train.size-follows-the-last-result` [OK] (#6589; built 2026-11-26; stacked pairs come with local.step.stacks-on-a-waiting-step; the size is kept in memory, so a restart starts again at max_steps) — a train takes at most `size` waiting steps in queue
+  one; a third waits. Tests: `fichero-builder/tests/test_work_tree.py::test_step_two_starts_on_step_ones_head_while_one_waits_for_the_train_and_is_checked_over_its_own_range`, `fichero-builder/tests/test_work_tree.py::test_when_step_one_goes_back_step_twos_commits_are_kept_under_a_ref_and_rebased_onto_the_fixed_head`, `fichero-builder/tests/test_work_tree.py::test_a_conflict_in_that_rebase_is_step_twos_fix_round`, `fichero-builder/tests/test_train_queue.py::test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it`, `fichero-builder/tests/test_work_tree.py::test_when_step_one_is_cleared_it_lands_alone_and_step_two_goes_on_from_its_landed_head`. Serves: fast.
+- `local.train.size-follows-the-last-result` [OK] (#6589; built 2026-11-26; a stacked pair rides behind its lower step, built with local.step.stacks-on-a-waiting-step; the size is kept in memory, so a restart starts again at max_steps) — a train takes at most `size` waiting steps in queue
   order and the rest wait for the next; a stacked pair is never split with the upper step first. `size` starts at
   `[train].max_steps` (default 6: at nine trains in ten green for a step alone, six together are green about half the
   time, and a red of six costs at most four more runs). After a train that is red, unresolved or timed out, `size` is

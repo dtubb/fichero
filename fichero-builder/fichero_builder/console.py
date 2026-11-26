@@ -87,7 +87,7 @@ def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dic
         # local.train.console: a train is one row with its steps; the steps waiting for the next one beside it
         "trains": [{**{k: r.get(k) for k in ("id", "ts", "steps", "candidate", "result", "landed", "again", "extra_runs")}, "back": sorted(r.get("back") or {})}
                    for r in rows if r.get("event") == "train"][-10:],
-        "waiting_for_train": [f"{x['id']}/{x['steps'][x['cursor']]['step']}" for x in lanes if x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] == "train"],
+        "waiting_for_train": [f"{x['id']}/{st['step']}" for x in lanes for st in queue.live_steps(x) if st["state"] == "train"],
         "open_questions": [{"lane": x["id"], "step": st["step"], "question": st["waiting"]}  # #6855: a worker asked and its step waits
                            for x in lanes for st in x["steps"] if st.get("waiting") and st["state"] == "blocked"],
     }

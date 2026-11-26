@@ -235,6 +235,50 @@ def do_rebase(a, branch: str) -> str:
     return regen(a, branch, before)
 
 
+def stack_hold(a, step: str, under: str) -> str:
+    """local.step.stacks-on-a-waiting-step, as the worker: the step's uncommitted work becomes one commit `wip: <step>`, its commits
+    are kept under refs/heads/stack/<lane>/<step>, and the tree is reset to `under`, the head of the step it was stacked on. '' or why."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    ref = q(f"refs/heads/stack/{a.name}/{step}")
+    r = as_worker(a, f"{g} -C {wt} add -A && ({g} -C {wt} diff --cached --quiet || {g} -C {wt} commit -q --no-verify -m {q('wip: ' + step)}) && "
+                     f"{g} -C {wt} update-ref {ref} HEAD && {g} -C {wt} reset -q --hard {q(under)}")
+    return "" if r.returncode == 0 else f"the tree could not be set aside: {(r.stderr or r.stdout).strip()[-300:]}"
+
+
+def stack_resume(a, step: str, under: str) -> str:
+    """As the worker: the commits kept by `stack_hold` (under..ref) are cherry-picked onto the tree's HEAD, a last `wip: <step>` commit
+    goes back to uncommitted work, and the ref is deleted. A conflict is aborted, the ref kept, and the why carries the worker's fix
+    text after REBASE_CONFLICT. '' when done."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    name = f"stack/{a.name}/{step}"
+    ref, span = q(f"refs/heads/{name}"), q(f"{under}..refs/heads/{name}")
+    n = as_worker(a, f"{g} -C {wt} rev-list --count {span}")
+    if n.returncode:
+        return f"the kept work of {step} could not be read: {(n.stderr or n.stdout).strip()[-300:]}"
+    if int(n.stdout.strip() or 0):
+        r = as_worker(a, f"{g} -C {wt} cherry-pick --allow-empty {span}")
+        if r.returncode:
+            files = sorted(set(as_worker(a, f"{g} -C {wt} diff --name-only --diff-filter=U").stdout.split()))
+            as_worker(a, f"{g} -C {wt} cherry-pick --abort")
+            return (f"the kept work of {step} did not go back on the fixed head: a conflict in {', '.join(files) or '(unknown files)'}" + REBASE_CONFLICT
+                    + f"This step was set aside while the step under it was fixed. Its commits are kept under the branch {name} (a last commit "
+                    + f"`wip: {step}` is the work you had not committed); putting them back on the new head stopped on a conflict in:\n"
+                    + "\n".join(f"- {f}" for f in files) + "\n"
+                    + f"Put them back yourself: `git cherry-pick {under[:12]}..{name}`. Resolve each conflict keeping BOTH sides, what the fix "
+                    + f"under you changed and what your step changed; then, if the last commit is `wip: {step}`, `git reset HEAD~1`. Run the "
+                    + f"tests of the files you resolved, delete the branch (`git branch -D {name}`) and end with the DONE line.")
+        last = as_worker(a, f"{g} -C {wt} log -1 --format=%s").stdout.strip()
+        if last == f"wip: {step}":
+            as_worker(a, f"{g} -C {wt} reset -q HEAD~1")
+    as_worker(a, f"{g} -C {wt} update-ref -d {ref}")
+    return ""
+
+
+def check_since(a, repo: str, branch: str) -> str:
+    """The sha a ladder starts from: the land branch's, or for a step stacked on another the head under it (local.step.stacks-on-a-waiting-step)."""
+    return getattr(a, "stack_base", "") or land_tool.resolve_branch(repo, branch)
+
+
 def regen(a, branch: str, before: str) -> str:
     """run.rebase-rebakes-generated (2026-11-14: a rebase left the contracts and the engine embed list stale, and the guards bounced the
     batch): after a rebase that moved the lane, each `[check].regen` line runs in the worktree as the worker, and a tracked file it
@@ -392,7 +436,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name.
     `partial` = (rows that stand, rungs to run again, the kept row's words): a kept rebase; the rest of the ladder is reused, red-on-base
     runs its head-green half only, never the base run."""
-    since = land_tool.resolve_branch(repo, branch)
+    since = check_since(a, repo, branch)
     if not since:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
@@ -723,13 +767,16 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
     moved = 0
     carry = None  # (base, files, head) of a green check whose base moved before its review
     green = state / f"green-{a.name}.json"  # the last READY's range: a later chain of the lane (its result lost, or not landed) keeps it
+    stacked = getattr(a, "stack_base", "")  # local.step.stacks-on-a-waiting-step: checked from the head under it; the lane's green is that step's
     with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
-        g = json.loads(green.read_text())
-        carry = (g["base"], list(g["files"]), g["head"])
-    green.unlink(missing_ok=True)  # read once: a later READY writes it again
+        if not stacked:
+            g = json.loads(green.read_text())
+            carry = (g["base"], list(g["files"]), g["head"])
+    if not stacked:
+        green.unlink(missing_ok=True)  # read once: a later READY writes it again
     while True:  # dev-workflows.run.loop-chain: a ready range whose base moved is rebased and re-checked
-        why = do_rebase(a, branch)
-        if not step("rebase", not why, why.split(REBASE_CONFLICT)[0] if why else f"on top of origin/{branch}"):
+        why = "" if stacked else do_rebase(a, branch)
+        if not step("rebase", not why, why.split(REBASE_CONFLICT)[0] if why else f"stacked on {stacked[:9]}: not rebased" if stacked else f"on top of origin/{branch}"):
             if REBASE_CONFLICT in why:  # the lane's worker gets a fix round (run.rebase-conflict-fix-round)
                 head_line, text = why.split(REBASE_CONFLICT, 1)
                 return no("conflict", head_line, findings=text)
@@ -743,7 +790,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         if getattr(a, "after_fetch", None):  # the queue's premerge against the steps waiting for the train (local.check.conflict-told-at-done)
             a.after_fetch(head)
         try:
-            since_now = r_since(repo, branch)
+            since_now = stacked or r_since(repo, branch)
             files = lane_diff(repo, since_now, head, "--name-only").split()
         except (RuntimeError, OSError):
             since_now, files = "", []  # unknown: shares every file, so it runs alone
@@ -844,7 +891,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 red = no("red", f"the check is red at {head[:9]} (failed: {', '.join([r.get('failed') or '?', *also])}); ladder in {ladder}{fix}",
                          f"failed rung{'s' if also else ''}: {', '.join([r.get('failed') or '?', *also])}\n{_tail(r)}{fix}", ladder)
                 return red_and_not_ready(red, *red_review) if red_review else red
-            if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
+            if moved < MOVES and since_now and not stacked and _base_moved(a, branch, head):  # never review a range that cannot land
                 moved += 1
                 if early.get("proc"):
                     early["proc"].kill()
@@ -873,7 +920,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             if not step("review", ok, last):
                 (state / f"review-{a.name}.txt").write_text(text)
                 return no("not-ready", f"the review is not READY: {blocking(text, last)}", text, str(state / f"review-{a.name}.txt"))
-            ok, out = do_land(a, repo, head, verdicts, log)
+            # a stacked step's range lands after the step under it, so its gate is the one `builder landed` runs then
+            ok, out = (True, f"stacked on {stacked[:9]}: gated when it lands") if stacked else do_land(a, repo, head, verdicts, log)
             if not step("land", ok, out[-300:]):
                 if moved < MOVES and _base_moved(a, branch, head):
                     moved += 1  # another lane landed after our rebase: rebase and judge the new range, never a person's hand step
@@ -881,7 +929,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     step("rebase", True, f"origin/{branch} moved under {head[:9]}: rebased and checked again ({moved}/{MOVES})")
                     continue
                 return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
-        if since_now:
+        if since_now and not stacked:
             green.write_text(json.dumps({"base": since_now, "files": files, "head": head}))
         return {"ok": True, "head": head, "out": out}
 

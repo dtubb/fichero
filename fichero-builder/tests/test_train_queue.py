@@ -311,3 +311,33 @@ def test_no_second_train_starts_unless_four_of_the_last_five_were_green(world, m
     queue.TRAIN[0] = train.Cfg()
     with pytest.raises(ValueError):
         train.load({"train": {"overlap": 3}})
+
+
+def test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it(world):
+    """local.step.stacks-on-a-waiting-step: N+1 rides only behind N in the same train; a cut of the train's size never takes N+1 alone."""
+    tmp, _clock = world
+    for lid, n in (("la", "1"), ("la", "2"), ("lb", "3")):
+        (tmp / f"b{n}").write_text(n)
+        queue.add(lid, f"/w/{lid}", n, str(tmp / f"b{n}"), [int(n)])
+    lanes = queue.load()
+    a, b = lanes
+    a["cursor"] = 1
+    a["steps"][0].update(state="train", head="h1", train_since=5.0, train_back={"ok": False, "kind": "red", "why": "r"})  # sent back, not told yet
+    a["steps"][1].update(state="train", head="h2", train_since=2.0, stacked_on="1", stack_base="h1")
+    b["steps"][0].update(state="train", head="h3", train_since=1.0)
+    queue.save(lanes)
+    taken = []
+    fake = Fake()
+    fake.procs.train_run = lambda spec, tid, **k: taken.append([x["key"] for x in spec]) or train.Result(id=tid, steps=[x["key"] for x in spec], again=[x["key"] for x in spec])
+    queue.TRAIN[0] = train.Cfg(min_steps=1)
+    queue.train_when_due(fake.procs, None)
+    assert taken == [["lb/3"]], "the step under it is not waiting: it waits too"
+    lanes = queue.load()
+    lanes[0]["steps"][0].pop("train_back")
+    queue.save(lanes)
+    queue.TRAIN_SIZE[0] = 2
+    queue.train_when_due(fake.procs, None)
+    assert taken[-1] == ["lb/3", "la/1"], "a size cut between the two takes the step under it, never the one on top"
+    queue.TRAIN_SIZE[0] = 3
+    queue.train_when_due(fake.procs, None)
+    assert taken[-1] == ["lb/3", "la/1", "la/2"], "behind the step under it, whatever its own wait"
