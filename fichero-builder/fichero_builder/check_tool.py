@@ -89,6 +89,10 @@ class Config:
                                         # runs every guard (2026-11-26, owner: per step only what changed); off = every guard, as before
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
+    slots_from_runners: bool = False    # local.flow.check-slots-from-runners: count the ladder slots each tick from the runners' rows, `parallel` a ceiling; off = `parallel`
+    slots_per_runner: int = 1           # the slots one [check].remote entry gives while it is fit
+    runner_max_load: float = 1.0        # 1-minute load per core above this: the runner gives no slot
+    runner_min_free_ram_gb: float = 4   # less free memory than this: the runner gives no slot
     perf: dict = field(default_factory=dict)      # [check.perf] (#6600): the engine perf rung: enforce, tests, timeout_s, dirs, declared
     security: dict = field(default_factory=dict)  # [check.security] (#6600): the security rung: enforce, where, pins, timeout_s, dirs
     always_tests: tuple = ()            # test files the unit rung always runs (contract tests, smoke set); () = no unit rung (speed-tests-1)
@@ -158,7 +162,9 @@ def load(root) -> Config:
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), guards_by_diff=bool(c.get("guards_by_diff", d.guards_by_diff)), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
         rungs=tuple(c.get("rungs", d.rungs)), rung=tuple(dict(x) for x in c.get("rung", d.rung)),
-        parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())))
+        parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())),
+        slots_from_runners=bool(c.get("slots_from_runners", d.slots_from_runners)), slots_per_runner=int(c.get("slots_per_runner", d.slots_per_runner)),
+        runner_max_load=float(c.get("runner_max_load", d.runner_max_load)), runner_min_free_ram_gb=float(c.get("runner_min_free_ram_gb", d.runner_min_free_ram_gb)))
 
 
 # speed batch 1 (manager 2026-11-03): narrow rule classes the ladder resolves without a person, each opted in by name in
@@ -471,6 +477,47 @@ def _runners_for_base(cfg: Config) -> tuple:
     on the next one; with one runner they wait on it."""
     r = _runners(cfg)
     return r[1:] + r[:1]
+
+
+PROBE = r"""sysctl -n hw.ncpu; sysctl -n vm.loadavg | tr -d '{}' | awk '{print $1}'
+vm_stat | awk '/page size/ {ps=$8} /Pages (free|inactive|speculative)/ {sub(/\./, "", $NF); n+=$NF} END {printf "%.1f\n", n*ps/1073741824}'
+df -g BASE /tmp | awk 'NR>1 {print $4}' | sort -n | head -1"""
+
+
+def probe_runner(remote: str) -> dict:
+    """One `runner` row's facts for a [check].remote entry: reachable, cores, 1-minute load, free memory and free disk (GiB), one ssh."""
+    host, _, base = remote.partition(":")
+    r = _ssh(host, PROBE.replace("BASE", base or "."), 30)
+    vals = r.stdout.decode(errors="replace").split()
+    try:
+        cores, load, ram, disk = int(vals[0]), float(vals[1]), float(vals[2]), float(vals[3])
+    except (IndexError, ValueError):
+        return {"runner": remote, "reachable": False, "detail": (r.stderr.decode(errors="replace").strip() or "no answer")[-200:]}
+    return {"runner": remote, "reachable": True, "cores": cores, "load": load, "free_ram_gb": ram, "free_gb": disk}
+
+
+def runner_slots(rows: dict, cfg: Config, now: float, tick_s: float) -> tuple[int, dict]:
+    """local.flow.check-slots-from-runners: the ladders that may run at once, from each runner's latest row (`rows`: runner -> row
+    with `at`), and why each counts or not. A runner gives `slots_per_runner` while its row is under three ticks old, reachable, its
+    load per core at most `runner_max_load`, free memory at least `runner_min_free_ram_gb` and free disk at least `remote_min_free_gb`.
+    `parallel` is a ceiling; no runner counted is one ladder on the loop's machine."""
+    why = {}
+    for name in _runners(cfg):
+        r = rows.get(name)
+        if r is None or now - r.get("at", 0) >= 3 * tick_s:
+            why[name] = "no row in three ticks"
+        elif not r.get("reachable"):
+            why[name] = f"unreachable: {r.get('detail', '')}"
+        elif r["load"] / max(1, r["cores"]) > cfg.runner_max_load:
+            why[name] = f"load {r['load']:g} on {r['cores']} cores is over {cfg.runner_max_load:g} a core"
+        elif r["free_ram_gb"] < cfg.runner_min_free_ram_gb:
+            why[name] = f"{r['free_ram_gb']:g} GiB free memory, under {cfg.runner_min_free_ram_gb:g}"
+        elif r["free_gb"] < cfg.remote_min_free_gb:
+            why[name] = f"{r['free_gb']:g} GiB free disk, under {cfg.remote_min_free_gb:g}"
+        else:
+            why[name] = f"counts {cfg.slots_per_runner}"
+    n = sum(cfg.slots_per_runner for w in why.values() if w.startswith("counts"))
+    return max(1, min(n, cfg.parallel)), why
 
 
 def _ssh(host: str, script: str, timeout_s: float, stdin=None) -> subprocess.CompletedProcess:

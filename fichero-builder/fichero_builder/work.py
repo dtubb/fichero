@@ -581,6 +581,9 @@ def train_enabled(root) -> bool:
         return False
 
 
+SLOTS: list = [0]  # local.flow.check-slots-from-runners: the loop's count from the runners this tick; 0 = [check].parallel
+
+
 @contextlib.contextmanager
 def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: bool = True):
     """Speed 3 (manager 2026-11-02): up to n ladders at once ([check].parallel), never two whose batches share a file (an
@@ -592,7 +595,7 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: 
     while True:
         with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
             free, clash, shared = None, "", set()
-            for slot in journal.ladder_slots(n):
+            for slot in journal.ladder_slots(SLOTS[0] or n):
                 lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
                 try:
                     lk.__enter__()

@@ -162,3 +162,44 @@ def test_a_manual_hold_is_a_live_builder_heavy_holder_and_a_dead_one_is_none(tmp
     assert journal.manual_hold() == "", "a rung's own hold is not the person's"
     (tmp_path / "heavy.lock").write_text("999999 heavy: sleep 86400")
     assert journal.manual_hold() == "", "a dead holder is no hold"
+
+
+def _fit(name, **kw):
+    return {"runner": name, "reachable": True, "cores": 8, "load": 2.0, "free_ram_gb": 10.0, "free_gb": 50.0, "at": 1000.0, **kw}
+
+
+def test_ladder_slots_are_the_sum_of_runners_under_the_load_and_memory_limits_and_parallel_is_a_ceiling():
+    """local.flow.check-slots-from-runners: a fit runner gives slots_per_runner; parallel caps the sum; none fit is one ladder here."""
+    from fichero_builder import check_tool
+    cfg = check_tool.Config(remotes=("air:~/g", "imac:~/g", "imac:~/g2"), parallel=4, slots_per_runner=1)
+    rows = {n: _fit(n) for n in cfg.remotes}
+    assert check_tool.runner_slots(rows, cfg, 1010.0, 30)[0] == 3
+    assert check_tool.runner_slots(rows, check_tool.Config(remotes=cfg.remotes, parallel=2), 1010.0, 30)[0] == 2, "parallel is a ceiling"
+    assert check_tool.runner_slots(rows, check_tool.Config(remotes=cfg.remotes, parallel=9, slots_per_runner=2), 1010.0, 30)[0] == 6
+    rows["imac:~/g"] = _fit("imac:~/g", free_ram_gb=1.0)
+    n, why = check_tool.runner_slots(rows, cfg, 1010.0, 30)
+    assert n == 2 and "free memory" in why["imac:~/g"]
+    assert check_tool.runner_slots({}, cfg, 1010.0, 30)[0] == 1, "no runner counted: one ladder on the loop's machine"
+
+
+def test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_row_says_why(tmp_path, monkeypatch):
+    from fichero_builder import queue, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(queue, "RUNNERS", {})
+    monkeypatch.setattr(queue, "PROBING", [None])
+    monkeypatch.setattr(queue, "SLOT_WHY", [None])
+    monkeypatch.setattr(work, "SLOTS", [0])
+    (tmp_path / "harness.toml").write_text('[check]\nslots_from_runners = true\nparallel = 4\nremote = ["air:~/g", "imac:~/g"]\n')
+    probe = {"air:~/g": dict(_fit("air:~/g"), load=20.0), "imac:~/g": _fit("imac:~/g")}
+    for name in probe:
+        probe[name].pop("at")
+    assert queue.count_slots(tmp_path, probe=lambda n: dict(probe[n])) == 1 and work.SLOTS[0] == 1
+    assert queue.count_slots(tmp_path, probe=lambda n: dict(probe[n])) == 1
+    rows = [r for r in journal.read() if r["event"] == "slots"]
+    assert len(rows) == 1 and "load 20 on 8 cores" in rows[0]["runners"]["air:~/g"] and rows[0]["runners"]["imac:~/g"] == "counts 1"
+    assert len([r for r in journal.read() if r["event"] == "runner"]) == 4, "one runner row a runner a tick"
+    import time
+    n = queue.count_slots(tmp_path, probe=lambda n: dict(probe[n]), now=time.time() + 120)
+    assert n == 1 and "no row in three ticks" in [r for r in journal.read() if r["event"] == "slots"][-1]["runners"]["imac:~/g"]
+    (tmp_path / "harness.toml").write_text('[check]\nparallel = 4\n')
+    assert queue.count_slots(tmp_path) == 0 and work.SLOTS[0] == 0, "off: [check].parallel, as before"

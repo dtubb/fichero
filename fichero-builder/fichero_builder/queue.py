@@ -2485,6 +2485,40 @@ def code_mark(root="") -> tuple:
     return tuple(sorted(mark))
 
 
+RUNNERS: dict = {}  # runner -> its latest `runner` row (with `at`), written by the probe thread
+PROBING: list = [None]
+SLOT_WHY: list = [None]
+
+
+def count_slots(root, tick_s: float = 30.0, probe=None, now=None) -> int:
+    """local.flow.check-slots-from-runners: with `[check].slots_from_runners`, the runners are probed in a thread each tick (one `runner`
+    row each) and the ladder slots are their count, `[check].parallel` a ceiling; a change of the count or a reason is one `slots` row.
+    Off: work.SLOTS stays 0 and the ladders use `[check].parallel`, as before."""
+    from fichero_builder import check_tool
+    cfg = check_tool.load(root)
+    if not cfg.slots_from_runners:
+        work.SLOTS[0] = 0
+        return 0
+    probe = probe or check_tool.probe_runner
+
+    def run():
+        for name in check_tool._runners(cfg):
+            row = probe(name)
+            RUNNERS[name] = {**row, "at": time.time()}
+            journal.append("runner", **row)
+    if PROBING[0] is None or not PROBING[0].is_alive():
+        PROBING[0] = threading.Thread(target=run, daemon=True, name="runner-probe")
+        PROBING[0].start()
+        if probe is not check_tool.probe_runner:
+            PROBING[0].join()  # a test's fake probe: the rows are there at once
+    n, why = check_tool.runner_slots(RUNNERS, cfg, now if now is not None else time.time(), tick_s)
+    if SLOT_WHY[0] != (n, why):
+        SLOT_WHY[0] = (n, why)
+        journal.append("slots", slots=n, runners=why, detail=f"{n} ladder slot(s): " + "; ".join(f"{k}: {v}" for k, v in why.items()))
+    work.SLOTS[0] = n
+    return n
+
+
 def reload_rules(root) -> None:
     """#6589: `[loop]` of harness.toml, read at every tick: a new lane in `only` needs no restart. An unreadable file keeps what was set."""
     f = Path(root) / "harness.toml"
@@ -2593,6 +2627,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     while True:
         if root:
             reload_rules(root)  # #6589
+            count_slots(root)
             publish_all(root, out)  # #6851
         if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
             for m in repane():

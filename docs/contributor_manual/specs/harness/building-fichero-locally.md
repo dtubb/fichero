@@ -1324,16 +1324,14 @@ ended unresolved or at the time limit. So a fixed lane count caps the wrong thin
 day, checks are the queue, and what limits checks is what the runners can carry, which is measured, not set. Owed tests
 are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-26 for more in flight).
 
-- `local.flow.check-slots-from-runners` [GAP] (#6589) — the number of ladders that run at once is counted each tick from
+- `local.flow.check-slots-from-runners` [OK] (#6589; built 2026-11-26; on with [check].slots_from_runners (default off: [check].parallel, as before); the count reads the loop checkout's [check]) — the number of ladders that run at once is counted each tick from
   the runners, not read as a fixed number. Each runner in `[check].remote` writes one `runner` row a tick (reachable,
   cores, 1-minute load, free memory, free disk). A runner gives `[check].slots_per_runner` slots (default 1) while its
   row is under three ticks old, its load for each core is at most `[check].runner_max_load` (default 1.0), its free
   memory is at least `[check].runner_min_free_ram_gb` (default 4) and its free disk at least `remote_min_free_gb`; else
   it gives none and a ladder already on it finishes. `[check].parallel`, when set, is a ceiling; with no runner counted
   one ladder runs on the loop's machine. A change of the count is one `slots` row naming each runner and why it counts
-  or not. This replaces the fixed count of `local.perf.ladder-slots-follow-runners`. Test (owed): `test_heavy_lock.py`
-  `test_ladder_slots_are_the_sum_of_runners_under_the_load_and_memory_limits_and_parallel_is_a_ceiling`,
-  `test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_row_says_why`. Serves: reliable, fast.
+  or not. This replaces the fixed count of `local.perf.ladder-slots-follow-runners`. Tests: `fichero-builder/tests/test_heavy_lock.py::test_ladder_slots_are_the_sum_of_runners_under_the_load_and_memory_limits_and_parallel_is_a_ceiling`, `fichero-builder/tests/test_heavy_lock.py::test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_row_says_why`. Serves: reliable, fast.
 - `local.flow.writers-are-not-capped-by-checks` [OK] (#6589; built 2026-11-26; stacking the same lane's next step comes with local.step.stacks-on-a-waiting-step) — `[loop].lanes` counts writers: a lane holds one of
   them only while its cursor step is `sent` or `fixing` (a model session at work). A step that is said-done, done,
   checking, reviewing or waiting for the train holds none, so another lane's step starts, or the same lane stacks its
