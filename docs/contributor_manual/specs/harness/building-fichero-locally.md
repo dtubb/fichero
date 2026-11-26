@@ -1380,6 +1380,95 @@ are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-
   `test_when_the_first_train_sends_a_step_back_the_second_is_cancelled_and_its_steps_wait_again`,
   `test_no_second_train_starts_unless_four_of_the_last_five_were_green`. Serves: fast.
 
+#### Hosted CI in the flow: the train's candidate is checked on GitHub Actions and Xcode Cloud (owner 2026-11-26, #6589)
+
+The owner asked (2026-11-26) for GitHub Actions and Xcode Cloud in the flow. The model is a merge queue, and the
+builder's train stays the one queue: it already orders, batches and sends back, and GitHub's own merge queue beside it
+would be a second order of landing. The train pushes its candidate to a branch, hosted CI runs the whole suites on it,
+and the train lands on the check results. The local runners keep what must be fast: every per-step rung, and the
+train's affected suites. When built this replaces the ruling in `pipeline.github-actions` that the Macs are the only
+gate.
+
+| Where | Local runners | Hosted CI |
+|---|---|---|
+| Per step | every rung of the table above | nothing |
+| Per train | the build, the affected Swift suites, the guards on the candidate | the whole Python suites and their shards on Actions; the full Swift test plan on Xcode Cloud when its hours allow |
+| Per night | the DMG, notarising, the smoke (they need the signing identity and a screen) | every tier and the full Swift plan on the frozen sha |
+| Per release | the Mac DMG | the iOS archive and the TestFlight upload on Xcode Cloud |
+
+Today (2026-11-26): the Swift, builder and contract jobs are green on Actions, the engine shards reach their 30-minute
+limit, and the Xcode Cloud build is red in its clone script; both are being fixed in step ci-actions-1. Cost decides
+how much of this runs per train: eight engine shards of 25 minutes are 200 runner minutes a train, a macOS minute
+counts ten times on a private repository, and a full Swift plan of 20 minutes on each of 15 trains a day would use a
+month's 25 included Xcode Cloud hours in five days. So CI starts in `report` mode, the train's CI jobs run only the
+tiers its diff touches, and the full Swift plan runs per night and per release unless the hours are set higher.
+Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
+
+- `local.ci.train-candidate-on-a-branch` [GAP] (#6589) — with `[ci].train` set to `report` or `required` (default
+  `off`) a train pushes its candidate to `train/<train id>` on the land remote before its local rungs start, and
+  deletes the branch when the train ends, however it ends. The tests workflow runs on a push to `train/**`, one run a
+  branch (a concurrency group by ref, a newer push cancels the older run), each tier only when the candidate's diff
+  from its base touches that tier's paths, and ends in one job `train-gate` that needs every tier and is green when
+  each was green or skipped: a tier that did not run never leaves a required check unreported. The Xcode Cloud
+  workflow named in `[ci].xcode_workflow` starts on the same branches when `[ci].xcode_cloud_on` lists `train`
+  (default `["nightly", "release"]`). No worker and no lane pushes a `train/` branch. Test (owed): `test_ci_train.py`
+  `test_a_train_pushes_its_candidate_to_a_train_branch_first_and_deletes_it_however_it_ends`,
+  `test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_tier_is_green_or_skipped`,
+  `test_with_ci_off_no_branch_is_pushed`. Serves: reliable.
+- `local.ci.train-lands-on-green-checks` [GAP] (#6589) — the train reads the check runs of its candidate sha through
+  the GitHub API (the manager's `gh`, never a worker's) for each name in `[ci].required` (default `["train-gate"]`,
+  and the Xcode Cloud check when it runs on trains). In `report` mode the train lands on its local rungs as built and
+  its journal row gains `ci`: each required check, its conclusion, its minutes and whether it agreed with the local
+  result. In `required` mode the train lands only when its local rungs and every required check are green at that
+  sha; a check that has not completed within `[ci].wait_min` (default 45) is not run, never green, and the train ends
+  `timeout` as `local.train.time-limit` says, with `wait_min` as its limit. `required` is refused by the rules check
+  until `builder rung-stats --flow` shows, over the last seven days of `report` rows, that CI's 90th percentile is
+  under `wait_min` and that it disagreed with the local result on at most one train in twenty. Test (owed):
+  `test_ci_train.py` `test_in_report_mode_the_train_lands_on_its_local_rungs_and_records_each_check_and_its_agreement`,
+  `test_in_required_mode_a_green_local_train_with_a_red_or_missing_check_does_not_land`,
+  `test_required_is_refused_until_seven_days_of_report_rows_meet_the_time_and_agreement_bars`. Serves: reliable.
+- `local.ci.red-is-retried-once-and-judged-against-base` [GAP] (#6589) — a required check that fails is sorted before
+  it counts. Infrastructure (no runner acquired, a cancelled or timed-out job, a failure in a set-up step before any
+  test ran): its failed jobs are re-run once; a second such failure is not run, with one alert, and
+  `local.ci.caps-and-fallback` decides the train. Tests: the failing cases are read from the job logs, as
+  `builder github-watch` reads them, and the failed jobs are re-run once; a case that passes the second time is green
+  with one `flaky` row naming it and its job, so it is filed and never hidden. A case that fails twice is judged
+  against the base: the same check's newest completed run at the train's base sha, started once by dispatch when there
+  is none; a case red there too is the base's, and the candidate is red only for cases green on its base. Those cases
+  go to `local.train.red-goes-to-its-step`, which finds the step on the local runners. Test (owed): `test_ci_train.py`
+  `test_an_infrastructure_failure_is_rerun_once_and_a_second_one_is_not_run_never_red`,
+  `test_a_case_green_on_the_rerun_is_green_with_a_flaky_row`,
+  `test_a_case_red_twice_and_red_on_the_base_run_sends_no_step_back`,
+  `test_a_case_red_twice_and_green_on_the_base_goes_to_the_step_search`. Serves: reliable.
+- `local.ci.nightly-gate-on-the-frozen-sha` [GAP] (#6589) — with `[ci].nightly = true` (default false) the nightly, at
+  its freeze, pushes the frozen sha as `nightly/<date>` and starts the tests workflow on it by dispatch with every
+  tier on, and the Xcode Cloud full test plan; a cron schedule is not used, because it cannot know the frozen sha. The
+  `verify` stage waits for the check runs and judges them as `local.ci.red-is-retried-once-and-judged-against-base`
+  says; its report lists each check with its minutes. The DMG, notarising and the smoke stay on the local machine. The
+  guards that need the whole checkout history or a local tool stay in the local verify, named in `[ci].local_guards`.
+  Nothing is published on a red or missing check. Test (owed): `test_nightly.py`
+  `test_the_nightly_dispatches_ci_on_the_frozen_sha_and_verify_waits_for_its_checks`,
+  `test_a_red_or_missing_nightly_check_publishes_nothing`. Serves: reliable.
+- `local.ci.testflight-from-xcode-cloud` [GAP] (#6589) — with `[ci].testflight = "xcode-cloud"` (default `local`) the
+  release run's `ios` stage makes no archive on the local machine (the archive ran it out of memory): it pushes the
+  tag or release branch that matches `[ci].testflight_refs`, which starts the Xcode Cloud workflow that archives and
+  uploads to TestFlight, then polls the build through the App Store Connect API until it is processed, failed or
+  `[ci].testflight_wait_min` (default 60) has passed. A failed or late build fails the stage with the build's error and
+  the other stages go on as they do today; the owner is texted either way, as for any release part. Test (owed):
+  `test_release_run.py` `test_the_ios_stage_pushes_the_ref_and_waits_for_the_xcode_cloud_build_with_no_local_archive`,
+  `test_a_failed_or_late_xcode_cloud_build_fails_the_ios_stage_with_its_error`. Serves: reliable.
+- `local.ci.caps-and-fallback` [GAP] (#6589) — `[ci].actions_minutes_month` and `[ci].xcode_cloud_hours_month` are
+  caps; `train` and `nightly` CI are refused by the rules check while either is unset, as a metered model provider is
+  with no weekly cap. The builder sums, from the check runs it started, each job's billed minutes (a macOS job by
+  `[ci].macos_multiplier`, default 10) and each Xcode Cloud build's compute time, for the calendar month, in one `ci`
+  row a day. At 80% of a cap there is one alert. At the cap, or when the API cannot be reached or no run has started
+  within `[ci].start_min` (default 10), the train goes on with its local rungs alone, running the whole suites there
+  as it does with CI off, with one `ci-fallback` row saying which; it never waits and never lands on a check it did
+  not get. The nightly's fallback is the local verify, and its report says CI did not run. Test (owed):
+  `test_ci_train.py` `test_ci_with_no_cap_set_is_refused_by_the_rules_check`,
+  `test_minutes_are_summed_per_month_with_the_macos_multiplier_and_eighty_percent_is_one_alert`,
+  `test_at_the_cap_or_with_ci_down_the_train_runs_its_whole_suites_locally_with_a_fallback_row`. Serves: reliable.
+
 ### M. The merge train: the expensive checks run once for many steps (owner 2026-11-25, #6589)
 
 A step used to run the Swift build, the UI pass and the full unit tier alone before it landed, so the checks that cost the
