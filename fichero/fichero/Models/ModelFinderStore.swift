@@ -193,7 +193,8 @@ final class ModelFinderStore {
                     online: online,
                     cloudAllowed: query.cloudAllowed,
                     step: query.step,
-                    worthOnly: !showAll,  // by default only what is worth using, filtered and capped by the engine (owner 2026-10-23); Show All Models lifts it (#7085)
+                    // by default only what is worth using, filtered and capped by the engine (owner 2026-10-23); Show All lifts it (#7085)
+                    worthOnly: !showAll,
                     q: search.isEmpty ? nil : search
                 )
             )

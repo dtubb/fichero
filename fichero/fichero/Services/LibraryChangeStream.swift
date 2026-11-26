@@ -380,7 +380,8 @@ final class LibraryChangeStream {
                 // 403 "outside every allowed root": the project's folder grant has not reached the engine yet (#7092). Not
                 // a role refusal: never terminal, tried again with backoff, and the pill offers Reconnect meanwhile.
                 if !Task.isCancelled {
-                    changeStreamLogger.info("change-stream asked before the folder grant landed, trying again — \(detail ?? "no reason", privacy: .public)")
+                    changeStreamLogger.info(
+                        "change-stream asked before the grant landed, trying again — \(detail ?? "no reason", privacy: .public)")
                     consecutiveUnavailableCycles += 1
                     liveUpdatesUnavailable = consecutiveUnavailableCycles >= 2
                 }

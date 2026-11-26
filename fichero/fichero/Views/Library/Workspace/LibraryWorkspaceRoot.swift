@@ -57,6 +57,12 @@ struct LibraryWorkspaceRoot: View {
     let windowState: WindowState
     let executionObserver: WorkflowExecutionObserver
 
+    /// Restarts the open task when the library, its folder, the engine, or its pending folder grant changes.
+    private var workspaceTaskId: String {
+        let awaitingGrant = libraryManager.libraryIdsAwaitingGrant.contains(library.id)
+        return "\(library.id.uuidString)-\(library.url.path)-\(appState.isBackendRunning)-\(awaitingGrant)"
+    }
+
     var body: some View {
         DocumentTabView(
                 libraryId: library.id,
@@ -78,7 +84,7 @@ struct LibraryWorkspaceRoot: View {
             // omission is #4448, and it is the only boundary that has ever
             // actually bitten here.
             .modifier(LibraryTreeEnvironment(library: library, windowState: windowState, executionObserver: executionObserver))
-            .task(id: "\(library.id.uuidString)-\(library.url.path)-\(appState.isBackendRunning)-\(libraryManager.libraryIdsAwaitingGrant.contains(library.id))") {
+            .task(id: workspaceTaskId) {
                 if windowState.libraryId != library.id {
                     windowState.libraryId = library.id
                 }
