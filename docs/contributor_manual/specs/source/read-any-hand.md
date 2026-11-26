@@ -162,13 +162,13 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
 
 ### A. The benchmark
 
-- `hands.bench.manifest-is-fixed-and-versioned` — **[BUILT]** (#5441 → #6966) the benchmark is one manifest file with a
+- `hands.bench.manifest-is-fixed-and-versioned` — **[GAP]** (#5441 → #6966) the benchmark is one manifest file with a
   version: per hand its script, period, licence, whether its pages may leave this Mac, the page ids of its adaptation
   pool and of its held-out pages, and the manuscript each page belongs to. A script refuses a manifest in which a
   manuscript has pages on both sides, a hand has no held-out page, or a page has no licence. The committed manifest
   lists open-licensed and non-commercial hands only; private hands are in a second manifest, read from outside the
   repository, and a guard refuses a commit that names one. A changed page list is a new version; figures of two
-  versions are never shown in one column. *Test:* test_blind_hands_manifest.py (a manuscript on both sides
+  versions are never shown in one column. *Test (to write):* test_blind_hands_manifest.py (a manuscript on both sides
   refuses; a missing licence refuses; a private id in the committed file refuses).
 - `hands.bench.learning-curve-at-five-points` — **[GAP]** (#5441 → #6967) per hand and configuration the round
   measures the page error with 0, 50, 100, 200 and 400 corrected lines from the adaptation pool. The subsets are
