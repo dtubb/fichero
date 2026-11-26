@@ -717,6 +717,11 @@ The behaviours:
   first page not done; the rate-limit path still resumes by itself. Tests:
   `fichero-server/tests/unit/workflows/test_credit_stop_6675.py`, `fichero/Tests/Unit/general/Models/CreditPausePromptTests.swift`.
   Built: `llm/retry.py` `_pause_the_run_for_credit`, `ProviderCreditStopError`, `ActivityStore.askAboutCredit`.
+  Built (#7039): each of OpenRouter's, Anthropic's, OpenAI's, Google's and Mistral's own out-of-credit answer holds the run once;
+  the held run's failure carries the provider's billing page (`failure.BILLING_URLS`, in its fix text) and offers a model on this Mac
+  (`choose-model`, `open-settings` on the local models). Not built: a button that opens the billing link (the link is text in the
+  fix; an `open-url` action would change the generated API schema), a choice limited to installed local models.
+  Tests: `fichero-server/tests/unit/workflows/test_credit_alert_7039.py`.
 
 ### 14. Measured on real pages (review 2026-11-20): what a run says must match what it did
 
