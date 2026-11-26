@@ -113,23 +113,66 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
         else:
             lo = mid + 1
     culprit = keep[lo - 1]
-    res.back[culprit["key"]] = {"kind": "red", "why": f"the merge train {tid} is red at {rung_name} with this step in it", "findings": f"The merge train {tid} is red at {rung_name} with this step in it.\n{rung_name} on the train candidate:\n{tails[lo]}"}
+    back = {"kind": "red", "why": f"the merge train {tid} is red at {rung_name} with this step in it", "findings": f"The merge train {tid} is red at {rung_name} with this step in it.\n{rung_name} on the train candidate:\n{tails[lo]}"}
     rest = [s for i, s in enumerate(keep) if i != lo - 1]
     if not rest:
+        res.back[culprit["key"]] = back
         return res
     c, bad = merge([s["head"] for s in rest])
     if bad:
+        res.back[culprit["key"]] = back
         res.bisect.append("rest: does not merge without the culprit; stopped")
         res.again, res.result = [s["key"] for s in rest], "unresolved"
         return res
     res.extra_runs += 1
     r = run(rest_names, c, "bisect")
     res.bisect.append(f"rest without {culprit['key']}: {'red on ' + r[0] if r else 'green'}")
+    if r and r[0] == rung_name and (same := cases(r[1])) and same == cases(tails[lo]):
+        # 2026-11-26, train-20261126-120639: every prefix and the rest were red at swift-tests on the same cases, the land branch's own
+        # reds, and the first step was sent back for them. Red with and without the "culprit" alike: no step is to blame, none goes back
+        res.bisect.append(f"the rest is red on the same cases as the prefix: the red is not {culprit['key']}'s; no step is sent back")
+        res.again, res.result = [s["key"] for s in keep], "unresolved"
+        return res
+    res.back[culprit["key"]] = back
     if r:  # a second culprit: the budget is spent, so none of the rest lands unjudged
         res.again, res.result = [s["key"] for s in rest], "unresolved"
     else:
         res.landed = [s["key"] for s in rest]
     return res
+
+
+def cases(out: str) -> frozenset:
+    """The failing cases a rung's output names (its `failing: a, b` line, else xcodebuild's own lists); empty when it names none."""
+    from fichero_builder import check_tool
+    line = next((ln[len("failing: "):] for ln in out.splitlines() if ln.startswith("failing: ")), "")
+    named = {x.strip() for x in line.split(", ") if x.strip() and not x.startswith("(")}
+    return frozenset(named or check_tool.failing_cases(out))
+
+
+def against_base(failing: list[str], out: str, base: str, run_base: Callable[[], dict]) -> tuple[bool, str]:
+    """The train's swift-tests judged like red-on-base: red only for the cases that fail on the candidate and pass on the base. The
+    base's failing cases are run once per base sha and kept (`swift-base-<sha>.json` in the state dir); a base that could not be run
+    or does not compile judges nothing, and the candidate's red stands. 2026-11-26: the land branch's own known reds (#7095) made
+    every train red for hours."""
+    import json
+
+    from fichero_builder import journal
+    f = journal.STATE / f"swift-base-{base}.json"
+    try:
+        known = json.loads(f.read_text())["failing"]
+    except (OSError, ValueError, KeyError):
+        b = run_base()
+        if not b.get("ok") and not b.get("failing"):
+            return False, out
+        known = [] if b.get("ok") else b["failing"]
+        journal.STATE.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"failing": known}))
+    new = sorted(set(failing) - set(known))
+    if not new:
+        journal.append("train", state="base-reds", base=base, detail=f"{len(failing)} failing case(s), every one failing on the base too")
+        return True, f"swift-tests: green against the base {base[:9]}: its {len(failing)} failing case(s) fail on the base too (known reds)"
+    return False, (f"RED: {len(new)} case(s) fail on the candidate and pass on the base {base[:9]} ({len(set(failing) & set(known))} known base reds left out)\n"
+                   f"failing: {', '.join(new)}\n" + out)[-3000:]
 
 
 def budget(n: int) -> int:
@@ -212,7 +255,25 @@ def real_runners(repo, branch: str, pinned: str, tid: str):
             if tree:
                 check_tool.drop_tree(repo, tree)
         row = (r.get("results") or [{}])[0]
-        return bool(r.get("ok")), (r.get("stdout_tail") or row.get("errors") or row.get("stdout_tail") or "")[-3000:]
+        out = (r.get("stdout_tail") or row.get("errors") or row.get("stdout_tail") or "")[-3000:]
+        if name == "swift-tests" and not r.get("ok") and r.get("failing"):
+            return against_base(r["failing"], out, base, lambda: swift_on(base))
+        return bool(r.get("ok")), out
+
+    def swift_on(sha: str) -> dict:
+        j = jail.load(pinned)
+        if j is not None:
+            j.require()
+        check_tool._jail_enter(j)
+        check_tool._KEY[0] = f"train {tid} swift-tests base"
+        tree = None
+        try:
+            tree = check_tool._scratch_tree(repo, sha, pinned, cfg, overlay=True)
+            return check_tool.swift_tests(tree, cfg)
+        finally:
+            check_tool._jail_exit()
+            if tree:
+                check_tool.drop_tree(repo, tree)
 
     def rungs_for(heads):
         files = sorted({f for h in heads for f in _git(repo, "diff", "--name-only", f"{base}...{h}").stdout.split()})

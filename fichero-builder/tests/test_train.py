@@ -165,3 +165,32 @@ def test_drop_refs_deletes_the_train_candidate_refs_and_only_those(tmp_path):
         g("update-ref", r, "HEAD")
     train.drop_refs(tmp_path, "t1")
     assert g("for-each-ref", "--format=%(refname)", "refs/train/").split() == ["refs/train/t2-1"]
+
+
+def test_the_trains_swift_tests_are_red_only_for_cases_that_pass_on_the_base_which_runs_once_per_sha(tmp_path, monkeypatch):
+    """2026-11-26 12:06-13:20, train-20261126-120639: integration's own Swift reds (#7095) made every candidate red; nothing landed
+    from 05:41. Judged like red-on-base: the base's failing cases are run once per base sha, kept, and never block."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    known = ["ModelsWindowLayoutTests.inspectorLines()", "SetupFourStepsTests.continueSavesAndStartSavesFirst()"]
+    runs = []
+    base_run = lambda: runs.append(1) or {"ok": False, "failing": known}  # noqa: E731
+    ok, out = train.against_base(known, "RED", "b" * 40, base_run)
+    assert ok and "known reds" in out
+    ok, out = train.against_base([*known, "SegmentToolTests.drawsABox()"], "RED", "b" * 40, base_run)
+    assert not ok and "failing: SegmentToolTests.drawsABox()" in out and "2 known base reds left out" in out
+    assert runs == [1], "the base ran once for its sha"
+    ok, out = train.against_base(known, "RED as it was", "c" * 40, lambda: {"ok": False, "not_run": True})
+    assert not ok and out == "RED as it was", "a base that could not run judges nothing"
+
+
+def test_when_the_rest_is_red_on_the_same_cases_as_the_prefix_no_step_is_sent_back():
+    """2026-11-26: every prefix and "rest without seg-tools/seg-batch-6" were red at swift-tests on the same cases, and seg-batch-6
+    was sent back for reds that were not its own."""
+    same = "RED: swift-tests: 5074 tests, 2 failed\nfailing: ModelsWindowLayoutTests.inspectorLines(), ToolbarSymbolsTests.toolbarTogglesAreNative()\n"
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "abc"], merge=lambda heads: ("+".join(heads), {}),
+                        rung=lambda name, cand: (name != "swift-tests", same if name == "swift-tests" else "ok"),
+                        rungs_for=lambda heads: ["build", "swift-tests", "unit"], tid="t")
+    assert r.back == {} and r.landed == [] and r.again == ["l/a", "l/b", "l/c"] and r.result == "unresolved"
+    assert "no step is sent back" in r.bisect[-1]
+    assert r.extra_runs <= train.budget(3)

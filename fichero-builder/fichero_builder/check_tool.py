@@ -1044,7 +1044,18 @@ BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is no
 
 SHARED_DERIVED = ("build", "test", "ui")  # these share the runner's one `<gate>/derived`, kept between checks so a build is incremental
 STALE_CACHE = re.compile(r"No such module '|module '[^']+' not found|PCM|precompiled module|was compiled with module cache path|module file '[^']+' is out of date")
-TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed")  # a failing test is the code's red, not the runner's
+TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed|^Failing tests:[ \t]*\n[ \t]+\S|✘ Test run with \d+ tests?", re.M)
+# a failing test is the code's red, not the runner's: XCTest's lines, Swift Testing's run line and xcodebuild's `Failing tests:` list,
+# which end in "** TEST EXECUTE FAILED **" (2026-11-26, the train: 14 failing cases were labelled "the runner could not run the tests")
+FAILING_LIST = re.compile(r"^Failing tests:[ \t]*\n((?:[ \t]+\S.*(?:\n|$))+)", re.M)
+
+
+def failing_cases(out: str) -> list[str]:
+    """The failing test cases a Swift test run names: XCTest's `Test Case '...' failed` and xcodebuild's `Failing tests:` list."""
+    names = set(re.findall(r"Test [Cc]ase '([^']+)' failed", out))
+    for block in FAILING_LIST.findall(out):
+        names |= {ln.strip() for ln in block.splitlines() if ln.strip()}
+    return sorted(names)
 WARNING_PLATFORMS = {"build": "mac", "ios-sim": "ios"}  # the remote build rung holds the mac count, the iOS daily build the iOS count (the Swift test target holds none; iPad waits for a scheme that carries the iPad plan)
 RATCHET_SCRIPT = client.scripts_dir() / "check_xcode_warning_ratchet.py"  # the harness's own copy judges: a batch's own script never runs, jailed or not
 
@@ -1993,14 +2004,14 @@ def swift_tests(root, cfg: Config) -> dict:
     row = t["results"][0]
     out = (row.get("stdout_tail") or "")
     ran = re.findall(r"Executed (\d+) tests?, with (\d+) failures?", out)
-    count, failed = (int(ran[-1][0]), int(ran[-1][1])) if ran else (0, 0)
-    names = sorted(set(re.findall(r"Test [Cc]ase '([^']+)' failed", out)))
+    names = failing_cases(out)
+    count, failed = (int(ran[-1][0]), int(ran[-1][1])) if ran else (int((re.findall(r"Test run with (\d+) tests?", out) or ["0"])[-1]), len(names))
     secs = round(time.time() - t0, 1)
     journal.append("check", state="swift-tests", rung="swift-tests", ok=t["ok"], seconds=secs, tests=count, failures=failed)
     head = f"swift-tests: {count} tests, {failed} failed, {secs} s"
     if not t["ok"]:
         return {"ok": False, "skipped": False, "stdout_tail": f"RED: {head}\nfailing: {', '.join(names) or '(no test name read)'}\n" + out[-2000:],
-                "stderr_tail": row.get("stderr_tail") or "", "results": [row]}
+                "stderr_tail": row.get("stderr_tail") or "", "results": [row], "failing": names}
     return {"ok": True, "skipped": False, "stdout_tail": head, "stderr_tail": "", "results": [row]}
 
 

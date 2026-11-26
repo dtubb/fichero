@@ -1176,6 +1176,17 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
 - `local.train.bisect-with-budget` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_a_red_train_of_four_lands_three_and_sends_the_culprit_back`; `fichero-builder/tests/test_train.py::test_the_extra_runs_never_pass_ceil_log2_n_plus_one`) — a red candidate is bisected: the first red rung is re-run over prefixes of the train until
   one step is the culprit, then once over the rest. The extra runs never exceed ceil(log2(n)) + 1; a second culprit is left for
   the next train. The culprit goes back to its lane with the failing rung's output.
+- `local.train.swift-tests-against-base` [OK] (#6589, #7095; built 2026-11-26) — the train's swift-tests rung is judged like
+  red-on-base: when a candidate's Swift tests fail naming cases, the train's base runs them once per base sha (kept as
+  `swift-base-<sha>.json` in the state dir), and the candidate is red only for the cases that fail on it and pass on the base; a
+  base that could not run, or does not compile, judges nothing. When the rest of a bisected train is red at the same rung on the
+  same named cases as the prefix, no step is sent back: they all wait for the next train. A run that ends in
+  `** TEST EXECUTE FAILED **` with failing cases (Swift Testing's run line, xcodebuild's `Failing tests:` list) is a test failure
+  naming them, never NOT RUN. (2026-11-26 12:06-13:20, train-20261126-120639: the land branch's own reds made every prefix red, the
+  first step was sent back for them under "NOT RUN", and nothing landed from 05:41.) Tests:
+  `fichero-builder/tests/test_train.py::test_the_trains_swift_tests_are_red_only_for_cases_that_pass_on_the_base_which_runs_once_per_sha`,
+  `::test_when_the_rest_is_red_on_the_same_cases_as_the_prefix_no_step_is_sent_back`,
+  `fichero-builder/tests/test_speed_tests.py::test_test_execute_failed_with_failing_cases_is_a_test_failure_naming_them_never_not_run`.
 - `local.train.off-keeps-per-step` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_a_train_that_is_off_lands_each_step_by_itself`) — with `[train].enabled = false` a step runs the whole ladder alone and lands as before.
 - `local.train.journal-row` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`) — every train writes one journal row: its id, its steps, the candidate, the result, the steps
   landed and the steps sent back.

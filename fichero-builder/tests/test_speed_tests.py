@@ -231,6 +231,25 @@ def test_failing_swift_tests_are_red_naming_them(tmp_path, monkeypatch):
     assert not r["ok"] and not r.get("not_run") and "-[AppTests testA]" in r["stdout_tail"] and "5 tests, 1 failed" in r["stdout_tail"]
 
 
+# 2026-11-26 13:06, test-20261126-130639-imac.log (cut): Swift Testing's run, then xcodebuild's list and its last line
+EXECUTE_FAILED = ("\u2718 Test \"Continue saves; Start saves, then starts\" failed after 15.205 seconds with 2 issues.\n"
+                  "\u2718 Test run with 5074 tests in 910 suites failed after 210.176 seconds with 14 issues.\n\n"
+                  "Failing tests:\n\tPairingAddressTryTests.aHangingAddressIsCutAtTheBudgetNotWaitedOn()\n"
+                  "\tSetupFourStepsTests.continueSavesAndStartSavesFirst()\n\tSetupFourStepsTests.continueSavesAndStartSavesFirst()\n"
+                  "\tModelsWindowLayoutTests.inspectorLines()\n\n** TEST EXECUTE FAILED **\n")
+
+
+def test_test_execute_failed_with_failing_cases_is_a_test_failure_naming_them_never_not_run(tmp_path, monkeypatch):
+    """2026-11-26, train-20261126-120639: 14 failing cases ending in "** TEST EXECUTE FAILED **" were labelled "NOT RUN: the runner
+    could not run the tests (not a test failure)", and sent back to a step as its findings."""
+    Fake(monkeypatch, tmp_path, [(0, ""), (65, EXECUTE_FAILED)])
+    r = check_tool.swift_tests(tmp_path, _cfg(swift_tests=SWIFT))
+    assert not r["ok"] and not r.get("not_run") and "NOT RUN" not in r["stdout_tail"]
+    assert r["failing"] == ["ModelsWindowLayoutTests.inspectorLines()", "PairingAddressTryTests.aHangingAddressIsCutAtTheBudgetNotWaitedOn()",
+                            "SetupFourStepsTests.continueSavesAndStartSavesFirst()"]
+    assert "5074 tests, 3 failed" in r["stdout_tail"]
+
+
 def test_the_swift_tests_never_run_without_a_build_remote(tmp_path, monkeypatch):
     Fake(monkeypatch, tmp_path)
     r = check_tool.swift_tests(tmp_path, check_tool.Config(swift_tests=SWIFT))
