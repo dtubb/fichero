@@ -87,6 +87,8 @@ struct LibraryWorkspaceRoot: View {
                 // app is still probing the engine can falsely trip the paused
                 // pill until the user taps Reconnect (#3351).
                 guard appState.isBackendRunning else { return }
+                // The engine became ready after this window began loading: ask again (#7078).
+                await libraryManager.askForLoadOnEngineReady(library, engineReady: appState.isBackendRunning)
                 library.changeStream.start()
                 if featureManager.isVisible(.activity) {
                     library.activityStore.start()

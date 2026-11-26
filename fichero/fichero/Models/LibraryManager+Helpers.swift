@@ -370,6 +370,27 @@ extension LibraryManager {
         }
     }
 
+    /// Whether a window that sees the engine ready should ask for its library's load itself (#7078): the library is
+    /// neither loaded nor loading. A load the window's launch began before the engine was ready parks silently, and
+    /// the pane's spinner (engine ready, library not loaded) never clears unless something asks again.
+    nonisolated static func windowShouldAskForLoad(engineReady: Bool, loaded: Bool, loading: Bool) -> Bool {
+        engineReady && !loaded && !loading
+    }
+
+    /// The window's re-ask once the engine is ready (#7078). The engine is ready, so a grant gate still set is a grant
+    /// whose own work never ran (a pre-auth grant refused): release it, so the load runs and says why it fails.
+    func askForLoadOnEngineReady(_ library: LibraryReference, engineReady: Bool) async {
+        guard Self.windowShouldAskForLoad(
+            engineReady: engineReady,
+            loaded: loadedLibraryIds.contains(library.id),
+            loading: loadingLibraryIds.contains(library.id)
+        ) else { return }
+        if libraryIdsAwaitingGrant.remove(library.id) != nil {
+            libraryManagerLogger.info("Engine ready, grant gate still set — releasing it: \(library.displayName, privacy: .public)")
+        }
+        await loadLibraryDataIfNeeded(for: library)
+    }
+
     /// Initialize the backend database and load app data once per library.
     /// Re-entrant guards avoid duplicate startup tasks when the
     /// window, restore, and backend-ready paths all observe the same library.
