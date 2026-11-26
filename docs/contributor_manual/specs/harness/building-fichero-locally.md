@@ -1424,14 +1424,12 @@ Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
   Nothing is published on a red or missing check. Test (owed): `test_nightly.py`
   `test_the_nightly_dispatches_ci_on_the_frozen_sha_and_verify_waits_for_its_checks`,
   `test_a_red_or_missing_nightly_check_publishes_nothing`. Serves: reliable.
-- `local.ci.testflight-from-xcode-cloud` [GAP] (#6589) — with `[ci].testflight = "xcode-cloud"` (default `local`) the
+- `local.ci.testflight-from-xcode-cloud` [OK] (#6589; built 2026-11-26; off by default; the wait reads the Xcode Cloud workflow's GitHub check run at the frozen sha, not the store (ASC)'s processing state: the the store (ASC) poller release-all.sh calls is not in the repository) — with `[ci].testflight = "xcode-cloud"` (default `local`) the
   release run's `ios` stage makes no archive on the local machine (the archive ran it out of memory): it pushes the
   tag or release branch that matches `[ci].testflight_refs`, which starts the Xcode Cloud workflow that archives and
-  uploads to TestFlight, then polls the build through the App Store Connect API until it is processed, failed or
+  uploads to TestFlight, then polls the build through the the store (ASC) API until it is processed, failed or
   `[ci].testflight_wait_min` (default 60) has passed. A failed or late build fails the stage with the build's error and
-  the other stages go on as they do today; the owner is texted either way, as for any release part. Test (owed):
-  `test_release_run.py` `test_the_ios_stage_pushes_the_ref_and_waits_for_the_xcode_cloud_build_with_no_local_archive`,
-  `test_a_failed_or_late_xcode_cloud_build_fails_the_ios_stage_with_its_error`. Serves: reliable.
+  the other stages go on as they do today; the owner is texted either way, as for any release part. Tests: `fichero-builder/tests/test_release_run.py::test_the_ios_stage_pushes_the_ref_and_waits_for_the_xcode_cloud_build_with_no_local_archive`, `fichero-builder/tests/test_release_run.py::test_a_failed_or_late_xcode_cloud_build_fails_the_ios_stage_with_its_error`. Serves: reliable.
 - `local.ci.caps-and-fallback` [OK] (#6589; built 2026-11-26; [ci] is off by default) — `[ci].actions_minutes_month` and `[ci].xcode_cloud_hours_month` are
   caps; `train` and `nightly` CI are refused by the rules check while `xcode_cloud_hours_month` is unset, as a metered
   model provider is with no weekly cap. The Actions cap is optional (0 = none): the repository is public, so standard

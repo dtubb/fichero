@@ -185,3 +185,37 @@ def test_a_stage_that_raises_any_error_is_red_and_alerts_never_counts_as_green()
     assert not rr.run("r12", st, lambda *a: False, alerts.append)
     states = [(r["stage"], r["state"]) for r in rr.rows("r12")]
     assert ("text", "red") in states and ("text", "alert") in states and len(alerts) == 1 and "text" in alerts[0]
+
+
+def _xcode_stages(tmp_path, monkeypatch, plan):
+    from fichero_builder import ci
+    from test_ci_train import Clock, FakeHosted
+    (tmp_path / "root").mkdir(exist_ok=True)
+    (tmp_path / "root" / "harness.toml").write_text('[ci]\ntestflight = "xcode-cloud"\nxcode_workflow = "Fichero TestFlight"\ntestflight_wait_min = 60\n')
+    calls, h, clock = [], FakeHosted(plan), Clock()
+    monkeypatch.setattr(rr, "_sh", lambda script, machine, t: calls.append(script) or (0, "ok"))
+    monkeypatch.setattr(ci, "Hosted", lambda cfg, cwd: h)
+    real = ci.testflight
+    monkeypatch.setattr(ci, "testflight", lambda *a, **k: real(*a, clock=clock, sleep=clock.sleep))
+    st = rr.real_stages(tmp_path / "root", tmp_path / "s", "r9", branch="main", mac="local", ios="local", check_runner="local", floor_gb=5, text=print)
+    journal.append("release", run="r9", stage="freeze", state="green", detail="frozen123")
+    return st["ios"](), calls, h, clock
+
+
+def test_the_ios_stage_pushes_the_ref_and_waits_for_the_xcode_cloud_build_with_no_local_archive(tmp_path, monkeypatch):
+    from test_ci_train import check
+    plan = {"frozen123": [[], [check("Fichero TestFlight | Archive - iOS", status="in_progress", conclusion="")],
+                          [check("Fichero TestFlight | Archive - iOS", cid=2, seconds=1800)]]}
+    (rc, out), calls, h, _ = _xcode_stages(tmp_path, monkeypatch, plan)
+    assert rc == 0 and "TestFlight" in out
+    assert ("push", "frozen123", "testflight/r9") in h.calls
+    assert not any("release-all.sh" in c for c in calls), "no archive on the local machine"
+
+
+@pytest.mark.parametrize("end", ["failed", "late"])
+def test_a_failed_or_late_xcode_cloud_build_fails_the_ios_stage_with_its_error(tmp_path, monkeypatch, end):
+    from test_ci_train import check
+    seq = [[check("Fichero TestFlight | Archive - iOS", "failure")]] if end == "failed" else [[]]
+    (rc, out), _calls, _h, clock = _xcode_stages(tmp_path, monkeypatch, {"frozen123": seq})
+    assert rc == 1
+    assert ("failed (Fichero TestFlight | Archive - iOS: failure)" in out) if end == "failed" else ("within [ci].testflight_wait_min = 60 min" in out)

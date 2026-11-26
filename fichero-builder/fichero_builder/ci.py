@@ -436,3 +436,31 @@ def failing(out: str) -> list[str]:
 def local_rungs(cfg: Cfg, names: list[str]) -> list[str]:
     """In `required` mode the whole Python suites (`unit`) are CI's; the train runs them here only on a fallback."""
     return [n for n in names if n != "unit"] if cfg.train == "required" else names
+
+
+# --- TestFlight from Xcode Cloud (local.ci.testflight-from-xcode-cloud) ----------------------------------------------------------
+
+def testflight(cfg: Cfg, h: Hosted, sha: str, version: str, clock=time.time, sleep=time.sleep, poll_s: float = 60.0) -> tuple[int, str]:
+    """The release's `ios` stage with no local archive: push `[ci].testflight_refs` (with {version}) at the frozen sha, which starts
+    the Xcode Cloud workflow that archives and uploads, then wait for that workflow's check run at the sha until it completes or
+    `testflight_wait_min` passes. (rc, what happened); a failed or late build is rc 1 with its error."""
+    if not cfg.xcode_workflow:
+        return 1, "[ci].testflight = \"xcode-cloud\" needs [ci].xcode_workflow: the Xcode Cloud workflow that archives and uploads"
+    ref = cfg.testflight_refs.format(version=version)
+    if err := h.push(sha, ref):
+        return 1, f"the ref {ref} was not pushed: {err}"
+    t0 = clock()
+    while True:
+        try:
+            mine = [c for c in h.checks(sha) if c["name"].startswith(cfg.xcode_workflow)]
+        except Down as e:
+            mine, why = [], f"the GitHub API could not be reached: {e}"
+        else:
+            why = "no Xcode Cloud build has reported yet" if not mine else f"the Xcode Cloud build is {max(mine, key=lambda c: c['id'])['status']}"
+        if mine and (c := max(mine, key=lambda c: c["id"]))["status"] == "completed":
+            if c["conclusion"] == "success":
+                return 0, f"Xcode Cloud archived and uploaded {sha[:9]} to TestFlight ({c['name']}, ref {ref}, {c['seconds'] / 60:.0f} min)"
+            return 1, f"the Xcode Cloud TestFlight build failed ({c['name']}: {c['conclusion']}) at {sha[:9]}, ref {ref}"
+        if clock() - t0 >= cfg.testflight_wait_min * 60:
+            return 1, f"no finished Xcode Cloud TestFlight build within [ci].testflight_wait_min = {cfg.testflight_wait_min:g} min: {why}"
+        sleep(poll_s)
