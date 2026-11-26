@@ -19,8 +19,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
-RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "unit")
-KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps", "overlap"}
+RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "whole-tests", "unit")
+KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps", "overlap", "whole_tests"}
 CAND: dict = {}  # tid -> its first candidate merge, once made: a second train's base (local.train.second-train-on-the-first)
 
 
@@ -32,6 +32,7 @@ class Cfg:
     max_run_min: float = 30.0  # owner 2026-11-26: a train never holds its steps longer; past it, it stops and they wait again
     overlap: int = 1  # local.train.second-train-on-the-first: 2 = a second train may run on the first one's candidate; 1 = one at a time
     max_steps: int = 6  # local.train.size-follows-the-last-result: the most steps one train takes; its size halves after a red, doubles after a green
+    whole_tests: bool = False  # local.check.red-on-base-changed-tests-only: the steps owe their whole-tests dirs to the train, which runs them once
 
 
 def load(rules: dict) -> Cfg:
@@ -40,7 +41,8 @@ def load(rules: dict) -> Cfg:
     if unknown := sorted(set(t) - KEYS):
         raise ValueError(f"harness.toml [train]: unknown keys {unknown}")
     cfg = Cfg(enabled=bool(t.get("enabled", True)), min_steps=int(t.get("min_steps", 4)), max_wait_min=float(t.get("max_wait_min", 45)),
-              max_run_min=float(t.get("max_run_min", 30)), max_steps=int(t.get("max_steps", 6)), overlap=int(t.get("overlap", 1)))
+              max_run_min=float(t.get("max_run_min", 30)), max_steps=int(t.get("max_steps", 6)), overlap=int(t.get("overlap", 1)),
+              whole_tests=bool(t.get("whole_tests", False)))
     if cfg.overlap not in (1, 2):
         raise ValueError("harness.toml [train]: overlap is 1 or 2 (never more than two trains)")
     if cfg.min_steps < 1 or cfg.max_steps < 1 or cfg.max_wait_min <= 0 or cfg.max_run_min <= 0:
@@ -259,7 +261,7 @@ def suites_of(failing: list[str], target: str) -> list[str] | None:
     return sorted(out)
 
 
-def against_base(failing: list[str], out: str, base: str, run_base: Callable[[], dict], only: list[str] | tuple = ()) -> tuple[bool, str]:
+def against_base(failing: list[str], out: str, base: str, run_base: Callable[[], dict], only: list[str] | tuple = (), label: str = "swift-tests") -> tuple[bool, str]:
     """The train's swift-tests judged like red-on-base: red only for the cases that fail on the candidate and pass on the base. The
     base's failing cases are run once per base sha and kept (`swift-base-<sha>.json` in the state dir); a base that could not be run
     or does not compile judges nothing, and the candidate's red stands. 2026-11-26: the land branch's own known reds (#7095) made
@@ -269,7 +271,7 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
     from fichero_builder import journal
     import hashlib
     sel = hashlib.sha256("\n".join(sorted(only)).encode()).hexdigest()[:12] if only else "all"  # the base runs the same selection
-    f = journal.STATE / f"swift-base-{base}-{sel}.json"
+    f = journal.STATE / f"{'swift' if label == 'swift-tests' else label}-base-{base}-{sel}.json"
     try:
         known = json.loads(f.read_text())["failing"]
     except (OSError, ValueError, KeyError):
@@ -282,7 +284,7 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
     new = sorted(set(failing) - set(known))
     if not new:
         journal.append("train", state="base-reds", base=base, detail=f"{len(failing)} failing case(s), every one failing on the base too")
-        return True, f"swift-tests: green against the base {base[:9]}: its {len(failing)} failing case(s) fail on the base too (known reds)"
+        return True, f"{label}: green against the base {base[:9]}: its {len(failing)} failing case(s) fail on the base too (known reds)"
     return False, (f"RED: {len(new)} case(s) fail on the candidate and pass on the base {base[:9]} ({len(set(failing) & set(known))} known base reds left out)\n"
                    f"failing: {', '.join(new)}\n" + out)[-3000:]
 
@@ -312,10 +314,12 @@ def swift_changed(files: list[str], build_paths: tuple) -> bool:
     return bool(build_paths) and any(f.startswith(tuple(build_paths)) for f in files)
 
 
-def names_for(files: list[str], build_paths: tuple, ui_required: Callable[[list[str]], bool]) -> list[str]:
-    """The rungs a train over `files` runs: the Swift build and tests when Swift changed, the UI pass when the segment editor did, the unit tier always."""
+def names_for(files: list[str], build_paths: tuple, ui_required: Callable[[list[str]], bool], whole: tuple = ()) -> list[str]:
+    """The rungs a train over `files` runs: the Swift build and tests when Swift changed, the UI pass when the segment editor did, the
+    whole-tests dirs its steps owe when there are any, the unit tier always."""
     swift = swift_changed(files, build_paths)
-    return [n for n in RUNG_ORDER if n in ("guards", "unit") or (n in ("build", "swift-tests") and swift) or (n == "ui" and ui_required(files))]
+    return [n for n in RUNG_ORDER if n in ("guards", "unit") or (n in ("build", "swift-tests") and swift) or (n == "ui" and ui_required(files))
+            or (n == "whole-tests" and bool(whole))]
 
 
 def _git(repo, *args, cwd=None) -> subprocess.CompletedProcess:
@@ -383,7 +387,9 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         check_tool._KEY[0] = f"train {tid} {name}"
         files, tree = files_over(cand), None
         try:
-            tree = check_tool._scratch_tree(repo, cand, pinned, cfg, overlay=(name != "unit"))
+            tree = check_tool._scratch_tree(repo, cand, pinned, cfg, overlay=(name not in ("unit", "whole-tests")))
+            if name == "whole-tests":
+                return whole_on(tree, cand, files)
             if name == "guards":
                 return guards_against_base(check_tool.guards(tree, replace(cfg, guards_by_diff=True), files),
                                            lambda reds: guards_on(base, reds))
@@ -411,6 +417,31 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
                     rung.last = {**rung.last, "base_seconds": round(time.time() - t0, 1), "base_selection": f"{len(on_base)} suite(s)" if on_base else "whole"}
             return against_base(r["failing"], out, base, timed, on_base)
         return bool(r.get("ok")), out
+
+    def whole_on(tree, cand: str, files: list[str]) -> tuple[bool, str]:
+        """local.train.whole-tests-against-base: every [check.whole_tests] dir the combined diff owes, once on the candidate; a red is
+        judged on the train's base, kept per base sha and selection: red only for cases that fail here and pass there."""
+        from fichero_builder import ci
+        dirs = check_tool._whole_tests(files, cfg)
+        rung.last = {"dirs": list(dirs)}
+        r = check_tool.green_runs(tree, [], dirs, cfg, 1800)
+        out = "\n".join((x.get("stdout_tail") or "") + (x.get("stderr_tail") or "") for x in r.get("runs") or [r])[-3000:]
+        if r.get("ok"):
+            return True, f"whole-tests: {len(dirs)} dir(s) green on the candidate"
+        failing = ci.failing(out)
+        if not failing:
+            return False, out  # no case named (a collection error): the red stands
+
+        def on_base() -> dict:
+            btree = None
+            try:
+                btree = check_tool._scratch_tree(repo, base, pinned, cfg, overlay=False)
+                b = check_tool.green_runs(btree, [], dirs, cfg, 1800)
+                return {"ok": bool(b.get("ok")), "failing": ci.failing("\n".join((x.get("stdout_tail") or "") for x in b.get("runs") or [b]))}
+            finally:
+                if btree:
+                    check_tool.drop_tree(repo, btree)
+        return against_base(failing, out, base, on_base, dirs, label="whole-tests")
 
     def guards_on(sha: str, names: list[str]) -> dict:
         """Only `names` of the guards, over a scratch tree of `sha` (the train's base)."""
@@ -445,5 +476,5 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
 
     def rungs_for(heads):
         files = sorted({f for h in heads for f in _git(repo, "diff", "--name-only", f"{base}...{h}").stdout.split()})
-        return names_for(files, tuple(cfg.build_paths), check_tool.ui_required)
+        return names_for(files, tuple(cfg.build_paths), check_tool.ui_required, check_tool._whole_tests(files, cfg))
     return merge, rung, rungs_for

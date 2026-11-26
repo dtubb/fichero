@@ -454,6 +454,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
                            else (fix_reuse(repo, ladder, since, head, a.pinned) or None) if check_tool.load(a.pinned).reuse_fix_verdicts else None)
     check_tool.HEAD_GREEN_ONLY[0] = bool(partial)
     check_tool.SKIP_RUNGS[0] = ("build", "ui") if getattr(a, "train", False) else ()  # a merge train runs them once for many steps
+    check_tool.OWE_WHOLE[0] = bool(getattr(a, "owe_whole", False))  # [train].whole_tests: so are the whole-tests dirs (local.check.red-on-base-changed-tests-only)
     try:
         r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                                    approve_pinned_new=pin_new, guard_data=guard_data)
@@ -461,6 +462,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
         check_tool.REUSE[0] = None
         check_tool.HEAD_GREEN_ONLY[0] = False
         check_tool.SKIP_RUNGS[0] = ()
+        check_tool.OWE_WHOLE[0] = False
     Path(ladder).write_text(json.dumps({**r, "head": head, "since": since, "pinned": str(a.pinned)}, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                    **({"kept": partial[2], "reran": list(partial[1])} if partial else {}))
@@ -931,7 +933,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
         if since_now and not stacked:
             green.write_text(json.dumps({"base": since_now, "files": files, "head": head}))
-        return {"ok": True, "head": head, "out": out}
+        return {"ok": True, "head": head, "out": out, "owed": list(r.get("owed") or [])}
 
 
 def main(a) -> int:

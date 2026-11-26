@@ -1243,19 +1243,15 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   paths each already reads to decide whether it runs. The kept rung is a `rung` row with `reused` naming the head it
   was judged at. A red rung, the instant rungs, a moved base, another pinned copy or a head that does not descend
   always run. Tests: `fichero-builder/tests/test_ladder_all_reds.py::test_a_fix_commit_that_touches_no_input_of_a_green_rung_keeps_its_verdict_with_a_reused_row`, `fichero-builder/tests/test_ladder_all_reds.py::test_a_moved_base_a_rebased_head_or_a_touched_input_runs_the_rung_again`. Serves: reliable, fast.
-- `local.check.red-on-base-changed-tests-only` [GAP] (#6589) — with the train on, the step's red-on-base rung runs the
+- `local.check.red-on-base-changed-tests-only` [OK] (#6589; built 2026-11-26; on with [train].whole_tests (default false) beside the train) — with the train on, the step's red-on-base rung runs the
   changed test files and nothing else, on the base and on the head; the `[check.whole_tests]` directories of the diff
   are not run by the step and the rung's row lists them as `owed to the train`. With `[train].enabled = false` the
-  head run includes them, as before. Test (owed):
-  `test_ladder_all_reds.py` `test_with_the_train_on_red_on_base_runs_only_the_changed_tests_and_lists_the_whole_dirs_as_owed`,
-  `test_with_the_train_off_the_head_run_still_includes_the_whole_dirs`. Serves: reliable, fast.
-- `local.train.whole-tests-against-base` [GAP] (#6589) — a train runs, once on its candidate, every
+  head run includes them, as before. Tests: `fichero-builder/tests/test_ladder_all_reds.py::test_with_the_train_on_red_on_base_runs_only_the_changed_tests_and_lists_the_whole_dirs_as_owed`, `fichero-builder/tests/test_ladder_all_reds.py::test_with_the_train_off_the_head_run_still_includes_the_whole_dirs`. Serves: reliable, fast.
+- `local.train.whole-tests-against-base` [OK] (#6589; built 2026-11-26; a step that owes dirs a train did not run waits for the next, one `owed-not-run` row) — a train runs, once on its candidate, every
   `[check.whole_tests]` directory that any of its steps owes. A failing case is run once on the train's base (kept per
   base sha and selection, like `local.train.swift-tests-against-base`); the candidate is red only for cases that fail
   on it and pass on the base, and a base that could not run judges nothing. A step lands only from a train that ran
-  the directories it owes. Test (owed):
-  `test_train.py` `test_the_train_runs_the_owed_whole_dirs_once_and_is_red_only_for_cases_green_on_its_base`,
-  `test_train_queue.py` `test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs`.
+  the directories it owes. Tests: `fichero-builder/tests/test_train.py::test_the_train_runs_the_owed_whole_dirs_once_and_is_red_only_for_cases_green_on_its_base`, `fichero-builder/tests/test_train_queue.py::test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs`.
   Serves: reliable.
 - `local.train.guards-on-candidate` [OK] (#6589; built 2026-11-26) — a train runs, once on its candidate, the guards its combined diff
   touches (the `local.check.guards-by-diff` rule over base...candidate); a guard red on the candidate and green on the

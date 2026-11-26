@@ -2673,9 +2673,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         out = ladder(pick_rungs([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
-            ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if green_only
-             else red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
-             else _no_red_row(own, whole, cfg)),
+            ("red-on-base", lambda: red_on_base_rung(root, since, head, names, tests, whole, cfg, own, approve_red, green_only)),
             ("unit", lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg)),
             ("guards", lambda: guards_on_current_base(root, since, head, pinned, cfg, tree, data_from_head=tuple(guard_data), stricter_from_head=stricter)),
             ("security", lambda: security(tree, since, head, names, cfg)),
@@ -2688,7 +2686,28 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     finally:
         drop_tree(root, tree)
         drop_tree(root, own)
-    return {**out, "rungs": [ok_pin, *unpinned_rows(cfg), *out["rungs"]]}
+    owed = next((x.get("owed") for x in out["rungs"] if x.get("name") == "red-on-base" and x.get("owed")), [])
+    return {**out, "rungs": [ok_pin, *unpinned_rows(cfg), *out["rungs"]], **({"owed": owed} if owed else {})}
+
+
+OWE_WHOLE = _PerThread(False)  # local.check.red-on-base-changed-tests-only: with the train on, the whole-tests dirs are the train's (work.do_check sets it)
+
+
+def red_on_base_rung(root, since: str, head: str, names: list[str], tests: list[str], whole: tuple, cfg: Config, own, approve_red=False,
+                     green_only: bool = False) -> dict:
+    """The red-on-base rung. With the train on (OWE_WHOLE) it runs the changed test files only, on the base and on the head; the
+    `[check.whole_tests]` dirs of the diff are not run here, and the row lists them as `owed` to the train, which runs them once on its
+    candidate (local.train.whole-tests-against-base). With the train off the head run takes them, as before."""
+    owed, whole = (whole, ()) if OWE_WHOLE[0] else ((), whole)
+    if green_only:
+        r = green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)
+    elif _needs_red(names, tests, cfg):
+        r = red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red)
+    else:
+        r = _no_red_row(own, whole, cfg)
+    if owed:
+        r = {**r, "owed": list(owed), "stdout_tail": f"owed to the train: {', '.join(owed)}\n" + (r.get("stdout_tail") or "")}
+    return r
 
 
 def unpinned_rows(cfg: Config) -> list[dict]:

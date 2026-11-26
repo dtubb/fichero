@@ -1053,6 +1053,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if train_on(procs) and not s.get("train_cleared"):  # green on the cheap rungs: the expensive ones run once, for every waiting step (local.train.*)
             s.pop("train_id", None)
             s["train_since"] = _now()
+            s["owed"] = list(r.get("owed") or [])  # the whole-tests dirs its ladder left to the train (local.train.whole-tests-against-base)
             move(s, "train", f"green on the cheap rungs at {r['head'][:9]}; waits for a merge train")
             return True
         s["product"] = bool(procs.touches_product(lane, r["head"]))  # BEFORE landing: origin/integration is still the base; kept by the landing's one store
@@ -2569,6 +2570,12 @@ def apply_train(res: train.Result, spec: list) -> None:
                 key = f"{lane['id']}/{st['step']}"
                 if key not in heads or st["state"] != "train" or st.get("train_id") != res.id or st.get("head") != heads[key]:
                     continue
+                ran = {d for r in res.rungs if r.get("name") == "whole-tests" and r.get("ok") for d in r.get("dirs") or ()}
+                if key in res.landed and (short := sorted(set(st.get("owed") or ()) - ran)):  # local.train.whole-tests-against-base
+                    st.pop("train_id", None)
+                    journal.append("queue", lane=lane["id"], step=st["step"], state="owed-not-run",
+                                   detail=f"{res.id} did not run the whole-tests dirs it owes ({', '.join(short)}): it waits for the next train")
+                    continue
                 if key in res.landed:
                     st.update(state="done", why=f"cleared by {res.id}: lands next", entered_at=_now(), train_cleared=res.id)
                 elif key in res.back:
@@ -3314,6 +3321,7 @@ def real_procs(root) -> Procs:
                                      reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1],
                                      train=TRAIN[0].enabled,  # a merge train runs the build and ui rungs once for many steps
+                                     owe_whole=TRAIN[0].enabled and TRAIN[0].whole_tests,  # and, with [train].whole_tests, the whole-tests dirs
                                      stack_base=(step or {}).get("stack_base", "") if (step or {}).get("stacked_on") else "")
 
     def start(lane, step):

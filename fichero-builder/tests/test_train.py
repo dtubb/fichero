@@ -294,3 +294,26 @@ def test_the_base_runs_only_the_suites_of_the_failing_cases():
     assert train.suites_of(["-[FicheroTests.SegmentToolTests testDraw]", "FicheroTests/CanvasTests/lasso()", "Other/x()"], "FicheroTests") == [
         "FicheroTests/CanvasTests", "FicheroTests/Other", "FicheroTests/SegmentToolTests"]
     assert train.suites_of(["a failure with no name"], "FicheroTests") is None
+
+
+def test_the_train_runs_the_owed_whole_dirs_once_and_is_red_only_for_cases_green_on_its_base(tmp_path, monkeypatch):
+    """local.train.whole-tests-against-base: the rung is in the train when its steps owe dirs; a red is judged on the base, kept per sha."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    assert train.names_for(["pkg/a.py"], (), lambda f: False, ("pkg/tests",)) == ["guards", "whole-tests", "unit"]
+    assert "whole-tests" not in train.names_for(["pkg/a.py"], (), lambda f: False)
+    runs = []
+
+    def base():
+        runs.append(1)
+        return {"ok": False, "failing": ["pkg/tests/test_x.py::test_old"]}
+    out = "FAILED pkg/tests/test_x.py::test_old\nFAILED pkg/tests/test_x.py::test_new"
+    ok, said = train.against_base(["pkg/tests/test_x.py::test_old", "pkg/tests/test_x.py::test_new"], out, "b1", base, ("pkg/tests",), label="whole-tests")
+    assert not ok and "failing: pkg/tests/test_x.py::test_new" in said and "test_old" not in said.split("\n")[1]
+    ok, said = train.against_base(["pkg/tests/test_x.py::test_old"], out, "b1", base, ("pkg/tests",), label="whole-tests")
+    assert ok and said.startswith("whole-tests: green against the base") and runs == [1], "the base ran once for that sha and selection"
+    assert (tmp_path / "whole-tests-base-b1-" f"{__import__('hashlib').sha256(b'pkg/tests').hexdigest()[:12]}.json").is_file()
+    calls = []
+    res = train.run_train([{"key": "a/1", "head": "h1"}, {"key": "b/2", "head": "h2"}], merge=lambda hs: ("c", {}),
+                          rung=lambda n, c, only=(): calls.append(n) or (True, "ok"), rungs_for=lambda hs: ["whole-tests", "unit"], tid="t")
+    assert calls == ["whole-tests", "unit"] and res.result == "green", "once for the train, never per step"

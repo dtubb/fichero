@@ -341,3 +341,28 @@ def test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it(world):
     queue.TRAIN_SIZE[0] = 3
     queue.train_when_due(fake.procs, None)
     assert taken[-1] == ["lb/3", "la/1", "la/2"], "behind the step under it, whatever its own wait"
+
+
+def test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs(world):
+    """local.train.whole-tests-against-base: a step whose ladder left whole-tests dirs to the train lands only from one that ran them."""
+    t = Trained(*world, ["1", "2"], cfg=train.Cfg(min_steps=2))
+    t.chain = lambda lane, step, stage: {"ok": True, "head": "h" + step["step"], "why": "", "findings": "", **({"owed": ["pkg/tests"]} if step["step"] == "1" else {})}
+    t.fake.procs.chain = t.chain
+    ran = {"dirs": []}
+
+    def run_train(spec, tid):
+        t.trains.append([x["key"] for x in spec])
+        return train.Result(id=tid, candidate="c", steps=[x["key"] for x in spec], landed=[x["key"] for x in spec], result="green",
+                            rungs=[{"name": "whole-tests", "ok": True, "dirs": list(ran["dirs"])}])
+    t.fake.procs.train_run = run_train
+    queue.TRAIN_SIZE[0] = 0
+    hs: dict = {}
+    for _ in range(6):
+        queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
+    assert states()["l2"] == "landed" and states()["l1"] == "train", "the step that owes nothing lands; the other waits"
+    assert any(r.get("state") == "owed-not-run" and r["step"] == "1" for r in journal.read())
+    ran["dirs"] = ["pkg/tests"]
+    queue.TRAIN[0] = train.Cfg(min_steps=1)
+    for _ in range(4):
+        queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
+    assert states()["l1"] == "landed"

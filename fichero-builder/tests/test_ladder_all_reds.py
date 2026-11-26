@@ -258,3 +258,35 @@ def test_a_moved_base_a_rebased_head_or_a_touched_input_runs_the_rung_again(tmp_
     (r / "src" / "a.py").write_text("x = 3\n")
     g("commit", "-qam", "rewritten")
     assert work.fix_reuse(str(r), str(ladder), base, g("rev-parse", "HEAD"), pin) == {}, "a head that does not descend"
+
+
+def _rob(monkeypatch, owe):
+    from fichero_builder.check_tool import Config
+    seen = {}
+    monkeypatch.setattr(check_tool, "OWE_WHOLE", check_tool._PerThread(owe))
+    monkeypatch.setattr(check_tool, "red_on_base", lambda root, since, head, tests, cfg, **k: seen.update(tests=tests, also=k["also_green"]) or {"ok": True, "stdout_tail": "ok"})
+    monkeypatch.setattr(check_tool, "_needs_red", lambda names, tests, cfg: True)
+    r = check_tool.red_on_base_rung("/r", "b", "h", ["pkg/a.py", "pkg/tests/test_a.py"], ["pkg/tests/test_a.py"], ("pkg/tests",), Config(), "/own")
+    return r, seen
+
+
+def test_with_the_train_on_red_on_base_runs_only_the_changed_tests_and_lists_the_whole_dirs_as_owed(monkeypatch):
+    r, seen = _rob(monkeypatch, True)
+    assert seen == {"tests": ["pkg/tests/test_a.py"], "also": ()}, "the changed tests only, base and head"
+    assert r["owed"] == ["pkg/tests"] and r["stdout_tail"].startswith("owed to the train: pkg/tests")
+    from fichero_builder import work
+    import types
+    got = []
+    monkeypatch.setattr(work.land_tool, "resolve_branch", lambda repo, branch: "b")
+    monkeypatch.setattr(work.check_tool, "ladder_over", lambda *a, **k: got.append(work.check_tool.OWE_WHOLE[0]) or {"ok": True, "rungs": [], "owed": ["pkg/tests"]})
+    monkeypatch.setattr(work.check_tool, "OWE_WHOLE", check_tool._PerThread(False))
+    import tempfile
+    d = tempfile.mkdtemp()
+    monkeypatch.setattr(work.journal, "STATE", __import__("pathlib").Path(d))
+    r = work.do_check(types.SimpleNamespace(name="l", pinned="/p", ids=[], train=True, owe_whole=True), "/r", "integration", "h", f"{d}/l.json")
+    assert got == [True] and r["owed"] == ["pkg/tests"] and work.check_tool.OWE_WHOLE[0] is False, "set for the ladder only"
+
+
+def test_with_the_train_off_the_head_run_still_includes_the_whole_dirs(monkeypatch):
+    r, seen = _rob(monkeypatch, False)
+    assert seen["also"] == ("pkg/tests",) and "owed" not in r
