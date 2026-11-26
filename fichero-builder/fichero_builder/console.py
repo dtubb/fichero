@@ -84,6 +84,10 @@ def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dic
                         # #6589: a row with no id (the rung alerts before 2026-11-15) can take no answer, so it is never open
                         for r in rows if r.get("event") == "alert" and r.get("id") and r.get("id") not in answered],
         "resolved_alerts": _resolved(rows, today),
+        # local.train.console: a train is one row with its steps; the steps waiting for the next one beside it
+        "trains": [{**{k: r.get(k) for k in ("id", "ts", "steps", "candidate", "result", "landed", "again", "extra_runs")}, "back": sorted(r.get("back") or {})}
+                   for r in rows if r.get("event") == "train"][-10:],
+        "waiting_for_train": [f"{x['id']}/{x['steps'][x['cursor']]['step']}" for x in lanes if x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] == "train"],
         "open_questions": [{"lane": x["id"], "step": st["step"], "question": st["waiting"]}  # #6855: a worker asked and its step waits
                            for x in lanes for st in x["steps"] if st.get("waiting") and st["state"] == "blocked"],
     }

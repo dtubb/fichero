@@ -131,3 +131,15 @@ def test_a_restarted_loop_takes_steps_of_a_dead_train_back_into_the_queue(world)
     queue.save(lanes)
     t.go(2)
     assert set(states().values()) == {"landed"} and len(t.trains) == 1
+
+
+def test_the_console_shows_a_train_as_one_row_with_its_steps_and_the_waiting_ones(world):
+    from fichero_builder import console
+    t = Trained(*world, ["1", "2", "3", "4"], bad={"h3"})
+    t.go()
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"] = "train"  # one more waiting for the next train
+    st = console.status(journal.read(), lanes)
+    first = st["trains"][0]
+    assert first["steps"] == ["l1/1", "l2/2", "l3/3", "l4/4"] and first["result"] == "red" and first["landed"] == ["l1/1", "l2/2", "l4/4"] and first["back"] == ["l3/3"]
+    assert st["waiting_for_train"] == ["l1/1"]
