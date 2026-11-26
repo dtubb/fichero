@@ -148,7 +148,7 @@ struct SidebarSelectionTests {
             appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            appSource("Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift"),
         ].joined(separator: "\n"))
 
         #expect(stateSource.contains("var activeLocationDocument: Document?"))

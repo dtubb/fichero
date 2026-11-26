@@ -283,7 +283,7 @@ struct ReportedSymptomRegressionPins {
         for path in [
             "fichero/Views/Shell/ContentView/ContentView+StatePreview.swift",
             "fichero/Views/Shell/ContentView/ContentView+StateSelection.swift",
-            "fichero/Views/Shell/ContentView/Layout/ContentView+CompactReader.swift",
+            "fichero/Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift",
             "fichero/Models/LayoutMode.swift"
         ] {
             let text = try source(path)
