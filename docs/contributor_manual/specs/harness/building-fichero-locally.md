@@ -1268,11 +1268,10 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   alone on the land branch with only those cases or guards, and the first that fails one is sent back with their
   output; the rest go on. When none fails alone (two steps break it only together) the newest such step goes back with
   the output and the names of the others. Tests: `fichero-builder/tests/test_train.py::test_a_whole_tests_red_searches_the_steps_that_touch_it_with_only_the_failing_cases_and_sends_one_back`, `fichero-builder/tests/test_train.py::test_a_red_only_two_steps_make_together_sends_the_newest_back_naming_the_other`, `fichero-builder/tests/test_train.py::test_hosted_ci_red_cases_are_searched_on_the_local_runners_among_the_cleared_steps`. Serves: reliable.
-- `local.train.rungs-side-by-side` [GAP] (#6589) — a train's rungs that need no app build (whole-tests, guards,
+- `local.train.rungs-side-by-side` [OK] (#6589; built 2026-11-26; on with [train].side_by_side (default false); the unit tier runs in the Python chain too; both chains share the build runner's slots, not one runner each) — a train's rungs that need no Xcode build (whole-tests, guards,
   security, perf) start when the candidate is made and run while the build and the Swift tests run, each on a free
   runner; the train's wall time is the longest chain, not the sum, and `local.train.time-limit` holds over all of
-  them. Test (owed):
-  `test_train.py` `test_the_python_rungs_run_while_the_swift_rungs_run_and_the_wall_time_is_the_longest`.
+  them. Tests: `fichero-builder/tests/test_train.py::test_the_python_rungs_run_while_the_swift_rungs_run_and_the_wall_time_is_the_longest`.
   Serves: fast.
 - `local.check.no-same-file-wait` [OK] (#6589; built 2026-11-26) — with the train on, a ladder slot is given to a step whatever files
   another running ladder holds: no `lock` row of state `clash` is written. With `[train].enabled = false` two batches

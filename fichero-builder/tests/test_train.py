@@ -350,3 +350,31 @@ def test_hosted_ci_red_cases_are_searched_on_the_local_runners_among_the_cleared
     out = train.search(res, [{"key": "l/a", "head": "a"}, {"key": "l/b", "head": "b"}], ["pkg/tests/test_x.py::test_a"], merge=lambda hs: ("+".join(hs), {}),
                        rung=lambda n, c, only=(): ("a" not in c.split("+") or not only, "failing: pkg/tests/test_x.py::test_a"), touches=lambda n, h, names: True)
     assert set(out.back) == {"l/a"} and out.landed == ["l/b"]
+
+
+def test_the_python_rungs_run_while_the_swift_rungs_run_and_the_wall_time_is_the_longest():
+    """local.train.rungs-side-by-side: whole-tests, guards, security and perf start with the candidate, beside the build and Swift tests."""
+    import threading
+    import time as _t
+    spans, lock = {}, threading.Lock()
+    took = {"build": 0.3, "swift-tests": 0.3, "guards": 0.2, "whole-tests": 0.2, "unit": 0.1, "security": 0.1, "perf": 0.1}
+
+    def rung(name, cand, only=()):
+        t0 = _t.time()
+        _t.sleep(took[name])
+        with lock:
+            spans[name] = (t0, _t.time())
+        return True, "ok"
+    names = ["build", "swift-tests", "guards", "whole-tests", "unit", "security", "perf"]
+    t0 = _t.time()
+    res = train.run_train([{"key": "l/a", "head": "a"}], merge=lambda hs: ("c", {}), rung=rung, rungs_for=lambda hs: names, tid="t", side_by_side=True)
+    wall = _t.time() - t0
+    assert res.result == "green" and len(res.rungs) == len(names)
+    assert spans["guards"][0] < spans["build"][1], "the guards started while the build ran"
+    assert wall < 0.85 * sum(took.values()) and wall >= max(0.6, 0.7) - 0.05, "the longest chain, not the sum"
+    red = train.run_train([{"key": "l/a", "head": "a"}], merge=lambda hs: ("c", {}), tid="t", side_by_side=True, rungs_for=lambda hs: names,
+                          rung=lambda n, c, only=(): (n not in ("unit", "swift-tests"), f"{n} red"))
+    assert "red at swift-tests" in red.back["l/a"]["why"], "both chains red: the one that counts is the first in rung order"
+    late = train.run_train([{"key": "l/a", "head": "a"}], merge=lambda hs: ("c", {}), tid="t", side_by_side=True, rungs_for=lambda hs: names,
+                           rung=rung, deadline=_t.time() + 0.15)
+    assert late.result == "timeout", "the time limit holds over both chains"

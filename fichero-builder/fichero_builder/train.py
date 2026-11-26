@@ -14,13 +14,15 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
 RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "whole-tests", "unit", "security", "perf")
-KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps", "overlap", "whole_tests", "security_perf"}
+KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps", "overlap", "whole_tests", "security_perf", "side_by_side"}
+SWIFT_CHAIN = ("build", "swift-tests", "ui")  # local.train.rungs-side-by-side: the rungs that need the app build; the rest run beside them
 CAND: dict = {}  # tid -> its first candidate merge, once made: a second train's base (local.train.second-train-on-the-first)
 
 
@@ -34,6 +36,7 @@ class Cfg:
     max_steps: int = 6  # local.train.size-follows-the-last-result: the most steps one train takes; its size halves after a red, doubles after a green
     whole_tests: bool = False  # local.check.red-on-base-changed-tests-only: the steps owe their whole-tests dirs to the train, which runs them once
     security_perf: bool = False  # local.train.security-and-perf-once: a step runs the added-line lints only; the train the scanners and perf
+    side_by_side: bool = False  # local.train.rungs-side-by-side: the rungs with no app build run while the build and the Swift tests run
 
 
 def load(rules: dict) -> Cfg:
@@ -43,7 +46,8 @@ def load(rules: dict) -> Cfg:
         raise ValueError(f"harness.toml [train]: unknown keys {unknown}")
     cfg = Cfg(enabled=bool(t.get("enabled", True)), min_steps=int(t.get("min_steps", 4)), max_wait_min=float(t.get("max_wait_min", 45)),
               max_run_min=float(t.get("max_run_min", 30)), max_steps=int(t.get("max_steps", 6)), overlap=int(t.get("overlap", 1)),
-              whole_tests=bool(t.get("whole_tests", False)), security_perf=bool(t.get("security_perf", False)))
+              whole_tests=bool(t.get("whole_tests", False)), security_perf=bool(t.get("security_perf", False)),
+              side_by_side=bool(t.get("side_by_side", False)))
     if cfg.overlap not in (1, 2):
         raise ValueError("harness.toml [train]: overlap is 1 or 2 (never more than two trains)")
     if cfg.min_steps < 1 or cfg.max_steps < 1 or cfg.max_wait_min <= 0 or cfg.max_run_min <= 0:
@@ -83,7 +87,8 @@ class OutOfTime(Exception):
 
 def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: Callable, tid: str, clock: Callable = time.time,
               deadline: float | None = None, touches_swift: Callable[[str], bool] | None = None,
-              on_candidate: Callable[[str], None] | None = None, touches: Callable[[str, str, frozenset], bool] | None = None) -> Result:
+              on_candidate: Callable[[str], None] | None = None, touches: Callable[[str, str, frozenset], bool] | None = None,
+              side_by_side: bool = False) -> Result:
     """`steps`: [{key, head}] in queue order. `merge(heads) -> (candidate sha, {head: conflict text})`; `rung(name, candidate) ->
     (ok, output)` (`rung(name, candidate, only=cases)` for a targeted Swift run); `rungs_for(heads) -> [rung names]`, in RUNG_ORDER.
     `deadline` (a clock value): no run starts past it, and the train ends `timeout` with every step waiting again. `touches_swift(head)`:
@@ -91,7 +96,7 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
     `on_candidate(sha)` hears the candidate before any rung runs (local.ci.train-candidate-on-a-branch pushes it). `touches(rung, head,
     names)`: a whole-tests or guards red naming cases or guards is searched among the steps whose diff touches them (red-goes-to-its-step)."""
     try:
-        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate, touches)
+        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate, touches, side_by_side)
     except OutOfTime as e:
         res = e.args[0]
         res.again, res.result = [s["key"] for s in steps if s["key"] not in res.back], "timeout"
@@ -99,7 +104,7 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
         return res
 
 
-def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate=None, touches=None) -> Result:
+def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate=None, touches=None, side_by_side=False) -> Result:
     t_start = clock()
     res = Result(id=tid, steps=[s["key"] for s in steps])
     cand, conflicts = merge([s["head"] for s in steps])
@@ -126,8 +131,27 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
                 return name, out
         return None
 
+    def side(names: list[str], on: str, phase: str) -> tuple[str, str] | None:
+        """local.train.rungs-side-by-side: the Swift chain and the other rungs at once, each chain stopping at its own first red; the
+        red that counts is the first in RUNG_ORDER. The wall time is the longer chain; a chain past the deadline ends the train."""
+        chains = [[n for n in names if n in SWIFT_CHAIN], [n for n in names if n not in SWIFT_CHAIN]]
+        reds, late = [None, None], []
+
+        def go(i):
+            try:
+                reds[i] = run(chains[i], on, phase)
+            except OutOfTime as e:
+                late.append(e)
+        ts = [threading.Thread(target=go, args=(i,), name=f"train-{tid}-{i}") for i, c in enumerate(chains) if c]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        if late:
+            raise late[0]
+        got = [r for r in reds if r]
+        return min(got, key=lambda r: RUNG_ORDER.index(r[0]) if r[0] in RUNG_ORDER else len(RUNG_ORDER)) if got else None
+
     names = rungs_for([s["head"] for s in keep])
-    red = run(names, cand, "train")
+    red = (side if side_by_side else run)(names, cand, "train")
     if red is None:
         res.landed, res.result = [s["key"] for s in keep], "conflict" if conflicts else "green"
         return res
