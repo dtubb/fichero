@@ -515,11 +515,32 @@ def claim(lane: dict, s: dict) -> bool:
 ACTIVE = ("sent", "said-done", "done", "checking", "reviewing", "fixing", "done-not-landed")  # a step state in which a worker or a check is at work
 
 
+WRITING = ("sent", "fixing", "queued", "blocked", "red")  # local.flow.writers-are-not-capped-by-checks: a model session at work (or its window kept)
+PAST_DONE = ("said-done", "done", "checking", "reviewing", "done-not-landed", "train")  # finished work its checks have not landed yet
+MAX_IN_FLIGHT: list = [0]  # [loop].max_in_flight; 0 = three times [loop].lanes
+IN_FLIGHT_SAID = [False]
+
+
 def _working(handles: dict) -> int:
-    """#6589 reliab-1: the lanes with a live session whose cursor step is in flight, queued for it (its next message goes to that session),
-    or blocked/red (the window stays open); a window idle at a prompt (its steps landed, or its cursor step parked) holds no slot of [loop].lanes."""
+    """#6589 reliab-1 + local.flow.writers-are-not-capped-by-checks: the lanes with a live session whose cursor step is a writer: sent or
+    fixing, queued for that session, or blocked/red (the window stays open). A step past DONE (checks, review, the train) holds none,
+    nor does a window idle at a prompt (its steps landed, or its cursor step parked)."""
     lanes = {x["id"]: x for x in load()}
-    return sum(1 for k in handles if (x := lanes.get(k)) and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ACTIVE + ("queued", "blocked", "red"))
+    return sum(1 for k in handles if (x := lanes.get(k)) and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in WRITING)
+
+
+def _in_flight_full(lane: dict, s: dict, workers_n: int) -> bool:
+    """Steps past DONE and not landed, over every lane, at `[loop].max_in_flight`: no new step starts, one row until it falls below."""
+    n = sum(1 for x in load() for st in x["steps"] if st["state"] in PAST_DONE)
+    cap = MAX_IN_FLIGHT[0] or 3 * workers_n
+    if n < cap:
+        IN_FLIGHT_SAID[0] = False
+        return False
+    if not IN_FLIGHT_SAID[0]:
+        IN_FLIGHT_SAID[0] = True
+        journal.append("queue", lane=lane["id"], step=s["step"], state="in-flight-cap",
+                       detail=f"{n} step(s) past DONE wait for their checks ([loop].max_in_flight = {cap}): no new step starts until one lands")
+    return True
 
 
 def _close_idle(lane: dict, s: dict | None, handles: dict, procs: Procs, why: str) -> None:
@@ -724,7 +745,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
             if h is None:
-                if _working(handles) >= workers_n:
+                if _working(handles) >= workers_n or _in_flight_full(lane, s, workers_n):
                     return True
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0] and procs.thin is not None \
                         and not THIN_EPISODE[0] and _now() - THINNED_AT[0] >= THIN_EVERY_S:  # local.disk.thin-snapshots-before-holding: what a sweep freed may be pinned by a snapshot
@@ -2444,7 +2465,7 @@ DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
-PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "sent_hours", "approved_pinned", "disk_floor_gb", "disk_thin_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
+PER_TICK_KEYS = ("max_in_flight", "rounds", "only", "dispatch", "blocked_hours", "sent_hours", "approved_pinned", "disk_floor_gb", "disk_thin_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
 
 
 def code_mark(root="") -> tuple:
@@ -2524,6 +2545,7 @@ def apply_loop_cfg(cfg: dict) -> None:
     DISK_THIN_GB[0] = float(cfg.get("disk_thin_gb", DISK_THIN_GB[0]))
     STALE_H[0] = {**stale.HOURS, **{str(k): float(v) for k, v in dict(cfg.get("stale_hours", {})).items()}}
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
+    MAX_IN_FLIGHT[0] = int(cfg.get("max_in_flight", 0))
 
 
 def restart_due(mark: tuple, root, chains, builds=(), followed: bool = False) -> bool:

@@ -50,3 +50,43 @@ def test_a_jail_command_runs_from_the_workroot_never_the_callers_cwd_and_the_pli
     monkeypatch.setattr(journal, "STATE", state / "s")
     loop = plistlib.loads(queue.launch_agents(state, state / "la", state=state / "s", branch="main")[0].read_bytes())
     assert loop["WorkingDirectory"] == str(state / "s"), "the owner's state dir, never a checkout the jail user cannot read"
+
+
+def _waiting_lanes(state, states_, pre="w", queued=True):
+    """One lane per state, its cursor step in that state with a live session; plus one queued lane q."""
+    handles = {}
+    for i, st in enumerate(states_):
+        queue.add(f"{pre}{i}", f"/w/{pre}{i}", "1.1", str(state / "b"), [i])
+        lanes = queue.load()
+        next(x for x in lanes if x["id"] == f"{pre}{i}")["steps"][0].update(state=st, head=f"h{i}")
+        queue.save(lanes)
+        handles[f"{pre}{i}"] = object()
+    if queued:
+        queue.add("q", "/w/q", "1.1", str(state / "b"), [99])
+    return handles
+
+
+def test_a_step_waiting_for_its_check_or_the_train_holds_no_writer_so_the_next_queued_step_starts(state, monkeypatch):
+    """local.flow.writers-are-not-capped-by-checks: [loop].lanes counts writers (sent, fixing, blocked, red); a step that is done,
+    checking, reviewing or waiting for the train holds none."""
+    monkeypatch.setattr(queue, "MAX_IN_FLIGHT", [0])
+    monkeypatch.setattr(queue, "IN_FLIGHT_SAID", [False])
+    handles = _waiting_lanes(state, ["done-not-landed", "said-done"])
+    assert queue._working(handles) == 0
+    fake = Fake()
+    fake.procs.alive = lambda h: True
+    queue.tick(fake.procs, handles, workers_n=2, push=False, out=lambda s: None)
+    assert [s[0] for s in fake.starts] == ["q"], "two lanes past DONE, lanes = 2: q still starts"
+    assert queue._working(_waiting_lanes(state, ["sent", "red", "fixing", "blocked"], pre="x", queued=False)) == 4, "writers keep their slot"
+
+
+def test_no_step_starts_past_max_in_flight_and_one_row_says_so(state, monkeypatch):
+    monkeypatch.setattr(queue, "MAX_IN_FLIGHT", [2])
+    monkeypatch.setattr(queue, "IN_FLIGHT_SAID", [False])
+    handles = _waiting_lanes(state, ["train", "train"])
+    fake = Fake()
+    fake.procs.alive = lambda h: True
+    for _ in range(2):
+        queue.tick(fake.procs, handles, workers_n=5, push=False, out=lambda s: None)
+    assert not [s for s in fake.starts if s[0] == "q"]
+    assert len([r for r in journal.read() if r.get("state") == "in-flight-cap"]) == 1
