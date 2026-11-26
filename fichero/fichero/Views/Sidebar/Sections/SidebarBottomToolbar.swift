@@ -44,7 +44,7 @@ struct SidebarBottomToolbar: View {
     nonisolated static var drawsHairlineAbove: Bool { PaneBarStyle.barsDrawHairline }
 
     /// Room for the magnifier and a few typed characters in the narrowest sidebar.
-    nonisolated private static var filterFieldMinWidth: CGFloat { 60 }
+    nonisolated private static var filterFieldMinWidth: CGFloat { 66 }
 
     var body: some View {
         // No `ViewThatFits` ladder and no field inside one (#5293): the field is one view for the

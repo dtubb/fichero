@@ -14,14 +14,15 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
 
     private static func bodyBlock(of source: String) throws -> String {
         let start = try XCTUnwrap(source.range(of: "var body: some View"))
-        let end = try XCTUnwrap(source.range(of: "private var filterField: some View"))
+        let end = try XCTUnwrap(source.range(of: "private var newItemMenu: some View"))
         return String(source[start.upperBound..<end.lowerBound])
     }
 
     func testBarOrderIsNewRemoveFilter() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
         let body = try Self.bodyBlock(of: source)
-        let order = ["newItemMenu", "removeButton", "filterField"]
+        // `sidebar.bottom-bar.plus-trash-filter`: + · 🗑 · Metadata · Filter.
+        let order = ["newItemMenu", "removeButton", "PaneMetadataButton", "PaneFilterField("]
         let positions = try order.map { try XCTUnwrap(body.range(of: $0), "\($0) missing from the bar").lowerBound }
         XCTAssertEqual(positions, positions.sorted(), "bar order must be \(order)")
     }
@@ -30,7 +31,9 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
         XCTAssertFalse(source.contains("PaneFilterBar {"), "the verbs no longer float in a glass bar")
         XCTAssertFalse(source.contains("AdaptiveMiniToolbarRow"), "no overflow ladder: the four controls stay inline")
-        XCTAssertTrue(source.contains("Capsule()"), "the filter is the one shaped control")
+        let field = try Self.appSource("Views/Components/PaneFilterField.swift")
+        XCTAssertTrue(source.contains("PaneFilterField("), "the bar's filter is the shared field")
+        XCTAssertTrue(field.contains("RoundedRectangle(cornerRadius: 6)"), "the filter is the one shaped control")
     }
 
     /// Import and New Workflow are entries of the + menu (`AddItemMenu`), so the bar has no second
@@ -56,9 +59,12 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         XCTAssertGreaterThan(labels, 0, "the guard went blind")
         XCTAssertGreaterThanOrEqual(helps, labels, "a labelled control in the bottom bar has no .help tooltip")
 
+        // The Trash row's chevron is the List's own disclosure chevron on the leading edge (#6536), not a control the
+        // row draws; the row must not draw a chevron button of its own that would need a tooltip.
         let trash = try Self.appSource("Views/Sidebar/Trash/SidebarTrashRow.swift")
-        XCTAssertTrue(trash.contains(".help(isExpanded.wrappedValue ? \"Hide what is in the Trash\""),
-                      "the Trash row's expand chevron needs its tooltip")
+        let node = try Self.appSource("Views/Sidebar/Trash/SidebarTrashNode.swift")
+        XCTAssertTrue(node.contains("DisclosureGroup"), "the Trash expands through the List's disclosure chevron")
+        XCTAssertFalse(AppSource.codeOnly(trash).contains("chevron"), "a chevron the row draws itself needs a tooltip")
     }
 
     /// #4100: the sidebar shipped an Export button that was permanently
@@ -79,7 +85,7 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         // The guard must not have gone blind on a moved or emptied file: the
         // verbs that DO belong here are still present.
         XCTAssertTrue(code.contains("New Item"))
-        XCTAssertTrue(code.contains("Remove selected item"))
+        XCTAssertTrue(code.contains("Move to Trash"))
     }
 
     /// #4061: the sidebar filter field lives inside the shared bottom
@@ -93,16 +99,17 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         // The toolbar holds a binding to the filter text — same state/bindings
         // as the old standalone filter bar (no logic change, just relocation).
         XCTAssertTrue(source.contains("var sidebarFilterText: Binding<String>"))
-        // The filter field is a member of the toolbar.
-        XCTAssertTrue(source.contains("private var filterField: some View"))
-        XCTAssertTrue(source.contains("TextField(\"Filter\", text: sidebarFilterText)"))
-        XCTAssertTrue(source.contains("accessibilityIdentifier(\"sidebarFilterField\")"))
+        // The filter is the shared `PaneFilterField` (`panes.chrome.one-filter-pattern`), a member of the toolbar.
+        XCTAssertTrue(source.contains("PaneFilterField(text: sidebarFilterText, accessibilityID: \"sidebarFilterField\")"))
+        let field = try Self.appSource("Views/Components/PaneFilterField.swift")
+        XCTAssertTrue(field.contains("TextField(prompt, text: $text)"))
+        XCTAssertTrue(field.contains("accessibilityIdentifier(accessibilityID)"))
         // The clear button is part of the same field, shown only with text.
-        XCTAssertTrue(source.contains("help(\"Clear filter\")"))
-        XCTAssertTrue(source.contains("accessibilityLabel(\"Clear filter\")"))
-        // The New-item / Delete verbs are in the same bar.
+        XCTAssertTrue(field.contains("help(\"Clear filter\")"))
+        XCTAssertTrue(field.contains("accessibilityLabel(\"Clear filter\")"))
+        // The New-item / Trash verbs are in the same bar.
         XCTAssertTrue(source.contains("help(\"New Item\")"))
-        XCTAssertTrue(source.contains("help(\"Remove selected item\")"))
+        XCTAssertTrue(source.contains("help(\"Move to Trash\")"))
     }
 
     /// #4061: the standalone sidebar filter chrome is gone. The old
