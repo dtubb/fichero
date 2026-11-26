@@ -2154,3 +2154,46 @@ def test_a_fix_round_and_a_send_back_name_the_interpreter_that_has_pytest(state,
     assert any("/Users/Shared/w/venv/bin/python -m pytest" in t for t in fake.sent)
     monkeypatch.setattr(queue, "TEST_PYTHON", [""])
     assert "Run tests with" not in queue.fix_text("1.1", "red", "x"), "no [check].python: nothing is said"
+
+
+def _quiet_sent(state, session_live):
+    """A lane whose step is `sent`, whose watcher lives and which has no row yet; `session_live` is the window check."""
+    queue.add("m1", "/w/m1", "1.1", str(state / "b1.1"), [7])
+    fake = Fake()
+    fake.procs.session_live = session_live
+    handles = {}
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # sent
+    fake.seqs.clear()  # the worker has said nothing
+    return fake, handles
+
+
+def test_a_sent_step_whose_window_runs_a_shell_is_queued_again_after_two_ticks_with_one_row(state):
+    fake, handles = _quiet_sent(state, lambda lane: False)
+    tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    assert steps()["1.1"]["state"] == "sent", "one failed check is not enough"
+    tick()
+    assert [r["state"] for r in journal.read() if r.get("state") == "sent-no-session"] == ["sent-no-session"]
+    assert steps()["1.1"]["state"] == "queued" and steps()["1.1"]["restarts"] == 1 and "m1" in fake.stops
+
+
+def test_a_sent_step_with_a_live_session_is_never_queued_again_and_a_check_that_passes_resets_the_count(state):
+    live = [False]
+    fake, handles = _quiet_sent(state, lambda lane: live[0])
+    tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    live[0] = True
+    tick()
+    live[0] = False
+    tick()
+    assert steps()["1.1"]["state"] == "sent" and not [r for r in journal.read() if r.get("state") == "sent-no-session"]
+
+
+def test_a_quiet_sent_step_past_the_hours_limit_alerts_once_with_retry_and_park(state, monkeypatch):
+    fake, handles = _quiet_sent(state, lambda lane: True)
+    now = time.time() + 3 * 3600 + 60
+    monkeypatch.setattr(queue, "_now", lambda: now)
+    for _ in range(3):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    (a,) = [r for r in journal.read() if r["event"] == "alert"]
+    assert a["actions"] == ["retry", "park"] and "m1" in a["lane"] and steps()["1.1"]["state"] == "sent"

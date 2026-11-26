@@ -44,6 +44,7 @@ DISK_FLOOR_GB: list = [0.0]  # [loop].disk_floor_gb: under this many free GB no 
 PARKED: list = []  # the lanes whose worker a cap or a provider refusal parked in this tick: one alert for them all
 DISK_HELD: list = []  # the lanes the floor held in this tick; `tick` turns them into one alert, and one more when the floor clears
 STALE_H: list = [dict(stale.HOURS)]  # [loop].stale_hours.<state> over the defaults (builder-console.stale.acted-on)
+SENT_H: list = [3.0]  # [loop].sent_hours: a sent step this old with no row of its own is one alert (retry, park)
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
@@ -319,6 +320,7 @@ class Procs:
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
     head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
     descends: Callable[[dict, str], bool] = lambda lane, sha: bool(sha)  # lane, sha -> the tree's HEAD is the sha or a commit on it
+    session_live: Callable[[dict], bool] = lambda lane: True  # lane -> a session at work on its step: a window that runs more than a shell (local.run.sent-needs-a-live-session)
     live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
@@ -502,6 +504,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     def move(s, state, detail="", only_head=None):
         s["state"], s["why"], s["entered_at"] = state, detail[-500:], _now()
         s.pop("settling", None)  # a final write ends the claim
+        s.pop("sent_alerted", None)
         if only_head is not None and not store(lane, expect=(s["step"], only_head)):
             return  # a newer head took the step while this chain ran: its stale copy is not written, nor said
         journal.append("queue", lane=lane["id"], step=s["step"], state=state, detail=detail[-300:])
@@ -736,6 +739,28 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if s["state"] == "sent":
         row = procs.row(lane)
         if row is None:
+            if not procs.session_live(lane):  # local.run.sent-needs-a-live-session: a shell in the window is no session
+                lane["no_session"] = lane.get("no_session", 0) + 1
+                if lane["no_session"] < 2:
+                    store(lane)
+                    return True
+                lane["no_session"] = 0
+                journal.append("queue", lane=lane["id"], step=s["step"], state="sent-no-session", detail="the window runs no session: the step is queued again from its tree")
+                procs.stop(lane)
+                handles.pop(lane["id"], None)
+                lane["feed"] = ""
+                s["restarts"] += 1
+                if s["restarts"] > RESTARTS:
+                    return block(s, f"the step lost its session {s['restarts']} times")
+                move(s, "queued", "no session was at work on it: a new session next tick")
+                return True
+            if lane.get("no_session"):
+                lane["no_session"] = 0
+                store(lane)
+            if _now() - s.get("entered_at", _now()) >= SENT_H[0] * 3600 and not s.get("sent_alerted"):
+                s["sent_alerted"] = True
+                alert(lane["id"], s["step"], f"sent {SENT_H[0]:g} h ago with no word from the session", str(journal.STATE / "journal.jsonl"), ["retry", "park"])
+                store(lane)
             return True
         if row.get("waiting"):  # #6855: the worker ended its turn with `WAITING: <question>`: one ask alert, and the step waits for an answer
             s["waiting"] = row["waiting"]
@@ -2211,7 +2236,7 @@ DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
-PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "approved_pinned", "disk_floor_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
+PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "sent_hours", "approved_pinned", "disk_floor_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
 
 
 def code_mark(root="") -> tuple:
@@ -2282,6 +2307,7 @@ def apply_loop_cfg(cfg: dict) -> None:
     ONLY[0] = tuple(cfg.get("only", ()))
     DISPATCH[0] = tuple(cfg.get("dispatch", ()))
     BLOCKED_H[0] = float(cfg.get("blocked_hours", BLOCKED_H[0]))
+    SENT_H[0] = float(cfg.get("sent_hours", SENT_H[0]))
     DISK_FLOOR_GB[0] = float(cfg.get("disk_floor_gb", DISK_FLOOR_GB[0]))
     STALE_H[0] = {**stale.HOURS, **{str(k): float(v) for k, v in dict(cfg.get("stale_hours", {})).items()}}
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
@@ -3024,7 +3050,7 @@ def real_procs(root) -> Procs:
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
-                 live_windows=lambda lane: live_windows(jail.load(root), lane),
+                 live_windows=lambda lane: live_windows(jail.load(root), lane), session_live=lambda lane: bool(live_windows(jail.load(root), lane)),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, fast_forward=lambda p, old, new: refreshed(p, old, new, branch), tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
