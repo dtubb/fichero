@@ -1444,6 +1444,17 @@ CHECK_LINE = re.compile(r"\bassert\b|\braises\(|\bfail\(")
 TEST_DEF = re.compile(r"^\s*(?:async )?def test_\w+")
 
 
+def pure_moves(root, since: str, head: str) -> dict[str, str]:
+    """{new path: old path} of each file the range renames with its content unchanged (`git diff -M100%`: R100 only); {} on failure.
+    A moved test passes on base where its old copy already runs: that proves nothing and owes nothing (`red-on-base-pure-move`)."""
+    out = {}
+    for ln in _lines(root, "diff", "-M100%", "--name-status", "--diff-filter=R", f"{since}...{head}") or []:
+        parts = ln.split("\t")
+        if len(parts) == 3 and parts[0] == "R100":
+            out[parts[2]] = parts[1]
+    return out
+
+
 def trim_only(root, since: str, head: str, f: str) -> bool:
     """`red-on-base-trim-only`: a test file on base whose diff adds no check line (assert, raises, fail) and no new test
     function (as many `def test_` added as removed: a rename) can only have lost checks, so it proves nothing on base either way."""
@@ -1605,7 +1616,12 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
         _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
         have = already_built_files(root, since, head, cfg)  # a proving test of a behaviour already there passes on base by design
         data_skipped: set[str] = set()
+        moved = pure_moves(root, since, head) if "red-on-base-pure-move" in cfg.auto else {}
         for f in files:
+            if f in moved:  # 2026-11-25, app-bugs nightly-green-1 (alert 1932): 11 tests moved whole into the mirroring folder
+                journal.append("auto", rule="red-on-base-pure-move", head=sha, file=f, detail=f"a pure move of {moved[f]} (R100): passing on base is expected; it runs green on head")
+                data_skipped.add(f)  # like data-only: a source change still owes a red from some other test
+                continue
             if f not in have and data_only(root, since, head, f):
                 data_skipped.add(f)
                 continue  # its tests are base's own; it runs in the green run

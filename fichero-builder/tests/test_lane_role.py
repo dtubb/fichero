@@ -105,3 +105,23 @@ def test_a_workers_command_starts_in_a_directory_it_made_with_tmpdir_and_pytest_
     assert f"mkdir -p {own}/tmp" in cmd and f"[ ! -L {own} ] && [ -O {own} ]" in cmd, "the directory is made by the worker, is no link, and its owner is checked"
     assert f"cd {own} &&" in cmd and f"cd {wr} &&" not in cmd, "never the world-writable workroot itself"
     assert f"TMPDIR={own}/tmp" in cmd and f"--basetemp={own}/tmp/pytest" in cmd
+
+
+def test_a_fix_round_closes_its_own_steps_last_session_and_starts_instead_of_alerting(state, monkeypatch):
+    """2026-11-25 21:03-21:06, alerts 1933-1935: right after a red, app-bugs' fix round "in a new session" refused to start:
+    "a tmux window named app-bugs holds a live session (@26, 2.1.332)" -- the step's own last session. A window of another step
+    (one the loop did not send this step) still refuses."""
+    popens, tmux = [], []
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv[-1]) or object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: tmux.append(a) or "")
+    monkeypatch.setattr(queue, "worker_windows", lambda j, name, with_command=False: [("@26", "2.1.332")])
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    step = {"step": "nightly-green-1", "brief": str(state / "brief"), "issues": [], "rounds": 1}
+    queue.real_procs(state).start({"id": "app-bugs", "worktree": str(state / "wr" / "wt-app-bugs"), "seq": 3, "session_step": "nightly-green-1"}, dict(step))
+    assert ("kill-window", "-t", "@26") in tmux and len(popens) == 1
+    (row,) = [r for r in journal.read() if r.get("state") == "window-closed"]
+    assert "this step's own last session (@26, 2.1.332) was closed" in row["detail"]
+    with pytest.raises(RuntimeError, match="holds a live session"):
+        queue.real_procs(state).start({"id": "app-bugs", "worktree": str(state / "wr" / "wt-app-bugs"), "seq": 3, "session_step": "other-step"}, dict(step))

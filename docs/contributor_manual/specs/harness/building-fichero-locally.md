@@ -1042,6 +1042,17 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   refuses is ONE alert per tip naming the refusal and the fix. A `[check]` key the code does not know, when the builder package
   beside those rules declares it, is refused with that cause: "a NEWER builder knows them ... this process runs older code than
   its pinned rules". Tests: `fichero-builder/tests/test_follow_landed.py`.
+- `local.check.red-on-base-pure-move` [OK] (#6589; built 2026-11-25) — with `red-on-base-pure-move` in `[check].auto`, a changed
+  test file that the range renames with its content unchanged (`git diff -M100%`, R100) is not asked to be red on base, where its
+  old copy already passes; one `auto` row names the old path, it runs green on head, and a source change still owes a red from
+  another test. A move with any edit still owes its red. Without the rule: as before. (2026-11-25, step nightly-green-1,
+  alert 1932: 11 tests moved whole into the mirroring folder were asked as NOT RED ON BASE.) Test:
+  `fichero-builder/tests/test_ladder_all_reds.py::test_a_pure_move_of_a_test_is_judged_green_on_head_only_and_an_edited_move_still_owes_its_red`.
+- `local.run.fix-round-closes-its-own-session` [OK] (#6589; built 2026-11-25) — a step's fresh session that meets a live tmux window
+  of the lane holding that same step's last session (the step the loop recorded as sent, `session_step`) closes it, one
+  `window-closed` row, and starts; never the "holds a live session" alert (2026-11-25 21:03-21:06, alerts 1933-1935, right after a
+  red). A window holding a session of another step still refuses. Test:
+  `fichero-builder/tests/test_lane_role.py::test_a_fix_round_closes_its_own_steps_last_session_and_starts_instead_of_alerting`.
 
 ### L. A review is a step kind (owner 2026-11-21, #6847)
 

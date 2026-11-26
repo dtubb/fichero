@@ -159,3 +159,44 @@ def test_with_one_runner_the_base_runs_wait_on_the_same_one(monkeypatch):
     cfg = Config(remotes=("imac:~/g",))
     assert check_tool._runners_for_base(cfg) == ("imac:~/g",)
     assert check_tool._runners_for_base(Config(remotes=("a", "b", "c"))) == ("b", "c", "a")
+
+
+def test_a_pure_move_of_a_test_is_judged_green_on_head_only_and_an_edited_move_still_owes_its_red(monkeypatch, tmp_path):
+    """2026-11-25, app-bugs nightly-green-1 (alert 1932 at fe76a7261): 11 tests moved whole (R100) into the mirroring folder were
+    asked as NOT RED ON BASE; a moved test passes on base where its old copy runs. With `red-on-base-pure-move` it is not asked."""
+    import subprocess
+
+    from fichero_builder import journal
+    from fichero_builder.check_tool import Config
+
+    def g(*a):
+        return subprocess.run(["git", "-C", str(tmp_path), *a], capture_output=True, text=True, check=True).stdout.strip()
+    g("init", "-q"), g("config", "user.email", "t@t"), g("config", "user.name", "t")
+    (tmp_path / "tests" / "jobs").mkdir(parents=True)
+    (tmp_path / "tests" / "jobs" / "test_moved.py").write_text("def test_a():\n    assert True\n" * 3)
+    (tmp_path / "tests" / "jobs" / "test_edited.py").write_text("def test_b():\n    assert True\n" * 3)
+    g("add", "."), g("commit", "-qm", "base")
+    base = g("rev-parse", "HEAD")
+    (tmp_path / "tests" / "execution").mkdir()
+    g("mv", "tests/jobs/test_moved.py", "tests/execution/test_moved.py")
+    g("mv", "tests/jobs/test_edited.py", "tests/execution/test_edited.py")
+    (tmp_path / "tests" / "execution" / "test_edited.py").write_text("def test_b():\n    assert True\n" * 3 + "def test_c():\n    assert 1\n")
+    g("add", "-A"), g("commit", "-qm", "move")
+    head = g("rev-parse", "HEAD")
+    assert check_tool.pure_moves(tmp_path, base, head) == {"tests/execution/test_moved.py": "tests/jobs/test_moved.py"}, "R100 only"
+
+    files = ["tests/execution/test_moved.py", "tests/execution/test_edited.py"]
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(check_tool, "pytest_rung", lambda *a, **k: {"ok": True, "remote": "imac", "stdout_tail": "3 passed"})
+    monkeypatch.setattr(check_tool, "green_runs", lambda *a, **k: {"ok": True, "stdout_tail": "", "name": "pytest"})
+    monkeypatch.setattr(check_tool, "_git", lambda *a, **k: {"ok": True, "stdout_tail": "abc\n", "stderr_tail": ""})
+    monkeypatch.setattr(check_tool, "already_built_files", lambda *a, **k: set())
+    monkeypatch.setattr(check_tool, "data_only", lambda *a, **k: False)
+    monkeypatch.setattr(check_tool, "_mkdtemp", lambda *a, **k: str(tmp_path / "base"))
+    real_lines = check_tool._lines
+    monkeypatch.setattr(check_tool, "_lines", lambda root, *a: real_lines(root, *a) if a[:2] == ("diff", "-M100%") else [])
+    r = check_tool.red_on_base(tmp_path, base, head, files, Config(auto=("red-on-base-pure-move",)))
+    assert not r["ok"] and "NOT RED ON BASE: tests/execution/test_edited.py" in r["stderr_tail"] and "test_moved.py" not in r["stderr_tail"]
+    assert [x["file"] for x in journal.read() if x.get("rule") == "red-on-base-pure-move"] == ["tests/execution/test_moved.py"]
+    r = check_tool.red_on_base(tmp_path, base, head, files, Config())
+    assert "test_moved.py" in r["stderr_tail"], "without the rule in [check].auto: as before"

@@ -2688,6 +2688,12 @@ def real_procs(root) -> Procs:
             if cmd.lstrip("-") in SHELLS or not cmd:  # alert 540: an idle window (a shell, no session) is closed here, never a person's `queue stop`
                 tmux_as_worker(j, "kill-window", "-t", wid)
                 journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed", detail=f"an idle tmux window named {lane['id']} ({wid}, {cmd or 'no command'}) was closed before the start")
+            elif lane.get("session_step") == step["step"]:
+                # 2026-11-25 21:03-21:06 (alerts 1933-1935): a red step's fix round "in a new session" met the step's OWN last session,
+                # still open after its DONE. It is this step's session, which the loop sent: closed for the fresh one, never an alert
+                tmux_as_worker(j, "kill-window", "-t", wid)
+                journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed",
+                               detail=f"this step's own last session ({wid}, {cmd}) was closed: its fix round starts in a fresh one")
             else:
                 raise RuntimeError(f"a tmux window named {lane['id']} holds a live session ({wid}, {cmd}): `builder queue stop {lane['id']}` ends it, then retry")
         if lane.get("fresh") and not Path(a.worktree).exists() and step.get("head"):  # a retried batch: its head (in the engine repo) travels as a bundle
