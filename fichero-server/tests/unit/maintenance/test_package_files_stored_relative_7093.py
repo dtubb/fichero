@@ -71,3 +71,11 @@ def test_a_package_moved_to_another_path_opens_with_relative_paths(db, test_pack
     assert resolve_source(kept, library_root=moved) == (moved / "files/62/fcd61f1a_page.png").resolve()
     db_manager.close_all()
     shutil.move(str(moved), str(test_package))
+
+
+def test_a_tail_that_climbs_out_of_the_package_is_never_rewritten(db, test_package, app_db):
+    _own_file(test_package)
+    (test_package.parent / "secret.txt").write_text("s")
+    climbing = _doc(db, f"{OLD}/files/../../secret.txt")
+    package_paths.relativize_on_open(db)
+    assert db.get(Document, climbing.id).path == f"{OLD}/files/../../secret.txt"
