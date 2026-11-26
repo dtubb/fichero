@@ -2189,6 +2189,18 @@ def test_a_sent_step_with_a_live_session_is_never_queued_again_and_a_check_that_
     assert steps()["1.1"]["state"] == "sent" and not [r for r in journal.read() if r.get("state") == "sent-no-session"]
 
 
+def test_a_failed_check_of_one_step_is_not_carried_to_the_next_time_a_step_is_sent(state):
+    fake, handles = _quiet_sent(state, lambda lane: False)
+    tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    (lane,) = queue.load()
+    assert lane["sent_misses"] == 1
+    lane["steps"][lane["cursor"]]["state"] = "queued"  # the step left `sent` some other way
+    queue.store(lane)
+    tick()
+    assert steps()["1.1"]["state"] == "sent" and "sent_misses" not in queue.load()[0]
+
+
 def test_a_quiet_sent_step_past_the_hours_limit_alerts_once_with_retry_and_park(state, monkeypatch):
     fake, handles = _quiet_sent(state, lambda lane: True)
     now = time.time() + 3 * 3600 + 60

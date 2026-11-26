@@ -11,7 +11,7 @@ The name comes from $FICHERO_BUILDER (set by harness_start.py).
 PostToolUse at 85%: tells the worker once to finish, commit, write the handoff and end with HANDOFF READY.
 Stop: without that line the worker is told to continue (capped) unless its message has a `WAITING: ` line
 or the brief's end line `DONE <sha>` (then `builder run` ends the worker). A turn the hook lets end with no such line
-(its message ends in a question, or the cap is reached) is written to the lane's feed (`reg["feed"]`/turn-ended.json) for `builder run`;
+(its message ends in a question, or the cap is reached) is written to a file in the registry folder (`reg["turn_file"]`, in the registry folder) for `builder run`;
 with it the successor starts, once per session. Never run this from inside your own session (it TERMs the claude above it).
 ponytail: context is read from the transcript's last usage; if that format changes the worker is never told. --test self-checks."""
 import json
@@ -89,12 +89,15 @@ def tell(reg, message, run=subprocess.run):
 
 
 def note_turn(reg, last):
-    """The turn's last 300 characters and the time, to the lane's feed, for `builder run` (local.run.turn-ended-without-done-alerts)."""
-    if reg.get("feed"):
-        p = Path(reg["feed"]) / "turn-ended.json"
+    """The turn's last 300 characters and the time, to `reg["turn_file"]` (in the registry folder, which the worker owns; the lane's feed is the owner's, read-only to it) for `builder run` (local.run.turn-ended-without-done-alerts). A write that fails is lost, never a failed hook."""
+    if reg.get("turn_file"):
+        p = Path(reg["turn_file"])
         tmp = p.with_name(p.name + ".tmp")
-        tmp.write_text(json.dumps({"at": time.time(), "text": last[-300:]}))
-        tmp.replace(p)
+        try:
+            tmp.write_text(json.dumps({"at": time.time(), "text": last[-300:]}))
+            tmp.replace(p)
+        except OSError:
+            pass
 
 
 def on_post_tool(event, name, reg, state):
@@ -190,7 +193,8 @@ def test():
     assert not calls
     fd = d / "feed"
     fd.mkdir()
-    freg = dict(reg, feed=str(fd))
+    tf = fd / "turn-ended.json"
+    freg = dict(reg, turn_file=str(tf))
     assert on_stop({"last_assistant_message": f"{WAIT} owner", "session_id": "k"}, "b", freg, {}, run)[0] is None and not (fd / "turn-ended.json").exists()
     assert on_stop({"last_assistant_message": "sweep green\nDONE 0123abcd", "session_id": "k"}, "b", freg, {}, run)[0] is None and not (fd / "turn-ended.json").exists()
     assert on_stop({"last_assistant_message": "working", "session_id": "k"}, "b", freg, {}, run)[0]["decision"] == "block" and not (fd / "turn-ended.json").exists(), "a nudged turn is not an end"
@@ -198,6 +202,7 @@ def test():
     got = json.loads((fd / "turn-ended.json").read_text())
     assert got["text"].endswith("Which one?") and len(got["text"]) == 300 and got["at"] > 0
     (fd / "turn-ended.json").unlink()
+    assert on_stop({"last_assistant_message": "Which?", "session_id": "k"}, "b", dict(reg, turn_file=str(fd / "none" / "t.json")), {}, run) == (None, {}), "an unwritable file is lost, not a failed hook"
     on_stop({"last_assistant_message": "x", "session_id": "k"}, "b", freg, {"nudges": {"k": NUDGES}}, run)
     assert json.loads((fd / "turn-ended.json").read_text())["text"] == "x", "past the cap the turn ends and is written"
     assert on_stop({"last_assistant_message": "sweep green\nDONE 0123abcd", "session_id": "k"}, "b", reg, {}, run) == (None, {}), "the brief's DONE line ends the run: no nudge"

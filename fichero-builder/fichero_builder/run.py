@@ -129,14 +129,15 @@ def register(name: str, worktree, handoff, model: str, window: int, tmux_session
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{name}.json"
     p.write_text(json.dumps({"worktree": str(worktree), "handoff": str(handoff), "model": model, "window": window, "handoff_tokens": handoff_tokens,
-                             "session": tmux_session, "successor": "watcher", **({"feed": str(feed)} if feed else {})}, indent=1))
+                             "session": tmux_session, "successor": "watcher", **({"feed": str(feed), "turn_file": str(d / f"{name}.turn.json")} if feed else {})}, indent=1))
     return p
 
 
-def hook_turn(feed, since: float) -> str:
-    """The last message of a turn the Stop hook wrote to the feed (`turn-ended.json`: at, text) after `since`; '' when none."""
+def hook_turn(name: str, since: float, reg_dir=None) -> str:
+    """The last message of a turn the Stop hook wrote (`<name>.turn.json` in the registry folder: at, text) after `since`; '' when none."""
+    d = Path(reg_dir or os.environ.get("FICHERO_HARNESS_REG") or Path.home() / ".claude" / "builders")
     try:
-        d = json.loads((Path(feed) / "turn-ended.json").read_text())
+        d = json.loads((d / f"{name}.turn.json").read_text())
         return str(d["text"]) if float(d["at"]) >= since else ""
     except (OSError, ValueError, KeyError, TypeError):
         return ""
@@ -257,7 +258,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     state: dict = {}
     base0, first_commit = base, None
     rules_bad = False  # the last read of the rules failed (one alert per spell)
-    ended_ticks = 0  # ticks a delivered message's turn ended with no DONE, WAITING or handoff line on an unmoved branch (local.run.turn-ended-without-done-alerts)
+    ended_ticks = 0  # ticks a delivered message's turn ended with no DONE, WAITING or handoff line (local.run.turn-ended-without-done-alerts)
     unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
     outstanding, sent_turn = (outstanding if attach else True), -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
     # #6589 2026-11-20: a DONE counts only if printed after THIS message was delivered: a prompt arrived since it was sent (the session
@@ -335,22 +336,25 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         if idle and not m and feed is not None and (w := WAITING.search(state.get("last_text", ""))):
             step_done(head, head != base, waiting=w.group(1)[:500])  # #6855: the queue raises the ask alert from this row; the session stays
             continue
-        ended = (hook_turn(feed, sent["at"]) or (state.get("last_text", "") if idle else "")) if feed is not None and outstanding and delivered else ""
-        if ended and not DONE.search(ended) and not WAITING.search(ended) and HANDOFF_READY not in ended and (hd := procs.head()) == base:
+        ended = (hook_turn(name, sent["at"]) or (state.get("last_text", "") if idle else "")) if feed is not None and outstanding and delivered else ""
+        if ended and not DONE.search(ended) and not WAITING.search(ended) and HANDOFF_READY not in ended:
+            hd = procs.head()
             tail, ended_ticks = ended.strip()[-300:], ended_ticks + 1
             if ended_ticks == 1:
                 journal.append("watch", task=name, what=f"turn-ended-no-done: {tail}")
                 if tail.endswith("?"):  # a question: the same ask alert as WAITING, answered by send-back into this session
-                    step_done(hd, False, waiting=tail)
+                    step_done(hd, hd != base, waiting=tail)
                     continue
                 words = f"Your turn ended without the DONE line: end your turn with the exact line DONE {hd[:7]}"
                 journal.append("watch", task=name, what=f"nudge: {words}")
                 procs.tell(pane, words)
                 sent["at"] = now  # the hook's file from before the nudge says nothing about the reply
             elif ended_ticks >= 3:
-                step_done(hd, False, waiting=f"the turn ended with no DONE or WAITING line: {tail}")
+                step_done(hd, hd != base, waiting=f"the turn ended with no DONE or WAITING line: {tail}")
                 continue
-        unsaid = unsaid + 1 if head and head != base and not said else 0
+        elif ended_ticks:
+            ended_ticks = 0  # a turn that went on after the nudge starts the count again
+        unsaid = unsaid + 1 if head and head != base and not said and not ended_ticks else 0
         if unsaid == 2 and not nudged:
             words = f"Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE {head[:7]}"
             journal.append("watch", task=name, what=f"nudge: {words}")

@@ -505,6 +505,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s["state"], s["why"], s["entered_at"] = state, detail[-500:], _now()
         s.pop("settling", None)  # a final write ends the claim
         s.pop("sent_alerted", None)
+        lane.pop("sent_misses", None)  # the count of failed session checks belongs to the step that was sent
         if only_head is not None and not store(lane, expect=(s["step"], only_head)):
             return  # a newer head took the step while this chain ran: its stale copy is not written, nor said
         journal.append("queue", lane=lane["id"], step=s["step"], state=state, detail=detail[-300:])
@@ -741,11 +742,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if row is None:
             live = procs.session_live(lane)  # True, False, or None when the window list could not be read: unknown counts nothing
             if live is False:  # local.run.sent-needs-a-live-session: a shell in the window is no session
-                lane["no_session"] = lane.get("no_session", 0) + 1
-                if lane["no_session"] < 2:
+                lane["sent_misses"] = lane.get("sent_misses", 0) + 1
+                if lane["sent_misses"] < 2:
                     store(lane)
                     return True
-                lane["no_session"] = 0
+                lane["sent_misses"] = 0
                 journal.append("queue", lane=lane["id"], step=s["step"], state="sent-no-session", detail="the window runs no session: the step is queued again from its tree")
                 procs.stop(lane)
                 handles.pop(lane["id"], None)
@@ -755,8 +756,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                     return block(s, f"the step lost its session {s['restarts']} times")
                 move(s, "queued", "no session was at work on it: a new session next tick")
                 return True
-            if live is True and lane.get("no_session"):
-                lane["no_session"] = 0
+            if live is True and lane.get("sent_misses"):
+                lane["sent_misses"] = 0
                 store(lane)
             if _now() - s.get("entered_at", _now()) >= SENT_H[0] * 3600 and not s.get("sent_alerted"):
                 s["sent_alerted"] = True
