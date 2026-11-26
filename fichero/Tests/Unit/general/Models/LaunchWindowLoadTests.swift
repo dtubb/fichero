@@ -44,11 +44,7 @@ final class LaunchWindowLoadTests: XCTestCase {
     }
 
     func testTheWorkspaceRootStartsTheLoadInItsOwnTaskBeforeTheStreams() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Library/Workspace/LibraryWorkspaceRoot.swift")
-        let source = try String(contentsOf: root, encoding: .utf8)
+        let source = try AppSource.text("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
         let ask = try XCTUnwrap(source.range(of: "askForLoadOnEngineReady"))
         let stream = try XCTUnwrap(source.range(of: "library.changeStream.start()"))
         XCTAssertTrue(ask.lowerBound < stream.lowerBound)
