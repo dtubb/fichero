@@ -181,3 +181,46 @@ def test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_t
     assert run({"engine": "success", "swift": "skipped", "builder": "success"}) == 0
     assert run({"engine": "success", "swift": "failure"}) == 1
     assert run({"engine": "cancelled"}) == 1, "a tier that did not finish never passes the gate"
+
+
+# --- local.ci.train-lands-on-green-checks ------------------------------------------------------------------------------------
+
+def test_in_report_mode_the_train_lands_on_its_local_rungs_and_records_each_check_and_its_agreement(state):
+    cfg = ci.Cfg(train="report", xcode_cloud_hours_month=25)
+    h = FakeHosted({"cand": [[check("train-gate", "failure", seconds=1500)]], "base": [[check("train-gate", "success", cid=7)]]})
+    clock = Clock()
+    res = ci.land_on_checks(green_res(), cfg, h, "base", lambda m: None, clock=clock, sleep=clock.sleep)
+    assert res.result == "green" and res.landed == ["a/1", "b/2"], "report mode: the local result stands"
+    assert res.ci["mode"] == "report" and res.ci["checks"] == [{"name": "train-gate", "conclusion": "failure", "minutes": 25.0}]
+    assert res.ci["agreed"] is False, "CI red, the local train green: they disagree"
+    h2 = FakeHosted({"cand": [[check("train-gate", "success")]]})
+    assert ci.land_on_checks(green_res(), cfg, h2, "base", lambda m: None, clock=clock, sleep=clock.sleep).ci["agreed"] is True
+
+
+@pytest.mark.parametrize("ci_says", ["red", "missing"])
+def test_in_required_mode_a_green_local_train_with_a_red_or_missing_check_does_not_land(state, ci_says):
+    cfg = ci.Cfg(train="required", xcode_cloud_hours_month=25)
+    cand = [[check("train-gate", "failure")]] if ci_says == "red" else [[check("engine (1/8)", status="in_progress", conclusion="")]]
+    h = FakeHosted({"cand": cand, "base": [[check("train-gate", "success", cid=7)]]})
+    clock, said = Clock(), []
+    res = ci.land_on_checks(green_res(), cfg, h, "base", said.append, clock=clock, sleep=clock.sleep)
+    assert res.landed == [] and set(res.again) == {"a/1", "b/2"}
+    assert res.result == ("red" if ci_says == "red" else "timeout")
+    if ci_says == "missing":
+        assert clock() - time.time() >= cfg.wait_min * 60 - 60, "it waited [ci].wait_min, never longer, and the train timed out"
+    h3 = FakeHosted({"cand": [[check("train-gate", "success")]]})
+    assert ci.land_on_checks(green_res(), cfg, h3, "base", said.append, clock=clock, sleep=clock.sleep).landed == ["a/1", "b/2"]
+
+
+def test_required_is_refused_until_seven_days_of_report_rows_meet_the_time_and_agreement_bars():
+    now = time.time()
+
+    def rows(n, days, minutes=20.0, bad=0):
+        return [{"event": "train", "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - days * 86400 * i / max(1, n - 1))),
+                 "ci": {"mode": "report", "minutes": minutes, "agreed": i >= bad}} for i in range(n)]
+    cfg = ci.Cfg(train="required", xcode_cloud_hours_month=25)
+    assert ci.problems(cfg, rows(20, 6.9, bad=1), now) == [], "seven days, under wait_min, one disagreement in twenty"
+    assert "seven days" in ci.problems(cfg, rows(20, 3), now)[0]
+    assert "90th percentile" in ci.problems(cfg, rows(20, 6.9, minutes=50), now)[0]
+    assert "disagreed" in ci.problems(cfg, rows(20, 6.9, bad=2), now)[0]
+    assert ci.problems(ci.Cfg(train="report", xcode_cloud_hours_month=25), [], now) == [], "report needs no rows"

@@ -1396,7 +1396,7 @@ Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
   each was green or skipped: a tier that did not run never leaves a required check unreported. The Xcode Cloud
   workflow named in `[ci].xcode_workflow` starts on the same branches when `[ci].xcode_cloud_on` lists `train`
   (default `["nightly", "release"]`). No worker and no lane pushes a `train/` branch. Tests: `fichero-builder/tests/test_ci_train.py::test_a_train_pushes_its_candidate_to_a_train_branch_first_and_deletes_it_however_it_ends`, `fichero-builder/tests/test_ci_train.py::test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_tier_is_green_or_skipped`, `fichero-builder/tests/test_ci_train.py::test_with_ci_off_no_branch_is_pushed`. Serves: reliable.
-- `local.ci.train-lands-on-green-checks` [GAP] (#6589) — the train reads the check runs of its candidate sha through
+- `local.ci.train-lands-on-green-checks` [OK] (#6589; built 2026-11-26; off by default; until local.train.red-goes-to-its-step a required red leaves every step waiting, with one alert) — the train reads the check runs of its candidate sha through
   the GitHub API (the manager's `gh`, never a worker's) for each name in `[ci].required` (default `["train-gate"]`,
   and the Xcode Cloud check when it runs on trains). In `report` mode the train lands on its local rungs as built and
   its journal row gains `ci`: each required check, its conclusion, its minutes and whether it agreed with the local
@@ -1404,10 +1404,8 @@ Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
   sha; a check that has not completed within `[ci].wait_min` (default 45) is not run, never green, and the train ends
   `timeout` as `local.train.time-limit` says, with `wait_min` as its limit. `required` is refused by the rules check
   until `builder rung-stats --flow` shows, over the last seven days of `report` rows, that CI's 90th percentile is
-  under `wait_min` and that it disagreed with the local result on at most one train in twenty. Test (owed):
-  `test_ci_train.py` `test_in_report_mode_the_train_lands_on_its_local_rungs_and_records_each_check_and_its_agreement`,
-  `test_in_required_mode_a_green_local_train_with_a_red_or_missing_check_does_not_land`,
-  `test_required_is_refused_until_seven_days_of_report_rows_meet_the_time_and_agreement_bars`. Serves: reliable.
+  under `wait_min` and that it disagreed with the local result on at most one train in twenty; `--flow` prints that
+  line once report rows exist. Tests: `fichero-builder/tests/test_ci_train.py::test_in_report_mode_the_train_lands_on_its_local_rungs_and_records_each_check_and_its_agreement`, `fichero-builder/tests/test_ci_train.py::test_in_required_mode_a_green_local_train_with_a_red_or_missing_check_does_not_land`, `fichero-builder/tests/test_ci_train.py::test_required_is_refused_until_seven_days_of_report_rows_meet_the_time_and_agreement_bars`. Serves: reliable.
 - `local.ci.red-is-retried-once-and-judged-against-base` [GAP] (#6589) — a required check that fails is sorted before
   it counts. Infrastructure (no runner acquired, a cancelled or timed-out job, a failure in a set-up step before any
   test ran): its failed jobs are re-run once; a second such failure is not run, with one alert, and

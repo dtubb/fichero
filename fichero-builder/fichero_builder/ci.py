@@ -246,13 +246,13 @@ def wait(h: Hosted, sha: str, names: tuple, cfg: Cfg, clock=time.time, sleep=tim
     """({name: check} of the newest check per required name once all completed; "" or "not-started" / "timeout"). Down raises."""
     t0 = clock()
     while True:
-        got = {}
-        for c in h.checks(sha):
+        got, every = {}, h.checks(sha)
+        for c in every:
             if c["name"] in names and (c["name"] not in got or c["id"] > got[c["name"]]["id"]):
                 got[c["name"]] = c
         if got and all(n in got and got[n]["status"] == "completed" for n in names):
             return got, ""
-        if not got and clock() - t0 >= cfg.start_min * 60:
+        if not every and clock() - t0 >= cfg.start_min * 60:  # no run of any job started: CI is not there
             return got, "not-started"
         if clock() - t0 >= cfg.wait_min * 60:
             return got, "timeout"

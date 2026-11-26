@@ -100,6 +100,15 @@ def main_flow(a) -> int:
     for name, val, limit, ok in flow(journal.read(), a.since, targets):
         over = over or not ok
         print(f"{name:46} {'no data' if val is None else val:>8} (target {limit:g})  {'ok' if ok else 'over'}")
+    rows = journal.read()
+    if any((r.get("ci") or {}).get("mode") == "report" for r in rows if r.get("event") == "train"):  # local.ci.train-lands-on-green-checks
+        from fichero_builder import ci
+        try:
+            cfg = ci.load(tomllib.loads(f.read_text()) if f.is_file() else {})
+        except (OSError, ValueError):
+            cfg = ci.Cfg()
+        why = ci.required_unearned(cfg, rows)
+        print(f"{'hosted CI, the last seven days of report rows':46} {'required may be set' if not why else 'not yet: ' + why}")
     return 1 if over else 0
 
 
