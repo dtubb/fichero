@@ -36,7 +36,7 @@ final class ActivityStreamService {
 
     /// Distinguishes an authorization failure (terminal — don't retry) from a
     /// transient drop (retry with backoff).
-    private enum StreamError: Error { case accessDenied(String?) }
+    private enum StreamError: Error { case accessDenied(String?), outsideAllowedLocations(String?) }
 
     // nonisolated: pure failure-count logic with no main-actor state. Without this it
     // inherits @MainActor from the service and every #expect() assertion calling it from
@@ -156,6 +156,14 @@ final class ActivityStreamService {
                 consecutiveDenials = 0
                 consecutiveUnavailableCycles = 0
                 backoffNanos = 1_000_000_000
+            } catch StreamError.outsideAllowedLocations(let detail) {
+                // 403 "outside every allowed root": the project's folder grant has not reached the engine yet (#7092). Not
+                // a role refusal: never terminal, tried again with backoff, and the pill offers Reconnect meanwhile.
+                if !Task.isCancelled {
+                    log.info("activity stream asked before the folder grant landed, trying again — \(detail ?? "no reason", privacy: .public)")
+                    consecutiveUnavailableCycles += 1
+                    liveUpdatesUnavailable = consecutiveUnavailableCycles >= 2
+                }
             } catch StreamError.accessDenied(let detail) {
                 // 403: terminal (#2479), but only after `Self.deniedBeforeTerminal` in a row with no connect between: the
                 // first answer after an engine restart can be a 403 while the session is re-established (Fable #10).
@@ -212,7 +220,9 @@ final class ActivityStreamService {
         )
         if status == 403 {
             // The engine's explanation is right here in `lines` (#4532).
-            throw StreamError.accessDenied(await AccessError.denialMessage(fromBodyLines: lines))
+            let denial = await AccessError.denial(fromBodyLines: lines)
+            if denial.outsideAllowedLocations { throw StreamError.outsideAllowedLocations(denial.message) }
+            throw StreamError.accessDenied(denial.message)
         }
         guard status == 200 else {
             throw URLError(.badServerResponse)

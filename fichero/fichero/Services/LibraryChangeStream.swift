@@ -361,7 +361,7 @@ final class LibraryChangeStream {
 
     /// Distinguishes an authorization failure (terminal — don't retry) from a
     /// transient drop (retry with backoff).
-    private enum StreamError: Error { case accessDenied(String?) }
+    private enum StreamError: Error { case accessDenied(String?), outsideAllowedLocations(String?) }
 
     private func runLoop() async {
         var backoffNanos = Self.initialBackoffNanos
@@ -376,6 +376,14 @@ final class LibraryChangeStream {
                 hasConnectedBefore = true
                 consecutiveUnavailableCycles = 0
                 backoffNanos = Self.initialBackoffNanos  // clean end → reset backoff
+            } catch StreamError.outsideAllowedLocations(let detail) {
+                // 403 "outside every allowed root": the project's folder grant has not reached the engine yet (#7092). Not
+                // a role refusal: never terminal, tried again with backoff, and the pill offers Reconnect meanwhile.
+                if !Task.isCancelled {
+                    changeStreamLogger.info("change-stream asked before the folder grant landed, trying again — \(detail ?? "no reason", privacy: .public)")
+                    consecutiveUnavailableCycles += 1
+                    liveUpdatesUnavailable = consecutiveUnavailableCycles >= 2
+                }
             } catch StreamError.accessDenied(let detail) {
                 // 403: terminal, retrying cannot change an authorization answer
                 // (#2479). It no longer NAMES the cause: this logged "no role on
@@ -438,7 +446,9 @@ final class LibraryChangeStream {
         if status == 403 {
             // 403: no role on this library — terminal, don't retry (#2479).
             // The engine's explanation is right here in `lines` (#4532).
-            throw StreamError.accessDenied(await AccessError.denialMessage(fromBodyLines: lines))
+            let denial = await AccessError.denial(fromBodyLines: lines)
+            if denial.outsideAllowedLocations { throw StreamError.outsideAllowedLocations(denial.message) }
+            throw StreamError.accessDenied(denial.message)
         }
         guard status == 200 else {
             throw URLError(.badServerResponse)

@@ -47,6 +47,17 @@ final class StreamDenialAttributionTests: XCTestCase {
         XCTAssertEqual(message, "library_access_denied")
     }
 
+    /// #7092: the engine's "outside every allowed root" 403 is told apart by its machine code, so a stream asked before the
+    /// project's folder grant landed retries (and offers Reconnect) instead of ending as "no role on the library".
+    func testTheOutsideAllowedLocationsCodeIsToldApartFromARoleRefusal() async {
+        let outside = await AccessError.denial(fromBodyLines: lines([
+            #"{"detail": "outside every allowed root", "code": "library_outside_allowed_locations"}"#]))
+        XCTAssertTrue(outside.outsideAllowedLocations)
+        let role = await AccessError.denial(fromBodyLines: lines([#"{"detail": "no role", "code": "library_access_denied"}"#]))
+        XCTAssertFalse(role.outsideAllowedLocations)
+        XCTAssertEqual(role.message, "no role")
+    }
+
     /// A body split across frames still decodes — the transport hands back
     /// lines, and JSON does not have to arrive on one of them.
     func testJoinsMultipleBodyLinesBeforeDecoding() async {
@@ -128,7 +139,7 @@ final class StreamDenialAttributionTests: XCTestCase {
                 """
             )
             XCTAssertTrue(
-                source.contains("AccessError.denialMessage(fromBodyLines: lines)"),
+                source.contains("AccessError.denial(fromBodyLines: lines)"),
                 "\(path) must read the engine's own explanation out of the response body"
             )
             XCTAssertTrue(
