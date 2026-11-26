@@ -138,6 +138,8 @@ def test_each_part_has_one_fixed_clone_dir_and_a_machines_dir_is_used(monkeypatc
     check, dmg, smoke = (x[1] for x in seen)
     assert check.startswith('rm -rf "$HOME"/code/fichero-worktrees/nightly/check &&') and "fichero-nightly-" not in check
     assert dmg.startswith(f"rm -rf {tmp_path}/s/nightly/dmg &&") and f"cd {tmp_path}/s/nightly/dmg &&" in smoke, "the smoke runs in the DMG's tree"
+    assert f"APP_SRC={tmp_path}/s/nightly/dmg/'fichero/build/xcode/Products/Dev Embedded/Fichero.app'" in smoke, \
+        "2026-11-26 03:53: the smoke looked in Products/Release; a --dev build is the Dev Embedded configuration's"
 
 
 def test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over(monkeypatch, tmp_path):
@@ -148,8 +150,10 @@ def test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over
     nightly.real_runners(tmp_path, cfg, "integration", tmp_path / "s").smoke("c" * 40)
     (m1, s1), (m2, s2), (m3, s3) = seen
     assert (m1, m2, m3) == ("m4", "local", "m4") and f"checkout -q {'c' * 40}" in s1
-    assert s2.startswith("rsync -a --delete") and "Fichero.app/ m4:fichero-nightly/smoke/fichero/build/xcode/Products/Release/Fichero.app/" in s2
-    assert "scripts/smoke-release-embedded-backend.sh" in s3
+    # 2026-11-26: the copy sat inside the clone that `_clean_tree` wipes, so each night re-sent 3.7 GB (past the hour); it lives beside it
+    assert s2.startswith("rsync -a --delete") and "/Products/Dev Embedded/Fichero.app'/ m4:fichero-nightly/smoke-app/Fichero.app/" in s2
+    assert 'rm -rf "$HOME"/fichero-nightly/smoke &&' in s1 and 'mkdir -p "$HOME"/fichero-nightly/smoke-app/Fichero.app' in s1, "the wipe spares the copy"
+    assert 'APP_SRC="$HOME"/fichero-nightly/smoke-app/Fichero.app scripts/smoke-release-embedded-backend.sh' in s3
     with pytest.raises(ValueError, match="needs a local build_machine"):
         nightly.real_runners(tmp_path, nightly.Cfg((22, 0), (0, 0), "m4", "imac", "m4", "dev", 1), "integration", tmp_path)
 

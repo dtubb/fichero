@@ -64,7 +64,9 @@ def verify(root, cfg=None, *, jail_required: bool = True, full: bool = False) ->
 
     def build_alone():  # only while no check runs: every ladder slot held
         with contextlib.ExitStack() as held:
-            for slot in journal.ladder_slots(cfg.parallel):
+            # the nightly (--full) never waits on the lanes' ladder slots: its build is in its own clean clone, and lane checks still
+            # running after the freeze held it (2026-11-26 01:24: "waiting for the ladder lock, held by ... the check of seg-draw")
+            for slot in () if full else journal.ladder_slots(cfg.parallel):
                 held.enter_context(journal.Lock(slot, what="the verification's app build"))
             return check_tool.build(judged, list(cfg.build_paths), cfg)
 

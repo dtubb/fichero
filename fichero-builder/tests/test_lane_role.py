@@ -125,3 +125,26 @@ def test_a_fix_round_closes_its_own_steps_last_session_and_starts_instead_of_ale
     assert "this step's own last session (@26, 2.1.332) was closed" in row["detail"]
     with pytest.raises(RuntimeError, match="holds a live session"):
         queue.real_procs(state).start({"id": "app-bugs", "worktree": str(state / "wr" / "wt-app-bugs"), "seq": 3, "session_step": "other-step"}, dict(step))
+
+
+def test_a_retry_after_the_brief_was_rewritten_sends_the_new_brief_with_the_newest_addendum(state):
+    """2026-11-26: a retry re-sent a stale retry-/question-/fix-<lane>-<step>.txt, made from the brief as it was before the manager
+    rewrote it. The resume brief is made again from the current brief and its newest addendum (the findings, a stop, a send-back)."""
+    import os
+    brief, fix = state / "brief.md", state / "fix-l-1.2-1.txt"
+    brief.write_text("# old brief\ndo X\n")
+    fix.write_text(brief.read_text().rstrip("\n") + "\n\n" + queue.fix_text("1.2", "check", "test_a is red"))
+    os.utime(brief, (1_000, 1_000))
+    s = {"step": "1.2", "brief": str(brief), "resume_brief": str(fix)}
+    assert queue.brief_of(s) == str(fix) and "old brief" in fix.read_text(), "the brief is older: the resume brief as it is"
+    brief.write_text("# new brief\ndo Y instead\n")
+    os.utime(fix, (1_000, 1_000))
+    assert queue.brief_of(s) == str(fix)
+    text = fix.read_text()
+    assert text.startswith("# new brief\ndo Y instead\n\nStep 1.2: the check did not pass.") and "old brief" not in text and "test_a is red" in text
+    assert [r["state"] for r in journal.read() if r.get("state") == "brief-renewed"] == ["brief-renewed"]
+    q = state / "question-l-1.2.txt"  # an addendum with no known mark: the new brief alone
+    q.write_text("# new brief\n\nsomething the old loop wrote\n")
+    os.utime(q, (1_000, 1_000))
+    assert queue.brief_of({"step": "1.2", "brief": str(brief), "resume_brief": str(q)}) == str(q) and q.read_text() == "# new brief\ndo Y instead\n"
+    assert queue.brief_of({"step": "1.2", "brief": str(brief)}) == str(brief)

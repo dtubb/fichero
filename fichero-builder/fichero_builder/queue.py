@@ -138,6 +138,27 @@ def moved_on(lane: dict, left: str) -> None:
     journal.append("moves-on", lane=lane["id"], left=left, taken=nxt)
 
 
+def brief_of(s: dict) -> str:
+    """The brief a step's session gets: its resume brief (a fix round, a retry, a send-back, a stop) or its brief. A resume brief is
+    the brief's text then an addendum; when the brief was rewritten after it was made (2026-11-26: a retry re-sent a stale
+    retry-/question-/fix- file with the old brief), it is made again from the CURRENT brief and the newest addendum, in place."""
+    rb, b = s.get("resume_brief"), Path(s["brief"])
+    if not rb:
+        return s["brief"]
+    try:
+        if b.stat().st_mtime <= Path(rb).stat().st_mtime:
+            return rb
+        old = Path(rb).read_text()
+    except OSError:
+        return rb if Path(rb).is_file() else s["brief"]
+    marks = [f"Step {s['step']}: the ", STOPPED, "Sent back by the manager:"]
+    at = max((old.rfind(m) for m in marks), default=-1)
+    tail = old[at:] if at > 0 else ""
+    Path(rb).write_text(b.read_text().rstrip("\n") + ("\n\n" + tail if tail else "\n"))
+    journal.append("queue", step=s["step"], state="brief-renewed", detail=f"{Path(rb).name}: made again from the rewritten {b.name}" + (" and its newest addendum" if tail else ""))
+    return rb
+
+
 def fix_text(step: str, kind: str, findings: str) -> str:
     """The fix brief's text. Owner paths quoted in a finding are cut (brief_preflight would refuse the whole brief: alert 528); a
     boundary refusal says, per hit, that the COMMIT is rewritten: its added line is pushed as history whether a later commit removes it."""
@@ -565,7 +586,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane.pop("stop_at")
         if lane["cursor"] < len(lane["steps"]) and (s := lane["steps"][lane["cursor"]])["state"] == "sent":
             cont = journal.STATE / f"stopped-{lane['id']}-{s['step']}.txt"
-            cont.write_text(Path(s.get("resume_brief") or s["brief"]).read_text().rstrip("\n") + "\n\n" + STOPPED)
+            cont.write_text(Path(brief_of(s)).read_text().rstrip("\n") + "\n\n" + STOPPED)
             s["resume_brief"] = str(cont)
             move(s, "queued", "stopped by the owner: resume starts a fresh session from the tree")
         else:
@@ -722,7 +743,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 THIN_EPISODE[0] = False  # the floor is met: the next low reading is a new episode
             if not claim(lane, s):  # sent in the file, under the queue lock, BEFORE the brief is read: `queue add` joins only a queued step
                 return True
-            bp = Path(s.get("resume_brief") or s["brief"])
+            bp = Path(brief_of(s))
             # alert 544: a brief written for the owner's session, made the worker's. SECURITY: only the owner's hand-written brief may
             # inline from [jail].inline_paths; a resume brief carries findings (the worker's own words) and inlines nothing
             fixed, notes = brief_tool.for_worker(bp.read_text(), lane["id"], allow=() if s.get("resume_brief") else procs.inline_paths)
@@ -743,7 +764,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                     # run.rebase-conflict-fix-round: the live session gets the step with the conflict to resolve first, not a block
                     head_line, text = why.split(work.REBASE_CONFLICT, 1)
                     lane["seq"] += 1
-                    procs.send(lane, Path(s.get("resume_brief") or s["brief"]).read_text().rstrip("\n") + "\n\n" + fix_text(s["step"], "rebase", text))
+                    procs.send(lane, Path(brief_of(s)).read_text().rstrip("\n") + "\n\n" + fix_text(s["step"], "rebase", text))
                     journal.append("queue", lane=lane["id"], step=s["step"], state="conflict-told", detail=head_line[:300])
                     lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)
                     move(s, "sent", f"message {lane['seq']}, with a conflict to resolve first: {head_line}")
@@ -751,7 +772,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 lane["seq"] += 1
                 if not s["rounds"] and not s.get("resume_brief"):
                     s["session"] = "kept"
-                procs.send(lane, Path(s.get("resume_brief") or s["brief"]).read_text())  # a send-back or a fix round writes it (review 2026-11-02: the finding never reached a live session)
+                procs.send(lane, Path(brief_of(s)).read_text())  # a send-back or a fix round writes it (review 2026-11-02: the finding never reached a live session)
         except (RuntimeError, OSError, ValueError, KeyError) as e:  # a refusal is a row, never a traceback
             return block(s, f"the step could not start: {e}")
         lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)  # what an adopting loop checks (items: step and head must match)
@@ -2987,7 +3008,7 @@ def real_procs(root) -> Procs:
     pkg = Path(__file__).resolve().parents[1]
 
     def ns(lane: dict, step: dict | None = None) -> types.SimpleNamespace:
-        brief = (step.get("resume_brief") or step["brief"]) if step else ""  # a fix brief after a gone session (run.loop-fix-rounds)
+        brief = brief_of(step) if step else ""  # a fix brief after a gone session (run.loop-fix-rounds)
         tree = (step or {}).get("land_tree") or lane["worktree"]  # an external lane's batch is taken from its land-<lane> snapshot
         return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,

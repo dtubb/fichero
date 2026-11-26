@@ -87,3 +87,17 @@ def test_full_runs_the_guards_the_ladder_skips(world, monkeypatch):
     verify.verify(root, jail_required=False)
     verify.verify(root, jail_required=False, full=True)
     assert cfgs == [frozenset({"check_x"}), frozenset()]
+
+
+def test_the_nightly_full_verify_never_waits_on_the_lanes_ladder_slots(world, monkeypatch):
+    """2026-11-26 01:24, the nightly's check: "waiting for the ladder lock, held by 50429 the check of seg-draw": lane checks still
+    running after the freeze held the nightly's build. `--full` (the nightly) takes no ladder slot."""
+    import threading
+    root, seen, _ok = world
+    monkeypatch.setattr(check_tool, "load", lambda r: check_tool.Config(build_paths=("fichero/",), parallel=2))
+    out = []
+    with journal.Lock("ladder", what="the check of seg-draw"), journal.Lock("ladder-2", what="the check of seg-finish"):
+        t = threading.Thread(target=lambda: out.append(verify.verify(root, jail_required=False, full=True)), daemon=True)
+        t.start()
+        t.join(20)
+    assert out and out[0]["parts"]["build"]["ok"], "the nightly's build waited on the lanes' ladder slots"

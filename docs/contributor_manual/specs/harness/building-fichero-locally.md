@@ -793,6 +793,14 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   them leaves the night due and the next tick starts it (a live pid refuses a second). A text that cannot go after a publish
   never undoes it: the `published` row comes first, then a `text-red` row and one alert. Tests:
   `::test_a_restart_between_the_freeze_and_the_start_does_not_lose_the_night`, `::test_a_text_that_cannot_go_after_the_publish_keeps_the_night_published_and_says_so`.
+- `local.nightly.smoke-and-stamp` [OK] (#6665; built 2026-11-26) — the nightly's smoke takes the bundle the `--dev` build made (the
+  Dev Embedded configuration's, never Products/Release: 03:53 found nothing there), named to the smoke script; on another machine the copy lives
+  beside the sha's clone, which each night wipes, so rsync sends only what changed (04:54: 3.7 GB again, past the hour). Its
+  verify (`--full`) takes no ladder slot, so lane checks after the freeze never hold it (01:24). release_guard's next build is one
+  above the stamp HEAD commits and every published one, so a failed run's stamp never compounds (the DMG at 44, the file at 46, the
+  publish refused). Tests: `fichero-builder/tests/test_nightly.py::test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over`,
+  `fichero-builder/tests/test_verify_all.py::test_the_nightly_full_verify_never_waits_on_the_lanes_ladder_slots`,
+  `fichero-server/tests/unit/scripts/test_release_guard.py::test_the_next_build_counts_the_committed_stamp_so_a_failed_run_does_not_compound`.
 - `local.nightly.preflight` [OK] (#6665; built 2026-11-25) — each of that night's reds is found at the freeze, not hours in. A
   part on the local machine runs with the project venv (scripts/find_project_python.sh from the loop's checkout) first on PATH,
   and the DMG part's plain clone gets a `.venv` link to it (excluded in its `.git/info/exclude`), so the release scripts find a
@@ -1076,6 +1084,19 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   `window-closed` row, and starts; never the "holds a live session" alert (2026-11-25 21:03-21:06, alerts 1933-1935, right after a
   red). A window holding a session of another step still refuses. Test:
   `fichero-builder/tests/test_lane_role.py::test_a_fix_round_closes_its_own_steps_last_session_and_starts_instead_of_alerting`.
+- `local.check.guards-by-diff` [OK] (#6589; built 2026-11-26; owner 2026-11-26: per step only what changed, the full gate once a
+  day) — with `[check].guards_by_diff = true` (off by default), a lane's guards rung skips a guard when no changed path of the batch
+  (since...head, renames as a delete and an add) is under its `[check.guard_inputs]` prefixes and its own script did not change:
+  one `guards-by-diff` row, the guard listed as skipped. A guard with no declared inputs always runs; verify and the nightly run
+  every guard. The guards run on this machine take the one `guards` lock; the batch sent to the runners runs outside it (2026-11-25
+  12:00 to 2026-11-26 09:00: the guards rung was 9.3 h of 24.9 h of checks, and the lock held across the remote batch made 2 h of
+  waits). Test:
+  `fichero-builder/tests/test_guard_inputs.py::test_with_guards_by_diff_a_guard_whose_inputs_the_batch_does_not_touch_is_skipped_and_the_remote_batch_holds_no_lock`.
+- `local.run.retry-sends-the-current-brief` [OK] (#6589; built 2026-11-26) — a step's session gets its resume brief (a fix round,
+  a retry, a stop, a send-back); when the step's brief was rewritten after that file was made, the file is made again from the
+  current brief and its newest addendum (the `Step <step>: the ...` findings, the stop note or the send-back), with one
+  `brief-renewed` row, so a retry never re-sends a brief the manager replaced. Test:
+  `fichero-builder/tests/test_lane_role.py::test_a_retry_after_the_brief_was_rewritten_sends_the_new_brief_with_the_newest_addendum`.
 
 ### L. A review is a step kind (owner 2026-11-21, #6847)
 

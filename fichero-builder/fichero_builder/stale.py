@@ -40,7 +40,7 @@ def act(lane: dict, *, q, chains: dict | None, hours: dict, now: float, gh: str 
     elif state == "red" and n == 0:
         brief = journal.STATE / f"stale-{lane['id']}-{s['step']}.txt"
         brief.parent.mkdir(parents=True, exist_ok=True)
-        brief.write_text(Path(s.get("resume_brief") or s["brief"]).read_text().rstrip("\n") + "\n\n" + q.fix_text(s["step"], "check", why[-1500:]))
+        brief.write_text(Path(q.brief_of(s)).read_text().rstrip("\n") + "\n\n" + q.fix_text(s["step"], "check", why[-1500:]))
         s["resume_brief"], s["rounds"], s["restarts"] = str(brief), 0, 0
         s.pop("red_head", None)
         s["state"], s["why"], s["entered_at"] = "queued", "re-briefed once with the rung's tail", now

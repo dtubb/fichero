@@ -85,6 +85,8 @@ class Config:
     guard_inputs: dict = field(default_factory=dict)  # {guard stem: [path prefixes it reads]}: its cache key (speed 5); undeclared = the whole tree
     remote_guards: bool | str = False   # the guards too (they call git, and the shipped tree has no .git: off by default); "auto": a guard
                                         # that names git, subprocess, swiftlint or xcodebuild stays here, the rest go to the runners
+    guards_by_diff: bool = False        # a lane's guards rung skips a guard whose [check.guard_inputs] the batch does not touch: the nightly
+                                        # runs every guard (2026-11-26, owner: per step only what changed); off = every guard, as before
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
     perf: dict = field(default_factory=dict)      # [check.perf] (#6600): the engine perf rung: enforce, tests, timeout_s, dirs, declared
@@ -152,7 +154,7 @@ def load(root) -> Config:
         always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
-        remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
+        remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), guards_by_diff=bool(c.get("guards_by_diff", d.guards_by_diff)), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
         rungs=tuple(c.get("rungs", d.rungs)), rung=tuple(dict(x) for x in c.get("rung", d.rung)),
         parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())))
 
@@ -772,11 +774,12 @@ def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
     return [_py(cfg), "-I", "-c", code]
 
 
-def guards(root, cfg: Config) -> dict:
-    """The guards rung under its OWN lock (speed batch 3, manager 2026-11-03): one guards rung at a time, but never behind the
-    machine's heavy lock, where it waited 65 min for a dev build; the guards are light (about 4 min of one core)."""
-    with journal.Lock("guards", what="the guards rung"):
-        return _guards(root, cfg)
+def guards(root, cfg: Config, changed: list[str] | None = None) -> dict:
+    """The guards rung: the guards that run HERE under their OWN lock (speed batch 3, manager 2026-11-03: never behind the machine's
+    heavy lock, where it waited 65 min for a dev build). The ones sent to a runner go outside it (2026-11-26: the lock held across the
+    remote batch made every lane's guards wait on one another, 2 h of waits a day with three runners free). `changed`: the batch's
+    paths, for `[check].guards_by_diff`; None (verify, the nightly) = every guard."""
+    return _guards(root, cfg, changed)
 
 
 STALE_ENTRY = re.compile(r"no longer occur", re.I)  # a shrink-only allowlist's red: an entry the tree no longer has
@@ -787,7 +790,9 @@ def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tre
     "no longer occurs" and the lane's base is older than the pinned copy's (integration now), the guards run again over head merged with
     that tip: integration's allowlist names code the old base never had, so the merge is what lands and what is judged. Green there =
     green, with the reason said; a conflict or a red there keeps the first red."""
-    r = guards(tree, cfg)
+    changed = _lines(root, "diff", "--name-only", "--no-renames", f"{since}...{head}") if cfg.guards_by_diff else None
+    by = (changed,) if changed is not None else ()
+    r = guards(tree, cfg, *by)
     reds = [x for x in r.get("results") or [] if not x.get("ok")]
     if r["ok"] or not reds or not all(STALE_ENTRY.search(f"{x.get('stdout_tail', '')}\n{x.get('stderr_tail', '')}") for x in reds):
         return r
@@ -801,7 +806,7 @@ def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tre
         return {**r, "reason": (r.get("reason") or "") + f" (head does not merge cleanly with {tip[:9]}: the stale-base re-run was not possible)"}
     mtree = _scratch_tree(root, merged, pinned, cfg, **scratch)
     try:
-        again = guards(mtree, cfg)
+        again = guards(mtree, cfg, *by)
     finally:
         drop_tree(root, mtree)
     if not again["ok"]:
@@ -812,7 +817,22 @@ def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tre
                                f"the current base {tip[:9]} every guard is green (the current base still needs those entries)", "stale_base": True}
 
 
-def _guards(root, cfg: Config) -> dict:
+def untouched_guards(found: list[Path], root: Path, cfg: Config, changed: list[str]) -> set[Path]:
+    """The guards with declared inputs (`[check.guard_inputs]`) that no changed path is under, and whose own script did not change:
+    their verdict is base's, which the nightly's full gate judges. A guard with no declared inputs reads the whole tree: it runs."""
+    def under(n: str, p: str) -> bool:
+        p = p.rstrip("/")
+        return n == p or n.startswith(p + "/")
+    out = set()
+    for s in found:
+        ins = cfg.guard_inputs.get(s.stem)
+        own = str(s.relative_to(root)) if s.is_relative_to(root) else str(s)
+        if ins and own not in changed and not any(under(n, p) for n in changed for p in ins):
+            out.add(s)
+    return out
+
+
+def _guards(root, cfg: Config, changed: list[str] | None = None) -> dict:
     """Every guard script matching the project's glob and not in its skip list. Fewer than `min_guards` found =
     blind = not green."""
     root = Path(root)
@@ -823,11 +843,26 @@ def _guards(root, cfg: Config) -> dict:
         return {"ok": False, "reason": f"fewer than {cfg.min_guards} guards to run ({len(found)}): blind is not green",
                 "results": []}
     results = []
+    skip = untouched_guards(found, root, cfg, changed) if cfg.guards_by_diff and changed is not None else set()
+    if skip:
+        journal.append("check", state="guards-by-diff", rung="guards", skipped=len(skip), ran=len(found) - len(skip),
+                       detail="guards whose declared inputs the batch does not touch: base's verdict, the nightly runs them")
     cache = _guard_cache_load()
-    keys = {s: _guard_key(root, s, cfg) if GUARD_CACHE[0] else "" for s in found}
-    away = [s for s in found if not (keys[s] and keys[s] in cache) and _guard_away(s, cfg)]
+    keys = {s: _guard_key(root, s, cfg) if GUARD_CACHE[0] else "" for s in found if s not in skip}
+    away = [s for s in keys if not (keys[s] and keys[s] in cache) and _guard_away(s, cfg)]
     there = _remote_guard_batch(away, root, cfg) if away else None  # ONE ssh for all of them; None = no runner: they run here
+    with journal.Lock("guards", what="the guards rung"):  # only the ones run here; the remote batch above ran outside it
+        _guards_here(found, skip, keys, cache, there, results, root, cfg)
+    _guard_cache_save(cache)
+    return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
+
+
+def _guards_here(found, skip, keys, cache, there, results, root, cfg) -> None:
     for s in found:
+        if s in skip:
+            results.append({"name": s.stem, "argv": [str(s)], "ok": True, "seconds": 0, "exit_code": 0, "skipped": "inputs untouched",
+                            "stdout_tail": "", "stderr_tail": ""})
+            continue
         key = keys[s]
         if key and key in cache:  # the same guard, the same inputs, the same tools: its green is reused (speed 5)
             results.append({**cache[key], "name": s.stem, "argv": [str(s)], "seconds": 0, "cached": True})
@@ -843,8 +878,6 @@ def _guards(root, cfg: Config) -> dict:
         results.append(r)
         if key and r["ok"]:  # only a green is kept: a red always runs again
             cache[key] = {k: r[k] for k in ("exit_code", "ok", "timed_out", "stdout_tail", "stderr_tail")}
-    _guard_cache_save(cache)
-    return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
 
 
 _HERE_ONLY = re.compile(r"\b(subprocess|git|swiftlint|xcodebuild)\b")

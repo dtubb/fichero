@@ -92,6 +92,15 @@ def local_build(xcconfig: Path = XCCONFIG) -> int:
     return int(m.group(1)) if m else 0
 
 
+def committed_build(xcconfig: Path = XCCONFIG) -> int:
+    """The build number HEAD commits, not the working file's: a release run stamps the file before it builds, so a failed run left it
+    one higher and each rerun stamped another (2026-11-26: the DMG carried 44, the file 46, and the publish refused). The working
+    file's value when git cannot say (no repo, the file untracked)."""
+    r = subprocess.run(["git", "-C", str(xcconfig.parent), "show", f"HEAD:./{xcconfig.name}"], capture_output=True, text=True)
+    m = re.search(r"^CURRENT_PROJECT_VERSION = (\d+)\s*$", r.stdout, re.M) if r.returncode == 0 else None
+    return int(m.group(1)) if m else local_build(xcconfig)
+
+
 def published_builds(appcast_xml: str, tag_subjects: list[str]) -> list[int]:
     """Every build number already shipped: the live appcast's sparkle:version
     values and the `(build N)` that create-github-release.sh writes into each
@@ -630,7 +639,7 @@ def main(argv: list[str] | None = None) -> int:
             print(exc, file=sys.stderr)
             return 1
         if a.cmd == "next-build":
-            print(next_build(local_build(a.xcconfig), pub))
+            print(next_build(committed_build(a.xcconfig), pub))
             return 0
         problem = build_problem(a.build, pub)
         ok, msg = problem is None, problem or f"  build {a.build} is above every published build"

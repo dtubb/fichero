@@ -228,6 +228,9 @@ def _tree(machine: str, state, part: str) -> str:
     return f"{machine.split(':', 1)[1] if ':' in machine else '~/fichero-nightly'}/{part}"
 
 
+DEV_APP = "fichero/build/xcode/Products/Dev Embedded/Fichero.app"  # scripts/tier_build_map.sh: dev = the "Dev Embedded" configuration
+
+
 def _clean_tree(origin: str, sha: str, tree: str) -> str:
     """Shell: a fresh clone of `origin` checked out at `sha` in `tree` (never the loop's checkout)."""
     t = _q(tree)
@@ -243,7 +246,7 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
     if u.returncode:
         raise RuntimeError(f"no origin remote in {root}: the nightly clones it")
     origin = u.stdout.strip()
-    app = "fichero/build/xcode/Products/Release/Fichero.app"
+    app = DEV_APP  # the nightly builds `release-all.sh --dev`, whose app is the Dev Embedded configuration's (03:53: Release was not there)
     if cfg.smoke_machine != cfg.build_machine and cfg.build_machine != "local":
         raise ValueError("[nightly]: a smoke_machine other than the build_machine needs a local build_machine (the app is copied from here)")
 
@@ -276,16 +279,19 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
     def smoke(sha):
         built, here = tree(cfg.build_machine, "dmg"), tree(cfg.smoke_machine, "smoke")
         if cfg.smoke_machine == cfg.build_machine:
-            return _on(cfg.smoke_machine, f"{env(cfg.smoke_machine)}cd {_q(built)} && scripts/smoke-release-embedded-backend.sh", 3600)
+            return _on(cfg.smoke_machine, f"{env(cfg.smoke_machine)}cd {_q(built)} && APP_SRC={_q(built)}/{shlex.quote(app)} "
+                       "scripts/smoke-release-embedded-backend.sh", 3600)
         host = cfg.smoke_machine.split(":")[0]  # the app is only in the build tree: clone the sha there, copy the app over, smoke it
-        rc, out = _on(cfg.smoke_machine, f"{_clean_tree(origin, sha, here)} && mkdir -p {_q(here)}/{shlex.quote(app)}", 1800)
+        rc, out = _on(cfg.smoke_machine, f"{_clean_tree(origin, sha, here)} && mkdir -p {_q(here)}-app/Fichero.app", 1800)
         if rc:
             return rc, out
-        dest = f"{host}:{here[2:] if here.startswith('~/') else here}/{app}/"  # a remote path with no ~/ is relative to its home
-        rc, out = _on("local", f"rsync -a --delete {_q(built)}/{shlex.quote(app)}/ {shlex.quote(dest)}", 3600)
+        # the copy lives BESIDE the clone, which `_clean_tree` wipes each night: rsync then sends only what changed since the last
+        # night (2026-11-26: 3.7 GB again after the wipe, past the hour); and its path has no space for the remote shell to split
+        there = f"{here[2:] if here.startswith('~/') else here}-app/Fichero.app"  # a remote path with no ~/ is relative to its home
+        rc, out = _on("local", f"rsync -a --delete {_q(built)}/{shlex.quote(app)}/ {shlex.quote(f'{host}:{there}/')}", 3600)
         if rc:
             return rc, out
-        return _on(cfg.smoke_machine, f"cd {_q(here)} && scripts/smoke-release-embedded-backend.sh", 3600)
+        return _on(cfg.smoke_machine, f"cd {_q(here)} && APP_SRC={_q(here)}-app/Fichero.app scripts/smoke-release-embedded-backend.sh", 3600)
 
     def publish(sha):
         return _on(cfg.build_machine, f"{env(cfg.build_machine)}cd {_q(tree(cfg.build_machine, 'dmg'))} && scripts/release-all.sh --{cfg.publish} --skip-dmg --github --prerelease", 7200)
