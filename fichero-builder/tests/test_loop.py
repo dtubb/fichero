@@ -2197,3 +2197,19 @@ def test_a_quiet_sent_step_past_the_hours_limit_alerts_once_with_retry_and_park(
         queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
     (a,) = [r for r in journal.read() if r["event"] == "alert"]
     assert a["actions"] == ["retry", "park"] and "m1" in a["lane"] and steps()["1.1"]["state"] == "sent"
+
+
+def test_a_window_list_that_could_not_be_read_is_unknown_and_never_ends_a_live_session(state, monkeypatch):
+    class J:
+        user, sudo = "w", "sudo"
+    lane = {"id": "m1"}
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")  # sudo refused, timeout, or non-zero exit
+    assert queue.session_live(J, lane) is None and queue.session_live(None, lane) is None
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "@1\tm1\tzsh\n@2\tother\tnode\n")
+    assert queue.session_live(J, lane) is False
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "@1\tm1\tnode\n")
+    assert queue.session_live(J, lane) is True
+    fake, handles = _quiet_sent(state, lambda lane: None)
+    for _ in range(4):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "sent" and not fake.stops and not [r for r in journal.read() if r.get("state") == "sent-no-session"]

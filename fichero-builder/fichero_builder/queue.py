@@ -33,7 +33,7 @@ import types
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from fichero_builder import stale, brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, watcher, work
 
@@ -320,7 +320,7 @@ class Procs:
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
     head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
     descends: Callable[[dict, str], bool] = lambda lane, sha: bool(sha)  # lane, sha -> the tree's HEAD is the sha or a commit on it
-    session_live: Callable[[dict], bool] = lambda lane: True  # lane -> a session at work on its step: a window that runs more than a shell (local.run.sent-needs-a-live-session)
+    session_live: Callable[[dict], Optional[bool]] = lambda lane: True  # lane -> a session at work on its step: a window that runs more than a shell (local.run.sent-needs-a-live-session)
     live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
@@ -739,7 +739,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if s["state"] == "sent":
         row = procs.row(lane)
         if row is None:
-            if not procs.session_live(lane):  # local.run.sent-needs-a-live-session: a shell in the window is no session
+            live = procs.session_live(lane)  # True, False, or None when the window list could not be read: unknown counts nothing
+            if live is False:  # local.run.sent-needs-a-live-session: a shell in the window is no session
                 lane["no_session"] = lane.get("no_session", 0) + 1
                 if lane["no_session"] < 2:
                     store(lane)
@@ -754,7 +755,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                     return block(s, f"the step lost its session {s['restarts']} times")
                 move(s, "queued", "no session was at work on it: a new session next tick")
                 return True
-            if lane.get("no_session"):
+            if live is True and lane.get("no_session"):
                 lane["no_session"] = 0
                 store(lane)
             if _now() - s.get("entered_at", _now()) >= SENT_H[0] * 3600 and not s.get("sent_alerted"):
@@ -2746,6 +2747,18 @@ def live_windows(j, lane: dict) -> list:
     return [wid for wid, cmd in worker_windows(j, lane["id"], with_command=True) if cmd and cmd.lstrip("-") not in SHELLS]
 
 
+def session_live(j, lane: dict):
+    """True: the lane's window runs more than a shell; False: a successful listing shows only a shell or no such window;
+    None: the list could not be read (no jail user, or tmux failed or printed nothing), so nothing is known."""
+    if j is None or not j.user:
+        return None
+    out = tmux_as_worker(j, "list-windows", "-a", "-F", "#{window_id}\t#{window_name}\t#{pane_current_command}")
+    if not out.strip():  # ponytail: a server with no window at all reads as unknown too; the sent_hours alert still covers it
+        return None
+    rows = [ln.split("\t") for ln in out.splitlines()]
+    return any(len(r) > 2 and r[1] == lane["id"] and r[2] and r[2].lstrip("-") not in SHELLS for r in rows)
+
+
 def pid_alive(pid) -> bool:
     """Is a process with this id running (any user's: a permission error means it exists)? The seam the tests replace."""
     if not pid:
@@ -3050,7 +3063,7 @@ def real_procs(root) -> Procs:
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
-                 live_windows=lambda lane: live_windows(jail.load(root), lane), session_live=lambda lane: bool(live_windows(jail.load(root), lane)),
+                 live_windows=lambda lane: live_windows(jail.load(root), lane), session_live=lambda lane: session_live(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, fast_forward=lambda p, old, new: refreshed(p, old, new, branch), tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
