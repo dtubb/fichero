@@ -1357,6 +1357,14 @@ are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-
   every step, the second's result stands and it lands after it; when the first sends a step back or ends any other way,
   the second is cancelled with one `train` row `cancelled: its base did not land` and its steps wait again, sent back
   to no worker. Never more than two. Tests: `fichero-builder/tests/test_train_queue.py::test_a_second_train_runs_on_the_firsts_candidate_and_lands_after_it`, `fichero-builder/tests/test_train_queue.py::test_when_the_first_train_sends_a_step_back_the_second_is_cancelled_and_its_steps_wait_again`, `fichero-builder/tests/test_train_queue.py::test_no_second_train_starts_unless_four_of_the_last_five_were_green`. Serves: fast.
+- `local.train.build-lock-first` [GAP] (#6589) — a merge train's build takes the next turn at `[check].build_lock`, ahead of
+  any lane's build rung that waits for it: the train writes one wait file beside the lock while it waits, and a lane's build
+  rung that gets the lock meanwhile lets it go at once, with one `check` row `build-lock-yield`, and tries again. A wait file
+  of a process that is gone is removed. `Procs.build_free` (`local.train.second-train-on-the-first`) is true only when no
+  build holds the lock and no train waits for it. With no `[check].build_lock` both are as before. On whenever the train
+  runs (no key). Test (owed): `test_heavy_lock.py`
+  `test_a_train_waiting_for_the_build_lock_builds_before_a_lane_that_waited_longer`,
+  `test_a_second_train_sees_the_build_runner_busy_while_a_build_holds_the_lock`. Serves: fast.
 
 #### Hosted CI in the flow: the train's candidate is checked on GitHub Actions and Xcode Cloud (owner 2026-11-26, #6589)
 
