@@ -164,9 +164,12 @@ def run_night(cfg: Cfg, r: Runners, sha: str, night: str, alert: Callable[[str],
         return False
     if r.cleanup:  # the release is on GitHub: its local copies and the older ones go; a failed clear is a row, the night stays published
         part("cleanup", r.cleanup)
-    report = r.test_list(sha) + (f"\nBuild folders:\n{r.sizes()}" if r.sizes else "")
-    r.text(report)
-    row("published")
+    row("published")  # the release is out: a text that cannot go never makes the night read as unfinished
+    try:
+        r.text(r.test_list(sha) + (f"\nBuild folders:\n{r.sizes()}" if r.sizes else ""))
+    except Exception as e:  # noqa: BLE001 - one alert, so a person sends it
+        row("text-red", f"{type(e).__name__}: {e}")
+        alert(f"the nightly of {sha[:9]} is published but the owner's text failed: {e}")
     return True
 
 
@@ -181,11 +184,15 @@ def when_due(cfg: Cfg | None, r: Runners | None, now: datetime, alert: Callable[
     if not night:
         return
     sha = r.head()
+    if spawn is not None and chains is not None:
+        # 2026-11-25 03:23: the candidate row was written and the loop restarted before its thread ran the night; the night was lost.
+        # The detached process starts FIRST: a restart before the row below starts it again, and a live pid refuses a second one
+        spawn(sha, night)
+        journal.append("nightly", state="candidate", night=night, sha=sha, detail="the integration head at the freeze")
+        return
     journal.append("nightly", state="candidate", night=night, sha=sha, detail="the integration head at the freeze")
     if chains is None:
         run_night(cfg, r, sha, night, alert)
-    elif spawn is not None:
-        spawn(sha, night)
     else:
         t = threading.Thread(target=run_night, args=(cfg, r, sha, night, alert), name="nightly", daemon=True)
         threads.append(t)
@@ -243,22 +250,33 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
     def tree(machine: str, part: str) -> str:
         return _tree(machine, state, part)
 
+    venv = project_venv(root)
+
+    def env(machine: str) -> str:
+        """A part on this machine runs with the project venv first on PATH (2026-11-25 03:40: a bare `python3` found no tomllib)."""
+        return f"export PATH={_q(venv)}/bin:\"$PATH\" && " if machine == "local" and venv else ""
+
+    def link_venv(machine: str, t: str) -> str:
+        """The DMG clone is a plain clone, so find_project_python.sh finds no .venv in it (03:40: "project Python not found")."""
+        # excluded: .gitignore's `.venv/` matches a directory, not a link, so the link would make the clone read as dirty
+        return f" && ln -sfn {_q(venv)} {_q(t)}/.venv && echo .venv >> {_q(t)}/.git/info/exclude" if machine == "local" and venv else ""
+
     def check(sha):
         t = tree(cfg.check_runner, "check")
-        return _on(cfg.check_runner, f"{_clean_tree(origin, sha, t)} && cd {_q(t)}/fichero-builder && GATE_FOOTPRINT_MB={cfg.check_footprint_mb} PYTHONPATH=. python3 -m fichero_builder verify-all --full --root {_q(t)} --state {shlex.quote(str(state))}", 14400)
+        return _on(cfg.check_runner, f"{env(cfg.check_runner)}{_clean_tree(origin, sha, t)} && cd {_q(t)}/fichero-builder && GATE_FOOTPRINT_MB={cfg.check_footprint_mb} PYTHONPATH=. python3 -m fichero_builder verify-all --full --root {_q(t)} --state {shlex.quote(str(state))}", 14400)
 
     def dmg(sha):
         t = tree(cfg.build_machine, "dmg")
         version = f"$(sed -n 's/^MARKETING_VERSION = //p' {_q(t)}/fichero/Configs/Version.xcconfig | head -1)"
         polls = cfg.notarize_timeout_min * 60 // NOTARY_POLL_S  # scripts/notarize.sh submits, then polls this many times (never --wait)
-        return _on(cfg.build_machine, f"{_clean_tree(origin, sha, t)} && cd {_q(t)} && python3 scripts/release_guard.py auto-notes {version} && "
+        return _on(cfg.build_machine, f"{env(cfg.build_machine)}{_clean_tree(origin, sha, t)}{link_venv(cfg.build_machine, t)} && cd {_q(t)} && python3 scripts/release_guard.py auto-notes {version} && "
                    f"FICHERO_NOTARY_POLL_SECONDS={NOTARY_POLL_S} FICHERO_NOTARY_MAX_POLLS={polls} scripts/release-all.sh --dev --skip-testflight",
                    BUILD_S + notarize_budget_s(cfg))
 
     def smoke(sha):
         built, here = tree(cfg.build_machine, "dmg"), tree(cfg.smoke_machine, "smoke")
         if cfg.smoke_machine == cfg.build_machine:
-            return _on(cfg.smoke_machine, f"cd {_q(built)} && scripts/smoke-release-embedded-backend.sh", 3600)
+            return _on(cfg.smoke_machine, f"{env(cfg.smoke_machine)}cd {_q(built)} && scripts/smoke-release-embedded-backend.sh", 3600)
         host = cfg.smoke_machine.split(":")[0]  # the app is only in the build tree: clone the sha there, copy the app over, smoke it
         rc, out = _on(cfg.smoke_machine, f"{_clean_tree(origin, sha, here)} && mkdir -p {_q(here)}/{shlex.quote(app)}", 1800)
         if rc:
@@ -270,7 +288,7 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
         return _on(cfg.smoke_machine, f"cd {_q(here)} && scripts/smoke-release-embedded-backend.sh", 3600)
 
     def publish(sha):
-        return _on(cfg.build_machine, f"cd {_q(tree(cfg.build_machine, 'dmg'))} && scripts/release-all.sh --{cfg.publish} --skip-dmg --github --prerelease", 7200)
+        return _on(cfg.build_machine, f"{env(cfg.build_machine)}cd {_q(tree(cfg.build_machine, 'dmg'))} && scripts/release-all.sh --{cfg.publish} --skip-dmg --github --prerelease", 7200)
 
     def test_list(sha):
         rel = client.release_branch(root)  # "" = no release branch: the last 30 commits
@@ -293,6 +311,42 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
             raise RuntimeError(f"no origin/{branch}: {out.stderr.strip()}")
         return out.stdout.strip()
     return Runners(head=head, check=check, dmg=dmg, smoke=smoke, publish=publish, text=texter or text_owner, test_list=test_list, cleanup=cleanup, sizes=sizes)
+
+
+def project_venv(root) -> str:
+    """The project's venv dir, as scripts/find_project_python.sh finds it from the loop's checkout ('' when it finds none)."""
+    f = Path(root) / "scripts" / "find_project_python.sh"
+    if not f.is_file():
+        return ""
+    p = subprocess.run(["bash", str(f), str(root)], capture_output=True, text=True)
+    return str(Path(p.stdout.strip()).parent.parent) if p.returncode == 0 and p.stdout.strip() else ""
+
+
+def preflight(root, cfg: Cfg, rules: dict, which: Callable[[str], tuple] | None = None) -> list[str]:
+    """What would make tonight's nightly red before any build: each one cheap to read (local.nightly.preflight, 2026-11-25: three
+    reds, each found hours into the night). [] = go. `which(script)` runs a shell line on 'local' (the tests fake it)."""
+    run = which or (lambda script: _on("local", script, 60))
+    out = []
+    venv = project_venv(root)
+    if any(m == "local" for m in (cfg.check_runner, cfg.build_machine, cfg.smoke_machine)):
+        if not venv:
+            out.append("no project venv: scripts/find_project_python.sh finds none from the loop's checkout, so the DMG part's "
+                       "release scripts would stop at 'project Python not found'")
+        else:
+            rc, said = run(f"{_q(venv)}/bin/python -c 'import sys, tomllib; print(sys.version.split()[0])'")
+            if rc:
+                out.append(f"the project venv's python ({venv}) cannot import tomllib: {said.strip()[-120:]}")
+    user = (rules.get("jail") or {}).get("user")
+    if user and rules.get("jail", {}).get("enabled", True) and cfg.check_runner != "local":
+        out.append(f"[nightly].check_runner = {cfg.check_runner!r}: verify-all runs as the jail user {user!r}, which exists only on "
+                   "this machine (2026-11-25 03:41: 'jail user does not exist' on the iMac); set check_runner = \"local\"")
+    for m in {cfg.check_runner, cfg.smoke_machine, cfg.build_machine} - {"local"}:
+        rc, said = _on(m, "true", 30) if which is None else run(f"ssh {m.split(':')[0]} true")
+        if rc:
+            out.append(f"{m.split(':')[0]} is not reachable over ssh: {said.strip()[-120:]}")
+    if not os.environ.get("FICHERO_NIGHTLY_TEXT_TO"):
+        out.append("FICHERO_NIGHTLY_TEXT_TO is unset in the loop's environment: the published text would fail")
+    return out
 
 
 def text_owner(msg: str) -> None:
@@ -383,6 +437,10 @@ def run_detached(root, state, sha: str, night: str, alert: Callable[[str], None]
     cfg = load(tomllib.loads((Path(root) / "harness.toml").read_text()))
     if cfg is None:
         raise ValueError("harness.toml has no [nightly]")
+    rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+    if runners is None and (bad := preflight(root, cfg, rules)):  # said at the freeze, not hours in; the night still runs
+        journal.append("nightly", state="preflight-red", night=night, sha=sha, detail="; ".join(bad)[-300:])
+        alert(f"the nightly of {sha[:9]} starts with a problem: {bad[0]}")
     try:
         return run_night(cfg, runners or real_runners(root, cfg, client.land_branch(root), state), sha, night, alert)
     finally:

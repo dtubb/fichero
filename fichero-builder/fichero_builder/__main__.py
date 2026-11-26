@@ -203,6 +203,8 @@ def main(argv=None) -> int:
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
     nr = sub.add_parser("nightly-run", help="one night's nightly in this process (the loop starts it detached, local.nightly.detached)")
     nr.add_argument("--root", default=str(Path.cwd())), nr.add_argument("--state"), nr.add_argument("--sha", required=True), nr.add_argument("--night", required=True)
+    npf = sub.add_parser("nightly-preflight", help="what would make tonight's nightly red before any build (venv, jail user, ssh, the text); builds and publishes nothing")
+    npf.add_argument("--root", default=str(Path.cwd())), npf.add_argument("--state")
     rl = sub.add_parser("release", help="run (or resume) tonight's release stages; a model is started only when a stage is red (#6726)")
     rl.add_argument("--root", default=str(Path.cwd())), rl.add_argument("--state"), rl.add_argument("--run", help="the run id to resume (default: today's date)")
     rl.add_argument("--branch", required=True, help="the branch whose origin head is frozen as the candidate")
@@ -426,6 +428,15 @@ def main(argv=None) -> int:
             if a.restart:
                 print(f"loop restarted, pid {queue.restart_loop(a.restart, a.tick)}")
         return 1 if aid else 0
+    if a.cmd == "nightly-preflight":
+        import tomllib
+
+        from fichero_builder import nightly
+
+        rules = tomllib.loads((Path(a.root) / "harness.toml").read_text())
+        bad = nightly.preflight(a.root, nightly.load(rules), rules)
+        print("\n".join(f"RED: {b}" for b in bad) or f"nightly preflight green (project venv {nightly.project_venv(a.root)})")
+        return 1 if bad else 0
     if a.cmd == "nightly-run":
         from fichero_builder import nightly, queue
 

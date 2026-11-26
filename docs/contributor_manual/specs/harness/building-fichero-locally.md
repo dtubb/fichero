@@ -768,6 +768,20 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `nightly.pid` lock under the state dir): a loop re-exec neither waits for it nor ends it, a second start while it runs is a row,
   a restarted loop adopts it by pid (one `adopted` row), and a dead one whose night has no result is one alert. `[nightly]` is a
   known table. Tests: `fichero-builder/tests/test_nightly.py` (the detached section).
+  Fixed 2026-11-25 (the night of 2026-11-24 published nothing: its candidate row was written at 03:23:44 and the loop restarted
+  at 03:23:49 before the night started): the detached process starts first and the candidate row follows, so a restart between
+  them leaves the night due and the next tick starts it (a live pid refuses a second). A text that cannot go after a publish
+  never undoes it: the `published` row comes first, then a `text-red` row and one alert. Tests:
+  `::test_a_restart_between_the_freeze_and_the_start_does_not_lose_the_night`, `::test_a_text_that_cannot_go_after_the_publish_keeps_the_night_published_and_says_so`.
+- `local.nightly.preflight` [OK] (#6665; built 2026-11-25) — each of that night's reds is found at the freeze, not hours in. A
+  part on the local machine runs with the project venv (scripts/find_project_python.sh from the loop's checkout) first on PATH,
+  and the DMG part's plain clone gets a `.venv` link to it (excluded in its `.git/info/exclude`), so the release scripts find a
+  project python (03:40: "project Python not found; create .venv in the main checkout"). `builder nightly-preflight` (builds and
+  publishes nothing) and the start of each night list what would make it red: no project venv, a venv python with no tomllib,
+  a `check_runner` other than local while a jail user runs verify-all (03:41: "jail user does not exist" on the iMac), a part's
+  machine unreachable over ssh, no FICHERO_NIGHTLY_TEXT_TO; at the night's start that is one `preflight-red` row and one alert, and
+  the night still runs. Tests: `fichero-builder/tests/test_nightly.py::test_the_local_parts_run_with_the_project_venv_first_and_the_dmg_clone_has_its_venv`,
+  `::test_the_preflight_names_each_red_of_that_night_before_any_build`.
 - `local.watchdog.slow-work` [OK] (#6589) — every tick the loop looks for work taking too long, in the lanes it is running only:
   in `[loop].only`, not paused, the cursor step sent, done, checking, reviewing or fixing (a parked, held, queued or blocked step
   is never judged). Three causes: a running step past twice its lane's median land time (`nightly.median_land_s`, from its LATEST

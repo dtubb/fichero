@@ -263,3 +263,79 @@ def test_nightly_is_a_known_table(tmp_path):
 
     (tmp_path / "harness.toml").write_text('[nightly]\nfreeze_at = "00:00"\n')
     assert check_tool.rules_warnings(tmp_path) == []
+
+
+# local.nightly.preflight and the night of 2026-11-24 (journal 2026-11-25 03:23-05:53): the night was lost to a restart between its
+# candidate row and its start, the DMG part found no project python in its plain clone, and the check ran on a machine with no jail user
+
+def _venv_root(tmp_path):
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python").write_text("")
+    (tmp_path / "scripts").mkdir(exist_ok=True)
+    (tmp_path / "scripts" / "find_project_python.sh").write_text(f'#!/usr/bin/env bash\necho "{venv}/bin/python"\n')
+    return venv
+
+
+def test_the_local_parts_run_with_the_project_venv_first_and_the_dmg_clone_has_its_venv(monkeypatch, tmp_path):
+    """03:40: "error: project Python not found; create .venv in the main checkout": the DMG part's tree is a plain clone."""
+    venv = _venv_root(tmp_path)
+    seen = []
+    monkeypatch.setattr(nightly, "_on", lambda machine, script, timeout: seen.append((machine, script)) or (0, ""))
+    real = nightly.subprocess.run
+    monkeypatch.setattr(nightly.subprocess, "run", lambda argv, **k: real(argv, **k) if argv[0] == "bash"
+                        else type("P", (), {"returncode": 0, "stdout": "git@x:o/r.git\n", "stderr": ""})())
+    cfg = nightly.Cfg((23, 30), (1, 0), "local", "local", "imac", "dev", 14336)
+    r = nightly.real_runners(tmp_path, cfg, "integration", tmp_path / "s")
+    r.check("c" * 40), r.dmg("c" * 40), r.publish("c" * 40)
+    check, dmg, publish = (s for _, s in seen)
+    for s in (check, dmg, publish):
+        assert s.startswith(f"export PATH={venv}/bin:\"$PATH\" && "), "the venv's python3 before any bare python3"
+    tree = f"{tmp_path}/s/nightly/dmg"
+    assert f"ln -sfn {venv} {tree}/.venv && echo .venv >> {tree}/.git/info/exclude" in dmg
+    assert dmg.index("ln -sfn") < dmg.index("release-all.sh"), "linked before the release scripts look for it"
+
+
+def test_a_restart_between_the_freeze_and_the_start_does_not_lose_the_night(state):
+    """03:23:44 candidate row, 03:23:49 the loop restarted, and nothing ran: with a detached start, the start comes first."""
+    n, threads = Night(), []
+
+    def dies(sha, night):
+        raise SystemExit("the loop re-execs here")
+    with pytest.raises(SystemExit):
+        nightly.when_due(CFG, n.runners, datetime(2026, 11, 18, 0, 0, 5), n.alerts.append, {}, threads, spawn=dies)
+    assert not [r for r in journal.read() if r.get("state") == "candidate"], "no candidate row: the night is still due"
+    spawned = []
+    nightly.when_due(CFG, n.runners, datetime(2026, 11, 18, 0, 1), n.alerts.append, {}, threads, spawn=lambda sha, night: spawned.append(night))
+    assert spawned == ["2026-11-17"] and [r["state"] for r in journal.read() if r["event"] == "nightly"] == ["candidate"]
+
+
+def test_a_text_that_cannot_go_after_the_publish_keeps_the_night_published_and_says_so(state):
+    """2026-11-25 20:30: the live loop's environment had no FICHERO_NIGHTLY_TEXT_TO; the text raised after the publish and the night
+    would have had no `published` row (the adopter then says it ended with no result)."""
+    n = Night()
+
+    def no_one(msg):
+        raise RuntimeError("FICHERO_NIGHTLY_TEXT_TO names nobody to text")
+    n.runners.text = no_one
+    assert nightly.run_night(CFG, n.runners, "a" * 40, "2026-11-17", n.alerts.append) is True
+    states = [r["state"] for r in journal.read() if r["event"] == "nightly"]
+    assert states[-2:] == ["published", "text-red"] and n.alerts == ["the nightly of aaaaaaaaa is published but the owner's text failed: FICHERO_NIGHTLY_TEXT_TO names nobody to text"]
+
+
+def test_the_preflight_names_each_red_of_that_night_before_any_build(monkeypatch, tmp_path):
+    cfg = nightly.Cfg((23, 30), (1, 0), "imac:~/code/fichero-worktrees/nightly", "local", "imac", "dev", 14336)
+    rules = {"jail": {"user": "fichero-worker", "workroot": "/Users/Shared/fichero-worker"}}
+    monkeypatch.delenv("FICHERO_NIGHTLY_TEXT_TO", raising=False)
+    bad = nightly.preflight(tmp_path, cfg, rules, which=lambda script: (0, ""))
+    assert any("no project venv" in b for b in bad)
+    assert any("verify-all runs as the jail user 'fichero-worker'" in b and 'check_runner = "local"' in b for b in bad)
+    assert any("FICHERO_NIGHTLY_TEXT_TO" in b for b in bad)
+    _venv_root(tmp_path)
+    monkeypatch.setenv("FICHERO_NIGHTLY_TEXT_TO", "someone")
+    tonight = nightly.Cfg((23, 30), (1, 0), "local", "local", "imac", "dev", 14336)
+    assert nightly.preflight(tmp_path, tonight, rules, which=lambda script: (0, "3.12.8")) == []
+    no_toml = nightly.preflight(tmp_path, tonight, rules, which=lambda s: (1, "No module named 'tomllib'") if "tomllib" in s else (0, ""))
+    assert no_toml[0].startswith("the project venv's python")
+    no_ssh = nightly.preflight(tmp_path, tonight, rules, which=lambda s: (255, "ssh: connect to host imac: Operation timed out") if "ssh" in s else (0, ""))
+    assert no_ssh[0].startswith("imac is not reachable")
