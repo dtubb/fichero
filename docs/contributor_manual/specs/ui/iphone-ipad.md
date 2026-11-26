@@ -56,7 +56,7 @@ paged container with a small indicator, where a zoomed picture keeps its own pan
 - **Connection watch**: a 5 s heartbeat (`App/AppState/AppState+Heartbeat.swift`), a 3 s grace before the launch says it is
   still connecting (`Services/LaunchProbePolicy.swift`), a recovery bar with Reconnect and Change Server
   (`Views/Connect/IOSConnectionRecoveryBar.swift`), a Connection menu (`Views/Connect/IOSConnectionMenu.swift`).
-- **Drill-down**: `Views/Shell/ContentView/Layout/ContentView+CompactReader.swift` and `CompactDocumentStep`
+- **Drill-down**: `Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift` and `CompactDocumentStep`
   (`Views/Shell/ShellLayoutPolicy.swift`).
 - **Capture queue**: `Models/MobileCaptureQueue*.swift`, `Views/Capture/`.
 - **Apple frameworks on the device**: VisionKit's document camera and the QR scanner only. No text is read on the device.
@@ -187,7 +187,7 @@ paging. The screens, in order:
 - `ios.nav.one-path` — **[BROKEN]** (#6566, closed as built; its own issue → #6944) the iPhone's navigation is ONE `NavigationStack` with
   ONE ordered path of typed steps held on the window (`WindowState`): `folder(id)` any number of times, then at most one
   `item(id)`. Every push and every Back is a change to that path, so the path can be tested with no view. Today the stack
-  has no path: `compactLibraryReaderStack` (`Views/Shell/ContentView/Layout/ContentView+CompactReader.swift:85`) declares
+  has no path: `compactLibraryReaderStack` (`Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift:85`) declares
   THREE destinations on the list root, `navigationDestination(item:)` for the file (:101) and two
   `navigationDestination(isPresented:)` for Reader (:120) and Info (:123). Destinations declared on one view all present
   at the same depth, so presenting Reader REPLACES the file: SwiftUI writes the file's binding back to nil, and the
