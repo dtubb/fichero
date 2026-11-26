@@ -687,6 +687,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         head = do_fetch(a, repo, branch)
         if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
             return no("error", f"could not fetch the worktree's branch into {repo}")
+        if getattr(a, "after_fetch", None):  # the queue's premerge against the steps waiting for the train (local.check.conflict-told-at-done)
+            a.after_fetch(head)
         try:
             since_now = r_since(repo, branch)
             files = lane_diff(repo, since_now, head, "--name-only").split()

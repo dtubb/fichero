@@ -1297,7 +1297,7 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   test-merged in memory (`git merge-tree`, no worktree) onto the land branch and then onto each step waiting for the
   train, in train order. A conflict with the land branch goes to the worker at once as the conflict fix round of
   section J. A conflict with a waiting step is one `queue` row `conflicts-with` naming that step and the files; the
-  step is checked as usual and is held out of that step's train, so it merges after it. Tests: `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`, `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`. Serves: reliable, fast.
+  step is checked as usual and is held out of that step's train, so it merges after it. Tests: `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`, `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`, `fichero-builder/tests/test_train_queue.py::test_a_worker_lanes_done_is_premerged_by_its_chain_right_after_the_fetch` (a worker lane's new head is in the engine repo only after the chain's fetch, so the chain asks there, before any ladder slot). Serves: reliable, fast.
 - `local.step.small-commits-one-landing` [GAP] (#6589) — the common worker prompt says: commit each logical change by
   itself as the work goes; after the first DONE only add commits, never amend, squash or rebase (the loop rebases); a
   step lands whole. Nothing lands a part of a step. Test (owed):
@@ -1362,7 +1362,14 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   green with that said. The base judge runs the same selection, kept per selection. The nightly runs the whole suite. The build for
   testing stays incremental in the runner's one kept DerivedData (`<gate>/derived`, never wiped per tree). Tests:
   `fichero-builder/tests/test_speed_tests.py::test_swift_affected_picks_the_suites_a_changed_type_can_reach_and_falls_back_to_everything`,
-  `::test_a_second_build_reuses_the_same_derived_dir_and_never_a_fresh_one`.
+  `::test_a_second_build_reuses_the_same_derived_dir_and_never_a_fresh_one`,
+  `::test_a_test_plan_the_unit_run_does_not_use_keeps_the_selection_and_the_whole_run_says_why`. Fixed 2026-11-26
+  (train-20261126-152959 ran all 5077 tests for 1080 s, then a base run to the 30-minute cap): the keys are read from the
+  pinned rules, so a hand edit of the loop's checkout never reaches a train; a test plan other than the `-testPlan` the run uses
+  is not a unit build input; the swift-tests row of the `train` journal row says `selection` (`N suite(s)` or `whole: <why>`),
+  `base_seconds` and `base_selection`, and a red rung keeps its last lines as `tail`; the base judge runs only the suites of the
+  failing cases. Tests: `fichero-builder/tests/test_train.py::test_the_train_row_says_the_swift_selection_the_base_runs_seconds_and_a_reds_tail`,
+  `fichero-builder/tests/test_train.py::test_the_base_runs_only_the_suites_of_the_failing_cases`.
 - `local.train.time-limit` [OK] (#6589; built 2026-11-26) — a train never holds its steps longer than `[train].max_run_min`
   (default 30): no run starts past it and a Swift test run is cut at it; the train ends `timeout`, every step not sent back waits
   for the next train, and one alert says so (train-20261126-134056 ran 90 min with no result). Test:

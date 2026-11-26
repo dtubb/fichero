@@ -2250,8 +2250,15 @@ def told_at_done(lane: dict, s: dict, procs: Procs) -> None:
     head = s.get("head") or procs.head_of(lane)  # a worker lane's DONE: its tree's head (the chain fetches it later)
     if not head or s.get("premerged") == head:  # once per head: a chain held for a worker or a drain asks again next tick
         return
+    mark_conflicts(lane, s, head, procs.premerge(lane, head))
+
+
+def mark_conflicts(lane: dict, s: dict, head: str, hits: list | None) -> None:
+    """`hits` of a premerge of `head`; None = it could not judge (the head is not in the engine repo yet: a worker lane's DONE before
+    the chain fetched it, which asks again from the chain right after its fetch)."""
+    if hits is None:
+        return
     s["premerged"] = head
-    hits = procs.premerge(lane, head)
     s.pop("train_after", None)
     if hits:
         s["train_after"] = sorted(k for k, _f in hits)
@@ -3136,6 +3143,8 @@ def real_procs(root) -> Procs:
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
         a.repin = lambda: work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
+        if TRAIN[0].enabled and step.get("premerged") is None:  # local.check.conflict-told-at-done for a worker lane: once its head is here
+            a.after_fetch = lambda head: mark_conflicts(lane, step, head, premerge(lane, head))
         return work.after_run(a, repo, branch, reviewer, stage=stage)
 
     def landed(lane, head, push):
@@ -3246,6 +3255,8 @@ def real_procs(root) -> Procs:
         return models.for_role(mdl, lane["role"]).model if lane.get("role") else builder
 
     def premerge(lane, head):
+        if subprocess.run([land_tool.GIT, "-C", str(repo), "cat-file", "-e", f"{head}^{{commit}}"], capture_output=True).returncode:
+            return None  # not fetched yet: the chain asks again once it is
         out = []
         for x, st in _waiting_for_train():
             if x["id"] == lane["id"] or not st.get("head"):

@@ -290,3 +290,19 @@ def test_the_config_reads_the_new_keys(tmp_path):
     (tmp_path / "harness.toml").write_text('[check]\nalways_tests = ["a.py"]\nui_tests = ["T"]\nui_runner = "m:/g"\nswift_tests = ["xcodebuild"]\n[check.ui]\nenforce = false\n')
     c = check_tool.load(tmp_path)
     assert (c.always_tests, c.ui_tests, c.ui_runner, c.swift_tests, c.ui) == (("a.py",), ("T",), "m:/g", ("xcodebuild",), {"enforce": False})
+
+
+def test_a_test_plan_the_unit_run_does_not_use_keeps_the_selection_and_the_whole_run_says_why(tmp_path):
+    """2026-11-26 train-20261126-152959: the iOS UI plan in the candidate's diff made swift-tests run all 5077 tests (1080 s); with the
+    target unset the row could not say why. A plan other than `-testPlan <name>` is not a unit build input; the reason is a string."""
+    t = tmp_path / "fichero" / "Tests" / "Unit"
+    t.mkdir(parents=True)
+    (t / "SegmentToolTests.swift").write_text("struct SegmentToolTests {\n}\n")
+    cfg = check_tool.Config(build_paths=("fichero/",), swift_test_target="FicheroTests", swift_test_dir="fichero/Tests/Unit",
+                            swift_tests=("xcodebuild", "-testPlan", "fichero"))
+    ui_plan = ["fichero/fichero/SegmentTool.swift", "fichero/Tests/plans/fichero-ui-ios.xctestplan"]
+    assert check_tool.swift_affected(tmp_path, ui_plan, cfg) == ["FicheroTests/SegmentToolTests"]
+    assert check_tool.swift_whole_why(ui_plan, cfg) == ""
+    own = ["fichero/fichero/SegmentTool.swift", "fichero/Tests/plans/fichero.xctestplan"]
+    assert check_tool.swift_affected(tmp_path, own, cfg) is None and "fichero.xctestplan" in check_tool.swift_whole_why(own, cfg)
+    assert "no [check].swift_test_target" in check_tool.swift_whole_why(own, check_tool.Config())

@@ -275,3 +275,22 @@ def test_two_steps_each_green_alone_that_break_a_guard_together_make_the_train_r
     r = train.run_train([{"key": f"l/{h}", "head": h} for h in "ab"], merge=lambda heads: ("+".join(heads), {}), rung=rung,
                         rungs_for=lambda heads: train.names_for(["a.py"], ("fichero/",), lambda f: False), tid="t")
     assert r.result in ("red", "unresolved") and any(x["name"] == "guards" and not x["ok"] for x in r.rungs)
+
+
+def test_the_train_row_says_the_swift_selection_the_base_runs_seconds_and_a_reds_tail():
+    """2026-11-26: a 1651 s swift-tests row had no selection, no base time and no failure lines. The rung's own notes (`rung.last`)
+    go in its row, and a red keeps its last lines."""
+    def rung(name, cand, only=()):
+        rung.last = {"selection": "whole: no [check].swift_test_target", "base_seconds": 12.0} if name == "swift-tests" else {}
+        return (name != "swift-tests", "failing: FicheroTests/A/t()\n" if name == "swift-tests" else "ok")
+    r = train.run_train([{"key": "l/a", "head": "a"}], merge=lambda heads: ("+".join(heads), {}), rung=rung,
+                        rungs_for=lambda heads: ["build", "swift-tests"], tid="t")
+    sw = next(x for x in r.rungs if x["name"] == "swift-tests")
+    assert sw["selection"].startswith("whole: no [check].swift_test_target") and sw["base_seconds"] == 12.0 and "FicheroTests/A/t()" in sw["tail"]
+    assert "selection" not in r.rungs[0] and "tail" not in r.rungs[0]
+
+
+def test_the_base_runs_only_the_suites_of_the_failing_cases():
+    assert train.suites_of(["-[FicheroTests.SegmentToolTests testDraw]", "FicheroTests/CanvasTests/lasso()", "Other/x()"], "FicheroTests") == [
+        "FicheroTests/CanvasTests", "FicheroTests/Other", "FicheroTests/SegmentToolTests"]
+    assert train.suites_of(["a failure with no name"], "FicheroTests") is None

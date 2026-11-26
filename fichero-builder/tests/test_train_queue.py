@@ -185,3 +185,28 @@ def test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it(worl
     assert t.trains == [["l1/1"], ["l2/2"]], "l2 rides the train after l1's"
     assert set(states().values()) == {"landed"}
     assert asked.count("l2") == 1, "once per head"
+
+
+def test_a_worker_lanes_done_is_premerged_by_its_chain_right_after_the_fetch(monkeypatch, tmp_path):
+    """local.check.conflict-told-at-done (2026-11-26: seg-batch-6 and seg-select-1 met only in the train's merge): a worker lane's new
+    head is not in the engine repo at DONE, so the tick's premerge cannot judge (None: nothing marked); the chain asks once its fetch
+    brought the head in, before any ladder slot."""
+    import types
+
+    from fichero_builder import work
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    lane, s = {"id": "seg-tools", "steps": []}, {"step": "seg-batch-6", "head": ""}
+    queue.mark_conflicts(lane, s, "abc", None)
+    assert "premerged" not in s
+    seen = []
+    monkeypatch.setattr(work, "do_rebase", lambda a, branch: "")
+    monkeypatch.setattr(work, "do_export", lambda a, branch: 1)
+    monkeypatch.setattr(work, "do_fetch", lambda a, repo, branch: "abc123")
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: (_ for _ in ()).throw(RuntimeError("stop here")))
+    monkeypatch.setattr(work, "ladder_slot", lambda *a, **k: (_ for _ in ()).throw(AssertionError("stop")))
+    a = types.SimpleNamespace(name="seg-tools", issues=[], worktree=str(tmp_path / "wt"), pinned=str(tmp_path), after_fetch=seen.append)
+    try:
+        work.after_run(a, str(tmp_path), "integration", "opus")
+    except Exception:  # noqa: BLE001 - the fake ladder stops the chain; only the premerge call is under test
+        pass
+    assert seen == ["abc123"]

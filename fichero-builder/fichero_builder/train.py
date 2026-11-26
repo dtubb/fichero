@@ -10,6 +10,7 @@ the loop uses."""
 from __future__ import annotations
 
 import math
+import re
 import shutil
 import subprocess
 import tempfile
@@ -100,7 +101,7 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
                 raise OutOfTime(res, t_start)
             t0 = clock()
             ok, out = rung(name, on)
-            res.rungs.append({"name": name, "ok": bool(ok), "seconds": round(clock() - t0, 1), "phase": phase, "on": on})
+            res.rungs.append(_row(rung, name, ok, out, round(clock() - t0, 1), phase, on))
             if not ok:
                 return name, out
         return None
@@ -181,7 +182,7 @@ def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, dea
         res.extra_runs += 1
         t0 = clock()
         ok, out = rung("swift-tests", c, only=sorted(new))
-        res.rungs.append({"name": "swift-tests", "ok": bool(ok), "seconds": round(clock() - t0, 1), "phase": "search", "on": c})
+        res.rungs.append(_row(rung, "swift-tests", ok, out, round(clock() - t0, 1), "search", c))
         res.bisect.append(f"{s['key']} alone, the {len(new)} new case(s): {'green' if ok else 'red'}")
         if not ok:
             culprit = s
@@ -217,6 +218,29 @@ def cases(out: str) -> frozenset:
     line = next((ln[len("failing: "):] for ln in out.splitlines() if ln.startswith("failing: ")), "")
     named = {x.strip() for x in line.split(", ") if x.strip() and not x.startswith("(")}
     return frozenset(named or check_tool.failing_cases(out))
+
+
+def _row(rung, name: str, ok, out: str, seconds: float, phase: str, on: str) -> dict:
+    """One rung row of the train: what the rung said about itself (`rung.last`: the Swift selection, the base run's seconds), and a
+    red's last lines, so a slow or red train can be read from the journal alone (2026-11-26: a 1651 s swift-tests row said nothing)."""
+    row = {"name": name, "ok": bool(ok), "seconds": seconds, "phase": phase, "on": on, **(getattr(rung, "last", None) or {})}
+    if hasattr(rung, "last"):
+        rung.last = {}
+    if not ok:
+        row["tail"] = (out or "")[-800:]
+    return row
+
+
+def suites_of(failing: list[str], target: str) -> list[str] | None:
+    """The `<target>/<suite>` ids of failing cases (`-[Target.Suite test]`, `Target/Suite/test()`, `Suite/test()`), so the base runs
+    only those suites; None when a name cannot be read (the base then runs the candidate's selection)."""
+    out = set()
+    for f in failing:
+        m = re.match(r"-\[(?:[\w]+\.)?(\w+) \w+\]$", f) or re.match(r"(?:([\w]+)/)?(\w+)/\w+", f)
+        if not m:
+            return None
+        out.add(f"{target}/{m.group(1) if f.startswith('-[') else m.group(2)}")
+    return sorted(out)
 
 
 def against_base(failing: list[str], out: str, base: str, run_base: Callable[[], dict], only: list[str] | tuple = ()) -> tuple[bool, str]:
@@ -332,6 +356,7 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         return None if deadline is None else max(60.0, deadline - time.time())
 
     def rung(name, cand, only=()):
+        rung.last = {}
         j = jail.load(pinned)
         if j is not None:
             j.require()
@@ -344,6 +369,8 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
                 return guards_against_base(check_tool.guards(tree, replace(cfg, guards_by_diff=True), files),
                                            lambda reds: guards_on(base, reds))
             sel = list(only) or (check_tool.swift_affected(tree, files, cfg) if name == "swift-tests" else None)
+            if name == "swift-tests":
+                rung.last = {"selection": f"{len(sel)} suite(s)" if sel else f"whole: {check_tool.swift_whole_why(files, cfg) or f'more than {check_tool.SWIFT_SELECT_MAX} suites'}"}
             if sel == []:
                 return True, "swift-tests: no Swift test suite the train's Swift diff can affect (the nightly runs the whole suite)"
             r = (check_tool.build(tree, files, cfg) if name == "build" else check_tool.swift_tests(tree, cfg, sel or (), left()) if name == "swift-tests"
@@ -355,7 +382,15 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         row = (r.get("results") or [{}])[0]
         out = (r.get("stdout_tail") or row.get("errors") or row.get("stdout_tail") or "")[-3000:]
         if name == "swift-tests" and not r.get("ok") and r.get("failing"):
-            return against_base(r["failing"], out, base, lambda: swift_on(base, sel or ()), sel or ())
+            on_base = (cfg.swift_test_target and suites_of(r["failing"], cfg.swift_test_target)) or sel or ()
+
+            def timed():
+                t0 = time.time()
+                try:
+                    return swift_on(base, on_base)
+                finally:
+                    rung.last = {**rung.last, "base_seconds": round(time.time() - t0, 1), "base_selection": f"{len(on_base)} suite(s)" if on_base else "whole"}
+            return against_base(r["failing"], out, base, timed, on_base)
         return bool(r.get("ok")), out
 
     def guards_on(sha: str, names: list[str]) -> dict:

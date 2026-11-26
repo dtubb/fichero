@@ -1995,11 +1995,9 @@ def swift_affected(root, changed: list[str], cfg: Config) -> list[str] | None:
     test file's own suites; for any other changed Swift file, the suites of the test files named after its type or that name it.
     None = run the whole suite: no `[check].swift_test_target`, a changed non-Swift build input (a resource, a setting, a package
     pin), or more suites than SWIFT_SELECT_MAX. The nightly always runs the whole suite (owner 2026-11-26)."""
-    if not cfg.swift_test_target or not cfg.swift_test_dir:
+    if swift_whole_why(changed, cfg):
         return None
-    built = [f for f in changed if f.startswith(tuple(cfg.build_paths))] if cfg.build_paths else changed
-    if any(not f.endswith((".swift", *SWIFT_NEUTRAL)) for f in built):
-        return None
+    built = _swift_built(changed, cfg)
     tests = {str(p.relative_to(root)): p for p in Path(root, cfg.swift_test_dir).rglob("*.swift")}
     texts: dict = {}
 
@@ -2020,6 +2018,22 @@ def swift_affected(root, changed: list[str], cfg: Config) -> list[str] | None:
         picked |= {t for t, p in tests.items() if p.stem.startswith(stem) or word.search(text(t))}
     suites = sorted({f"{cfg.swift_test_target}/{n}" for t in picked for n in _suites(text(t))})
     return None if len(suites) > SWIFT_SELECT_MAX else suites
+
+
+def _swift_built(changed: list[str], cfg: Config) -> list[str]:
+    """The changed files the Swift build reads; a test plan other than the one `[check].swift_tests` runs is not one of them
+    (2026-11-26: the iOS UI plan in a train's diff made its unit run the whole suite)."""
+    plan = cfg.swift_tests[list(cfg.swift_tests).index("-testPlan") + 1] if "-testPlan" in cfg.swift_tests[:-1] else ""
+    built = [f for f in changed if f.startswith(tuple(cfg.build_paths))] if cfg.build_paths else changed
+    return [f for f in built if not (f.endswith(".xctestplan") and Path(f).stem != plan)]
+
+
+def swift_whole_why(changed: list[str], cfg: Config) -> str:
+    """Why the train's Swift run is the whole suite ('' = a selection may be made): what the train row says beside the rung."""
+    if not cfg.swift_test_target or not cfg.swift_test_dir:
+        return "no [check].swift_test_target and swift_test_dir in the pinned rules"
+    other = [f for f in _swift_built(changed, cfg) if not f.endswith((".swift", *SWIFT_NEUTRAL))]
+    return f"a non-Swift build input changed: {', '.join(other[:3])}" if other else ""
 
 
 def swift_tests(root, cfg: Config, only: list[str] | tuple = (), timeout_s: float | None = None) -> dict:
