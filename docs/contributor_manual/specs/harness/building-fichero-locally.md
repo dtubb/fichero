@@ -1298,11 +1298,9 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   train, in train order. A conflict with the land branch goes to the worker at once as the conflict fix round of
   section J. A conflict with a waiting step is one `queue` row `conflicts-with` naming that step and the files; the
   step is checked as usual and is held out of that step's train, so it merges after it. Tests: `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`, `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`, `fichero-builder/tests/test_train_queue.py::test_a_worker_lanes_done_is_premerged_by_its_chain_right_after_the_fetch` (a worker lane's new head is in the engine repo only after the chain's fetch, so the chain asks there, before any ladder slot). Serves: reliable, fast.
-- `local.step.small-commits-one-landing` [GAP] (#6589) — the common worker prompt says: commit each logical change by
+- `local.step.small-commits-one-landing` [OK] (#6589; built 2026-11-26) — the common worker prompt says: commit each logical change by
   itself as the work goes; after the first DONE only add commits, never amend, squash or rebase (the loop rebases); a
-  step lands whole. Nothing lands a part of a step. Test (owed):
-  `test_profiles.py` `test_the_common_prompt_says_small_commits_and_only_added_commits_after_done`.
-  Serves: fast.
+  step lands whole. Nothing lands a part of a step. Tests: `fichero-builder/tests/test_profiles.py::test_the_common_prompt_says_small_commits_and_only_added_commits_after_done`. Serves: fast.
 - `local.flow.report` [OK] (#6589; built 2026-11-26; test `fichero-builder/tests/test_rung_stats.py::test_flow_prints_each_target_from_a_fixture_journal_and_exits_1_when_one_is_over`) — `builder rung-stats --flow [--since TS]` prints, from the journal alone, one line
   for each target with its measured value and `ok` or `over`, and exits 1 when any is over:
 
