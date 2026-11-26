@@ -569,3 +569,64 @@ def test_an_attached_watcher_with_no_step_out_waits_for_the_next_message(root):
     fake = Fake([{**HEALTHY, "idle": True, "turns": 9, "prompts": 4, "last_text": "DONE eab0a2072e"}], heads=("eab0a2072e",))
     run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed, seq=7, attach="%4", outstanding=False)
     assert not [r for r in journal.read() if r["event"] == "step"], "the DONE on screen is the last step's, already recorded"
+
+
+def _ended_run(root, states, hook=None):
+    """A feed run with step 0 out and the branch never moved; `hook` = the Stop hook's file, written before the first read."""
+    feed = root / "inbox"
+    feed.mkdir(exist_ok=True)
+    if hook is not None:
+        import json
+        (feed / "turn-ended.json").write_text(json.dumps(hook))
+    states = [*states, HEALTHY]  # the last read writes `stop`, after the tick that matters
+    fake = Fake(states, heads=("aaaa111",))
+    told = []
+    fake.procs.tell = lambda pane, words: told.append(words)
+    real_read = fake.read
+    reads = []
+
+    def read():
+        reads.append(1)
+        if len(reads) == len(states):
+            (feed / "stop").write_text("")
+        return real_read()
+    fake.procs.read = read
+    run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed)
+    steps = [r for r in journal.read() if r["event"] == "step"]
+    return told, steps, [r["what"] for r in journal.read() if r["event"] == "watch" and r["what"].startswith("turn-ended-no-done")]
+
+
+def test_an_idle_worker_with_an_unmoved_branch_and_a_last_line_ending_in_a_question_is_one_alert_in_one_tick(root):
+    ask = {**HEALTHY, "idle": True, "turns": 2, "last_text": "I looked at both.\nShould the cap replace the day figure or sit beside it?"}
+    told, steps, watch = _ended_run(root, [HEALTHY, ask])
+    assert len(steps) == 1 and steps[0]["waiting"].endswith("sit beside it?") and steps[0]["moved"] is False and told == []
+    assert len(watch) == 1 and watch[0].endswith("sit beside it?")
+
+
+def test_an_idle_worker_with_no_question_is_nudged_with_the_exact_line_then_alerted_two_ticks_later(root):
+    quiet = {**HEALTHY, "idle": True, "turns": 2, "last_text": "I have looked around and found nothing to change."}
+    told, steps, watch = _ended_run(root, [HEALTHY, quiet, quiet, quiet, quiet])
+    assert told == ["Your turn ended without the DONE line: end your turn with the exact line DONE aaaa111"]
+    assert len(steps) == 1 and "no DONE" in steps[0]["waiting"] and len(watch) == 1
+    assert len(watch[0]) <= len("turn-ended-no-done: ") + 300
+
+
+def test_the_stop_hooks_file_is_read_while_the_session_file_still_says_working(root):
+    hook = {"at": 10 ** 9, "text": "x" * 400 + "\nWhich branch do you want?"}
+    told, steps, watch = _ended_run(root, [HEALTHY, HEALTHY], hook=hook)
+    assert len(steps) == 1 and steps[0]["waiting"].endswith("Which branch do you want?") and len(watch[0]) <= len("turn-ended-no-done: ") + 300
+
+
+def test_a_hook_file_older_than_the_message_and_a_done_line_raise_nothing(root):
+    old = {"at": -1, "text": "Which branch do you want?"}
+    told, steps, watch = _ended_run(root, [HEALTHY, HEALTHY], hook=old)
+    assert steps == [] and watch == [] and told == []
+
+
+def test_a_feed_run_registers_its_feed_for_the_stop_hook(root):
+    import json
+
+    (root / "inbox").mkdir()
+    fake = Fake([HEALTHY])
+    run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=root / "inbox")
+    assert json.loads((root / "reg" / "w.json").read_text())["feed"] == str(root / "inbox")

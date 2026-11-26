@@ -10,7 +10,8 @@ Hook for PostToolUse and Stop. Does nothing unless the session's worker is regis
 The name comes from $FICHERO_BUILDER (set by harness_start.py).
 PostToolUse at 85%: tells the worker once to finish, commit, write the handoff and end with HANDOFF READY.
 Stop: without that line the worker is told to continue (capped) unless its message has a `WAITING: ` line
-or the brief's end line `DONE <sha>` (then `builder run` ends the worker);
+or the brief's end line `DONE <sha>` (then `builder run` ends the worker). A turn the hook lets end with no such line
+(its message ends in a question, or the cap is reached) is written to the lane's feed (`reg["feed"]`/turn-ended.json) for `builder run`;
 with it the successor starts, once per session. Never run this from inside your own session (it TERMs the claude above it).
 ponytail: context is read from the transcript's last usage; if that format changes the worker is never told. --test self-checks."""
 import json
@@ -19,6 +20,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 DONE = "HANDOFF READY"
@@ -86,6 +88,15 @@ def tell(reg, message, run=subprocess.run):
         run([*reg["notify"], message])
 
 
+def note_turn(reg, last):
+    """The turn's last 300 characters and the time, to the lane's feed, for `builder run` (local.run.turn-ended-without-done-alerts)."""
+    if reg.get("feed"):
+        p = Path(reg["feed"]) / "turn-ended.json"
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps({"at": time.time(), "text": last[-300:]}))
+        tmp.replace(p)
+
+
 def on_post_tool(event, name, reg, state):
     sid = event.get("session_id", "")
     limit = reg.get("handoff_tokens") or AT * reg.get("window", 200_000)  # an absolute count when the loop sets one (run.loop-handoff-tokens)
@@ -102,7 +113,10 @@ def on_stop(event, name, reg, state, run=subprocess.run):
     if DONE not in last:
         # ponytail: a cap per session stops a loop; the manager's check catches a worker past it.
         n = state.get("nudges", {}).get(sid, 0)
-        if WAIT in last or ENDED.search(last) or n >= NUDGES:
+        if WAIT in last or ENDED.search(last):
+            return None, state
+        if last.rstrip().endswith("?") or n >= NUDGES:  # a question is for the manager, not a reason to go on; past the cap the turn really ends
+            note_turn(reg, last)
             return None, state
         words = f"Continue with the next item in {reg['handoff']} without waiting. If nothing can be done until someone acts, say why on a line starting {WAIT}"
         return {"decision": "block", "reason": words}, dict(state, nudges={**state.get("nudges", {}), sid: n + 1})
@@ -174,6 +188,18 @@ def test():
     assert on_stop({"last_assistant_message": f"{WAIT} owner", "session_id": "k"}, "b", reg, st, run)[0] is None
     assert on_stop({"last_assistant_message": "x", "session_id": "k"}, "b", reg, {"nudges": {"k": NUDGES}}, run)[0] is None
     assert not calls
+    fd = d / "feed"
+    fd.mkdir()
+    freg = dict(reg, feed=str(fd))
+    assert on_stop({"last_assistant_message": f"{WAIT} owner", "session_id": "k"}, "b", freg, {}, run)[0] is None and not (fd / "turn-ended.json").exists()
+    assert on_stop({"last_assistant_message": "sweep green\nDONE 0123abcd", "session_id": "k"}, "b", freg, {}, run)[0] is None and not (fd / "turn-ended.json").exists()
+    assert on_stop({"last_assistant_message": "working", "session_id": "k"}, "b", freg, {}, run)[0]["decision"] == "block" and not (fd / "turn-ended.json").exists(), "a nudged turn is not an end"
+    assert on_stop({"last_assistant_message": "x" * 400 + "\nWhich one?", "session_id": "k"}, "b", freg, {}, run) == (None, {}), "a question is not nudged"
+    got = json.loads((fd / "turn-ended.json").read_text())
+    assert got["text"].endswith("Which one?") and len(got["text"]) == 300 and got["at"] > 0
+    (fd / "turn-ended.json").unlink()
+    on_stop({"last_assistant_message": "x", "session_id": "k"}, "b", freg, {"nudges": {"k": NUDGES}}, run)
+    assert json.loads((fd / "turn-ended.json").read_text())["text"] == "x", "past the cap the turn ends and is written"
     assert on_stop({"last_assistant_message": "sweep green\nDONE 0123abcd", "session_id": "k"}, "b", reg, {}, run) == (None, {}), "the brief's DONE line ends the run: no nudge"
     assert on_stop({"last_assistant_message": "DONE soon", "session_id": "k"}, "b", reg, {}, run)[0]["decision"] == "block", "DONE without a sha is not an end"
     _, st = on_stop({"last_assistant_message": DONE, "session_id": "s1"}, "b", reg, {}, run)
