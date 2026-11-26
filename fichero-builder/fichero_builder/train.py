@@ -14,10 +14,11 @@ import shutil
 import subprocess
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Callable
 
-RUNG_ORDER = ("build", "swift-tests", "ui", "unit")
+RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "unit")
 KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min"}
 
 
@@ -246,6 +247,22 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
                    f"failing: {', '.join(new)}\n" + out)[-3000:]
 
 
+def guards_against_base(cand: dict, run_base: Callable[[list[str]], dict]) -> tuple[bool, str]:
+    """local.train.guards-on-candidate: the guards the train's combined diff touches, judged on its candidate; a guard red there counts
+    only when it is green on the train's base (`run_base(names)` runs just those there). Two steps each green alone that break a
+    guard together make the train red at `guards`, which the same-file rule used to stop by never checking them at once."""
+    reds = [x["name"] for x in cand.get("results") or [] if not x.get("ok")]
+    if cand.get("ok") or not reds:
+        return True, f"guards: {sum(1 for x in cand.get('results') or [] if not x.get('skipped'))} run on the candidate, green"
+    on_base = {x["name"] for x in run_base(reds).get("results") or [] if not x.get("ok")}
+    new = [n for n in reds if n not in on_base]
+    if not new:
+        return True, f"guards: {', '.join(reds)} red on the candidate and on the base too (the land branch's own)"
+    tails = "\n".join(f"{x['name']}: {((x.get('stdout_tail') or '') + (x.get('stderr_tail') or '')).strip()[-600:]}"
+                      for x in cand["results"] if x.get("name") in new)
+    return False, f"RED: {len(new)} guard(s) red on the candidate and green on the base\nfailing: {', '.join(new)}\n{tails}"[-3000:]
+
+
 def budget(n: int) -> int:
     """The most extra runs a train of n steps may spend."""
     return math.ceil(math.log2(n)) + 1 if n > 1 else 0
@@ -258,7 +275,7 @@ def swift_changed(files: list[str], build_paths: tuple) -> bool:
 def names_for(files: list[str], build_paths: tuple, ui_required: Callable[[list[str]], bool]) -> list[str]:
     """The rungs a train over `files` runs: the Swift build and tests when Swift changed, the UI pass when the segment editor did, the unit tier always."""
     swift = swift_changed(files, build_paths)
-    return [n for n in RUNG_ORDER if n == "unit" or (n in ("build", "swift-tests") and swift) or (n == "ui" and ui_required(files))]
+    return [n for n in RUNG_ORDER if n in ("guards", "unit") or (n in ("build", "swift-tests") and swift) or (n == "ui" and ui_required(files))]
 
 
 def _git(repo, *args, cwd=None) -> subprocess.CompletedProcess:
@@ -323,6 +340,9 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         files, tree = files_over(cand), None
         try:
             tree = check_tool._scratch_tree(repo, cand, pinned, cfg, overlay=(name != "unit"))
+            if name == "guards":
+                return guards_against_base(check_tool.guards(tree, replace(cfg, guards_by_diff=True), files),
+                                           lambda reds: guards_on(base, reds))
             sel = list(only) or (check_tool.swift_affected(tree, files, cfg) if name == "swift-tests" else None)
             if sel == []:
                 return True, "swift-tests: no Swift test suite the train's Swift diff can affect (the nightly runs the whole suite)"
@@ -337,6 +357,17 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         if name == "swift-tests" and not r.get("ok") and r.get("failing"):
             return against_base(r["failing"], out, base, lambda: swift_on(base, sel or ()), sel or ())
         return bool(r.get("ok")), out
+
+    def guards_on(sha: str, names: list[str]) -> dict:
+        """Only `names` of the guards, over a scratch tree of `sha` (the train's base)."""
+        tree = None
+        try:
+            tree = check_tool._scratch_tree(repo, sha, pinned, cfg)
+            every = {p.stem for p in Path(tree).glob(cfg.guard_glob)} if cfg.guard_glob else set()
+            return check_tool.guards(tree, replace(cfg, guard_skip=frozenset(every - set(names)), min_guards=0))
+        finally:
+            if tree:
+                check_tool.drop_tree(repo, tree)
 
     def touches_swift(head: str) -> bool:
         return any(f.endswith(".swift") and (not cfg.build_paths or f.startswith(tuple(cfg.build_paths)))

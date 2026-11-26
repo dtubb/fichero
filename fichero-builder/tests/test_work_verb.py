@@ -1064,3 +1064,28 @@ def test_a_timeout_beside_a_real_red_is_the_real_red_with_no_fix_for_the_timed_o
     r2["rungs"][0]["results"].append({"name": "check_x", "ok": False, "stdout_tail": "FAIL"})
     assert work.timed_out_only(r2) == []
     assert work.timed_out_only(_timed_out_guards()) == ["check_openapi_route_set_current"]
+
+
+def test_with_the_train_on_two_batches_sharing_a_source_file_check_at_once_with_no_clash_row(scratch, tmp_path):
+    """local.check.no-same-file-wait (2026-11-26: 11.4 h a day waited for a slot behind a shared file): with the train on, its
+    candidate merge and rungs judge two steps that share a file together, so a free slot is taken whatever the others hold."""
+    pin = tmp_path / "pin2"
+    pin.mkdir()
+    (pin / "harness.toml").write_text("[train]\nenabled = true\n")
+    assert work.train_enabled(pin)
+    with work.ladder_slot("seg-draw", ["fichero-server/src/segments.py"], 2, by_file=not work.train_enabled(pin)) as s1:
+        with work.ladder_slot("seg-finish", ["fichero-server/src/segments.py"], 2, sleep=_stop, by_file=not work.train_enabled(pin)) as s2:
+            assert {s1, s2} == {"ladder", "ladder-2"}
+    assert not [r for r in journal.read() if r.get("state") == "clash"]
+
+
+def test_with_the_train_off_a_batch_sharing_a_file_still_waits(scratch, tmp_path):
+    pin = tmp_path / "pin3"
+    pin.mkdir()
+    (pin / "harness.toml").write_text("[train]\nenabled = false\n")
+    assert not work.train_enabled(pin) and not work.train_enabled(tmp_path / "nowhere")
+    with work.ladder_slot("seg-draw", ["fichero-server/src/segments.py"], 2, by_file=not work.train_enabled(pin)):
+        with pytest.raises(_Waited):
+            with work.ladder_slot("seg-finish", ["fichero-server/src/segments.py"], 2, sleep=_stop, by_file=not work.train_enabled(pin)):
+                pass
+    assert [r["holder"] for r in journal.read() if r.get("state") == "clash"] == ["seg-draw"]

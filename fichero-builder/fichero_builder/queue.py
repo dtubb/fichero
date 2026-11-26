@@ -356,6 +356,7 @@ class Procs:
     gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
     gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
+    premerge: Callable[[dict, str], list] | None = None  # (lane, head) -> [(waiting step key, [files])] its head conflicts with (merge-tree)
     train_run: Callable[[list, str], train.Result] | None = None  # ([{key, head}] in queue order, train id) -> the merge train's result; None = no train, each step lands by itself
 
 
@@ -834,6 +835,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         except Exception as e:  # noqa: BLE001 - one lane's bug is that lane's error, never the loop's death (2026-11-03: an AttributeError killed it on every ladder)
             journal.append("loop", state="lane-error", lane=lane["id"], step=s["step"], detail=traceback.format_exc()[-1500:])
             return {"ok": False, "kind": "error", "why": f"{type(e).__name__}: {e}"}
+    if back is None and fut is None and s["state"] == "done" and not s.get("train_cleared") and train_on(procs) and procs.premerge is not None:
+        told_at_done(lane, s, procs)
     if back is not None:
         r = back
     elif chains is None:
@@ -2240,6 +2243,26 @@ def disk_floor_alerts(procs: Procs) -> None:
             alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
 
 
+def told_at_done(lane: dict, s: dict, procs: Procs) -> None:
+    """local.check.conflict-told-at-done: before the step's ladder, its head is test-merged (in memory) onto each step waiting for the
+    train; one `conflicts-with` row per conflict, and the step is held out of that step's train, so it merges after it. A conflict
+    with the land branch is the chain's own rebase, before any ladder slot (run.rebase-conflict-fix-round)."""
+    head = s.get("head") or procs.head_of(lane)  # a worker lane's DONE: its tree's head (the chain fetches it later)
+    if not head or s.get("premerged") == head:  # once per head: a chain held for a worker or a drain asks again next tick
+        return
+    s["premerged"] = head
+    hits = procs.premerge(lane, head)
+    s.pop("train_after", None)
+    if hits:
+        s["train_after"] = sorted(k for k, _f in hits)
+    store(lane, expect=(s["step"], s.get("head", "")))  # the chain's outcome is claimed from the file: these fields must be in it first
+    if not hits:
+        return
+    for k, files in hits:
+        journal.append("queue", lane=lane["id"], step=s["step"], state="conflicts-with", other=k,
+                       detail=f"{head[:9]} conflicts with {k}, waiting for the train, in: {', '.join(files) or '(unknown)'}; it rides the train after it")
+
+
 def train_on(procs: Procs) -> bool:
     return procs.train_run is not None and TRAIN[0].enabled
 
@@ -2275,6 +2298,8 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
         if requeued:
             save(lanes)
     waiting = _waiting_for_train()
+    keys = {f"{x['id']}/{s['step']}" for x, s in waiting}
+    waiting = [(x, s) for x, s in waiting if not set(s.get("train_after") or ()) & keys]  # it merges after the step it conflicts with
     if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]):
         return
     tid = "train-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(_now()))
@@ -3220,6 +3245,17 @@ def real_procs(root) -> Procs:
     def model_of(lane):
         return models.for_role(mdl, lane["role"]).model if lane.get("role") else builder
 
+    def premerge(lane, head):
+        out = []
+        for x, st in _waiting_for_train():
+            if x["id"] == lane["id"] or not st.get("head"):
+                continue
+            r = subprocess.run([land_tool.GIT, "-C", str(repo), "merge-tree", "--write-tree", "--name-only", "--no-messages", head, st["head"]],
+                               capture_output=True, text=True)
+            if r.returncode == 1:  # 1 = conflicts (the tree's oid, then the conflicted paths); anything else is no verdict
+                out.append((f"{x['id']}/{st['step']}", r.stdout.split()[1:]))
+        return out
+
     def train_run(spec, tid):
         pinned = work.ensure_pinned(str(root), "", land_tool.resolve_branch(repo, branch))
         deadline = time.time() + TRAIN[0].max_run_min * 60
@@ -3231,7 +3267,7 @@ def real_procs(root) -> Procs:
             train.drop_refs(repo, tid)
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, thin=thin_snapshots, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
-                 drop_index=drop_index, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
+                 drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),

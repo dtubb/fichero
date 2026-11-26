@@ -1264,11 +1264,9 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   `test_train.py` `test_the_train_runs_the_owed_whole_dirs_once_and_is_red_only_for_cases_green_on_its_base`,
   `test_train_queue.py` `test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs`.
   Serves: reliable.
-- `local.train.guards-on-candidate` [GAP] (#6589) — a train runs, once on its candidate, the guards its combined diff
+- `local.train.guards-on-candidate` [OK] (#6589; built 2026-11-26) — a train runs, once on its candidate, the guards its combined diff
   touches (the `local.check.guards-by-diff` rule over base...candidate); a guard red on the candidate and green on the
-  base makes the train red at `guards`. Test (owed):
-  `test_train.py` `test_two_steps_each_green_alone_that_break_a_guard_together_make_the_train_red_at_guards`.
-  Serves: reliable.
+  base makes the train red at `guards`. Tests: `fichero-builder/tests/test_train.py::test_two_steps_each_green_alone_that_break_a_guard_together_make_the_train_red_at_guards`. Serves: reliable.
 - `local.train.security-and-perf-once` [GAP] (#6589) — with the train on, a step's security rung runs only the
   added-line lints, and its perf rung is skipped with the row `owed to the train`; the train runs the security scanners
   and perf once over base...candidate. A scanner finding goes back to the step whose diff added the line it names, and
@@ -1291,19 +1289,15 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   them. Test (owed):
   `test_train.py` `test_the_python_rungs_run_while_the_swift_rungs_run_and_the_wall_time_is_the_longest`.
   Serves: fast.
-- `local.check.no-same-file-wait` [GAP] (#6589) — with the train on, a ladder slot is given to a step whatever files
+- `local.check.no-same-file-wait` [OK] (#6589; built 2026-11-26) — with the train on, a ladder slot is given to a step whatever files
   another running ladder holds: no `lock` row of state `clash` is written. With `[train].enabled = false` two batches
   that share a file take turns, as built (Speed 3). This replaces `local.perf.ladder-slots-follow-runners`'s rule for
-  shared files. Test (owed):
-  `test_work_verb.py` `test_with_the_train_on_two_batches_sharing_a_source_file_check_at_once_with_no_clash_row`,
-  `test_with_the_train_off_a_batch_sharing_a_file_still_waits`. Serves: fast.
-- `local.check.conflict-told-at-done` [GAP] (#6589) — at each DONE, before a ladder slot is taken, the head is
+  shared files. Tests: `fichero-builder/tests/test_work_verb.py::test_with_the_train_on_two_batches_sharing_a_source_file_check_at_once_with_no_clash_row`, `fichero-builder/tests/test_work_verb.py::test_with_the_train_off_a_batch_sharing_a_file_still_waits`. Serves: fast.
+- `local.check.conflict-told-at-done` [OK] (#6589; built 2026-11-26) — at each DONE, before a ladder slot is taken, the head is
   test-merged in memory (`git merge-tree`, no worktree) onto the land branch and then onto each step waiting for the
   train, in train order. A conflict with the land branch goes to the worker at once as the conflict fix round of
   section J. A conflict with a waiting step is one `queue` row `conflicts-with` naming that step and the files; the
-  step is checked as usual and is held out of that step's train, so it merges after it. Test (owed):
-  `test_train_queue.py` `test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`,
-  `test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`. Serves: reliable, fast.
+  step is checked as usual and is held out of that step's train, so it merges after it. Tests: `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`, `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`. Serves: reliable, fast.
 - `local.step.small-commits-one-landing` [GAP] (#6589) — the common worker prompt says: commit each logical change by
   itself as the work goes; after the first DONE only add commits, never amend, squash or rebase (the loop rebases); a
   step lands whole. Nothing lands a part of a step. Test (owed):

@@ -94,9 +94,9 @@ def test_the_cfg_and_when_a_train_is_due():
 def test_the_rungs_follow_what_the_steps_changed():
     def ui(files):
         return any("Segment" in f for f in files)
-    assert train.names_for(["a.py"], ("fichero/",), ui) == ["unit"]
-    assert train.names_for(["fichero/A.swift"], ("fichero/",), ui) == ["build", "swift-tests", "unit"]
-    assert train.names_for(["fichero/SegmentX.swift"], ("fichero/",), ui) == ["build", "swift-tests", "ui", "unit"]
+    assert train.names_for(["a.py"], ("fichero/",), ui) == ["guards", "unit"]
+    assert train.names_for(["fichero/A.swift"], ("fichero/",), ui) == ["build", "swift-tests", "guards", "unit"]
+    assert train.names_for(["fichero/SegmentX.swift"], ("fichero/",), ui) == ["build", "swift-tests", "ui", "guards", "unit"]
 
 
 def git(cwd, *a):
@@ -238,3 +238,40 @@ def test_a_train_past_its_time_limit_stops_and_every_step_waits_again():
     assert r.result == "timeout" and r.again == ["l/a", "l/b", "l/c"] and r.back == {} and r.landed == []
     assert [x["name"] for x in r.rungs] == ["build", "swift-tests"] and "time limit" in r.bisect[-1]
     assert train.load({"train": {}}).max_run_min == 30 and train.load({"train": {"max_run_min": 20}}).max_run_min == 20
+
+
+def test_two_steps_each_green_alone_that_break_a_guard_together_make_the_train_red_at_guards(tmp_path, monkeypatch):
+    """local.train.guards-on-candidate: with the same-file rule gone, two steps that share a file check at once; the guards their
+    combined diff touches run once on the candidate, and a guard red there and green on the base makes the train red at guards."""
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+
+    def tree(name, files):
+        t = tmp_path / name
+        (t / "scripts").mkdir(parents=True)
+        (t / "scripts" / "check_pair.py").write_text("import os, sys\nsys.exit(1 if os.path.exists('a.txt') and os.path.exists('b.txt') else 0)\n")
+        (t / "scripts" / "check_other.py").write_text("print('ok')\n")
+        for f in files:
+            (t / f).write_text("x")
+        return t
+    cfg = check_tool.Config(guard_glob="scripts/check_*.py", guard_inputs={"check_pair": ["a.txt", "b.txt"], "check_other": ["z"]}, guards_by_diff=True)
+    cand = check_tool.guards(tree("cand", ["a.txt", "b.txt"]), cfg, ["a.txt", "b.txt"])
+    ran_base = []
+
+    def on_base(names):
+        ran_base.append(names)
+        return check_tool.guards(tree(f"base{len(ran_base)}", []), cfg)
+    ok, out = train.guards_against_base(cand, on_base)
+    assert not ok and "failing: check_pair" in out and ran_base == [["check_pair"]], "red on the candidate, green on the base"
+    ok, out = train.guards_against_base(cand, lambda names: check_tool.guards(tree("baseRed", ["a.txt", "b.txt"]), cfg))
+    assert ok and "on the base too" in out, "the land branch's own red never blocks"
+    alone = [check_tool.guards(tree(f"alone{f}", [f]), cfg, [f])["ok"] for f in ("a.txt", "b.txt")]
+    assert alone == [True, True], "each step alone is green"
+
+    def rung(name, cand_, only=()):
+        both = {"a", "b"} <= set(cand_.split("+"))
+        return (not both, "failing: check_pair\n") if name == "guards" else (True, "ok")
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "ab"], merge=lambda heads: ("+".join(heads), {}), rung=rung,
+                        rungs_for=lambda heads: train.names_for(["a.py"], ("fichero/",), lambda f: False), tid="t")
+    assert r.result in ("red", "unresolved") and any(x["name"] == "guards" and not x["ok"] for x in r.rungs)

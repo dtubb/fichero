@@ -152,3 +152,36 @@ def test_a_tick_with_no_dead_train_does_not_rewrite_the_lanes_file(world, monkey
     monkeypatch.setattr(queue, "save", lambda lanes: (saves.append(1), real(lanes))[1])
     queue.train_when_due(t.fake.procs, None)  # two queued steps, nothing waiting, nothing to put back
     assert saves == []
+
+
+def test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs(monkeypatch, tmp_path):
+    """local.check.conflict-told-at-done: the chain's rebase onto the land branch comes before any ladder slot; its conflict is the
+    worker's conflict fix round at once (run.rebase-conflict-fix-round), and no ladder runs."""
+    import types
+
+    from fichero_builder import work
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    monkeypatch.setattr(work, "do_rebase", lambda a, branch: "conflict in segments.py" + work.REBASE_CONFLICT + "the files: segments.py")
+    monkeypatch.setattr(work, "ladder_slot", lambda *a, **k: (_ for _ in ()).throw(AssertionError("a ladder slot was taken")))
+    a = types.SimpleNamespace(name="seg-draw", issues=[], worktree=str(tmp_path / "wt"), pinned=str(tmp_path))
+    r = work.after_run(a, str(tmp_path), "integration", "opus")
+    assert r["kind"] == "conflict" and "segments.py" in r["findings"]
+
+
+def test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it(world):
+    """local.check.conflict-told-at-done: a DONE whose head conflicts with a step waiting for the train is one `conflicts-with` row,
+    is checked as usual, and is held out of that step's train, so it merges after it."""
+    t = Trained(*world, ["1", "2"])
+    asked = []
+
+    def premerge(lane, head):
+        asked.append(lane["id"])
+        return [("l1/1", ["fichero-server/src/segments.py"])] if lane["id"] == "l2" else []
+    t.fake.procs.premerge = premerge
+    t.fake.procs.head_of = lambda lane: "tip-" + lane["id"]  # the DONE's tree head (the chain fetches it later)
+    t.go(2)
+    rows = [r for r in journal.read() if r.get("state") == "conflicts-with"]
+    assert [(r["lane"], r["other"]) for r in rows] == [("l2", "l1/1")] and "segments.py" in rows[0]["detail"]
+    assert t.trains == [["l1/1"], ["l2/2"]], "l2 rides the train after l1's"
+    assert set(states().values()) == {"landed"}
+    assert asked.count("l2") == 1, "once per head"

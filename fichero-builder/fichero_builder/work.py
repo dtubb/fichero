@@ -572,11 +572,22 @@ GENERATED_CLASH_FREE = frozenset({
 })
 
 
+def train_enabled(root) -> bool:
+    """`[train].enabled` of the rules at `root` (the pinned copy): the merge train judges steps that share a file together."""
+    from fichero_builder import train
+    try:
+        return train.load(tomllib.loads((Path(root) / "harness.toml").read_text())).enabled
+    except (OSError, ValueError):
+        return False
+
+
 @contextlib.contextmanager
-def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
+def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: bool = True):
     """Speed 3 (manager 2026-11-02): up to n ladders at once ([check].parallel), never two whose batches share a file (an
     unknown file list shares every file). The slot's files sit beside its lock while it runs; a slot whose lock is free is
-    not running, whatever file it left. A wait over Lock.WARN_S is one row, like the single lock's."""
+    not running, whatever file it left. A wait over Lock.WARN_S is one row, like the single lock's.
+    `by_file=False` (local.check.no-same-file-wait: the train is on, and its candidate merge and rungs judge two steps that share a
+    file together): any free slot is taken, whatever files the running ladders hold."""
     t0, said, clashed, state = time.time(), False, False, Path(journal.STATE)
     while True:
         with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
@@ -591,7 +602,7 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
                         o = json.loads(other.read_text())
                     except (OSError, ValueError):
                         o = {"name": "?", "files": []}
-                    if not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE):
+                    if by_file and (not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE)):
                         clash, shared = o["name"], (both if files and o["files"] else {"(an unknown file list)"})
                     continue
                 if free is None:
@@ -685,7 +696,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         held = kept_rows(ladder, carry[0], carry[2], a.pinned) if kept else {}  # the old ladder's rows: without them the whole ladder runs
         carry = None
         # nothing to run again: no file-overlap hold to wait behind (2026-11-25, seg-inspector waited on seg-hang's shared test file)
-        slot = contextlib.nullcontext() if kept and held and not rerun else ladder_slot(a.name, files, check_tool.load(a.pinned).parallel)
+        slot = contextlib.nullcontext() if kept and held and not rerun else ladder_slot(a.name, files, check_tool.load(a.pinned).parallel,
+                                                                                         by_file=not train_enabled(a.pinned))
         with slot:  # speed 3: [check].parallel ladders, disjoint batches only
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
