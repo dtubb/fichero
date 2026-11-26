@@ -1622,7 +1622,7 @@ def _in_thread(shipped: set, key: str, fn, *a):
     return fn(*a)
 
 
-def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
+def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 1800,  # noqa: B008
                 head_tree=None, also_green: tuple = (), approve_red: bool | tuple = False) -> dict:
     """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
     own, and all must PASS at `head`. A test that passes on base proves nothing."""
