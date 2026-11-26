@@ -320,7 +320,7 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - Absorbed: `agent-profiles.adapter.interface` [OK], `agent-profiles.adapter.claude-code` [OK],
   `agent-profiles.adapter.pi` [PARTIAL] (#6631), `dev-workflows.models.by-config` [PARTIAL],
-  `agent-profiles.worker.small` [GAP], `dev-workflows.worker.handoff` [PARTIAL] (the handoff follows the model's
+  `agent-profiles.worker.small` [PARTIAL], `dev-workflows.worker.handoff` [PARTIAL] (the handoff follows the model's
   real context window).
 
 ### B. Gates — what makes it reliable
@@ -2298,14 +2298,16 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
 
 #### E. Small, circumscribed workers
 
-- `agent-profiles.worker.small` [GAP] (#6625) (owner 2026-11-16) — a worker gets **one step**, a brief under 120 lines
+- `agent-profiles.worker.small` [PARTIAL] (#6625) (owner 2026-11-16) — a worker gets **one step**, a brief under 120 lines
   that names its files and its tests by path, and a diff bound **per role** (owner 2026-11-16: no single global
   number): a `diff_bound:` line in `roles/<role>.md`, lines changed with generated files excluded, smaller for
   bug-fixing and code-review, larger for the feature role; the bound is the role's whatever the stack; a role file with no bound refuses to start; the brief tool refuses a cluster with more than one step or a brief over the line cap, the policy hook
   counts the bound and the worker is told once then parked with a question; a step whose named files exceed the
   bound is split by `builder steps` before any brief. Acceptance: a two-step brief refuses; a 121-line brief refuses;
   a diff past the role's bound yields one tell and then a park row; a role file with no `diff_bound:` refuses; a brief
-  with no named test is refused for a code project. Test (to write): fichero-builder/tests/test_small_worker (new).
+  with no named test is refused for a code project. Built: the brief refusals (`brief_tool.cluster`), the `diff_bound:` refusal
+  (`profiles.role_bound`) and the policy hook's tell-then-park-marker on `git commit`; not built: the loop turning the marker into a
+  `parked` row, and `builder steps` splitting a step. Test: fichero-builder/tests/test_small_worker.py.
 
 #### F. Swift rungs and the UI smoke
 
