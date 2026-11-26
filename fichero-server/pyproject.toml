@@ -118,7 +118,7 @@ requires = [
     # `mcp.server.fastmcp`, which every fichero-mcp tool module imports — a
     # fresh unbounded install resolves 2.0 and the MCP product stops importing
     # at all. Lifting the cap is a migration to `mcp.server.mcpserver` (#4337).
-    "mcp>=1.30.0,<2",
+    "mcp>=1.30.0,<3",
     "langgraph",
     "langchain-ollama",
     "apscheduler",
@@ -425,7 +425,7 @@ dependencies = [
     "langchain-mcp-adapters",
     # Floor: PYSEC-2026-3483. Ceiling: mcp 2.0 removed `mcp.server.fastmcp`,
     # which fichero-mcp imports everywhere — see the briefcase block comment.
-    "mcp>=1.30.0,<2",
+    "mcp>=1.30.0,<3",
     "langgraph",
     "langchain-ollama",
     "apscheduler",

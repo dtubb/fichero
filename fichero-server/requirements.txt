@@ -90,7 +90,7 @@ langchain-mistralai
 langchain-openrouter
 langchain-community
 langchain-mcp-adapters
-mcp>=1.30.0,<2
+mcp>=1.30.0,<3
 langgraph
 langchain-ollama
 
