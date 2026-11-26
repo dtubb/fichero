@@ -1037,7 +1037,10 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   from 16:41 to 18:05 as "unknown keys" (alerts 1902-1909) until a person updated it. Every two minutes the loop compares its
   checkout's HEAD with the land branch's tip; when the tip is ahead and changed the builder package or harness.toml: with
   `[loop].follow_landed = true` the checkout goes to the tip, its own harness.toml kept as it was, one `loop` row `followed`,
-  and the code-mark re-exec runs the new code at the next quiet tick (a step the old code blocked is retried there); a checkout
+  and the loop re-execs onto the new code at once: running chains do not hold it (their steps go again from queue.json), only a
+  dev build's thread does, and no chain starts on the old process meanwhile (2026-11-25 21:2x-21:39, alerts 1938-1948: nine busy
+  lanes kept a quiet tick from coming and every check refused "unknown rules"); a step the old code blocked on "unknown keys" or
+  "unknown rules" is retried there (test `fichero-builder/tests/test_follow_landed.py::test_after_a_follow_the_loop_re_execs_at_once_with_chains_running_and_only_a_dev_build_holds_it`); a checkout
   with other local changes is not touched and is one alert; with follow_landed off (the default), a tip whose rules this code
   refuses is ONE alert per tip naming the refusal and the fix. A `[check]` key the code does not know, when the builder package
   beside those rules declares it, is refused with that cause: "a NEWER builder knows them ... this process runs older code than
@@ -1422,7 +1425,9 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   **Built** 2026-11-02 against fakes: `fichero_builder/verify.py`. Not yet: a real run, its timings. Tests:
   `fichero-builder/tests/test_verify_all.py::test_green_runs_every_part_writes_one_row_and_builds_the_dmg_only_with_build`,
   `::test_a_red_part_is_not_verified_and_no_dmg_is_built`, `::test_build_flag_makes_the_dmg_after_a_green_verdict`,
-  `::test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends`.
+  `::test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends`. The post-landing verify runs `builder verify-all` in a clean detached worktree of the land branch's tip, removed after, never in
+  the loop's own checkout, whose local harness.toml judged a green landing red (2026-11-25 21:37, alert 1950) (`queue.verify_landed`,
+  test `fichero-builder/tests/test_follow_landed.py::test_verify_after_a_landing_runs_in_a_clean_tree_of_the_land_tip_never_the_loops_checkout`).
 - `dev-workflows.run.heavy-lock` [PARTIAL] (#6116; owner order via the manager 2026-11-02) — one heavy job at a time per machine: a flock
   `heavy.lock` in the owner's state dir (`journal.heavy`). xcodebuild (the build rung), the full engine suite (the pytest runs of a check,
   `builder test` and `verify-all` that run here) take it, so `builder check`, the loop's chains, `builder build --dev`,

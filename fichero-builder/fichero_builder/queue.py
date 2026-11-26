@@ -1605,6 +1605,31 @@ def feed(procs: Procs, lanes_n: int, out=print) -> bool:
 VERIFY_PENDING = "verify-pending"  # a product landing's head, waiting for every lane to go idle
 
 
+def verify_landed(repo, branch: str, pkg, run=subprocess.run) -> tuple[int, str]:
+    """`builder verify-all` over a clean detached worktree of the land branch's tip, removed after; never the loop's own checkout,
+    whose local harness.toml and files judged a green landing red (2026-11-25 21:37, alert 1950: four guards and a test red there,
+    green on a clean tree of 7ab1780)."""
+    why = ""
+    try:
+        tip = land_tool.resolve_branch(repo, branch)
+    except RuntimeError as e:
+        tip, why = "", str(e)[-200:]
+    if not tip:
+        return 1, f"NOT VERIFIED: no tip of {branch} in {repo}: {why}"
+    tree = tempfile.mkdtemp(prefix="verify-landed-")
+    git = [land_tool.GIT, "-c", "safe.directory=*", "-C", str(repo)]
+    try:
+        r = subprocess.run([*git, "worktree", "add", "--detach", "-q", tree, tip], capture_output=True, text=True)
+        if r.returncode:
+            return 1, f"NOT VERIFIED {tip[:9]}: its clean tree could not be made: {(r.stderr or r.stdout).strip()[-300:]}"
+        r = run([sys.executable, "-m", "fichero_builder", "verify-all", "--root", tree, "--state", str(journal.STATE)],
+                cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
+        return r.returncode, (r.stdout + r.stderr)[-2000:]
+    finally:
+        subprocess.run([*git, "worktree", "remove", "--force", tree], capture_output=True)
+        shutil.rmtree(tree, ignore_errors=True)
+
+
 def verify_when_idle(procs: Procs, chains: dict | None) -> None:
     """dev-workflows.run.verify-all (owner 2026-11-03): after a worker lane's MILESTONE is complete (its last step landed, some step product), once no lane is busy and no build runs, `builder verify-all`
     runs once over the loop's checkout: one `verify` row and its activity rows, an alert when red; it never pushes and takes the heavy lock."""
@@ -2147,10 +2172,14 @@ def apply_loop_cfg(cfg: dict) -> None:
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
 
 
-def restart_due(mark: tuple, root, chains, builds=()) -> bool:
+def restart_due(mark: tuple, root, chains, builds=(), followed: bool = False) -> bool:
     """#6589: re-exec between ticks only when the package's code changed (a landing under fichero-builder/); a live worker session no
-    longer holds it off, because the restarted loop adopts it. A running chain or dev build still does (its thread would be lost)."""
-    return code_mark(root) != mark and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in builds)
+    longer holds it off, because the restarted loop adopts it. A running chain or dev build still does (its thread would be lost).
+    After a follow (`followed`) only a dev build holds it: the chains' steps go again from queue.json, and the old process meanwhile
+    read the landed rules with older code (2026-11-25 21:2x-21:39, alerts 1938-1948: every check refused "unknown rules" while
+    nine busy lanes kept the quiet tick from coming)."""
+    chain_runs = not followed and any(not f.done() for k, f in (chains or {}).items() if k != "pool")
+    return code_mark(root) != mark and not chain_runs and not any(t.is_alive() for t in builds)
 
 
 def reexec() -> None:  # the tests replace this
@@ -2205,7 +2234,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         if heartbeat and root and time.time() - FOLLOWED_AT[0] >= FOLLOW_S:  # a landing (or a hand push) of builder code: the loop follows it
             FOLLOWED_AT[0] = time.time()
             try:
-                follow_landed(root, out)
+                FOLLOWED[0] = FOLLOWED[0] or follow_landed(root, out).startswith("followed")
             except Exception:  # noqa: BLE001 - following is housekeeping, never the loop's death
                 journal.append("loop", state="follow-error", detail=traceback.format_exc()[-1000:])
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
@@ -2213,7 +2242,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         DRAIN[0] = heartbeat and code_mark(root) != mark  # serial chains never left a gap: stop starting them until it re-execs
         if not DRAIN[0]:
             DRAIN_SINCE[0] = 0.0
-        if heartbeat and restart_due(mark, root, chains, BUILDS):
+        if heartbeat and restart_due(mark, root, chains, BUILDS, followed=FOLLOWED[0]):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
             mark = code_mark(root)  # a test's reexec returns
@@ -2223,13 +2252,14 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
 
 FOLLOW_S = 120  # how often the loop compares its own checkout with the land branch's tip
 FOLLOWED_AT = [0.0]
+FOLLOWED = [False]  # this process followed the landed code: it re-execs at once, never waiting for a quiet tick
 
 
 def follow_landed(root, out=print) -> str:
     """local.loop.follows-landed-code (2026-11-25 16:42, alerts 1902-1909: a landing added `[check].swift_tests`; the loop's older
     checkout refused every check for 80 minutes until a person updated it). When the land branch's tip changed the builder
     package or harness.toml since the loop's own checkout HEAD: with `[loop].follow_landed = true` the checkout goes to that tip,
-    its own harness.toml kept as it was, and the code-mark re-exec runs it at the next quiet tick (one `loop` row `followed`);
+    its own harness.toml kept as it was, and the loop re-execs onto it at once, only a dev build holding it (one `loop` row `followed`);
     a checkout with other local changes, or follow_landed off while the tip's rules refuse this code, is ONE alert per tip.
     '' or what it did."""
     from fichero_builder import check_tool
@@ -2273,12 +2303,12 @@ def follow_landed(root, out=print) -> str:
     (Path(root) / "harness.toml").write_text(keep)  # the loop's own rules stay as they were, whatever the checkout did
     if r.returncode:
         return say(f"the update to {tip[:9]} failed: {(r.stderr or r.stdout).strip()[-200:]}")
-    journal.append("loop", state="followed", detail=f"the loop's checkout went from {head[:9]} to the landed {tip[:9]} ({len(changed.stdout.split())} builder file(s)); it re-execs at the next quiet tick")
+    journal.append("loop", state="followed", detail=f"the loop's checkout went from {head[:9]} to the landed {tip[:9]} ({len(changed.stdout.split())} builder file(s)); it re-execs now, a running dev build first")
     out(f"loop: followed the landed code to {tip[:9]}")
     return f"followed {tip[:9]}"
 
 
-RULES_NEWER = re.compile(r"unknown keys|rules file refused")
+RULES_NEWER = re.compile(r"unknown keys|unknown rules|rules file refused")  # "unknown rules": [check].auto (alerts 1938-1948)
 
 
 def retry_rules_blocked(out=print) -> list[str]:
@@ -2794,9 +2824,7 @@ def real_procs(root) -> Procs:
         return r.returncode != 0 or any(f.startswith(prefixes) for f in r.stdout.split())  # unknown = build
 
     def verify_all():
-        r = subprocess.run([sys.executable, "-m", "fichero_builder", "verify-all", "--root", str(root), "--state", str(journal.STATE)],
-                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
-        return r.returncode, (r.stdout + r.stderr)[-2000:]
+        return verify_landed(repo, branch, pkg)
 
     def daily_builds():
         r = subprocess.run([sys.executable, "-m", "fichero_builder", "daily-builds", "--root", str(root), "--state", str(journal.STATE)],

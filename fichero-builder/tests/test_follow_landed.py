@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import subprocess
+import types
+from pathlib import Path
 
 import pytest
 
@@ -83,3 +85,42 @@ def test_an_unknown_check_key_that_the_pinned_package_declares_names_older_code_
     with pytest.raises(ValueError, match=r"unknown keys \['future_key'\]$"):
         check_tool.load(tmp_path)
     assert queue.RULES_NEWER.search(MSG_1642), "the re-exec onto the new code retries a step blocked by the 16:42 refusal"
+
+
+MSG_2130 = "harness.toml [check].auto: unknown rules ['red-on-base-pure-move'] (known: [...])"
+
+
+def test_after_a_follow_the_loop_re_execs_at_once_with_chains_running_and_only_a_dev_build_holds_it(repos):
+    """2026-11-25 21:2x-21:39, alerts 1938-1948: the loop followed 7ab1780 and waited for a quiet tick that nine busy lanes never
+    gave; every check meanwhile refused "[check].auto: unknown rules ['red-on-base-pure-move']". The chains' steps go again from
+    queue.json, so after a follow only a dev build's thread holds the re-exec; and a step blocked on that refusal is retried."""
+    eng, live, rules = repos
+    (live / "harness.toml").write_text(rules + "[loop]\nfollow_landed = true\n")
+    assert queue.follow_landed(live, out=lambda s: None).startswith("followed")
+    mark = ("older code",)  # code_mark reads the running package: the followed checkout's code differs from it
+    busy = types.SimpleNamespace(done=lambda: False)
+    chains = {"pool": object(), **{f"lane{i}": busy for i in range(9)}}
+    assert not queue.restart_due(mark, live, chains), "without a follow: a running chain still holds it, as before"
+    assert queue.restart_due(mark, live, chains, followed=True), "after a follow: at once, nine chains running"
+    assert not queue.restart_due(mark, live, chains, [types.SimpleNamespace(is_alive=lambda: True)], followed=True), "a dev build holds it"
+    assert queue.RULES_NEWER.search(MSG_2130), "the re-exec retries the steps those refusals blocked"
+
+
+def test_verify_after_a_landing_runs_in_a_clean_tree_of_the_land_tip_never_the_loops_checkout(repos):
+    """2026-11-25 21:37, alert 1950: verify-all after a landing ran in the loop's own checkout (its local harness.toml) and four
+    guards and a test went red there that are green on a clean tree of the landed 7ab1780."""
+    eng, live, rules = repos
+    (live / "harness.toml").write_text(rules + "local_only = 1\n")
+    seen = {}
+
+    def run(argv, **k):
+        tree = argv[argv.index("--root") + 1]
+        seen.update(tree=tree, rules=(Path(tree) / "harness.toml").read_text(), head=g(tree, "rev-parse", "HEAD"), status=g(tree, "status", "--porcelain"))
+        return types.SimpleNamespace(returncode=0, stdout="VERIFIED\n", stderr="")
+    assert queue.verify_landed(eng, "integration", live, run=run) == (0, "VERIFIED\n")
+    assert seen["head"] == g(eng, "rev-parse", "integration") and seen["status"] == "", "the land branch's tip, clean"
+    assert "local_only" not in seen["rules"] and "future_key" in seen["rules"], "the landed rules, never the loop's local copy"
+    assert str(live) not in seen["tree"] and not Path(seen["tree"]).exists(), "its own tree, removed after"
+    assert "verify-landed-" not in g(eng, "worktree", "list")
+    rc, out = queue.verify_landed(eng, "no-such-branch", live, run=run)
+    assert rc == 1 and out.startswith("NOT VERIFIED")
