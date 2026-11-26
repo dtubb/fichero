@@ -394,3 +394,40 @@ def test_a_second_train_stops_at_its_next_run_once_its_base_train_failed():
     finally:
         train.CANCEL.pop("t2", None)
     assert calls == ["guards"] and res.result == "cancelled" and res.again == ["l/a"] and "did not land" in res.bisect[-1]
+
+
+TAIL_161601 = ("✔ Suite RecipeSetupFlowTests passed after 89.838 seconds.\n"
+               "✘ Test run with 1006 tests in 155 suites failed after 89.839 seconds with 4 issues.\n\n"
+               "Test session results, code coverage, and logs:\n\t/Volumes/Fichero Development/fichero-gate/results/test.xcresult\n")
+
+
+def test_a_swift_red_with_no_suite_read_from_its_names_never_runs_the_base(tmp_path, monkeypatch):
+    """train-20261126-161601: selection and base_selection both "296 suite(s)", base 864.8 s, then the time limit. Without suites read
+    from the failing names, the base is never run: the red stands with `no case names`, and failures=N is on the row."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    ran = []
+    base = lambda suites: ran.append(suites) or {"ok": True}  # noqa: E731
+    for r, target, why in (({"ok": False, "failing": [], "failures": 5}, "FicheroTests", "no case names"),
+                           ({"ok": False, "failing": ["Test \"the way chosen\" failed"], "failures": 5}, "FicheroTests", "names no suite"),
+                           ({"ok": False, "failing": ["FicheroTests/A/b()"], "failures": 5}, "", "no [check].swift_test_target")):
+        ok, said, facts = train.swift_judge(r, TAIL_161601, "b1", target, base)
+        assert not ok and why in said and "see tail" in said and "1006 tests in 155 suites" in said and facts == {"failures": 5}
+    assert ran == [], "the base never re-ran the candidate's selection"
+    ok, said, facts = train.swift_judge({"ok": False, "failing": ["FicheroTests/SegmentToolTests/draw()"], "failures": 1}, TAIL_161601, "b1",
+                                        "FicheroTests", lambda s: ran.append(s) or {"ok": False, "failing": []})
+    assert ran == [["FicheroTests/SegmentToolTests"]] and facts["base_selection"] == "1 suite(s)" and facts["failures"] == 1
+
+
+def test_a_swift_red_with_no_case_names_searches_the_swift_steps_alone_on_their_own_suites():
+    seen = []
+
+    def rung(name, cand, only=()):
+        seen.append((name, cand, tuple(only)))
+        bad = name == "swift-tests" and "b" in cand.split("+")
+        return (not bad), ("swift-tests: no case names, see tail: the base is not run\n" + TAIL_161601 if bad else "ok")
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "abc"], merge=lambda hs: ("+".join(hs), {}), rung=rung,
+                        rungs_for=lambda hs: ["build", "swift-tests"], tid="t", touches_swift=lambda h: h in ("b", "c"))
+    assert set(r.back) == {"l/b"} and "no case names were read" in r.back["l/b"]["findings"]
+    assert [c for n, c, _o in seen if n == "swift-tests"][1:3] == ["c", "b"], "the Swift steps alone, newest first, never a prefix"
+    assert not any(c in ("a", "a+b") for _n, c, _o in seen)

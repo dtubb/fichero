@@ -2101,7 +2101,10 @@ def ui(root, changed: list[str], cfg: Config) -> dict:
     return {"ok": r["ok"] or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines), "stderr_tail": "", "results": [row]}
 
 
-SWIFT_SELECT_MAX = 300  # more suites than this: the whole suite runs (the selection would not save much)
+# 2026-11-26 journal: 296 suites (1006 tests) took 921 and 858 s, the whole plan (5077 tests) 786 to 1246 s, 58 tests 181 s: about
+# 140 s + 2.6 s a suite, so near 300 suites -only-testing costs what the whole plan does. ponytail: a fixed 150, from one day's runs;
+# the `swift-tests` check rows now carry `suites`, so it can be set again from more of them.
+SWIFT_SELECT_MAX = 150  # more suites than this: the whole plan runs
 SWIFT_NEUTRAL = (".pbxproj", ".xcfilelist", ".md")  # project bookkeeping: the Swift files the change adds carry the selection
 _SUITE = re.compile(r"^(?:@Suite\b[^\n]*\n)?(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:final|public|internal)\s+)*(?:struct|class|actor|enum)\s+(\w+)([^{\n]*)", re.M)
 
@@ -2201,11 +2204,12 @@ def swift_tests(root, cfg: Config, only: list[str] | tuple = (), timeout_s: floa
     names = failing_cases(full)
     count, failed = (int(ran[-1][0]), int(ran[-1][1])) if ran else (int((re.findall(r"Test run with (\d+) tests?", out) or ["0"])[-1]), len(names))
     secs = round(time.time() - t0, 1)
-    journal.append("check", state="swift-tests", rung="swift-tests", ok=t["ok"], seconds=secs, tests=count, failures=failed)
+    journal.append("check", state="swift-tests", rung="swift-tests", ok=t["ok"], seconds=secs, tests=count, failures=failed,
+                   suites=len(only) if only else "whole")  # the selection's size beside its time: SWIFT_SELECT_MAX is set from these
     head = f"swift-tests: {count} tests, {failed} failed, {secs} s"
     if not t["ok"]:
         return {"ok": False, "skipped": False, "stdout_tail": f"RED: {head}\nfailing: {', '.join(names) or '(no test name read)'}\n" + out[-2000:],
-                "stderr_tail": row.get("stderr_tail") or "", "results": [row], "failing": names}
+                "stderr_tail": row.get("stderr_tail") or "", "results": [row], "failing": names, "failures": failed}
     return {"ok": True, "skipped": False, "stdout_tail": head, "stderr_tail": "", "results": [row]}
 
 

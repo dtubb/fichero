@@ -170,7 +170,8 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
     rest_names = names[names.index(rung_name):]
     unresolved = [s["key"] for s in keep]
     new = cases(red[1])
-    if rung_name == "swift-tests" and new and touches_swift is not None:
+    if rung_name == "swift-tests" and touches_swift is not None and (new or "no case names" in red[1] or "names no suite" in red[1]):
+        # with no names, each Swift step alone runs the suites its own diff can affect (the rung's selection over that step's files)
         return _swift_search(res, keep, new, red[1], rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run)
     if rung_name == "security" and (heads := _named_heads(red[1])):  # local.train.security-and-perf-once: back to the step that added the line
         for s in keep:
@@ -251,7 +252,7 @@ def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, dea
         t0 = clock()
         ok, out = rung(name, c, only=sorted(new))
         res.rungs.append(_row(rung, name, ok, out, round(clock() - t0, 1), "search", c))
-        res.bisect.append(f"{s['key']} alone, the {len(new)} new case(s): {'green' if ok else 'red'}")
+        res.bisect.append(f"{s['key']} alone, {f'the {len(new)} new case(s)' if new else 'the suites its diff affects'}: {'green' if ok else 'red'}")
         if not ok:
             culprit = s
             break
@@ -264,9 +265,9 @@ def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, dea
         culprit, others = touching[-1], [s["key"] for s in touching[:-1]]
         res.bisect.append(f"no step alone fails it: {culprit['key']}, the newest that touches it, goes back naming {', '.join(others) or 'no other'}")
     what = "alone on the land branch fails" if not others else "and " + ", ".join(others) + " together fail"
+    which = f"{', '.join(sorted(new))}, which pass on the land branch" if new else f"{name} (no case names were read: see the output)"
     res.back[culprit["key"]] = {"kind": "red", "why": f"the merge train {tid} is red at {name} with this step in it",
-                                "findings": f"The merge train {tid} is red at {name}: this step {what} "
-                                            f"{', '.join(sorted(new))}, which pass on the land branch.\n{name} on the train candidate:\n{tail}"}
+                                "findings": f"The merge train {tid} is red at {name}: this step {what} {which}.\n{name} on the train candidate:\n{tail}"}
     rest = [s for s in keep if s is not culprit]
     if not rest:
         return res
@@ -339,6 +340,28 @@ def suites_of(failing: list[str], target: str) -> list[str] | None:
             return None
         out.add(f"{target}/{m.group(1) if f.startswith('-[') else m.group(2)}")
     return sorted(out)
+
+
+def swift_judge(r: dict, out: str, base: str, target: str, run_base: Callable[[list[str]], dict]) -> tuple[bool, str, dict]:
+    """A red swift-tests run on the candidate, judged on the base over the failing cases' suites ONLY (train-20261126-161601: no
+    suite read from the names, the base re-ran the candidate's 296 suites for 865 s and the train timed out). No name read, a name
+    no suite can be read from, or no [check].swift_test_target: the base is never run and the red stands, `no case names, see tail`.
+    (ok, output, the rung row's facts: failures, base_selection, base_seconds)."""
+    failing = list(r.get("failing") or [])
+    facts: dict = {"failures": int(r.get("failures") or len(failing))}
+    suites = suites_of(failing, target) if failing and target else None
+    if not suites:
+        why = "no case names" if not failing else "no [check].swift_test_target" if not target else "a failing name names no suite"
+        return False, f"swift-tests: {why}, see tail: the base is not run\n{out}"[-3000:], facts
+
+    def timed() -> dict:
+        t0 = time.time()
+        try:
+            return run_base(suites)
+        finally:
+            facts.update(base_seconds=round(time.time() - t0, 1), base_selection=f"{len(suites)} suite(s)")
+    ok, said = against_base(failing, out, base, timed, suites)
+    return ok, said, facts
 
 
 def against_base(failing: list[str], out: str, base: str, run_base: Callable[[], dict], only: list[str] | tuple = (), label: str = "swift-tests") -> tuple[bool, str]:
@@ -494,16 +517,10 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
                 check_tool.drop_tree(repo, tree)
         row = (r.get("results") or [{}])[0]
         out = (r.get("stdout_tail") or row.get("errors") or row.get("stdout_tail") or "")[-3000:]
-        if name == "swift-tests" and not r.get("ok") and r.get("failing"):
-            on_base = (cfg.swift_test_target and suites_of(r["failing"], cfg.swift_test_target)) or sel or ()
-
-            def timed():
-                t0 = time.time()
-                try:
-                    return swift_on(base, on_base)
-                finally:
-                    rung.last = {**rung.last, "base_seconds": round(time.time() - t0, 1), "base_selection": f"{len(on_base)} suite(s)" if on_base else "whole"}
-            return against_base(r["failing"], out, base, timed, on_base)
+        if name == "swift-tests" and not r.get("ok") and not r.get("not_run"):
+            ok, said, facts = swift_judge(r, out, base, cfg.swift_test_target, lambda suites: swift_on(base, suites))
+            rung.last = {**rung.last, **facts}
+            return ok, said
         return bool(r.get("ok")), out
 
     def whole_on(tree, cand: str, files: list[str]) -> tuple[bool, str]:
