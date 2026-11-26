@@ -47,11 +47,7 @@ def relativize_package_paths(db: Any) -> dict[str, Any]:
     package = Path(db.path).parent
     changes: list[tuple[Any, str | None, dict[str, str]]] = []
     # Only rows that mention a `.fichero/` folder can match: filter in SQL, never read the whole table on an open.
-    table = db._sql_table_name(Document)
-    db._ensure_table(Document)
-    rows, _ = db._execute_fetch_with_columns(
-        f"SELECT id FROM {table} WHERE path LIKE '/%.fichero/%' OR CAST(metadata AS VARCHAR) LIKE '%.fichero/%'")
-    for (doc_id,) in rows:
+    for doc_id in db.document_ids_mentioning_package_folder():
         doc = db.get(Document, doc_id)
         if doc is None:
             continue
