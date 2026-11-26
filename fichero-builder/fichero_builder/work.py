@@ -346,6 +346,37 @@ def green_before_approve(ladder: str, since: str, head: str, pinned) -> dict:
     return green
 
 
+def fix_reuse(repo: str, ladder: str, since: str, head: str, pinned) -> dict:
+    """local.check.fix-round-reuses-verdicts: the green rungs of this lane's last ladder that a fix commit cannot change, for a head that
+    descends from the one that ladder judged, on the same base and the same pinned copy; each row carries `reused` (the judged head).
+    A rung is kept only when no path the new commits change is one of its inputs: red-on-base (the changed tests, `[check].red_paths`,
+    `conftest.py`), guards (every guard has declared inputs, none touched, no guard script touched), build (`[check].build_paths`).
+    A red rung, the instant rungs and the rest always run. {} = run the whole ladder."""
+    try:
+        prev = json.loads(Path(ladder).read_text())
+    except (OSError, ValueError):
+        return {}
+    old = prev.get("head") or ""
+    if (prev.get("since"), prev.get("pinned")) != (since, str(pinned)) or not old or old == head or \
+            _git(repo, "merge-base", "--is-ancestor", old, head).returncode:
+        return {}
+    fix = _git(repo, "diff", "--name-only", old, head).stdout.split()
+    cfg = check_tool.load(pinned)
+    tree = Path(pinned)
+    guards = sorted(tree.glob(cfg.guard_glob)) if cfg.guard_glob else []
+
+    def is_test(f: str) -> bool:
+        return any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)
+    keep = {
+        "red-on-base": not any(is_test(f) or Path(f).name == "conftest.py" or (cfg.red_paths and f.startswith(tuple(cfg.red_paths))) for f in fix)
+        and bool(cfg.red_paths),
+        "guards": bool(guards) and len(check_tool.untouched_guards(guards, tree, cfg, fix)) == len(guards),
+        "build": bool(cfg.build_paths) and not any(f.startswith(tuple(cfg.build_paths)) for f in fix),
+    }
+    return {row["name"]: {**row, "reused": old} for row in prev.get("rungs") or []
+            if row.get("ok") and not row.get("skipped") and keep.get(row.get("name"), False)}
+
+
 def kept_rows(ladder: str, old_base: str, old_head: str, pinned) -> dict:
     """The rung rows of a GREEN ladder file for exactly this old head, base and pinned copy ({} otherwise): what a kept rebase leaves standing."""
     try:
@@ -375,7 +406,8 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path
     guard_data = tuple(getattr(a, "guard_data", ()) or ())
     approved = maintainer or approve or bool(red_ok) or pin_new or bool(guard_data) or bool(getattr(a, "retry", False))  # a retry resumes at the failed rung too (2026-11-11)
-    check_tool.REUSE[0] = partial[0] if partial else green_before_approve(ladder, since, head, a.pinned) if approved else None
+    check_tool.REUSE[0] = (partial[0] if partial else green_before_approve(ladder, since, head, a.pinned) if approved
+                           else (fix_reuse(repo, ladder, since, head, a.pinned) or None) if check_tool.load(a.pinned).reuse_fix_verdicts else None)
     check_tool.HEAD_GREEN_ONLY[0] = bool(partial)
     check_tool.SKIP_RUNGS[0] = ("build", "ui") if getattr(a, "train", False) else ()  # a merge train runs them once for many steps
     try:

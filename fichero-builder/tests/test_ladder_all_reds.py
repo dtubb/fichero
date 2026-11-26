@@ -200,3 +200,61 @@ def test_a_pure_move_of_a_test_is_judged_green_on_head_only_and_an_edited_move_s
     assert [x["file"] for x in journal.read() if x.get("rule") == "red-on-base-pure-move"] == ["tests/execution/test_moved.py"]
     r = check_tool.red_on_base(tmp_path, base, head, files, Config())
     assert "test_moved.py" in r["stderr_tail"], "without the rule in [check].auto: as before"
+
+
+def _fix_world(tmp_path):
+    """A repo: base, a step head h1 (a source change), a pinned copy with red_paths, build_paths and a guard with declared inputs, and the
+    lane's last ladder at h1: red-on-base, guards and build green, unit red."""
+    import json as _json
+    import subprocess as sp
+    r = tmp_path / "r"
+    r.mkdir()
+
+    def g(*a):
+        return sp.run(["git", "-C", str(r), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout.strip()
+    (r / "src").mkdir()
+    (r / "src" / "a.py").write_text("x = 1\n")
+    g("init", "-q", "-b", "main"), g("add", "."), g("commit", "-qm", "base")
+    base = g("rev-parse", "HEAD")
+    (r / "src" / "a.py").write_text("x = 2\n")
+    g("commit", "-qam", "step")
+    h1 = g("rev-parse", "HEAD")
+    pin = tmp_path / "pin"
+    (pin / "scripts").mkdir(parents=True)
+    (pin / "scripts" / "check_a.py").write_text("print('ok')\n")
+    (pin / "harness.toml").write_text('[check]\nreuse_fix_verdicts = true\nred_paths = ["src/"]\nbuild_paths = ["app/"]\n'
+                                      'guard_glob = "scripts/check_*.py"\n[check.guard_inputs]\ncheck_a = ["docs/"]\n')
+    ladder = tmp_path / "ladder.json"
+    rungs = [{"name": n, "ok": n != "unit"} for n in ("ready", "red-on-base", "unit", "guards", "build")]
+    ladder.write_text(_json.dumps({"ok": False, "rungs": rungs, "head": h1, "since": base, "pinned": str(pin)}))
+    return r, g, base, h1, pin, ladder
+
+
+def test_a_fix_commit_that_touches_no_input_of_a_green_rung_keeps_its_verdict_with_a_reused_row(tmp_path):
+    """local.check.fix-round-reuses-verdicts: a fix commit outside red_paths, the guard inputs (docs/) and the build paths (app/) keeps
+    those three greens, each naming the head it was judged at; the red unit and the instant ready run again."""
+    from fichero_builder import work
+    r, g, base, h1, pin, ladder = _fix_world(tmp_path)
+    (r / "notes.txt").write_text("fix\n")
+    g("add", "."), g("commit", "-qm", "fix")
+    kept = work.fix_reuse(str(r), str(ladder), base, g("rev-parse", "HEAD"), pin)
+    assert sorted(kept) == ["build", "guards", "red-on-base"] and all(x["reused"] == h1 for x in kept.values())
+    (r / "test_a.py").write_text("def test_x(): pass\n")
+    g("add", "."), g("commit", "-qm", "a test")
+    assert sorted(work.fix_reuse(str(r), str(ladder), base, g("rev-parse", "HEAD"), pin)) == ["build", "guards"], "a changed test: red-on-base runs"
+
+
+def test_a_moved_base_a_rebased_head_or_a_touched_input_runs_the_rung_again(tmp_path):
+    from fichero_builder import work
+    r, g, base, h1, pin, ladder = _fix_world(tmp_path)
+    (r / "docs").mkdir()
+    (r / "docs" / "x.md").write_text("x\n")
+    g("add", "."), g("commit", "-qm", "touch a guard input")
+    head = g("rev-parse", "HEAD")
+    assert "guards" not in work.fix_reuse(str(r), str(ladder), base, head, pin), "a guard's input touched"
+    assert work.fix_reuse(str(r), str(ladder), "0" * 40, head, pin) == {}, "a moved base"
+    assert work.fix_reuse(str(r), str(ladder), base, head, tmp_path / "other") == {}, "another pinned copy"
+    g("reset", "-q", "--hard", base)
+    (r / "src" / "a.py").write_text("x = 3\n")
+    g("commit", "-qam", "rewritten")
+    assert work.fix_reuse(str(r), str(ladder), base, g("rev-parse", "HEAD"), pin) == {}, "a head that does not descend"

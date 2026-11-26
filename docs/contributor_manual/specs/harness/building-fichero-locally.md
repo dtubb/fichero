@@ -1238,16 +1238,14 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   earlier finding as fixed or not fixed and names any new fault in that diff; READY needs every earlier finding fixed
   and no new fault. A head that does not descend from the reviewed one (a rebase, an amend) is reviewed whole, with one
   `review` row `whole-again`. Tests: `fichero-builder/tests/test_loop.py::test_a_fix_round_review_gets_the_earlier_findings_and_only_the_fix_diff`, `fichero-builder/tests/test_loop.py::test_a_rebased_head_is_reviewed_whole_with_a_row`. Serves: reliable, fast.
-- `local.check.fix-round-reuses-verdicts` [GAP] (#6589) — a ladder over a head that descends from a head the same
+- `local.check.fix-round-reuses-verdicts` [OK] (#6589; built 2026-11-26; on with [check].reuse_fix_verdicts (default off); kept: red-on-base, guards, build; security, contract-current and since-guards always run for now) — a ladder over a head that descends from a head the same
   step was checked at, on the same base sha and the same pinned copy, keeps a rung's earlier green without running it
   when no path the new commits change is an input of that rung: for red-on-base, the changed tests, the files under
   `[check].red_paths` and the tests' `conftest.py` files; for the guards, each guard's `[check.guard_inputs]` and its
   script (a guard with no declared inputs runs); for security, contract-current, the since-guards and the build, the
   paths each already reads to decide whether it runs. The kept rung is a `rung` row with `reused` naming the head it
   was judged at. A red rung, the instant rungs, a moved base, another pinned copy or a head that does not descend
-  always run. Test (owed):
-  `test_ladder_all_reds.py` `test_a_fix_commit_that_touches_no_input_of_a_green_rung_keeps_its_verdict_with_a_reused_row`,
-  `test_a_moved_base_a_rebased_head_or_a_touched_input_runs_the_rung_again`. Serves: reliable, fast.
+  always run. Tests: `fichero-builder/tests/test_ladder_all_reds.py::test_a_fix_commit_that_touches_no_input_of_a_green_rung_keeps_its_verdict_with_a_reused_row`, `fichero-builder/tests/test_ladder_all_reds.py::test_a_moved_base_a_rebased_head_or_a_touched_input_runs_the_rung_again`. Serves: reliable, fast.
 - `local.check.red-on-base-changed-tests-only` [GAP] (#6589) — with the train on, the step's red-on-base rung runs the
   changed test files and nothing else, on the base and on the head; the `[check.whole_tests]` directories of the diff
   are not run by the step and the rung's row lists them as `owed to the train`. With `[train].enabled = false` the

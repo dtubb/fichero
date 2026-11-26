@@ -89,6 +89,7 @@ class Config:
                                         # runs every guard (2026-11-26, owner: per step only what changed); off = every guard, as before
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
+    reuse_fix_verdicts: bool = False    # local.check.fix-round-reuses-verdicts: a fix commit keeps the green rungs it cannot change; off = every rung runs
     slots_from_runners: bool = False    # local.flow.check-slots-from-runners: count the ladder slots each tick from the runners' rows, `parallel` a ceiling; off = `parallel`
     slots_per_runner: int = 1           # the slots one [check].remote entry gives while it is fit
     runner_max_load: float = 1.0        # 1-minute load per core above this: the runner gives no slot
@@ -163,7 +164,7 @@ def load(root) -> Config:
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), guards_by_diff=bool(c.get("guards_by_diff", d.guards_by_diff)), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
         rungs=tuple(c.get("rungs", d.rungs)), rung=tuple(dict(x) for x in c.get("rung", d.rung)),
         parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())),
-        slots_from_runners=bool(c.get("slots_from_runners", d.slots_from_runners)), slots_per_runner=int(c.get("slots_per_runner", d.slots_per_runner)),
+        reuse_fix_verdicts=bool(c.get("reuse_fix_verdicts", d.reuse_fix_verdicts)), slots_from_runners=bool(c.get("slots_from_runners", d.slots_from_runners)), slots_per_runner=int(c.get("slots_per_runner", d.slots_per_runner)),
         runner_max_load=float(c.get("runner_max_load", d.runner_max_load)), runner_min_free_ram_gb=float(c.get("runner_min_free_ram_gb", d.runner_min_free_ram_gb)))
 
 
@@ -2288,6 +2289,8 @@ def ladder(rungs: list) -> dict:
             continue
         if (prior := (REUSE[0] or {}).get(name)) is not None:  # green before the approve, for this exact head: not run again (dev-workflows.run.loop-needs-maintainer)
             out.append({**prior, "name": name, "cached": True})
+            if prior.get("reused"):  # local.check.fix-round-reuses-verdicts: one rung row naming the head it was judged at
+                ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=True, reused=prior["reused"])
             continue
         ACTIVITY(kind="check", key=_KEY[0], state="rung-start", rung=name, load=_load())
         t0 = time.time()
