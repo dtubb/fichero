@@ -56,7 +56,7 @@ paged container with a small indicator, where a zoomed picture keeps its own pan
 - **Connection watch**: a 5 s heartbeat (`App/AppState/AppState+Heartbeat.swift`), a 3 s grace before the launch says it is
   still connecting (`Services/LaunchProbePolicy.swift`), a recovery bar with Reconnect and Change Server
   (`Views/Connect/IOSConnectionRecoveryBar.swift`), a Connection menu (`Views/Connect/IOSConnectionMenu.swift`).
-- **Drill-down**: `Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift` and `CompactDocumentStep`
+- **Drill-down**: `Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift` and `CompactPath`, `CompactStep`, `ItemPage` (`Models/Navigation/`)
   (`Views/Shell/ShellLayoutPolicy.swift`).
 - **Capture queue**: `Models/MobileCaptureQueue*.swift`, `Views/Capture/`.
 - **Apple frameworks on the device**: VisionKit's document camera and the QR scanner only. No text is read on the device.
@@ -267,10 +267,10 @@ paging. The screens, in order:
   the screen's left edge is Back, anywhere else it does nothing; at the last page a swipe left does nothing. Acceptance:
   from Source, three swipes left show Reader, Segments, Info in turn and a fourth changes nothing; three swipes right
   return to Source; an edge swipe on Source pops to the folder. Tests: `IOSItemPagesUITests.swift`.
-- `ios.item.header-says-where` — **[PARTIAL]** (built: a segmented `Picker` in the bar's principal slot, selection bound to the page; the Reader and Info buttons and `CompactDocumentStep` are removed. Not built: the glyph form at the largest text size; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) the bar's centre holds one small segmented header, Source · Reader ·
+- `ios.item.header-says-where` — **[PARTIAL]** (built: a segmented `Picker` in the bar's principal slot, selection bound to the page; the Reader and Info buttons are removed. Not built: the glyph form at the largest text size; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) the bar's centre holds one small segmented header, Source · Reader ·
   Segments · Info, with the showing page selected; a tap on a name goes to that page with no swipe. It is the only title
   the item view has (`ios.titles.once-at-most`). It replaces the Reader and Info bar buttons of #6566
-  (`compactDocumentStepToolbar`, `ContentView+CompactReader.swift:150-163`), which are removed with `CompactDocumentStep`.
+  (`compactDocumentStepToolbar`, `ContentView+CompactReader.swift:150-163`), which are removed.
   On the narrowest phone at the largest text size the header shows glyphs with the names as accessibility labels.
   Tests: `ItemPagesTests.swift` (header selection follows the page and the reverse), `IOSItemPagesUITests.swift` (tap
   Info from Source).
@@ -299,6 +299,14 @@ paging. The screens, in order:
   container is adjustable (swipe up or down moves a page) and answers the three-finger scroll; changing page moves the
   VoiceOver focus to the new page's first element and announces its name. Tests: `IOSItemPagesUITests.swift` (the four
   header buttons exist with their labels and one has the selected trait; activating each shows its page).
+
+#### What the person sees: the item pages
+
+- **Where it opens:** tap an item in a folder's list on the iPhone. The item opens as one screen of four pages (Source, Reader, Segments, Info) with the segmented header in the bar; it opens on the page last used in this window, Source on a fresh launch.
+- **Empty:** a page with nothing to show says why in one sentence (the Mac's empty-pane words), for example the Reader of a photograph; it is never skipped.
+- **Loading:** a page is mounted when first shown; until its content arrives it shows the same loading view the Mac's pane shows, and the header stays usable.
+- **Error:** a page whose content cannot be fetched says so in its own words in place of the content, and the other three pages are unaffected.
+- **Acceptance:** tapping the seeded letter opens Source with the header showing "Source"; tapping Info in the header shows the item's name and kind; Back returns to the folder.
 
 #### Names and titles
 
@@ -392,7 +400,7 @@ paging. The screens, in order:
   -showTestPlans` on the Dev Local scheme lists fichero, fichero-ui-general and fichero-ui-mac only), so
   `scripts/run_ios_ui_sim.sh`, which asks that scheme for `fichero-ui-ios`, cannot start; and the iOS launch needs a
   paired project (`EngineConfig.iosLaunchPhase`), which the script never gives it. The unit tests that pass
-  (`CompactDocumentStepTests`, `CompactReaderLeafTests`, `CompactSidebarChoiceTests`, `CompactShellPolicyTests`) each
+  (`CompactReaderLeafTests`, `CompactSidebarChoiceTests`, `CompactShellPolicyTests`) each
   test a pure function's table; none mounts a view, so none could see three destinations replacing one another. The
   recipe that launches the real root on a simulator with a project, worked out on 2026-11-21 (the app started; no
   screen was seen before the test Mac ran out of memory): the harness engine on a `/tmp` socket
