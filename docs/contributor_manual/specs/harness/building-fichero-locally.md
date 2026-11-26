@@ -2498,7 +2498,7 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   resume", and `retired` after 7 more unanswered. Nothing is ever silently left: a step the loop cannot move has an open
   alert, and the page's "Needs you" lists it with its age. Acceptance (fake clock, fake journal): each state past its
   hours gets its action and row; a lane paused 15 d is retired with a row; a step under its hours is untouched; the
-  `stale` rows for one tick never act twice on one step. Built (`stale.act`, run by `queue.tick`, cursor step only): said-done,
+  `stale` rows for one tick never act twice on one step. Built: `stale.act`, run by `queue.tick`, cursor step only: said-done,
   checking, reviewing, red, fixing and blocked, with `[loop].stale_hours` read each tick; not built: done-not-landed, queued and
   sent steps, the paused or held lane's alert and `retired`, and "Needs you" listing the stale step. Test: fichero-builder/tests/test_stale.py.
 - `builder-console.step.moves-on` [PARTIAL] (#6646) (the queue feeds the next brief after a landing; a finished lane stops; a
