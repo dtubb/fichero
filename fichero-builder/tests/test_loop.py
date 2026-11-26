@@ -1739,6 +1739,7 @@ def _thin_setup(state, monkeypatch, after):
     fake.procs.thin = thin
     monkeypatch.setattr(queue, "DISK_FLOOR_GB", [30.0])
     monkeypatch.setattr(queue, "THINNED_AT", [0.0])
+    monkeypatch.setattr(queue, "THIN_EPISODE", [False])
     return fake, free, asked
 
 
@@ -1750,7 +1751,7 @@ def test_a_thin_that_frees_space_starts_the_lane_with_one_disk_thinned_row(state
     assert "12 GB free before, 40 GB after" in r["detail"] and not [r for r in journal.read() if r.get("state") == "disk-hold"]
 
 
-def test_a_thin_that_frees_nothing_holds_and_a_second_low_reading_within_the_hour_does_not_thin_again(state, monkeypatch):
+def test_a_thin_that_frees_nothing_holds_and_the_same_low_disk_episode_never_thins_again(state, monkeypatch):
     fake, free, asked = _thin_setup(state, monkeypatch, 12.0)
     tick = lambda: queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
     tick()
@@ -1760,7 +1761,17 @@ def test_a_thin_that_frees_nothing_holds_and_a_second_low_reading_within_the_hou
     later = time.time() + 3601
     monkeypatch.setattr(queue, "_now", lambda: later)
     tick()
-    assert len(asked) == 2, "an hour on, it thins once more"
+    assert len(asked) == 1, "an hour on, the same episode does not thin again"
+    free[0] = 80.0  # the floor is met: the episode ends
+    tick()
+    free[0] = 12.0
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    monkeypatch.setattr(queue, "THINNED_AT", [later - 60])  # a thin a minute ago, in the earlier episode
+    tick()
+    assert len(asked) == 1, "a new episode within the hour of the last thin waits"
+    monkeypatch.setattr(queue, "_now", lambda: later + 3600)
+    tick()
+    assert len(asked) == 2, "a new episode an hour on thins"
 
 
 def test_a_thin_that_fails_is_a_row_and_the_hold_goes_on(state, monkeypatch):

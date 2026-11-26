@@ -673,13 +673,13 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `disk-thinned` row with the free space before and after, and holds the lane only if the floor is still not met. A
   machine without `tmutil`, or a command that fails, is a row and the hold goes on as before. Today the hold in
   `queue.tick_lane` reads `procs.free_gb` and returns; on 2026-11-21 it wrote 934 `disk-hold` rows, and the same command
-  run by hand freed 10 to 14 GB twice. Test (owed): `test_loop.py`, a fake thin that frees space lets the lane start
-  with one `disk-thinned` row; one that frees nothing holds; a second low reading within the hour does not thin again.
+  run by hand freed 10 to 14 GB twice. Tests: `test_loop.py`, a fake thin that frees space starts the lane
+  with one `disk-thinned` row; one that frees nothing holds; a second low reading in the same episode does not thin again.
   Serves: reliable, with little supervision.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-  Built: `queue.tick_lane` calls `Procs.thin` (`queue.thin_snapshots`, `tmutil thinlocalsnapshots / <bytes> 4`) when the floor would hold a new lane and none ran in the last hour (`THINNED_AT`), writes one `disk-thinned` `queue` row (free before and after, and the failure text when it failed), and measures again. Tests
+  Built: `queue.tick_lane` calls `Procs.thin` (`queue.thin_snapshots`, `tmutil thinlocalsnapshots / <bytes> 4`) when the floor would hold a new lane and this low-disk episode has not thinned (`THIN_EPISODE`, cleared when a lane passes the floor) and none ran in the last hour (`THINNED_AT`), writes one `disk-thinned` `queue` row (free before and after, and the failure text when it failed), and measures again. Tests
   `fichero-builder/tests/test_loop.py::test_a_thin_that_frees_space_starts_the_lane_with_one_disk_thinned_row`,
-  `fichero-builder/tests/test_loop.py::test_a_thin_that_frees_nothing_holds_and_a_second_low_reading_within_the_hour_does_not_thin_again`,
+  `fichero-builder/tests/test_loop.py::test_a_thin_that_frees_nothing_holds_and_the_same_low_disk_episode_never_thins_again`,
   `fichero-builder/tests/test_loop.py::test_a_thin_that_fails_is_a_row_and_the_hold_goes_on`.
 - `local.run.waiting-is-one-ask-alert` [OK] (#6855) — a worker whose last line is `WAITING: <question>` is one ask alert
   for the manager. The step row records `waiting=<question>`, the step is `blocked` with that one alert, and

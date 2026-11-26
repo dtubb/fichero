@@ -43,6 +43,7 @@ APPROVED_PINNED: list = [{}]  # [loop.approved_pinned] {path: blob sha}: a maint
 DISK_FLOOR_GB: list = [0.0]  # [loop].disk_floor_gb: under this many free GB no new lane starts; 0 = off
 DISK_THIN_GB: list = [8.0]  # [loop].disk_thin_gb: the bytes (in GB) asked of `tmutil thinlocalsnapshots` before a lane is held for disk
 THINNED_AT: list = [0.0]  # when the loop last thinned local snapshots: at most once an hour
+THIN_EPISODE: list = [False]  # a low-disk episode already thinned: set when it thins, cleared when a lane passes the floor
 THIN_EVERY_S = 3600
 PARKED: list = []  # the lanes whose worker a cap or a provider refusal parked in this tick: one alert for them all
 DISK_HELD: list = []  # the lanes the floor held in this tick; `tick` turns them into one alert, and one more when the floor clears
@@ -703,8 +704,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 if _working(handles) >= workers_n:
                     return True
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0] and procs.thin is not None \
-                        and _now() - THINNED_AT[0] >= THIN_EVERY_S:  # local.disk.thin-snapshots-before-holding: what a sweep freed may be pinned by a snapshot
-                    THINNED_AT[0] = _now()
+                        and not THIN_EPISODE[0] and _now() - THINNED_AT[0] >= THIN_EVERY_S:  # local.disk.thin-snapshots-before-holding: what a sweep freed may be pinned by a snapshot
+                    THINNED_AT[0], THIN_EPISODE[0] = _now(), True
                     err = procs.thin(int(DISK_THIN_GB[0] * 1e9))
                     after = procs.free_gb()
                     journal.append("queue", lane=lane["id"], step=s["step"], state="disk-thinned",
@@ -718,6 +719,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                         journal.append("queue", lane=lane["id"], step=s["step"], state="disk-hold", detail=why)
                     return False
                 s.pop("disk_held", None)
+                THIN_EPISODE[0] = False  # the floor is met: the next low reading is a new episode
             if not claim(lane, s):  # sent in the file, under the queue lock, BEFORE the brief is read: `queue add` joins only a queued step
                 return True
             bp = Path(s.get("resume_brief") or s["brief"])
@@ -2875,7 +2877,7 @@ def live_windows(j, lane: dict) -> list:
 def thin_snapshots(nbytes: int) -> str:
     """`tmutil thinlocalsnapshots / <bytes> 4` (no sudo); "" when it exited 0, else why not (no tmutil, a failure, a timeout)."""
     try:
-        r = subprocess.run(["tmutil", "thinlocalsnapshots", "/", str(nbytes), "4"], capture_output=True, text=True, timeout=300)
+        r = subprocess.run(["tmutil", "thinlocalsnapshots", "/", str(nbytes), "4"], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError) as e:
         return str(e)
     return "" if r.returncode == 0 else (r.stderr or r.stdout).strip()[-150:] or f"exit {r.returncode}"
