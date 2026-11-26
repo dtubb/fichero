@@ -282,21 +282,29 @@ def autofix(a, step: str, findings: str, brief: str, skip: tuple = ()) -> dict:
             continue
         before = head()
         if "amend" in p:
-            if sh(f"{g} commit -q --amend --no-edit --trailer {q(p['amend'])}").returncode:
+            if sh(f"{g} -c trailer.where=start commit -q --amend --no-edit --trailer {q(p['amend'])}").returncode:
                 continue
             files = []
         else:
+            written = next((ln for ln in sh(f"{g} log -1 --format=%B").stdout.splitlines() if ln.startswith("Written-By:")), "")
+            if not written:
+                continue  # no Written-By on the head: a commit of ours would break the trailer rule, the red goes to the worker
+            untracked = lambda: set(sh(f"{g} ls-files --others --exclude-standard").stdout.split())  # noqa: E731
+            had = untracked()
+            def undo():
+                sh(f"{g} checkout -q -- .")  # a half-run or out-of-class fix never reaches a commit
+                if new := sorted(untracked() - had):
+                    sh(f"{g} clean -fdq -- " + " ".join(q(f) for f in new))
             if any(sh(env + c.replace("{python}", q(cfg.python))).returncode for c in p["cmds"]):
-                sh(f"{g} checkout -q -- .")  # a half-run fix never reaches a commit
+                undo()
                 continue
             files = sh(f"{g} diff --name-only").stdout.split()
-            ok = bool(files) and (p["allowed"] is None or all(f in p["allowed"] if isinstance(p["allowed"], tuple) else p["allowed"].search(f) for f in files))
+            ok = bool(files) and not (untracked() - had) and (p["allowed"] is None or all(f in p["allowed"] if isinstance(p["allowed"], tuple) else p["allowed"].search(f) for f in files))
             if not ok:
-                sh(f"{g} checkout -q -- .")  # anything outside the class is undone and the red goes to the worker
+                undo()  # anything outside the class is undone and the red goes to the worker
                 continue
-            trailers = "\n".join(ln for ln in sh(f"{g} log -1 --format=%B").stdout.splitlines() if ln.startswith(("Written-By:", "Directed-By:", "Co-Authored-By:")))
             msg = "chore(autofix): " + p["class"] + " (" + p["rung"] + ")"
-            sh(f"{g} add -u && {g} commit -q -m {q(msg)} -m {q(trailers or 'Written-By: Claude')}")
+            sh(f"{g} add -u && {g} commit -q -m {q(msg)} -m {q(written)}")
         after = head()
         if after != before:
             rows.append({"class": p["class"], "rung": p["rung"], "before": before, "after": after, "files": sorted(files)})

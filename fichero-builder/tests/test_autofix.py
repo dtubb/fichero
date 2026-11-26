@@ -283,7 +283,7 @@ def test_a_spec_change_red_gets_the_briefs_line_word_for_word_and_none_without_o
     assert work.autofix(a, "1.1", SPEC_RED, "do it\n") == {"rows": [], "ask": True}, "no ruling in the brief: the manager is asked"
     assert "Spec-change" not in _g(w, "log", "-1", "--format=%B")
     res = work.autofix(a, "1.1", SPEC_RED, f"do it\n{RULING}\n")
-    assert _g(w, "log", "-1", "--format=%B").splitlines()[-1] == RULING and res["rows"][0]["files"] == []
+    assert _g(w, "log", "-1", "--format=%B").splitlines()[-2:] == [RULING, "Written-By: claude-opus-5-5"] and res["rows"][0]["files"] == []
     assert _g(w, "rev-list", "--count", "HEAD") == "1", "the trailer amends the lane's head: no new commit"
 
 
@@ -304,3 +304,22 @@ def test_an_openapi_regen_red_runs_the_regen_lines_and_commits_the_tracked_files
     res = work.autofix(a, "1.1", "FAIL: scripts/check_openapi_contract.py\ngenerated copy is stale\n", "")
     assert res["rows"][0]["files"] == ["other.txt"] and (w / "other.txt").read_text() == "regenerated"
     assert work.autofix(a, "1.1", "FAIL: scripts/check_other.py\nall fine\n", "")["rows"] == []
+
+
+def test_a_fix_commit_carries_only_the_heads_written_by_line_and_a_head_without_one_is_left_to_the_worker(lane_repo):
+    a, w, _ = lane_repo
+    _g(w, "commit", "--amend", "-qm", "mine (#1)\n\nDirected-By: x\nWritten-By: claude-opus-5-5\nCo-Authored-By: y")
+    work.autofix(a, "1.1", KNOWN_RED, "")
+    assert _g(w, "log", "-1", "--format=%B").split("\n\n", 1)[1].strip() == "Written-By: claude-opus-5-5"
+    _g(w, "commit", "--amend", "-qm", "no trailer (#1)")
+    before = _g(w, "rev-parse", "HEAD")
+    assert work.autofix(a, "1.1", RATCHET_RED, "")["rows"] == [] and _g(w, "rev-parse", "HEAD") == before and _g(w, "status", "--porcelain") == ""
+
+
+def test_a_file_a_failed_fix_created_is_removed_and_the_workers_own_untracked_file_stays(lane_repo):
+    a, w, _ = lane_repo
+    (w / "scripts" / "check_ratchet.py").write_text("open('stray.txt', 'w').write('x')\nopen('scripts/ratchet.json', 'w').write('{}')\n")
+    _g(w, "commit", "-qam", "rewrite")
+    (w / "mine.txt").write_text("worker's")
+    assert work.autofix(a, "1.1", RATCHET_RED, "")["rows"] == []
+    assert not (w / "stray.txt").exists() and (w / "mine.txt").read_text() == "worker's"
