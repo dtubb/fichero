@@ -170,13 +170,13 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   repository, and a guard refuses a commit that names one. A changed page list is a new version; figures of two
   versions are never shown in one column. *Test (to write):* test_blind_hands_manifest.py (a manuscript on both sides
   refuses; a missing licence refuses; a private id in the committed file refuses).
-- `hands.bench.learning-curve-at-five-points` — **[GAP]** (#5441 → #6967) per hand and configuration the round
+- `hands.bench.learning-curve-at-five-points` — **[PARTIAL]** (#5441 → #6967) per hand and configuration the round
   measures the page error with 0, 50, 100, 200 and 400 corrected lines from the adaptation pool. The subsets are
   nested (the 50 are among the 100, and so on) and drawn by a seed kept in the report, so two configurations learn
   from the same lines. A hand whose pool holds fewer lines than a point reports that point as "not measured: N lines
   in the pool", never as a number. The error is the whole page as a run produces it, scored by the one scorer
   (`training.eval.one-scorer`); the figure on given lines is kept beside it, as
-  `readers.bakeoff.the-whole-page-is-measured` rules for the bake-off. *Test (to write):* test_blind_hands_curve.py
+  `readers.bakeoff.the-whole-page-is-measured` rules for the bake-off. *Test:* test_blind_hands_curve.py
   (nested subsets from one seed; a short pool gives "not measured"; a fake reader's known errors give the known curve).
 - `hands.bench.round-report-is-one-table` — **[GAP]** (#5441 → #6967) a round writes one machine-readable file and
   one page a person reads: per hand and configuration the five points, lines-to-target, trusted coverage, calibration
