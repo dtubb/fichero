@@ -62,7 +62,7 @@ extension FeatureManager {
         settingsShareTabEnabledInternal = true
         settingsUsersTabEnabledInternal = true
         settingsCaptureTabEnabledInternal = true
-        workflowToolsMCPEnabledInternal = false
+        workflowToolsMCPEnabledInternal = true
         workflowToolsAgentsEnabledInternal = false
         workflowToolsAudioEnabledInternal = false
         workflowToolsVideoEnabledInternal = false

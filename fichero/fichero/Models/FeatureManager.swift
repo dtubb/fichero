@@ -153,7 +153,7 @@ class FeatureManager { // swiftlint:disable:this type_body_length
             )
         }
     }
-    var workflowToolsMCPEnabledInternal: Bool = false {
+    var workflowToolsMCPEnabledInternal: Bool = true {
         didSet {
             UserDefaults.standard.set(workflowToolsMCPEnabledInternal, forKey: "fichero.features.workflow_tools_mcp")
         }
@@ -366,7 +366,7 @@ class FeatureManager { // swiftlint:disable:this type_body_length
         settingsCaptureTabEnabledInternal =
             (defaults.object(forKey: "fichero.features.settings_capture_tab") as? Bool) ?? true
         workflowToolsMCPEnabledInternal =
-            (defaults.object(forKey: "fichero.features.workflow_tools_mcp") as? Bool) ?? false
+            (defaults.object(forKey: "fichero.features.workflow_tools_mcp") as? Bool) ?? true
         workflowToolsAgentsEnabledInternal =
             (defaults.object(forKey: "fichero.features.workflow_tools_agents") as? Bool) ?? false
         workflowToolsAudioEnabledInternal =
