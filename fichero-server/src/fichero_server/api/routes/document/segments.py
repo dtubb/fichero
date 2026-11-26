@@ -854,7 +854,8 @@ def preview_join_rows(
             ids = [members[i][0].id for i in group]
             groups.append(JoinRowGroup(segment_ids=ids, keep_id=ids[0]))
             grouped.update(ids)
-    groups.sort(key=lambda group: min(line_join.bounds(dict((r.id, o) for r, o in lines)[sid])[1] for sid in group.segment_ids))
+    outline_by_id = {row.id: outline for row, outline in lines}
+    groups.sort(key=lambda group: min(line_join.bounds(outline_by_id[sid])[1] for sid in group.segment_ids))
     return JoinRowsPreview(
         document_id=doc_id, groups=groups,
         left_alone=[row.id for row, _outline in lines if row.id not in grouped] + [row.id for row, outline in outlined if outline is None],
