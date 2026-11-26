@@ -2667,19 +2667,24 @@ SLOT_WHY: list = [None]
 def count_slots(root, tick_s: float = 30.0, probe=None, now=None) -> int:
     """local.flow.check-slots-from-runners: with `[check].slots_from_runners`, the runners are probed in a thread each tick (one `runner`
     row each) and the ladder slots are their count, `[check].parallel` a ceiling; a change of the count or a reason is one `slots` row.
-    Off: work.SLOTS stays 0 and the ladders use `[check].parallel`, as before."""
+    Off: work.SLOTS stays 0 and the ladders use `[check].parallel`, as before. [check] is the pinned copy's, as the ladders read it;
+    a host with two gate dirs is probed once, its row standing for each dir."""
     from fichero_builder import check_tool
-    cfg = check_tool.load(root)
+    cfg = check_tool.load(check_tool.pinned_root(root))
     if not cfg.slots_from_runners:
         work.SLOTS[0] = 0
         return 0
     probe = probe or check_tool.probe_runner
 
     def run():
+        hosts: dict = {}
         for name in check_tool._runners(cfg):
-            row = probe(name)
-            RUNNERS[name] = {**row, "at": time.time()}
-            journal.append("runner", **row)
+            hosts.setdefault(name.partition(":")[0], []).append(name)
+        for names in hosts.values():
+            row = probe(names[0])
+            journal.append("runner", **{**row, "runner": names[0].partition(":")[0], "dirs": names})
+            for name in names:
+                RUNNERS[name] = {**row, "runner": name, "at": time.time()}
     if PROBING[0] is None or not PROBING[0].is_alive():
         PROBING[0] = threading.Thread(target=run, daemon=True, name="runner-probe")
         PROBING[0].start()

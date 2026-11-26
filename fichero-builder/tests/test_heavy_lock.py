@@ -197,7 +197,7 @@ def test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_
     assert queue.count_slots(tmp_path, probe=lambda n: dict(probe[n])) == 1
     rows = [r for r in journal.read() if r["event"] == "slots"]
     assert len(rows) == 1 and "load 20 on 8 cores" in rows[0]["runners"]["air:~/g"] and rows[0]["runners"]["imac:~/g"] == "counts 1"
-    assert len([r for r in journal.read() if r["event"] == "runner"]) == 4, "one runner row a runner a tick"
+    assert len([r for r in journal.read() if r["event"] == "runner"]) == 4, "one runner row a host a tick"
     import time
     n = queue.count_slots(tmp_path, probe=lambda n: dict(probe[n]), now=time.time() + 120)
     assert n == 1 and "no row in three ticks" in [r for r in journal.read() if r["event"] == "slots"][-1]["runners"]["imac:~/g"]
@@ -249,3 +249,22 @@ def test_a_second_train_sees_the_build_runner_busy_while_a_build_holds_the_lock(
     assert not check_tool.build_lock_free(cfg)
     f.close()
     assert check_tool.build_lock_free(check_tool.Config()), "no build lock: always free"
+
+
+def test_the_slot_count_reads_the_pinned_check_and_probes_a_host_with_two_gate_dirs_once(tmp_path, monkeypatch):
+    from fichero_builder import land_tool, queue, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(queue, "RUNNERS", {})
+    monkeypatch.setattr(queue, "PROBING", [None])
+    monkeypatch.setattr(queue, "SLOT_WHY", [None])
+    monkeypatch.setattr(work, "SLOTS", [0])
+    monkeypatch.setattr(land_tool, "resolve_branch", lambda repo, branch: "abcdef0123")
+    live = tmp_path / "live"
+    pin = tmp_path / "pins" / "pinned-abcdef0"
+    live.mkdir(), pin.mkdir(parents=True)
+    (live / "harness.toml").write_text(f'[land]\nbranch = "integration"\npinned_dir = "{tmp_path / "pins"}"\n[check]\nengine_repo = "/r"\nparallel = 1\n')
+    (pin / "harness.toml").write_text('[check]\nslots_from_runners = true\nparallel = 4\nremote = ["imac:~/g1", "imac:~/g2", "air:~/g"]\n')
+    seen = []
+    n = queue.count_slots(live, probe=lambda name: seen.append(name) or {k: v for k, v in _fit(name).items() if k != "at"})
+    assert seen == ["imac:~/g1", "air:~/g"], "one probe a host"
+    assert n == 3 and set(queue.RUNNERS) == {"imac:~/g1", "imac:~/g2", "air:~/g"}, "the pinned [check]: on, parallel 4; each dir counts"

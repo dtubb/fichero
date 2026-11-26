@@ -221,6 +221,18 @@ def live_vs_pinned(root, base: str) -> list[str]:
             " (the rungs read the pinned one: commit the change)" for k in sorted(set(ours) | set(theirs)) if ours.get(k) != theirs.get(k)]
 
 
+def pinned_root(root) -> Path:
+    """The pinned copy of the land branch's commit that the rungs read [check] from (local.rules.which-file); `root` when there is none."""
+    from . import land_tool
+    try:
+        live = tomllib.loads((Path(root) / "harness.toml").read_text())
+        base = land_tool.resolve_branch(live["check"]["engine_repo"], live["land"]["branch"])
+        p = Path(live["land"]["pinned_dir"]) / f"pinned-{base[:7]}"
+        return p if (p / "harness.toml").is_file() else Path(root)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError):
+        return Path(root)
+
+
 def rules_warnings(root) -> list[str]:
     """What this code ignores in the rules file: tables newer than it (a warning, never a refusal)."""
     f = Path(root) / "harness.toml"
