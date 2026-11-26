@@ -176,6 +176,12 @@ def git_merge(repo, base: str, heads: list[str], ref: str) -> tuple[str, dict]:
         _git(repo, "worktree", "prune")
 
 
+def drop_refs(repo, tid: str) -> None:
+    """Delete the `refs/train/<tid>-*` refs git_merge wrote: a ref pins its commits against gc, and nothing reads one after the train."""
+    for ref in _git(repo, "for-each-ref", "--format=%(refname)", f"refs/train/{tid}-*").stdout.split():
+        _git(repo, "update-ref", "-d", ref)
+
+
 def real_runners(repo, branch: str, pinned: str, tid: str):
     """(merge, rung, rungs_for) over the engine repo, as the ladder runs them: jailed, in a scratch tree of the candidate."""
     from fichero_builder import check_tool, jail, land_tool

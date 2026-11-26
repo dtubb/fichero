@@ -155,3 +155,13 @@ def test_the_unit_rung_can_run_the_whole_tier(tmp_path, monkeypatch):
 def test_the_train_table_is_a_known_rules_table():
     from fichero_builder import check_tool
     assert "train" in check_tool.KNOWN_TABLES
+
+
+def test_drop_refs_deletes_the_train_candidate_refs_and_only_those(tmp_path):
+    import subprocess
+    g = lambda *a: subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True, text=True, check=True).stdout
+    g("init", "-q"), g("commit", "-q", "--allow-empty", "-m", "x")
+    for r in ("refs/train/t1-1", "refs/train/t1-2", "refs/train/t2-1"):
+        g("update-ref", r, "HEAD")
+    train.drop_refs(tmp_path, "t1")
+    assert g("for-each-ref", "--format=%(refname)", "refs/train/").split() == ["refs/train/t2-1"]
