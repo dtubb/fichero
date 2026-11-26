@@ -198,6 +198,21 @@ def _auto_rules(names) -> tuple:
 KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly", "train", "flow"}
 
 
+def live_vs_pinned(root, base: str) -> list[str]:
+    """local.rules.which-file: the loop reads [loop], [queue], [train], [nightly], [models] and [land] from its own checkout's
+    harness.toml, but every ladder and train rung reads [check] from the pinned copy of the land branch's commit. Each [check] key
+    whose live value differs from the pinned one at `base` (a hand edit the rungs never see), as one line; [] = none or no pinned copy.
+    2026-11-26: swift_test_target was set live and every train still ran the whole Swift suite."""
+    try:
+        live = tomllib.loads((Path(root) / "harness.toml").read_text())
+        pinned = Path(live["land"]["pinned_dir"]) / f"pinned-{base[:7]}" / "harness.toml"
+        ours, theirs = live.get("check", {}), tomllib.loads(pinned.read_text()).get("check", {})
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return [f"[check].{k} differs from the pinned {pinned.parent.name}: live {json.dumps(ours.get(k))[:120]}, pinned {json.dumps(theirs.get(k))[:120]}"
+            " (the rungs read the pinned one: commit the change)" for k in sorted(set(ours) | set(theirs)) if ours.get(k) != theirs.get(k)]
+
+
 def rules_warnings(root) -> list[str]:
     """What this code ignores in the rules file: tables newer than it (a warning, never a refusal)."""
     f = Path(root) / "harness.toml"

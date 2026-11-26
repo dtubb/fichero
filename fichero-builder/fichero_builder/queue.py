@@ -15,6 +15,7 @@ runs in its own thread, so a lane waits only for the ladder lock (`work.after_ru
 from __future__ import annotations
 
 import hashlib
+import contextlib
 import json
 import os
 import re
@@ -2548,6 +2549,12 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         from fichero_builder import check_tool
         for w in check_tool.rules_warnings(getattr(procs, "root", "") or "."):
             journal.append("rules", state="warning", detail=w)
+        if getattr(procs, "root", ""):
+            from fichero_builder import land_tool
+            with contextlib.suppress(OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError):
+                r = tomllib.loads((Path(procs.root) / "harness.toml").read_text())
+                for w in check_tool.live_vs_pinned(procs.root, land_tool.resolve_branch(r["check"]["engine_repo"], r["land"]["branch"])):
+                    journal.append("rules", state="live-differs", detail=w)
     # the loop always chains in a thread: a one-lane check inside the tick would starve the heartbeat for its whole ladder
     chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
     if heartbeat:  # this process is the current code: a step the old code blocked on newer rules goes again
