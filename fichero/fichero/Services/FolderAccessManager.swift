@@ -405,7 +405,10 @@ class FolderAccessManager {
             // folder-of-folders was refused with "outside every allowed
             // root" — a mint that quietly no-ops leaves the engine blind and
             // the user with an unexplained 403). A sandboxed Mac stops here with the reason (#7076).
-            logger.error("Could not mint a security-scoped bookmark for \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            logger.error("""
+                Could not mint a security-scoped bookmark for \(url.path, privacy: .public): \
+                \(error.localizedDescription, privacy: .public)
+                """)
             if SandboxEnvironment.isSandboxed, !isTransientPath(url) { throw error }
             return
         }
