@@ -41,7 +41,7 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
     func testCentreRoutesThroughTheSinglePaneListRenderer() throws {
         let source = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift")
         XCTAssertTrue(
-            source.contains("paneListRow(activePaneList)"),
+            source.contains("paneListRow(windowState.focusedPaneLeaf.map { activePaneList.focusing($0) } ?? activePaneList)"),
             "The centre renders the stored PaneList through paneListRow — the single renderer.")
     }
 

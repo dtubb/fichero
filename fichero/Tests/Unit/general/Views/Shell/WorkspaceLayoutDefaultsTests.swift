@@ -193,7 +193,14 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
         assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.changingLeafKind(id, to: kind)")
         // Writers added since the list was written — same funnel rule.
         assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.changingLeafContentKind(id, to: contentKind?.rawValue)")
-        assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.splittingLeaf(id, axis: axis)")
+        assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.splittingLeaf(id, axis: axis, adding: kind)")
+        assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.changingLeafPreviewFolderView(id, to: view.rawValue)")
+        let eventHandlers = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+EventHandlers.swift"),
+            encoding: .utf8
+        )
+        assertFunnelFollows(eventHandlers, after: "activePaneList = next")
         assertFunnelFollows(layoutChooser, after: "activePaneList = activePaneList.changingLeafLibraryLayout(id, to: raw)")
     }
 
