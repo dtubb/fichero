@@ -1141,7 +1141,7 @@ most ran once per step. The owner (2026-11-25): be strategic, so that more thing
 rungs, waits, and lands with others after one train. Tests: `fichero-builder/tests/test_train.py`,
 `fichero-builder/tests/test_train_queue.py`. Serves: reliable, fast.
 
-- `local.train.cheap-rungs-then-wait` [OK] (#6589; test `fichero-builder/tests/test_train.py::test_the_ladder_skips_the_rungs_the_train_runs_once`; `fichero-builder/tests/test_train_queue.py::test_a_loop_without_train_wiring_lands_as_before`) — with `[train].enabled` (default true) a step green on the cheap rungs (its ladder
+- `local.train.cheap-rungs-then-wait` [OK] (#6589; test `fichero-builder/tests/test_train.py::test_the_ladder_skips_the_rungs_the_train_runs_once`; `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`) — with `[train].enabled` (default true) a step green on the cheap rungs (its ladder
   skips the build and ui rungs; the unit rung may run the whole suite) moves to queue state `train` instead of landing.
 - `local.train.start` [OK] (#6589; test `fichero-builder/tests/test_train.py::test_the_cfg_and_when_a_train_is_due`; `fichero-builder/tests/test_train_queue.py::test_max_wait_triggers_a_train_of_two`) — a train starts when `[train].min_steps` (default 4) steps wait, or the oldest has waited
   `[train].max_wait_min` (default 45). Only one train runs at a time.
