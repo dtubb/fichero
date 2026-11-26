@@ -317,3 +317,36 @@ def test_the_train_runs_the_owed_whole_dirs_once_and_is_red_only_for_cases_green
     res = train.run_train([{"key": "a/1", "head": "h1"}, {"key": "b/2", "head": "h2"}], merge=lambda hs: ("c", {}),
                           rung=lambda n, c, only=(): calls.append(n) or (True, "ok"), rungs_for=lambda hs: ["whole-tests", "unit"], tid="t")
     assert calls == ["whole-tests", "unit"] and res.result == "green", "once for the train, never per step"
+
+
+def test_a_whole_tests_red_searches_the_steps_that_touch_it_with_only_the_failing_cases_and_sends_one_back():
+    """local.train.red-goes-to-its-step: never a prefix bisect; the steps touching the failing test, newest first, alone with those cases."""
+    seen = []
+    red = "RED: 1 case(s) fail on the candidate and pass on the base b\nfailing: pkg/tests/test_x.py::test_a\n"
+
+    def rung(name, cand, only=()):
+        seen.append((name, cand, tuple(only)))
+        bad = name == "whole-tests" and "b" in cand.split("+")
+        return (not bad), (red if bad else "ok")
+    touching = {"b", "d"}
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "abcd"], merge=lambda heads: ("+".join(heads), {}), rung=rung,
+                        rungs_for=lambda heads: ["guards", "whole-tests", "unit"], tid="t", touches=lambda n, h, names: h in touching)
+    assert set(r.back) == {"l/b"} and "alone on the land branch fails pkg/tests/test_x.py::test_a" in r.back["l/b"]["findings"]
+    assert [(c, o) for n, c, o in seen if o] == [("d", ("pkg/tests/test_x.py::test_a",)), ("b", ("pkg/tests/test_x.py::test_a",))]
+    assert not any(c in ("a", "a+b", "a+b+c") for _n, c, _o in seen) and r.landed == ["l/a", "l/c", "l/d"]
+
+
+def test_a_red_only_two_steps_make_together_sends_the_newest_back_naming_the_other():
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "abc"], merge=lambda heads: ("+".join(heads), {}),
+                        rung=lambda name, cand, only=(): (not (name == "guards" and {"a", "c"} <= set(cand.split("+"))),
+                                                          "RED: 1 guard(s) red on the candidate and green on the base\nfailing: check_routes\n"),
+                        rungs_for=lambda heads: ["guards", "unit"], tid="t", touches=lambda n, h, names: h in ("a", "c"))
+    assert set(r.back) == {"l/c"} and "this step and l/a together fail check_routes" in r.back["l/c"]["findings"]
+    assert r.landed == ["l/a", "l/b"], "the rest without it is green and lands"
+
+
+def test_hosted_ci_red_cases_are_searched_on_the_local_runners_among_the_cleared_steps():
+    res = train.Result(id="t", candidate="a+b", steps=["l/a", "l/b"], landed=["l/a", "l/b"], result="green")
+    out = train.search(res, [{"key": "l/a", "head": "a"}, {"key": "l/b", "head": "b"}], ["pkg/tests/test_x.py::test_a"], merge=lambda hs: ("+".join(hs), {}),
+                       rung=lambda n, c, only=(): ("a" not in c.split("+") or not only, "failing: pkg/tests/test_x.py::test_a"), touches=lambda n, h, names: True)
+    assert set(out.back) == {"l/a"} and out.landed == ["l/b"]

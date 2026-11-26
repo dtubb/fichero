@@ -3547,8 +3547,8 @@ def real_procs(root) -> Procs:
         try:  # the checks are read while the train branch still exists (a re-run needs it); it goes however the train ends
             res = ci.with_train(cicfg, hosted, tid, lambda on_candidate: ci.land_on_checks(train.run_train(
                 spec, merge=merge, rung=rung, rungs_for=lambda heads: ci.local_rungs(cicfg, rungs_for(heads)), tid=tid, deadline=deadline,
-                touches_swift=getattr(rung, "touches_swift", None), on_candidate=on_candidate), cicfg, hosted, base_sha, tell,
-                run_local=lambda c: rung("unit", c)))
+                touches_swift=getattr(rung, "touches_swift", None), touches=getattr(rung, "touches", None), on_candidate=on_candidate), cicfg, hosted, base_sha, tell,
+                run_local=lambda c: rung("unit", c), search=lambda r, cases: train.search(r, spec, cases, merge, rung, rung.touches)))
             if hosted is not None:
                 ci.daily(cicfg, tell)
             return res

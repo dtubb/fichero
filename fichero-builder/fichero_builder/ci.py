@@ -396,11 +396,11 @@ def with_train(cfg: Cfg, h: Hosted | None, tid: str, run: Callable[[Callable[[st
 
 
 def land_on_checks(res, cfg: Cfg, h: Hosted | None, base: str, alert: Callable[[str], None], run_local: Callable[[str], tuple] | None = None,
-                   search: Callable[[list], object] | None = None, clock=time.time, sleep=time.sleep):
+                   search: Callable[[object, list], object] | None = None, clock=time.time, sleep=time.sleep):
     """local.ci.train-lands-on-green-checks: the train's Result after its local rungs, with `res.ci` set. `report`: the result stands,
     with each check, its minutes and whether it agreed. `required`: a green local train lands only when every required check is green
     at its candidate; a timeout ends it `timeout`; a fallback runs the whole suites locally (`run_local(candidate)`) and that decides;
-    a red goes to `search(cases)` (local.train.red-goes-to-its-step), or every step waits again."""
+    a red goes to `search(res, cases)` (local.train.red-goes-to-its-step), or every step waits again."""
     if cfg.train == "off" or h is None or not res.candidate or res.result not in ("green", "conflict", "red", "unresolved"):
         return res
     local_green = res.result in ("green", "conflict")
@@ -425,7 +425,7 @@ def land_on_checks(res, cfg: Cfg, h: Hosted | None, base: str, alert: Callable[[
     elif v.ok:
         return res
     if search is not None:
-        return search(v.cases)
+        return search(res, v.cases)
     res.again, res.landed, res.result = list(res.landed), [], "red"
     res.bisect.append("hosted CI is red on cases green on the base: " + ", ".join(v.cases)[:300])
     alert(f"the merge train {res.id} is red on hosted CI: {', '.join(v.cases)[:200]}; its steps wait again")

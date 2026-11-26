@@ -82,14 +82,15 @@ class OutOfTime(Exception):
 
 def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: Callable, tid: str, clock: Callable = time.time,
               deadline: float | None = None, touches_swift: Callable[[str], bool] | None = None,
-              on_candidate: Callable[[str], None] | None = None) -> Result:
+              on_candidate: Callable[[str], None] | None = None, touches: Callable[[str, str, frozenset], bool] | None = None) -> Result:
     """`steps`: [{key, head}] in queue order. `merge(heads) -> (candidate sha, {head: conflict text})`; `rung(name, candidate) ->
     (ok, output)` (`rung(name, candidate, only=cases)` for a targeted Swift run); `rungs_for(heads) -> [rung names]`, in RUNG_ORDER.
     `deadline` (a clock value): no run starts past it, and the train ends `timeout` with every step waiting again. `touches_swift(head)`:
     a swift-tests red that names new cases looks for its step among the Swift steps only, newest first, never by prefixes.
-    `on_candidate(sha)` hears the candidate before any rung runs (local.ci.train-candidate-on-a-branch pushes it)."""
+    `on_candidate(sha)` hears the candidate before any rung runs (local.ci.train-candidate-on-a-branch pushes it). `touches(rung, head,
+    names)`: a whole-tests or guards red naming cases or guards is searched among the steps whose diff touches them (red-goes-to-its-step)."""
     try:
-        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate)
+        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate, touches)
     except OutOfTime as e:
         res = e.args[0]
         res.again, res.result = [s["key"] for s in steps if s["key"] not in res.back], "timeout"
@@ -97,7 +98,7 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
         return res
 
 
-def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate=None) -> Result:
+def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate=None, touches=None) -> Result:
     t_start = clock()
     res = Result(id=tid, steps=[s["key"] for s in steps])
     cand, conflicts = merge([s["head"] for s in steps])
@@ -136,6 +137,9 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
     new = cases(red[1])
     if rung_name == "swift-tests" and new and touches_swift is not None:
         return _swift_search(res, keep, new, red[1], rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run)
+    if rung_name in ("whole-tests", "guards") and new and touches is not None:
+        return _swift_search(res, keep, new, red[1], rest_names, merge, rung, tid, clock, deadline, t_start,
+                             lambda h: touches(rung_name, h, new), run, name=rung_name)
 
     def subset(n: int) -> str | None:
         """The candidate of the first n kept steps; None when that merge conflicts (the bisect then cannot judge)."""
@@ -186,12 +190,15 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
     return res
 
 
-def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run) -> Result:
+def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run, name: str = "swift-tests") -> Result:
     """2026-11-26 (owner: an 88-minute merge is crazy): a train red at swift-tests on cases that pass on its base is searched for the
     step that adds them, never by running the whole suite over each prefix: each step that touches Swift, newest first, on the base
-    alone, running only the new cases; the first that fails one is sent back and the rest go on as after any bisect."""
-    culprit = None
-    for s in reversed([s for s in keep if touches_swift(s["head"])]):
+    alone, running only the new cases; the first that fails one is sent back and the rest go on as after any bisect.
+    local.train.red-goes-to-its-step: a whole-tests or guards red (`name`) is searched the same way over the steps that touch the
+    failing tests or guards; when none fails alone, the newest of them goes back with the output and the others' names."""
+    culprit, others = None, []
+    touching = [s for s in keep if touches_swift(s["head"])]
+    for s in reversed(touching):
         if deadline is not None and clock() > deadline:
             raise OutOfTime(res, t_start)
         c, bad = merge([s["head"]])
@@ -199,19 +206,24 @@ def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, dea
             continue
         res.extra_runs += 1
         t0 = clock()
-        ok, out = rung("swift-tests", c, only=sorted(new))
-        res.rungs.append(_row(rung, "swift-tests", ok, out, round(clock() - t0, 1), "search", c))
+        ok, out = rung(name, c, only=sorted(new))
+        res.rungs.append(_row(rung, name, ok, out, round(clock() - t0, 1), "search", c))
         res.bisect.append(f"{s['key']} alone, the {len(new)} new case(s): {'green' if ok else 'red'}")
         if not ok:
             culprit = s
             break
-    if culprit is None:
-        res.bisect.append("no Swift step alone fails the new cases: they come from the steps together; none is sent back")
+    if culprit is None and (name == "swift-tests" or not touching):
+        res.bisect.append(f"no {'Swift ' if name == 'swift-tests' else ''}step alone fails the new {'cases' if name != 'guards' else 'guard reds'}: "
+                          "they come from the steps together; none is sent back")
         res.again, res.result = [s["key"] for s in keep], "unresolved"
         return res
-    res.back[culprit["key"]] = {"kind": "red", "why": f"the merge train {tid} is red at swift-tests with this step in it",
-                                "findings": f"The merge train {tid} is red at swift-tests: this step alone on the land branch fails "
-                                            f"{', '.join(sorted(new))}, which pass on the land branch.\nswift-tests on the train candidate:\n{tail}"}
+    if culprit is None:  # only two (or more) together break it: the newest goes back, naming the others
+        culprit, others = touching[-1], [s["key"] for s in touching[:-1]]
+        res.bisect.append(f"no step alone fails it: {culprit['key']}, the newest that touches it, goes back naming {', '.join(others) or 'no other'}")
+    what = "alone on the land branch fails" if not others else "and " + ", ".join(others) + " together fail"
+    res.back[culprit["key"]] = {"kind": "red", "why": f"the merge train {tid} is red at {name} with this step in it",
+                                "findings": f"The merge train {tid} is red at {name}: this step {what} "
+                                            f"{', '.join(sorted(new))}, which pass on the land branch.\n{name} on the train candidate:\n{tail}"}
     rest = [s for s in keep if s is not culprit]
     if not rest:
         return res
@@ -228,6 +240,25 @@ def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, dea
     else:
         res.landed = [s["key"] for s in rest]
     return res
+
+
+def search(res: Result, steps: list[dict], new: list[str], merge: Callable, rung: Callable, touches: Callable, clock: Callable = time.time,
+           deadline: float | None = None) -> Result:
+    """local.ci.red-is-retried-once-and-judged-against-base -> local.train.red-goes-to-its-step: hosted CI's red cases (green on the
+    base) are searched on the local runners among the train's cleared steps, as a whole-tests red is."""
+    keep = [s for s in steps if s["key"] in res.landed]
+    res.landed, res.result, t_start = [], "red", clock()
+
+    def run(names, on, phase):
+        for name in names:
+            t0 = clock()
+            ok, out = rung(name, on)
+            res.rungs.append(_row(rung, name, ok, out, round(clock() - t0, 1), phase, on))
+            if not ok:
+                return name, out
+        return None
+    return _swift_search(res, keep, frozenset(new), "hosted CI: " + ", ".join(new), ["whole-tests"], merge, rung, res.id, clock, deadline, t_start,
+                         lambda h: touches("whole-tests", h, frozenset(new)), run, name="whole-tests")
 
 
 def cases(out: str) -> frozenset:
@@ -388,6 +419,12 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         files, tree = files_over(cand), None
         try:
             tree = check_tool._scratch_tree(repo, cand, pinned, cfg, overlay=(name not in ("unit", "whole-tests")))
+            if name == "whole-tests" and only:  # the step search: only those cases, on one step alone
+                r = check_tool.green_runs(tree, list(only), (), cfg, 1800)
+                return bool(r.get("ok")), "\n".join((x.get("stdout_tail") or "") for x in r.get("runs") or [r])[-3000:]
+            if name == "guards" and only:
+                g = guards_on(cand, list(only))
+                return bool(g.get("ok")), "\n".join(f"{x['name']}: {'ok' if x.get('ok') else 'red'}" for x in g.get("results") or [])
             if name == "whole-tests":
                 return whole_on(tree, cand, files)
             if name == "guards":
@@ -458,6 +495,18 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         return any(f.endswith(".swift") and (not cfg.build_paths or f.startswith(tuple(cfg.build_paths)))
                    for f in _git(repo, "diff", "--name-only", f"{base}...{head}").stdout.split())
     rung.touches_swift = touches_swift
+
+    def touches(name: str, head: str, names) -> bool:
+        """local.train.red-goes-to-its-step: the step's diff touches a failing test's directory or a [check.whole_tests] prefix that
+        runs it (whole-tests), or a failing guard's inputs or script (guards; a guard with no declared inputs reads everything)."""
+        files = _git(repo, "diff", "--name-only", f"{base}...{head}").stdout.split()
+        if name == "guards":
+            return any(not cfg.guard_inputs.get(g) or any(f.startswith(tuple(cfg.guard_inputs[g])) or Path(f).stem == g for f in files) for g in names)
+        tests = {n.split("::")[0] for n in names}
+        dirs = {str(Path(x).parent) + "/" for x in tests}
+        prefixes = [p for p, v in cfg.whole_tests.items() if any(x.startswith(d) for d in ([v] if isinstance(v, str) else v) for x in tests)]
+        return any(f.startswith(tuple(dirs)) or f.startswith(tuple(prefixes)) or f in tests for f in files)
+    rung.touches = touches
 
     def swift_on(sha: str, sel=()) -> dict:
         j = jail.load(pinned)

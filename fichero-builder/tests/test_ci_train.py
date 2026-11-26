@@ -278,5 +278,5 @@ def test_a_case_red_twice_and_green_on_the_base_goes_to_the_step_search(state):
              "base": [[check("train-gate", "success", cid=5)]]}
     h2, clock = FakeHosted(plan2, {"r1": [TEST_JOB]}, {("r1", 11): LOG}), Clock()
     res = ci.land_on_checks(green_res(), ci.Cfg(train="required", xcode_cloud_hours_month=25), h2, "base", lambda m: None,
-                            search=lambda cases: searched.append(cases) or green_res(), clock=clock, sleep=clock.sleep)
+                            search=lambda r, cases: searched.append(cases) or green_res(), clock=clock, sleep=clock.sleep)
     assert searched == [["tests/unit/test_x.py::test_a"]] and res.result == "green"

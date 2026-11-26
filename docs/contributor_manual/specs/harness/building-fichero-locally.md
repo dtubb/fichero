@@ -1264,14 +1264,12 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   `test_security_rung.py` `test_with_the_train_on_a_step_runs_only_the_added_line_lints_and_a_scanner_finding_goes_to_the_step_that_added_the_line`,
   `test_perf_rung.py` `test_with_the_train_on_perf_runs_once_on_the_candidate_and_sends_no_step_back`.
   Serves: reliable, fast.
-- `local.train.red-goes-to-its-step` [GAP] (#6589) — a train red at whole-tests or guards on cases or guards that are
+- `local.train.red-goes-to-its-step` [OK] (#6589; built 2026-11-26; hosted CI's red cases go through the same search, as whole-tests) — a train red at whole-tests or guards on cases or guards that are
   green on its base is searched like `local.train.swift-search-not-bisect`, never bisected by prefix: each step whose
   diff touches the failing test's directory, its `[check.whole_tests]` prefix or the guard's inputs, newest first, runs
   alone on the land branch with only those cases or guards, and the first that fails one is sent back with their
   output; the rest go on. When none fails alone (two steps break it only together) the newest such step goes back with
-  the output and the names of the others. Test (owed):
-  `test_train.py` `test_a_whole_tests_red_searches_the_steps_that_touch_it_with_only_the_failing_cases_and_sends_one_back`,
-  `test_a_red_only_two_steps_make_together_sends_the_newest_back_naming_the_other`. Serves: reliable.
+  the output and the names of the others. Tests: `fichero-builder/tests/test_train.py::test_a_whole_tests_red_searches_the_steps_that_touch_it_with_only_the_failing_cases_and_sends_one_back`, `fichero-builder/tests/test_train.py::test_a_red_only_two_steps_make_together_sends_the_newest_back_naming_the_other`, `fichero-builder/tests/test_train.py::test_hosted_ci_red_cases_are_searched_on_the_local_runners_among_the_cleared_steps`. Serves: reliable.
 - `local.train.rungs-side-by-side` [GAP] (#6589) — a train's rungs that need no app build (whole-tests, guards,
   security, perf) start when the candidate is made and run while the build and the Swift tests run, each on a free
   runner; the train's wall time is the longest chain, not the sum, and `local.train.time-limit` holds over all of
@@ -1392,7 +1390,7 @@ Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
   each was green or skipped: a tier that did not run never leaves a required check unreported. The Xcode Cloud
   workflow named in `[ci].xcode_workflow` starts on the same branches when `[ci].xcode_cloud_on` lists `train`
   (default `["nightly", "release"]`). No worker and no lane pushes a `train/` branch. Tests: `fichero-builder/tests/test_ci_train.py::test_a_train_pushes_its_candidate_to_a_train_branch_first_and_deletes_it_however_it_ends`, `fichero-builder/tests/test_ci_train.py::test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_tier_is_green_or_skipped`, `fichero-builder/tests/test_ci_train.py::test_with_ci_off_no_branch_is_pushed`. Serves: reliable.
-- `local.ci.train-lands-on-green-checks` [OK] (#6589; built 2026-11-26; off by default; until local.train.red-goes-to-its-step a required red leaves every step waiting, with one alert) — the train reads the check runs of its candidate sha through
+- `local.ci.train-lands-on-green-checks` [OK] (#6589; built 2026-11-26; off by default; a required red's cases go to local.train.red-goes-to-its-step) — the train reads the check runs of its candidate sha through
   the GitHub API (the manager's `gh`, never a worker's) for each name in `[ci].required` (default `["train-gate"]`,
   and the Xcode Cloud check when it runs on trains). In `report` mode the train lands on its local rungs as built and
   its journal row gains `ci`: each required check, its conclusion, its minutes and whether it agreed with the local
