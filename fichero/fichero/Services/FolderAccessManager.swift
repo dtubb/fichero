@@ -374,7 +374,7 @@ class FolderAccessManager {
             // Loud AND fatal to the caller's engine work: the engine cannot read
             // this folder, so ingesting/opening it would fail later with an
             // inscrutable DuckDB permission error. Surface it and stop the read.
-            logger.error("Engine refused folder access for \(path): \(error.localizedDescription)")
+            logger.error("Engine refused folder access for \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             engineAccessFailure = error.localizedDescription
             throw error
         }
@@ -393,6 +393,10 @@ class FolderAccessManager {
         guard exists, isDirectory.boolValue else {
             return
         }
+        // Hold the panel URL's access open for the whole grant (#7076) and balance it, so the engine's
+        // grant request never runs after the access ended. `mintBookmark` keeps its own start for the session.
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
         // Mint + grant even for transient paths (live grant only, no persist)
         // so the engine can read a `fichero-drop-UUID` folder for the one ingest
         // in flight (#4068). Returns nil when minting isn't possible — the

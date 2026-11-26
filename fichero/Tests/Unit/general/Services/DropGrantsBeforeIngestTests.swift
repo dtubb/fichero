@@ -45,6 +45,21 @@ final class DropGrantsBeforeIngestTests: XCTestCase {
                        "the grant reaches the engine, sandboxed or not, and before the ingest reads the folder")
     }
 
+    /// #7076: Locate Originals plans only after the grant; a grant that throws means no plan request.
+    func testAThrowingGrantNeverReachesThePlanRequest() async {
+        struct Refused: Error {}
+        let engine = RecordingEngine()
+        do {
+            try await FolderAccessManager.grantThenEngineWork(
+                grant: { throw Refused() },
+                engineWork: { engine.events.append("plan") }
+            )
+            XCTFail("a refused grant must throw")
+        } catch {
+            XCTAssertEqual(engine.events, [], "the engine is not asked to look in a folder it was not granted")
+        }
+    }
+
     func testUnsandboxedARefusedGrantLetsTheEnginesOwnAnswerStand() async throws {
         try XCTSkipIf(SandboxEnvironment.isSandboxed, "the unsandboxed rule; sandboxed, a refused grant is fatal")
         let engine = RecordingEngine()
