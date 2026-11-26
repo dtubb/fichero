@@ -1089,3 +1089,57 @@ def test_with_the_train_off_a_batch_sharing_a_file_still_waits(scratch, tmp_path
             with work.ladder_slot("seg-finish", ["fichero-server/src/segments.py"], 2, sleep=_stop, by_file=not work.train_enabled(pin)):
                 pass
     assert [r["holder"] for r in journal.read() if r.get("state") == "clash"] == ["seg-draw"]
+
+
+def _beside(chain, monkeypatch, red_at: str, verdict: str):
+    """[review].beside_ladder on: a fake ladder reports ready and diff-bound, then goes red at `red_at` ('' = green); the review
+    answers `verdict` and is never killed."""
+    (chain.tmp / "harness.toml").write_text(RULES + "[review]\nbeside_ladder = true\n")
+    seen = {}
+
+    def review(a, repo, head, ladder, verdicts, model, holder=None):
+        chain.calls.append(("review", model, ladder.endswith(".partial")))
+        seen["after"] = [x["name"] for x in json.loads(Path(ladder).read_text()).get("rungs", [])] if ladder.endswith(".partial") else None
+        return verdict == "READY", ("looks fine\n" + verdict)
+
+    def check(a, repo, since, head, ladder):
+        chain.calls.append(("check", since, head))
+        instant = [{"name": "ready", "ok": red_at != "ready"}]
+        work.check_tool.ON_RUNG[0]("ready", red_at != "ready", instant)
+        if red_at == "ready":
+            return {"ok": False, "failed": "ready"}
+        both = instant + [{"name": "diff-bound", "ok": True}]
+        work.check_tool.ON_RUNG[0]("diff-bound", True, both)
+        return {"ok": not red_at, "failed": red_at}
+    monkeypatch.setattr(work, "do_review", review)
+    monkeypatch.setattr(work, "do_check", check)
+    monkeypatch.setattr(work.land_tool, "unreviewed", lambda *a: True)
+    monkeypatch.setattr(work, "pick_reviewer", lambda *a: "opus")
+    return seen
+
+
+def test_a_review_runs_beside_the_ladder_and_a_red_with_a_not_ready_is_one_fix_round(chain, monkeypatch):
+    """local.review.beside-the-ladder: the review starts after the instant rungs, runs while the rest of the ladder runs, and a red
+    ladder with a NOT READY at one head is one fix round holding both under their own headings."""
+    seen = _beside(chain, monkeypatch, red_at="unit", verdict="NOT READY: the fetch can fail")
+    assert chain() != 0
+    assert seen["after"] == ["ready", "diff-bound"], "it started after the instant rungs, over a ladder of only those"
+    assert "land" not in [c[0] for c in chain.calls]
+    r = work.red_and_not_ready({"ok": False, "kind": "red", "why": "the check is red", "findings": "failed rung: unit"}, False, "NOT READY: x")
+    assert r["kind"] == "red" and "## The check is red\nfailed rung: unit" in r["findings"] and "## The review: NOT READY\nNOT READY: x" in r["findings"]
+    assert work.red_and_not_ready({"why": "w", "findings": "f"}, True, "READY") == {"why": "w", "findings": "f"}, "a READY beside a red: as before"
+
+
+def test_a_ready_red_no_review_is_started(chain, monkeypatch):
+    _beside(chain, monkeypatch, red_at="ready", verdict="READY")
+    assert chain() != 0
+    assert "review" not in [c[0] for c in chain.calls], "an instant rung red starts no review"
+
+
+def test_a_step_enters_the_train_only_green_and_ready_at_one_head(chain, monkeypatch):
+    _beside(chain, monkeypatch, red_at="", verdict="NOT READY: a gap")
+    assert chain() != 0 and "land" not in [c[0] for c in chain.calls], "green with a NOT READY goes back, as today"
+    chain.calls.clear()
+    _beside(chain, monkeypatch, red_at="", verdict="READY")
+    assert chain() == 0 and [c[0] for c in chain.calls][-1] == "land", "green and READY at one head: on to the train or the land"
+    assert not work.beside_ladder(chain.tmp / "nowhere")

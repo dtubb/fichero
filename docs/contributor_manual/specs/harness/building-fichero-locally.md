@@ -1224,15 +1224,12 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
 
 #### Behaviours
 
-- `local.review.beside-the-ladder` [GAP] (#6589) — with `[review].beside_ladder = true` (default false: the review
+- `local.review.beside-the-ladder` [OK] (#6589; built 2026-11-26; on with [review].beside_ladder (default false); the tests live beside the chain fixture in test_work_verb.py) — with `[review].beside_ladder = true` (default false: the review
   follows a green ladder, as before) a step's review starts when its pinned-checks, ready and diff-bound rungs are
   green and runs while the other rungs run; an instant rung red starts no review. The step leaves `checking` when both
   have ended. A red ladder and a NOT READY at one head make one fix round whose text holds both, each under its own
   heading, counted as one round of `[loop].rounds`. A green ladder with a NOT READY, and a red ladder with a READY,
-  go back as today. A step moves to `train` only with a green ladder and a READY at the same head. Test (owed):
-  `test_loop.py` `test_a_review_runs_beside_the_ladder_and_a_red_with_a_not_ready_is_one_fix_round`,
-  `test_a_ready_red_no_review_is_started`, `test_a_step_enters_the_train_only_green_and_ready_at_one_head`.
-  Serves: reliable, fast.
+  go back as today. A step moves to `train` only with a green ladder and a READY at the same head. Tests: `fichero-builder/tests/test_work_verb.py::test_a_review_runs_beside_the_ladder_and_a_red_with_a_not_ready_is_one_fix_round`, `fichero-builder/tests/test_work_verb.py::test_a_ready_red_no_review_is_started`, `fichero-builder/tests/test_work_verb.py::test_a_step_enters_the_train_only_green_and_ready_at_one_head`. Serves: reliable, fast.
 - `local.review.fix-round-reads-the-fix` [OK] (#6589; built 2026-11-26) — a review of a head that descends from a head already
   reviewed for the same step is given that review's findings and the diff between the two heads, and answers each
   earlier finding as fixed or not fixed and names any new fault in that diff; READY needs every earlier finding fixed

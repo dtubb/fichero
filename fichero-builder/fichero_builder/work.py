@@ -685,6 +685,24 @@ def pick_reviewer(a, repo: str, branch: str, head: str, full: str) -> str:
 
 
 EARLY_AFTER = "since-guards"  # the rung after which the review starts: the last before the build (check_tool.RUNGS)
+BESIDE_AFTER = "diff-bound"  # local.review.beside-the-ladder: with [review].beside_ladder, the review starts after the instant rungs
+
+
+def beside_ladder(pinned) -> bool:
+    """`[review].beside_ladder` of the pinned rules (default false: the review starts after the cheap rungs, as before)."""
+    try:
+        return bool(tomllib.loads((Path(pinned) / "harness.toml").read_text()).get("review", {}).get("beside_ladder", False))
+    except (OSError, ValueError):
+        return False
+
+
+def red_and_not_ready(red: dict, ok: bool, text: str) -> dict:
+    """A red ladder and a NOT READY at one head: one fix round holding both, each under its own heading (local.review.beside-the-ladder).
+    A READY beside a red ladder changes nothing: the red goes back as before."""
+    if ok:
+        return red
+    return {**red, "why": red["why"] + " and the review is NOT READY",
+            "findings": f"## The check is red\n{red['findings']}\n\n## The review: NOT READY\n{text}"}
 
 
 def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
@@ -739,12 +757,14 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
             stage("checking")
+            beside = beside_ladder(a.pinned)
+            trigger = BESIDE_AFTER if beside else EARLY_AFTER
             early: dict = {}  # speed 2: the review starts once every cheap rung is green, beside the build
 
             def on_rung(name, ok, rungs):
                 # after the last rung before the build (manager 2026-11-04: reviews 199, 207, 263, 275 started after red-on-base, read a
                 # ladder with no guard results, and answered 'no guards ran'): the reviewer sees every guard's result; only the build runs beside it
-                if name == EARLY_AFTER and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
+                if name == trigger and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
                     partial = f"{ladder}.partial"
                     # the rungs still to come are named, so the reviewer never reads them as missing (reviews 199 and 207, 2026-11-03)
                     pending = [n for n in check_tool.RUNGS if n not in {x["name"] for x in rungs}]
@@ -763,6 +783,12 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 return no("error", f"the check could not run: {e}")
             finally:
                 check_tool.ON_RUNG[0] = None
+            if not r.get("ok") and beside and early.get("fut"):  # beside the ladder: the review ends too, and a NOT READY rides the red's round
+                ok_review, review_text = early.pop("fut").result()
+                early.pop("proc", None)
+                red_review = (ok_review, review_text)
+            else:
+                red_review = None
             if not r.get("ok") and early.get("proc"):  # a later rung went red: the early review is cancelled, its verdict never written
                 early["proc"].kill()
                 journal.append("activity", kind="review", key=f"review {head[:9]}", state="end", ok=False, failed="cancelled: a later rung red")
@@ -815,8 +841,9 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 fixes = hints(r, repo, head, check_tool.load(a.pinned))  # the exact command for a mechanical red (2026-11-14)
                 fix = ("\nFix: " + "\nFix: ".join(fixes)) if fixes else ""
                 also = r.get("also_failed") or []
-                return no("red", f"the check is red at {head[:9]} (failed: {', '.join([r.get('failed') or '?', *also])}); ladder in {ladder}{fix}",
-                          f"failed rung{'s' if also else ''}: {', '.join([r.get('failed') or '?', *also])}\n{_tail(r)}{fix}", ladder)
+                red = no("red", f"the check is red at {head[:9]} (failed: {', '.join([r.get('failed') or '?', *also])}); ladder in {ladder}{fix}",
+                         f"failed rung{'s' if also else ''}: {', '.join([r.get('failed') or '?', *also])}\n{_tail(r)}{fix}", ladder)
+                return red_and_not_ready(red, *red_review) if red_review else red
             if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
                 moved += 1
                 if early.get("proc"):
