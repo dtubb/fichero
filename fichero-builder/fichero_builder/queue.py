@@ -36,7 +36,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
-from fichero_builder import stale, brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, train, watcher, work
+from fichero_builder import stale, brief_tool, check_tool, ci, client, codemap, jail, journal, land_tool, models, nightly, train, watcher, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -2528,7 +2528,7 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
         else:
             journal.append("train", id=tid, steps=res.steps, candidate=res.candidate, rungs=res.rungs, result=res.result, landed=res.landed,
                            back=res.back, again=res.again, bisect=res.bisect, extra_runs=res.extra_runs, seconds=round(_now() - t0, 1),
-                           size=size, left=left)
+                           size=size, left=left, **({"ci": res.ci} if res.ci else {}))
             if res.result == "timeout":  # owner 2026-11-26: a train never holds its steps past [train].max_run_min; one alert, they wait again
                 alert("-", "train", f"the merge train {tid} stopped after {TRAIN[0].max_run_min:g} min with no verdict; its {len(res.again)} step(s) "
                       f"wait for the next train ({(res.bisect or [''])[-1][:120]})", str(journal.path()), [])
@@ -3532,9 +3532,18 @@ def real_procs(root) -> Procs:
         pinned = work.ensure_pinned(str(root), "", land_tool.resolve_branch(repo, branch))
         deadline = time.time() + TRAIN[0].max_run_min * 60
         merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid, deadline, base=base)
-        try:
-            return train.run_train(spec, merge=merge, rung=rung, rungs_for=rungs_for, tid=tid, deadline=deadline,
-                                   touches_swift=getattr(rung, "touches_swift", None))
+        cicfg = ci.load(tomllib.loads((root / "harness.toml").read_text()))  # local.ci.*: read each train, so a change needs no restart
+        hosted = ci.Hosted(cicfg, str(repo)) if cicfg.train != "off" else None
+        base_sha = base or land_tool.resolve_branch(repo, branch)
+        tell = lambda m: alert("-", "train", m, str(journal.path()), [])  # noqa: E731
+        try:  # the checks are read while the train branch still exists (a re-run needs it); it goes however the train ends
+            res = ci.with_train(cicfg, hosted, tid, lambda on_candidate: ci.land_on_checks(train.run_train(
+                spec, merge=merge, rung=rung, rungs_for=lambda heads: ci.local_rungs(cicfg, rungs_for(heads)), tid=tid, deadline=deadline,
+                touches_swift=getattr(rung, "touches_swift", None), on_candidate=on_candidate), cicfg, hosted, base_sha, tell,
+                run_local=lambda c: rung("unit", c)))
+            if hosted is not None:
+                ci.daily(cicfg, tell)
+            return res
         finally:  # the candidate refs are only kept while the train runs: a ref pins its commits against gc
             train.drop_refs(repo, tid)
 

@@ -1388,17 +1388,14 @@ month's 25 included Xcode Cloud hours in five days. So CI starts in `report` mod
 tiers its diff touches, and the full Swift plan runs per night and per release unless the hours are set higher.
 Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
 
-- `local.ci.train-candidate-on-a-branch` [GAP] (#6589) — with `[ci].train` set to `report` or `required` (default
+- `local.ci.train-candidate-on-a-branch` [OK] (#6589; built 2026-11-26; off by default; the Xcode Cloud start condition on `train/**` is set in Xcode Cloud's own workflow, not in this repository) — with `[ci].train` set to `report` or `required` (default
   `off`) a train pushes its candidate to `train/<train id>` on the land remote before its local rungs start, and
   deletes the branch when the train ends, however it ends. The tests workflow runs on a push to `train/**`, one run a
   branch (a concurrency group by ref, a newer push cancels the older run), each tier only when the candidate's diff
   from its base touches that tier's paths, and ends in one job `train-gate` that needs every tier and is green when
   each was green or skipped: a tier that did not run never leaves a required check unreported. The Xcode Cloud
   workflow named in `[ci].xcode_workflow` starts on the same branches when `[ci].xcode_cloud_on` lists `train`
-  (default `["nightly", "release"]`). No worker and no lane pushes a `train/` branch. Test (owed): `test_ci_train.py`
-  `test_a_train_pushes_its_candidate_to_a_train_branch_first_and_deletes_it_however_it_ends`,
-  `test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_tier_is_green_or_skipped`,
-  `test_with_ci_off_no_branch_is_pushed`. Serves: reliable.
+  (default `["nightly", "release"]`). No worker and no lane pushes a `train/` branch. Tests: `fichero-builder/tests/test_ci_train.py::test_a_train_pushes_its_candidate_to_a_train_branch_first_and_deletes_it_however_it_ends`, `fichero-builder/tests/test_ci_train.py::test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_tier_is_green_or_skipped`, `fichero-builder/tests/test_ci_train.py::test_with_ci_off_no_branch_is_pushed`. Serves: reliable.
 - `local.ci.train-lands-on-green-checks` [GAP] (#6589) — the train reads the check runs of its candidate sha through
   the GitHub API (the manager's `gh`, never a worker's) for each name in `[ci].required` (default `["train-gate"]`,
   and the Xcode Cloud check when it runs on trains). In `report` mode the train lands on its local rungs as built and

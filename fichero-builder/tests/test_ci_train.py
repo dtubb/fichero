@@ -114,3 +114,70 @@ def test_at_the_cap_or_with_ci_down_the_train_runs_its_whole_suites_locally_with
     assert {"cap": "Actions cap", "down": "could not be reached", "not-started": "start_min"}[why] in row["detail"]
     assert ci.local_rungs(cfg, ["build", "swift-tests", "unit"]) == ["build", "swift-tests"], "with CI required the whole suites are CI's"
     assert ci.local_rungs(ci.Cfg(train="report"), ["build", "unit"]) == ["build", "unit"]
+
+
+# --- local.ci.train-candidate-on-a-branch ------------------------------------------------------------------------------------
+
+def _train(order, fail=None):
+    def merge(heads):
+        order.append("merge")
+        return "cand", {}
+
+    def rung(name, cand, only=()):
+        order.append(f"rung {name}")
+        if fail == "raise":
+            raise RuntimeError("the runner fell over")
+        return True, "ok"
+    return lambda on_candidate: train.run_train([{"key": "a/1", "head": "h1"}], merge=merge, rung=rung, rungs_for=lambda hs: ["build", "unit"],
+                                                tid="train-1", on_candidate=on_candidate)
+
+
+@pytest.mark.parametrize("end", ["green", "raise"])
+def test_a_train_pushes_its_candidate_to_a_train_branch_first_and_deletes_it_however_it_ends(state, end):
+    h, order = FakeHosted(), []
+    h.push = lambda sha, b: order.append(f"push {sha} {b}") or ""
+    h.delete = lambda b: order.append(f"delete {b}") or ""
+    cfg = ci.Cfg(train="report", xcode_cloud_hours_month=25)
+    if end == "raise":
+        with pytest.raises(RuntimeError):
+            ci.with_train(cfg, h, "train-1", _train(order, "raise"))
+    else:
+        assert ci.with_train(cfg, h, "train-1", _train(order)).result == "green"
+    assert order[:3] == ["merge", "push cand train/train-1", "rung build"], "pushed before any local rung"
+    assert "delete train/train-1" in order and order.index("delete train/train-1") > order.index("rung build")
+    assert any(r.get("state") == "deleted" for r in journal.read())
+
+
+def test_with_ci_off_no_branch_is_pushed(state):
+    h, order = FakeHosted(), []
+    assert ci.with_train(ci.Cfg(), h, "train-1", _train(order)).result == "green"
+    assert not [c for c in h.calls if c[0] in ("push", "delete")] and order == ["merge", "rung build", "rung unit"]
+
+
+def test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_tier_is_green_or_skipped():
+    import json
+    import os
+    import re
+    import subprocess
+    import sys
+    from pathlib import Path
+    yaml = pytest.importorskip("yaml")
+    wf = yaml.safe_load((Path(__file__).resolve().parents[2] / ".github" / "workflows" / "tests.yml").read_text())
+    on = wf.get("on") or wf[True]
+    assert "train/**" in on["push"]["branches"]
+    assert "github.ref" in wf["concurrency"]["group"], "one run a branch: a newer push cancels the older"
+    tiers = [k for k, v in wf["jobs"].items() if v.get("needs") == "changes"]
+    assert set(tiers) >= {"engine", "builder", "swift", "contracts"}
+    for k in tiers:
+        assert "needs.changes.outputs." in wf["jobs"][k]["if"], f"{k} runs only when the diff touches it"
+        assert "refs/heads/train/" in str(wf["jobs"][k]["continue-on-error"]), f"{k}: a train's red is red"
+    gate = wf["jobs"]["train-gate"]
+    assert set(gate["needs"]) == set(tiers) and gate["if"] == "always()"
+    code = re.search(r'python3 -c "(.*)"', gate["steps"][0]["run"]).group(1)
+
+    def run(results):
+        env = {**os.environ, "NEEDS": json.dumps({k: {"result": r} for k, r in results.items()})}
+        return subprocess.run([sys.executable, "-c", code], env=env, capture_output=True).returncode
+    assert run({"engine": "success", "swift": "skipped", "builder": "success"}) == 0
+    assert run({"engine": "success", "swift": "failure"}) == 1
+    assert run({"engine": "cancelled"}) == 1, "a tier that did not finish never passes the gate"

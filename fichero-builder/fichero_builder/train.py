@@ -79,13 +79,15 @@ class OutOfTime(Exception):
 
 
 def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: Callable, tid: str, clock: Callable = time.time,
-              deadline: float | None = None, touches_swift: Callable[[str], bool] | None = None) -> Result:
+              deadline: float | None = None, touches_swift: Callable[[str], bool] | None = None,
+              on_candidate: Callable[[str], None] | None = None) -> Result:
     """`steps`: [{key, head}] in queue order. `merge(heads) -> (candidate sha, {head: conflict text})`; `rung(name, candidate) ->
     (ok, output)` (`rung(name, candidate, only=cases)` for a targeted Swift run); `rungs_for(heads) -> [rung names]`, in RUNG_ORDER.
     `deadline` (a clock value): no run starts past it, and the train ends `timeout` with every step waiting again. `touches_swift(head)`:
-    a swift-tests red that names new cases looks for its step among the Swift steps only, newest first, never by prefixes."""
+    a swift-tests red that names new cases looks for its step among the Swift steps only, newest first, never by prefixes.
+    `on_candidate(sha)` hears the candidate before any rung runs (local.ci.train-candidate-on-a-branch pushes it)."""
     try:
-        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift)
+        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate)
     except OutOfTime as e:
         res = e.args[0]
         res.again, res.result = [s["key"] for s in steps if s["key"] not in res.back], "timeout"
@@ -93,7 +95,7 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
         return res
 
 
-def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift) -> Result:
+def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate=None) -> Result:
     t_start = clock()
     res = Result(id=tid, steps=[s["key"] for s in steps])
     cand, conflicts = merge([s["head"] for s in steps])
@@ -105,6 +107,8 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
         res.result = "conflict"
         return res
     res.candidate = cand
+    if on_candidate is not None:
+        on_candidate(cand)
 
     def run(names: list[str], on: str, phase: str) -> tuple[str, str] | None:
         """The first red (name, output) of `names` on `on`, else None; one row each."""
