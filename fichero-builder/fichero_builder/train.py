@@ -71,6 +71,7 @@ class Result:
     bisect: list = field(default_factory=list)   # one line per bisect run, in order
     extra_runs: int = 0                          # rung runs beyond the first pass over the candidate
     result: str = ""                             # green | red | conflict | unresolved
+    ci: dict = field(default_factory=dict)       # local.ci.train-lands-on-green-checks: the hosted checks of the candidate
 
 
 class OutOfTime(Exception):

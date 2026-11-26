@@ -203,7 +203,7 @@ def _auto_rules(names) -> tuple:
     return tuple(names)
 
 
-KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly", "train", "flow", "review"}
+KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly", "train", "flow", "review", "ci"}
 
 
 def live_vs_pinned(root, base: str) -> list[str]:
@@ -278,6 +278,12 @@ def rules_problems(root) -> list[str]:
         out.append(f"harness.toml [land]: unknown keys {unknown}")
     if not land.get("branch"):
         out.append("harness.toml [land].branch is not declared")
+    try:  # local.ci.caps-and-fallback: hosted CI with no Xcode Cloud cap, or `required` before report rows earned it
+        from . import ci as _ci
+        cic = _ci.load(tomllib.loads(f.read_text()))
+        out += _ci.problems(cic, journal.read() if cic.train == "required" and journal.path().exists() else [])  # the journal only when it decides
+    except ValueError as e:
+        out.append(str(e))
     if "boundary" in land and not land["boundary"]:  # left out = today's patterns (land_tool.DEFAULT_BOUNDARY); declared empty = no boundary, refused
         out.append("harness.toml [land].boundary is empty: leave it out for the default patterns, never turn the boundary off")
     return out

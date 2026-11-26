@@ -1441,17 +1441,15 @@ Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
   the other stages go on as they do today; the owner is texted either way, as for any release part. Test (owed):
   `test_release_run.py` `test_the_ios_stage_pushes_the_ref_and_waits_for_the_xcode_cloud_build_with_no_local_archive`,
   `test_a_failed_or_late_xcode_cloud_build_fails_the_ios_stage_with_its_error`. Serves: reliable.
-- `local.ci.caps-and-fallback` [GAP] (#6589) — `[ci].actions_minutes_month` and `[ci].xcode_cloud_hours_month` are
-  caps; `train` and `nightly` CI are refused by the rules check while either is unset, as a metered model provider is
-  with no weekly cap. The builder sums, from the check runs it started, each job's billed minutes (a macOS job by
+- `local.ci.caps-and-fallback` [OK] (#6589; built 2026-11-26; [ci] is off by default) — `[ci].actions_minutes_month` and `[ci].xcode_cloud_hours_month` are
+  caps; `train` and `nightly` CI are refused by the rules check while `xcode_cloud_hours_month` is unset, as a metered
+  model provider is with no weekly cap. The Actions cap is optional (0 = none): the repository is public, so standard
+  Actions minutes are free (owner 2026-11-26). The builder sums, from the check runs it started, each job's billed minutes (a macOS job by
   `[ci].macos_multiplier`, default 10) and each Xcode Cloud build's compute time, for the calendar month, in one `ci`
   row a day. At 80% of a cap there is one alert. At the cap, or when the API cannot be reached or no run has started
   within `[ci].start_min` (default 10), the train goes on with its local rungs alone, running the whole suites there
   as it does with CI off, with one `ci-fallback` row saying which; it never waits and never lands on a check it did
-  not get. The nightly's fallback is the local verify, and its report says CI did not run. Test (owed):
-  `test_ci_train.py` `test_ci_with_no_cap_set_is_refused_by_the_rules_check`,
-  `test_minutes_are_summed_per_month_with_the_macos_multiplier_and_eighty_percent_is_one_alert`,
-  `test_at_the_cap_or_with_ci_down_the_train_runs_its_whole_suites_locally_with_a_fallback_row`. Serves: reliable.
+  not get. The nightly's fallback is the local verify, and its report says CI did not run. Tests: `fichero-builder/tests/test_ci_train.py::test_ci_with_no_cap_set_is_refused_by_the_rules_check`, `fichero-builder/tests/test_ci_train.py::test_minutes_are_summed_per_month_with_the_macos_multiplier_and_eighty_percent_is_one_alert`, `fichero-builder/tests/test_ci_train.py::test_at_the_cap_or_with_ci_down_the_train_runs_its_whole_suites_locally_with_a_fallback_row`. Serves: reliable.
 
 ### M. The merge train: the expensive checks run once for many steps (owner 2026-11-25, #6589)
 
