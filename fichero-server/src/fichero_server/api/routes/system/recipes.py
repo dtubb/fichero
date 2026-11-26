@@ -1724,6 +1724,7 @@ async def model_candidates(
     step: Optional[str] = None,
     period: Optional[str] = None,
     worth_only: bool = False,
+    q: Optional[str] = None,
     library_path: Optional[str] = Depends(optional_library_path),
 ) -> ModelCandidateList:
     """Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts
@@ -1740,7 +1741,10 @@ async def model_candidates(
     Mac or can be downloaded, with its size (`availability`). With `period` ("16th century", "1650–1700"), a reader
     made for it ranks first (#5683). For `read-a-line`, the page readers (Apple Vision, a vision model) are listed
     too, the person's to choose with no rule rank: a line step reads Kraken's lines with them, as the bake-off
-    counts them. Refused (422), in words, for an unknown script, language, material or job."""
+    counts them. With none, `period` is the open project's saved one (#7085). A card whose script, language, material and
+    period all fit the project is never cut by the per-tier cap of `worth_only`; `worth_only=false` is Show All Models, and
+    `q` keeps the candidates whose name, id or short name contains it (any case). Refused (422), in words, for an unknown
+    script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
     from fichero_server.recipes.assemble import (
@@ -1786,6 +1790,7 @@ async def model_candidates(
     # The open project's own yes counts too (`places.may_leave_to`): the app need not repeat it, so a cloud reader is not
     # said to need permission the project already gave (owner 2026-10-23, the step menu's Allow Cloud).
     saved = (read_project_setup(Path(library_path)).get("answers") or {}) if library_path else {}
+    period = period or str(saved.get("period") or "")
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
                 cloud_allowed=(cloud_allowed and places.allows("cloud")) or places.may_leave_to(saved, "cloud"), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
                 search_embedder=search_embedder(library_path or None), period=period or "")
@@ -1894,7 +1899,10 @@ async def model_candidates(
         bookmark_key=keys[c.id], bookmarked=bool(keys[c.id] and (kept.get(keys[c.id]) or {}).get("bookmarked")),
     ) for c in sorted(cards, key=lambda c: (c.id != pick, _offered_order(c)[0] != 0, rank.get(c.id, len(rank) + 1), _offered_order(c), c.id))]
     if worth_only:  # the finder's list (owner 2026-10-23); without it every candidate, as Compare and the tests read it
-        items = worth_listing(items)
+        items = worth_listing(items, languages=tags)
+    if q and q.strip():
+        needle = q.strip().lower()
+        items = [i for i in items if needle in " ".join((i.name, i.id, i.short_name or "")).lower()]
     why, fix = _nothing_here_yet(items)
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources], why=why, fix=fix,
@@ -1935,14 +1943,21 @@ def _worth(c: "ModelCandidate") -> bool:
     return bool(c.chosen) or uses or downloads or bool(c.needs_permission) or asks_settings
 
 
-def worth_listing(items: list["ModelCandidate"], per_tier: int = PER_TIER) -> list["ModelCandidate"]:
-    """The rows worth listing, at most `per_tier` of each tier in the order given; the step's own model and one measured
-    on the person's pages always stay, and do not count against their tier. ponytail: a fixed cap; a Show All is the
-    upgrade if a person needs the rest."""
+def _fits_project(c: "ModelCandidate", languages: frozenset[str]) -> bool:
+    """A card the rules rank for the project, made for its period (or stating none), and naming one of its languages."""
+    return (bool(languages) and c.rule_rank is not None and not c.other_period and c.in_recipe_rules
+            and c.languages is not None and bool(set(c.languages) & languages))
+
+
+def worth_listing(items: list["ModelCandidate"], per_tier: int = PER_TIER,
+                  languages: frozenset[str] = frozenset()) -> list["ModelCandidate"]:
+    """The rows worth listing, at most `per_tier` of each tier in the order given; the step's own model, one measured
+    on the person's pages and one that fits the project's language, script, material and period always stay, and do not
+    count against their tier (#7085). The rest is Show All (`worth_only=false`)."""
     seen: dict[str | None, int] = {}
     out = []
     for c in items:
-        if c.chosen or c.cer_measured_here is not None:
+        if c.chosen or c.cer_measured_here is not None or (_worth(c) and _fits_project(c, languages)):
             out.append(c)
         elif _worth(c) and seen.get(c.tier, 0) < per_tier:
             seen[c.tier] = seen.get(c.tier, 0) + 1
