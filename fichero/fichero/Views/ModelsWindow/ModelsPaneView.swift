@@ -35,7 +35,17 @@ struct ModelsPaneView: View {
                     Text(store?.deleteWarning ?? "\(row.name) is removed from this Mac.")
                 }
         } detail: {
+            // The pane is also mounted in the shell window, whose one toolbar search is ContentView's: the filter is the
+            // pane's own bottom field, never a second `.searchable` (#3163).
             content
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    PaneFilterBar {
+                        PaneFilterField(text: $search, prompt: "Search models", accessibilityID: "models.search") {
+                            Text("Nothing to filter yet")
+                        }
+                        .frame(maxWidth: 260)
+                    }
+                }
                 .inspector(isPresented: $showsInspector) { inspector.inspectorColumnWidth(min: 240, ideal: 300, max: 420) }
         }
         .toolbar {
@@ -54,7 +64,6 @@ struct ModelsPaneView: View {
                     .accessibilityIdentifier("models.toolbar.inspector")
             }
         }
-        .searchable(text: $search, prompt: "Search models")
         .background { Color.clear.sheet(isPresented: $addsModel) { addSheet } }
         .task { await ModelsAnswerStore.shared.watch(libraryManager) }
         .task { await openStore() }

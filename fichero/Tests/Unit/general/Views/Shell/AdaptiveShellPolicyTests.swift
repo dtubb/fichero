@@ -371,8 +371,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
         XCTAssertFalse(sidebarComponentsSource.contains("sidebarFilterBar"),
                        "standalone sidebarFilterBar is gone — filter lives in the bottom toolbar (#4061)")
-        XCTAssertTrue(sidebarBottomToolbarSource.contains("TextField(\"Filter\", text: sidebarFilterText)"),
-                      "sidebar filter TextField lives in the shared bottom toolbar (#4061)")
+        XCTAssertTrue(
+            sidebarBottomToolbarSource.contains("PaneFilterField(text: sidebarFilterText, accessibilityID: \"sidebarFilterField\")"),
+            "the sidebar filter field lives in the shared bottom toolbar (#4061, panes.chrome.one-filter-pattern)")
         XCTAssertTrue(sidebarHelpersSource.contains("var filteredLibraryHeaders: [SidebarItem]"))
         XCTAssertTrue(annotationsSource.contains("annotationFilterBar"))
         XCTAssertTrue(annotationsSource.contains("TextField(\"Search notes, tags, claim id…\", text: $searchText)"))
@@ -398,11 +399,13 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it is
         // the library pane head's lens now.
         XCTAssertFalse(toolbarSource.contains("viewDisplayModeMenu"))
-        // #4360: these became native Toggles, so the call is a binding setter
-        // rather than an inverted-boolean button action. Same invariant: the
-        // pane controls live in the toolbar and drive the pane-visibility API.
-        XCTAssertTrue(toolbarSource.contains("setCanvasPaneVisible("))
-        XCTAssertTrue(toolbarSource.contains("setReadingPaneVisible("))
+        // #6730: Items, Source and Reader have no toolbar buttons; the Workspaces menu and View ▸ Panes carry the
+        // pane toggles, as native Toggles whose binding setter drives the pane-visibility API.
+        XCTAssertFalse(toolbarSource.contains("setCanvasPaneVisible("))
+        XCTAssertFalse(toolbarSource.contains("setReadingPaneVisible("))
+        let toggleMenuSource = try Self.appSource("Views/Shell/ContentView/ContentView+PaneToggleMenu.swift")
+        XCTAssertTrue(toggleMenuSource.contains("setCanvasPaneVisible("))
+        XCTAssertTrue(toggleMenuSource.contains("setReadingPaneVisible("))
         XCTAssertFalse(buildersSource.contains("viewSettings.previewMode = .none"))
     }
 
