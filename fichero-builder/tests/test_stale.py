@@ -100,3 +100,22 @@ def test_the_loop_tick_runs_the_stale_watch_before_the_lane(state, monkeypatch):
     fake = tq.Fake()
     queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
     assert [r["action"] for r in _rows()] == ["close-out"] and steps()["1.1"]["state"] == "closed-out"
+
+
+def test_an_outside_change_made_during_the_tick_survives_a_stale_action(state, monkeypatch):
+    """#6589 reliab-1: the tick's copy of the lane is snapshotted before the stale watch stores it, so a change made from outside
+    (here: a mark on step 1.2) between the tick's load and the watch's store is kept."""
+    lane(state)
+    _step(state="blocked", why="needs a decision", entered_at=T0, blocked_at=T0, stale_n=1, stale_at=T0)
+    monkeypatch.setattr(queue, "_now", lambda: T0 + 60 * 3600)
+    real = stale.act
+
+    def act_after_an_outside_change(lane_, **kw):
+        ln = queue.load()
+        ln[0]["steps"][1]["outside"] = "kept"
+        queue.save(ln)
+        return real(lane_, **kw)
+
+    monkeypatch.setattr(stale, "act", act_after_an_outside_change)
+    queue.tick(tq.Fake().procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "closed-out" and steps()["1.2"].get("outside") == "kept"

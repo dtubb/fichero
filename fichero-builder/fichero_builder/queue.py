@@ -2169,6 +2169,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         try:
             if manage(lane, procs):
                 lane = next(x for x in load() if x["id"] == lane["id"])
+            snapshot(lane)  # #6589 reliab-1: before the stale watch stores this copy, so an outside park, move or drop is kept
             if stale.act(lane, q=sys.modules[__name__], chains=chains, hours=STALE_H[0], now=_now(), gh="gh"):
                 lane = next(x for x in load() if x["id"] == lane["id"])
             snapshot(lane)  # #6589 reliab-1: what a `store` of this copy tells an outside change from
