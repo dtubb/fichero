@@ -158,8 +158,8 @@ def test_the_train_table_is_a_known_rules_table():
 
 
 def test_drop_refs_deletes_the_train_candidate_refs_and_only_those(tmp_path):
-    import subprocess
-    g = lambda *a: subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True, text=True, check=True).stdout
+    def g(*a):
+        return subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True, text=True, check=True).stdout
     g("init", "-q"), g("commit", "-q", "--allow-empty", "-m", "x")
     for r in ("refs/train/t1-1", "refs/train/t1-2", "refs/train/t2-1"):
         g("update-ref", r, "HEAD")
