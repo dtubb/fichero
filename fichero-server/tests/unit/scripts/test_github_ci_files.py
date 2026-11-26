@@ -1,8 +1,6 @@
 """Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.dependabot, ci.security-workflow, ci.test-workflow)."""
 from pathlib import Path
 
-from _scan_files import scan_rglob
-
 import yaml
 
 ROOT = Path(__file__).resolve().parents[4]
