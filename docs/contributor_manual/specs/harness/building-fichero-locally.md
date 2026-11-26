@@ -663,7 +663,9 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `fichero-builder/tests/test_dry_run.py::test_an_idle_worker_with_no_question_is_nudged_with_the_exact_line_then_alerted_two_ticks_later`,
   `fichero-builder/tests/test_dry_run.py::test_the_stop_hooks_file_is_read_while_the_session_file_still_says_working`,
   `fichero-builder/tests/test_dry_run.py::test_a_hook_file_older_than_the_message_and_a_done_line_raise_nothing`,
-  `fichero-builder/tests/test_dry_run.py::test_a_moved_branch_with_a_question_is_one_alert_and_with_none_is_nudged_once`, and the hook's own `--test` run by `test_client_scripts.py`.
+  `fichero-builder/tests/test_dry_run.py::test_a_moved_branch_with_a_question_is_one_alert_in_one_tick`,
+  `fichero-builder/tests/test_dry_run.py::test_a_moved_branch_with_no_question_is_nudged_once_then_alerted`,
+  `fichero-builder/tests/test_dry_run.py::test_a_turn_that_goes_on_after_the_nudge_starts_the_ended_count_again`, and the hook's own `--test` run by `test_client_scripts.py`.
 - `local.disk.thin-snapshots-before-holding` [GAP] (#6589) — before the loop holds a new lane for disk, it frees what
   the system's local backup snapshots pin and measures again. On macOS, space freed by a sweep stays held by local Time
   Machine snapshots until they are thinned. Once in a low-disk episode, and at most once an hour, the loop runs
