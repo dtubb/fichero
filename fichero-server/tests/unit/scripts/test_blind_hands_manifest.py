@@ -97,3 +97,43 @@ def test_figures_of_two_versions_never_share_a_column():
     assert m.one_column([{"manifest_version": 1}, {"manifest_version": 1}]) == 1
     with pytest.raises(m.ManifestError, match="one column"):
         m.one_column([{"manifest_version": 0}, {"manifest_version": 1}])
+
+
+_gspec = importlib.util.spec_from_file_location("check_blind_hands_manifest", REPO_ROOT / "scripts" / "check_blind_hands_manifest.py")
+guard = importlib.util.module_from_spec(_gspec)
+_gspec.loader.exec_module(guard)
+
+
+def _run_guard(tmp_path, monkeypatch, capsys, committed, private=None):
+    cpath = tmp_path / "committed.json"
+    cpath.write_text(json.dumps(committed))
+    monkeypatch.delenv(guard.PRIVATE_ENV, raising=False)
+    if private is not None:
+        ppath = tmp_path / "private.json"
+        ppath.write_text(json.dumps(private))
+        monkeypatch.setenv(guard.PRIVATE_ENV, str(ppath))
+    return guard.main(cpath), capsys.readouterr().out
+
+
+def test_guard_passes_the_committed_file(monkeypatch, capsys):
+    monkeypatch.delenv(guard.PRIVATE_ENV, raising=False)
+    assert guard.main() == 0
+    assert "private check not run" in capsys.readouterr().out
+
+
+def test_guard_refuses_a_committed_file_naming_a_private_hand(tmp_path, monkeypatch, capsys):
+    shared = _hand("secret")
+    code, out = _run_guard(tmp_path, monkeypatch, capsys, _manifest(_hand("a"), shared), private=_manifest(shared))
+    assert code == 1 and "private hand 'secret'" in out
+
+
+def test_guard_passes_when_the_private_manifest_shares_nothing(tmp_path, monkeypatch, capsys):
+    code, out = _run_guard(tmp_path, monkeypatch, capsys, _manifest(_hand("a")), private=_manifest(_hand("p", "all-rights-reserved", may_leave_this_mac=False)))
+    assert code == 0 and "no private hand named" in out
+
+
+def test_guard_refuses_an_invalid_committed_file(tmp_path, monkeypatch, capsys):
+    bad = _manifest(_hand("a"))
+    bad["hands"].append(_hand("b"))
+    code, out = _run_guard(tmp_path, monkeypatch, capsys, bad)
+    assert code == 1 and "page list changed" in out
