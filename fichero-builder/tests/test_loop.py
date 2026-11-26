@@ -2300,3 +2300,66 @@ def test_a_landed_lanes_branch_fully_on_the_land_branch_is_deleted_on_origin_and
     assert _cleanup_rows()[-1]["state"] == "kept" and "not on origin/integration" in _cleanup_rows()[-1]["detail"]
     queue.prune_remote({"id": "w3"}, str(repo / ".git"), "origin/integration", "nope")  # not on origin: nothing, no row
     assert _cleanup_rows()[-1]["path"] == "origin/w2"
+
+
+def _review_world(tmp_path, replies):
+    """A repo with one commit over landbr, a fake reviewer that answers `replies` in turn and keeps each prompt, and the state dir."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path as P
+    script = P(__file__).resolve().parents[1] / "fichero_builder" / "scripts" / "harness_review.py"
+    r = tmp_path / "r"
+    r.mkdir()
+
+    def g(*a):
+        return subprocess.run(["git", "-C", str(r), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout
+    (r / "a.py").write_text("x = 1\n")
+    g("init", "-q", "-b", "main"), g("add", "."), g("commit", "-q", "-m", "base"), g("branch", "landbr")
+    (r / "a.py").write_text("x = 2\n")
+    g("commit", "-qam", "change")
+    (tmp_path / "replies").write_text("\n".join(replies) + "\n")
+    b = tmp_path / "bin"
+    b.mkdir()
+    (b / "claude").write_text(f"#!/bin/sh\nn=$(($(cat {tmp_path}/calls 2>/dev/null || echo 0) + 1)); echo $n > {tmp_path}/calls\n"
+                              f"cat > {tmp_path}/prompt$n\nsed -n ${{n}}p {tmp_path}/replies\n")
+    (b / "claude").chmod(0o755)
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n[models]\nproviders = ["claude-code"]\n'
+                                                 'reviewer = { provider = "claude-code", model = "opus", context = 200000 }\n')
+    (tmp_path / "own").mkdir(mode=0o700)
+    state = tmp_path / "st"
+    state.mkdir()
+    env = {**os.environ, "PATH": f"{b}:{os.environ['PATH']}", "FICHERO_BUILDER_STATE": str(state)}
+
+    def review():
+        return subprocess.run([sys.executable, str(script), str(r), "HEAD", "--pinned", str(tmp_path / "p"), "--verdicts", str(tmp_path / "own" / "v.json")],
+                              env=env, capture_output=True, text=True)
+    return g, review, state
+
+
+def test_a_fix_round_review_gets_the_earlier_findings_and_only_the_fix_diff(tmp_path):
+    """local.review.fix-round-reads-the-fix: the second review gets the first one's finding and the diff since the reviewed head
+    only, and must answer each earlier finding FIXED or NOT FIXED; READY needs every one fixed."""
+    g, review, _state = _review_world(tmp_path, ["NOT READY: x must be 3", "READY"])
+    assert review().returncode == 1
+    (tmp_path / "r" / "b.py").write_text("y = 3\n")
+    g("add", "."), g("commit", "-q", "-m", "fix: x is 3")
+    r = review()
+    assert r.returncode == 0, r.stdout + r.stderr
+    p = (tmp_path / "prompt2").read_text()
+    assert "x must be 3" in p and "`FIXED: <finding>` or `NOT FIXED: <finding>`" in p and "READY needs every earlier finding FIXED" in p
+    diff = p.split("DIFF:", 1)[1]
+    assert "+y = 3" in diff and "+x = 2" not in diff, "only the fix diff"
+
+
+def test_a_rebased_head_is_reviewed_whole_with_a_row(tmp_path):
+    g, review, state = _review_world(tmp_path, ["NOT READY: x must be 3", "READY"])
+    assert review().returncode == 1
+    (tmp_path / "r" / "a.py").write_text("x = 3\n")
+    g("commit", "-q", "-a", "--amend", "-m", "change, amended")
+    assert review().returncode == 0
+    p = (tmp_path / "prompt2").read_text()
+    assert "DELTA REVIEW" not in p and "+x = 3" in p.split("DIFF:", 1)[1]
+    rows = [json.loads(x) for x in (state / "journal.jsonl").read_text().splitlines()]
+    assert [x["state"] for x in rows if x.get("event") == "review"] == ["whole-again"]

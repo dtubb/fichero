@@ -26,7 +26,7 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # the folder holding fichero_builder
-from fichero_builder import land_tool, models, review_lenses, scratch  # noqa: E402
+from fichero_builder import journal, land_tool, models, review_lenses, scratch  # noqa: E402
 from fichero_builder.client import CHECKOUT as ROOT  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -70,6 +70,13 @@ try:
 except (OSError, ValueError):
     record = {}
 prev = record.get(base)
+if not a.full and (prev is None and record or prev is not None and prev["head"] != a.head and subprocess.run(
+        [land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", prev["head"], a.head], capture_output=True).returncode):
+    # local.review.fix-round-reads-the-fix: a head that does not descend from the one reviewed (a rebase, an amend, a moved base) is
+    # reviewed whole: no earlier finding can be paired with a fix diff. One row says so.
+    was = prev or list(record.values())[-1]
+    journal.append("review", state="whole-again", head=a.head, was=was["head"],
+                   detail=f"{a.head[:9]} does not descend from the reviewed {was['head'][:9]}" + ("" if prev else " (the base moved)") + ": reviewed whole")
 kept: list[dict] = []
 blocking: list[dict] = []
 
@@ -103,7 +110,7 @@ elif prev and not a.full and prev["head"] != a.head:  # rewritten head: the grou
     reuse = {(b, t) for b, t in groups if group_key(b, t) in ready
              and (ready[group_key(b, t)]["before"], ready[group_key(b, t)]["after"]) == (prefix_key(b), suffix_key(t))}
     kept = [{**ready[group_key(b, t)], "base": b, "tip": t} for b, t in groups if (b, t) in reuse]
-    blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
+    # whole-again: the changed groups are reviewed afresh, not as a fix of the old findings (local.review.fix-round-reads-the-fix)
     groups = [(b, t) for b, t in groups if (b, t) not in reuse]
 def ladder_summary(path) -> str:
     """One line per rung from the check's JSON (name, ok, seconds, the red result names), never a truncated raw tail."""
@@ -157,8 +164,9 @@ changed = land_tool._git(a.repo, "diff", "--name-status", "--no-renames", base, 
 def prompt_for(i: int, gbase: str, gtip: str) -> str:
     delta = (f"DELTA REVIEW: {base[:10]}..{prev['head'][:10]} was reviewed before; these groups were READY and stay so: "
              + (", ".join(f"{g['base'][:10]}..{g['tip'][:10]}" for g in kept) or "none")
-             + ". Review only the new commits below. What blocked the earlier review is listed next: check each in the TREE; "
-             "fixed at the head is a note, still wrong at the head is NOT READY.\n"
+             + ". Review only the new commits below: the DIFF is the fix since the reviewed head. What blocked the earlier review is "
+             "listed next. Answer each earlier finding on its own line as `FIXED: <finding>` or `NOT FIXED: <finding>`, checked in the TREE, "
+             "and name any new fault in the DIFF. READY needs every earlier finding FIXED and no new fault.\n"
              + "".join(f"--- blocked {g['base'][:10]}..{g['tip'][:10]}:\n{g.get('findings', '')}\n" for g in blocking) + "\n") if kept or blocking else ""
     part = delta + (f"This is group {i} of {len(groups)}: the range is over the reviewer's cap, so it is reviewed in consecutive commit groups. "
             f"The batch lands WHOLE at its head {a.head[:10]}, never group by group; the TREE is that head. Judge this group's commits "
@@ -210,6 +218,7 @@ finally:
     drop_tree()
 # a READY delta settles what blocked before; a blocked one carries it forward with its own findings
 final = [{**g, "before": prefix_key(g["base"]), "after": suffix_key(g["tip"])} for g in kept + results]  # each group's later commits at THIS head: what a rewritten head must still match
+record.pop(base, None)  # the newest base last: a moved base finds the latest review
 record[base] = {"head": a.head, "groups": final[:len(kept)] + (blocking if blocked else []) + final[len(kept):]}
 land_tool.safe_write(side, json.dumps(record, indent=1))
 if blocked:

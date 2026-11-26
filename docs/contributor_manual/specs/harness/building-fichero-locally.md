@@ -1233,13 +1233,11 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   `test_loop.py` `test_a_review_runs_beside_the_ladder_and_a_red_with_a_not_ready_is_one_fix_round`,
   `test_a_ready_red_no_review_is_started`, `test_a_step_enters_the_train_only_green_and_ready_at_one_head`.
   Serves: reliable, fast.
-- `local.review.fix-round-reads-the-fix` [GAP] (#6589) — a review of a head that descends from a head already
+- `local.review.fix-round-reads-the-fix` [OK] (#6589; built 2026-11-26) — a review of a head that descends from a head already
   reviewed for the same step is given that review's findings and the diff between the two heads, and answers each
   earlier finding as fixed or not fixed and names any new fault in that diff; READY needs every earlier finding fixed
   and no new fault. A head that does not descend from the reviewed one (a rebase, an amend) is reviewed whole, with one
-  `review` row `whole-again`. Test (owed):
-  `test_loop.py` `test_a_fix_round_review_gets_the_earlier_findings_and_only_the_fix_diff`,
-  `test_a_rebased_head_is_reviewed_whole_with_a_row`. Serves: reliable, fast.
+  `review` row `whole-again`. Tests: `fichero-builder/tests/test_loop.py::test_a_fix_round_review_gets_the_earlier_findings_and_only_the_fix_diff`, `fichero-builder/tests/test_loop.py::test_a_rebased_head_is_reviewed_whole_with_a_row`. Serves: reliable, fast.
 - `local.check.fix-round-reuses-verdicts` [GAP] (#6589) — a ladder over a head that descends from a head the same
   step was checked at, on the same base sha and the same pinned copy, keeps a rung's earlier green without running it
   when no path the new commits change is an input of that rung: for red-on-base, the changed tests, the files under
