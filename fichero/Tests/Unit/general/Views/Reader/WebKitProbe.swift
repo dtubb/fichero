@@ -5,7 +5,7 @@ import WebKit
 
 /// #6111: the WebKit-backed unit tests need WebKit's web-content process. Under a sandboxed shell (an agent's
 /// `xcodebuild test`) it cannot start ("Connection init failed ... error 159 - Sandbox restriction"), and the tests
-/// then fail for a reason that has nothing to do with the code. This loads a blank page ONCE and, if that does not
+/// then fail for a reason that has nothing to do with the code. This loads a blank page until it succeeds and, if that does not
 /// finish, throws the cause in words. It is a failure, never a skip: a real red must not hide behind the environment.
 @MainActor
 enum WebKitProbe {
@@ -56,21 +56,21 @@ enum WebKitProbe {
         ) { finish(.failure(error)) }
     }
 
-    private static var outcome: Result<Void, CouldNotStart>?
+    private static var started = false
 
-    /// Returns when WebKit has loaded a blank page; throws `CouldNotStart` (the same answer every time) when it did not.
+    /// Returns when WebKit has loaded a blank page; throws `CouldNotStart` when it did not. Only a success is
+    /// remembered: the first web-content process launch in a full, loaded run can take longer than a few seconds, and a
+    /// remembered timeout failed every WebKit test after it for one slow start (#7095). The wait is 60 seconds.
     static func requireStarted() async throws {
-        if outcome == nil {
-            let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
-            let watcher = Loaded()  // the web view holds its delegate weakly
-            do {
-                try await watcher.load(into: webView, seconds: 10)
-                outcome = .success(())
-            } catch {
-                outcome = .failure(CouldNotStart(webKitSaid: String(describing: error)))
-            }
+        if started { return }
+        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        let watcher = Loaded()  // the web view holds its delegate weakly
+        do {
+            try await watcher.load(into: webView, seconds: 60)
+            started = true
+        } catch {
+            throw CouldNotStart(webKitSaid: String(describing: error))
         }
-        try outcome?.get()
     }
 }
 #endif
