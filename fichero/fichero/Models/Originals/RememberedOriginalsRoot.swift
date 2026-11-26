@@ -6,16 +6,21 @@ import Foundation
 enum RememberedOriginalsRoot {
     private static let key = "originals.rememberedRoots"
 
+    /// Read-write scope, the same the folder grant mints with: a folder recalled with a read-only scope cannot
+    /// have a read-write scoped bookmark minted from it, and Locate Originals' grant on it was refused (#7076).
+    static var creationOptions: URL.BookmarkCreationOptions {
+        #if os(macOS)
+        [.withSecurityScope]
+        #else
+        []
+        #endif
+    }
+
     static func remember(_ folder: URL, project: String?, defaults: UserDefaults = .standard) {
         guard let project else { return }
         let accessing = folder.startAccessingSecurityScopedResource()
         defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
-        #if os(macOS)
-        let options: URL.BookmarkCreationOptions = [.withSecurityScope, .securityScopeAllowOnlyReadAccess]
-        #else
-        let options: URL.BookmarkCreationOptions = []
-        #endif
-        guard let bookmark = try? folder.bookmarkData(options: options) else { return }
+        guard let bookmark = try? folder.bookmarkData(options: creationOptions) else { return }
         var roots = defaults.dictionary(forKey: key) as? [String: Data] ?? [:]
         roots[project] = bookmark
         defaults.set(roots, forKey: key)
