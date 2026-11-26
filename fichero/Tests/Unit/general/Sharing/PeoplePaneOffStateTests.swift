@@ -31,7 +31,12 @@ struct PeoplePaneOffStateTests {
 
     @Test("the switch's name comes from the one place that names it (#5917)")
     func usesTheSwitchLabel() throws {
-        let words = try #require(PeoplePaneOffState.words(multiuserOn: false, isOwner: true, platformHasSwitch: true))
+        // Where there is no switch to hop to, the line names the switch from `SharingToggles`.
+        let words = try #require(PeoplePaneOffState.words(multiuserOn: false, isOwner: true, platformHasSwitch: false))
         #expect(words.line.hasPrefix(SharingToggles.label(.multiUser)))
+        // On a Mac the line is the accounts sentence (`sharing.multiuser-off-says-so`), with its button.
+        let mac = try #require(PeoplePaneOffState.words(multiuserOn: false, isOwner: true, platformHasSwitch: true))
+        #expect(mac.line == AccountsOnSequence.offSentence)
+        #expect(mac.button == AccountsOnSequence.buttonTitle)
     }
 }
