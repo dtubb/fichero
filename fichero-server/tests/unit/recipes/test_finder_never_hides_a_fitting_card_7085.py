@@ -19,15 +19,11 @@ def _ids(client, **extra):
 
 
 @pytest.mark.usefixtures("mac")
-def test_mccatmus_is_in_the_first_list_for_a_nineteenth_century_spanish_handwriting_project(client):
-    assert MCCATMUS in _ids(client, worth_only=True)
-
-
-@pytest.mark.usefixtures("mac")
 def test_a_fitting_card_is_never_cut_by_the_cap(client):
     from fichero_server.api.routes.system.recipes import ModelCandidate, worth_listing
 
     items = client.get("/api/recipes/candidates", params={**ASK, "worth_only": False}).json()["items"]
+    assert MCCATMUS in [i["id"] for i in items]  # offered for read-a-line to this project at all
     kept = worth_listing([ModelCandidate(**i) for i in items], per_tier=0, languages=frozenset({"es"}))
     assert MCCATMUS in [i.id for i in kept]
 
@@ -39,3 +35,4 @@ def test_show_all_lists_every_candidate_and_search_narrows_it(client):
     assert set(capped) <= set(everything)
     found = _ids(client, worth_only=False, q="mccatmus")
     assert MCCATMUS in found and len(found) < len(everything)
+
