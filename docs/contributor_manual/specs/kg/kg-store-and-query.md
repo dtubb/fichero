@@ -221,9 +221,10 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
 - `kg.query.walks-are-bounded` — **[GAP]** (#5551, #6758) every walk has a hop limit, a row limit and
   says when it was cut; none can run without end on a name that is on thousands of statements.
   Built today only for the neighbourhood (`truncated`). Built: the neighbourhood reads at most
-  `NEIGHBOURHOOD_CLAIM_LIMIT` statements per hop and sets `truncated` when it meets more. Not built: the traverse
-  route has a depth limit but no row limit and still reads the whole statements table once per node visited; the
-  path route has no hop limit.
+  `NEIGHBOURHOOD_CLAIM_LIMIT` statements per hop and sets `truncated` when it meets more. The traverse route reads
+  the statements of the name through `kg_mentions` and the links of each claim by its id, stops at
+  `TRAVERSE_NODE_LIMIT` nodes and sets `truncated`. Not built: the path route builds the whole graph and has no
+  hop limit. *Test:* `tests/unit/kg/test_traverse_is_bounded.py`.
 
 ### D. Whole-graph measures
 
