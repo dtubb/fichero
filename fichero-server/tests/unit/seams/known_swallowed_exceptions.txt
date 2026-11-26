@@ -75,7 +75,7 @@ db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
 # opens (the migration is idempotent and runs again next open), so the open never fails over it.
 # #5657: finishing or rolling back a transfer a crash left half-way runs on open; a failure is logged and
 # the project still opens (the journal keeps the record, so the next open tries again).
-db/manager.py::DatabaseManager.get_database 9
+db/manager.py::DatabaseManager.get_database 10
 db/manager.py::resume_pending_derivatives 1
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_segment_indices 1
@@ -239,6 +239,8 @@ maintenance/page_text_repair.py::_record_finished_row 1
 maintenance/page_text_repair.py::_transcription_of 1
 maintenance/page_text_repair.py::repair_classification_page_text 1
 maintenance/page_text_repair.py::repair_on_open 1
+# #7093: the open-time path rewrite is idempotent; its audit failure is logged and the next open counts again.
+maintenance/package_paths.py::relativize_on_open 1
 # #5933: saying a failed resume on the recipe's row is a courtesy; the log has the reason.
 recipes/runner.py::_resume_step_run.said 1
 # #6126: a failure to queue the embeds left to Search never replaces the run own result or error (it is logged); the closure keeps it out of the run path.
