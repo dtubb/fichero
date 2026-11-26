@@ -351,6 +351,22 @@ def main(a) -> int:
             stops += stop
         raise Red("no READY verdict: " + ("; ".join(stops) or f"no verdict store under {journal.STATE}"))
 
+    def train_verdict():  # the merge train's row is the verdict and the check: a cleared step is never checked or reviewed again
+        rows = [r for r in journal.read() if r.get("event") == "train" and r.get("id") == a.train and r.get("candidate")]
+        if not rows or a.train_step not in (rows[-1].get("landed") or []):
+            raise Red(f"no train row {a.train} that lands {a.train_step}")
+        return f"cleared by {a.train} (its candidate {rows[-1]['candidate'][:9]})"
+
+    def train_merge():  # the head merged onto the land branch as it is now: the train's order, or a branch that moved since
+        nonlocal sha
+        from fichero_builder import train
+        _ok(_git(repo, "fetch", "-q", "origin"), "fetch origin")
+        merged, bad = train.git_merge(repo, f"refs/remotes/origin/{branch}", [sha], f"refs/train/{a.train}-land-{sha[:9]}")
+        if bad:
+            raise Red("TRAIN MERGE CONFLICT\n" + bad[sha])  # queue.TRAIN_CONFLICT: the step goes back
+        sha = merged
+        return f"merged onto origin/{branch} as {sha[:9]}"
+
     def check_row():
         row_ = next((r for b in bases if (r := land_tool.green_row(journal.read(), sha, b))), None)
         if row_ is None:
@@ -449,6 +465,8 @@ def main(a) -> int:
     steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("spec-clean", spec_clean), ("push", push), ("on-origin", on_origin),
              # the push is the landing: its issues close at once, so a refresh that fails never loses them (manager 2026-11-02)
              ("issues", issues), ("refresh", refresh), ("pinned", pinned), ("jail-root", jail_root), ("scratch", scratch), ("specs", specs)]
+    if getattr(a, "train", ""):
+        steps = [("train", train_verdict), ("train-merge", train_merge), *steps[3:]]
     if resume:
         steps = steps[[n for n, _ in steps].index("refresh") + 1:]
     journal.append("activity", kind="land", key=f"land {sha[:9]}", state="start")

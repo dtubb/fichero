@@ -607,3 +607,29 @@ def test_a_check_and_review_over_origin_land_while_the_local_land_branch_lags(wo
     assert steps[:2] == [("verdict", True), ("check-row", True)], steps
     assert steps[2][0] != "check-row", steps  # past both gates: the next step is the land itself (it needs --push to go on)
     assert rc in (0, 1)
+
+
+def test_a_train_cleared_sha_lands_merged_onto_a_moved_origin_with_no_verdict_or_check_row_and_a_conflict_refuses(world, capsys):
+    """train-20261126-181343: the train's green is the verdict and the check. origin moved since the candidate: the head is merged
+    onto it, pushed; no READY verdict and no check row are asked for. A train row that does not land the step refuses."""
+    seed, origin = world.seed, world.origin
+    _g(seed, "checkout", "-q", "integration")
+    (seed / "h").write_text("moved")
+    _g(seed, "add", "h"), _g(seed, "commit", "-qm", "another step landed first")
+    _g(seed, "push", "-q", str(origin), "integration")
+    assert world.go("--push", "--train", "train-1", "--train-step", "n1/1") == 1 and "no train row train-1" in capsys.readouterr().err
+    journal.append("train", id="train-1", candidate="c" * 40, result="green", landed=["n1/1"], steps=["n1/1"])
+    assert world.go("--push", "--train", "train-1", "--train-step", "n1/1") == 0, capsys.readouterr().err
+    tip = _g(origin, "rev-parse", "integration")
+    assert _g(origin, "rev-list", "--parents", "-n1", tip).count(" ") == 2, "a merge commit"
+    assert _g(origin, "merge-base", "--is-ancestor", world.sha, tip) == "" and _g(origin, "show", f"{tip}:h") == "moved"
+    assert not [r for r in rows() if r["step"] in ("verdict", "check-row")], "the train is the verdict and the check"
+    # a later cleared head that conflicts with what landed refuses with the marker the queue sends back on
+    _g(seed, "checkout", "-q", "-b", "lane2", world.sha + "^")
+    (seed / "h").write_text("other")
+    _g(seed, "add", "h"), _g(seed, "commit", "-qm", "feat: h")
+    sha2 = _g(seed, "rev-parse", "HEAD")
+    _g(world.engine, "fetch", "-q", str(seed), "+refs/heads/lane2:refs/heads/work-n2")
+    journal.append("train", id="train-2", candidate="d" * 40, result="green", landed=["n2/1"], steps=["n2/1"])
+    rc = cli.main(["landed", sha2, "--root", str(world.tmp), "--gh", "true", "--state", str(world.tmp / "s"), "--push", "--train", "train-2", "--train-step", "n2/1"])
+    assert rc == 1 and "TRAIN MERGE CONFLICT\n" in capsys.readouterr().err and _g(origin, "rev-parse", "integration") == tip

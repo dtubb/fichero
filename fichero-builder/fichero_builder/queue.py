@@ -361,6 +361,9 @@ class Procs:
     # local.step.stacks-on-a-waiting-step: (lane, step, under head) -> '' or why: the step's work as commits under stack/<lane>/<step>
     # (its uncommitted work as one `wip: <step>` commit) and the tree reset to the head under it
     stack_hold: Callable[[dict, dict, str], str] = lambda lane, step, under: ""
+    # (lane, head, push, train id, step key) -> (rc, output): a train-cleared step lands its head merged onto the land branch, the train
+    # its verdict (no ladder, no review); None = procs.landed. TRAIN_CONFLICT in the output: the merge conflicts, the step goes back
+    land_cleared: Callable | None = None
     # (lane, step, the under head it was held at) -> '' or why (work.REBASE_CONFLICT marks a conflict): the kept commits onto the tree's head
     stack_resume: Callable[[dict, dict, str], str] = lambda lane, step, under: ""
     build_free: Callable[[], bool] = lambda: True  # a runner that can build the app is free for a second train (local.train.second-train-on-the-first)
@@ -985,8 +988,23 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             return {"ok": False, "kind": "error", "why": f"{type(e).__name__}: {e}"}
     if back is None and fut is None and s["state"] == "done" and not s.get("train_cleared") and train_on(procs) and procs.premerge is not None:
         told_at_done(lane, s, procs)
+    if back is None and fut is None and s["state"] == "done" and s.get("train_cleared"):
+        # 2026-11-26 train-20261126-181343: a cleared step ran a whole new ladder and review over a moved base, was NOT READY, and held
+        # the other two cleared steps behind it. The train is the verdict: the head is merged onto the land branch and pushed at once
+        tid = s["train_cleared"]
+        rc, output = (procs.land_cleared or (lambda ln, hd, p, t, k: procs.landed(ln, hd, p)))(lane, s["head"], push, tid, f"{lane['id']}/{s['step']}")
+        if rc and TRAIN_CONFLICT in output:
+            s.pop("train_cleared", None)
+            back = {"ok": False, "kind": "conflict", "why": f"cleared by {tid}, but it no longer merges onto the land branch", "findings": output.split(TRAIN_CONFLICT, 1)[-1]}
+        elif rc:
+            s.pop("train_cleared", None)  # blocked, it no longer holds the train's later steps (train_waits)
+            return block(s, f"cleared by {tid}; the landing refused: {output}")
+        else:
+            r = {"ok": True, "head": s["head"], "landed_by_train": tid}
     if back is not None:
         r = back
+    elif s["state"] == "done" and s.get("train_cleared") and fut is None:
+        pass  # landed above
     elif chains is None:
         r = chain()
     elif fut is None:
@@ -1057,7 +1075,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             move(s, "train", f"green on the cheap rungs at {r['head'][:9]}; waits for a merge train")
             return True
         s["product"] = bool(procs.touches_product(lane, r["head"]))  # BEFORE landing: origin/integration is still the base; kept by the landing's one store
-        rc, output = procs.landed(lane, r["head"], push)
+        rc, output = (0, "") if r.get("landed_by_train") else procs.landed(lane, r["head"], push)
         if rc:
             return block(s, output)
         if lane.get("kind") == "external" and s.get("land_tree"):
@@ -2976,6 +2994,9 @@ def table() -> list[list[str]]:
             for x in load() for s in x["steps"]]
 
 
+TRAIN_CONFLICT = "TRAIN MERGE CONFLICT\n"  # `builder landed --train`: the cleared head no longer merges onto the land branch
+
+
 def landed_argv(root, lane_id: str, head: str, push: bool) -> list[str]:
     """`builder landed` for a lane: the verdict store `builder work`'s chain wrote under the lane's name."""
     return [sys.executable, "-m", "fichero_builder", "landed", head, "--root", str(root), "--state", str(journal.STATE),
@@ -3455,6 +3476,11 @@ def real_procs(root) -> Procs:
         r = subprocess.run(landed_argv(root, lane["id"], head, push), cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
 
+    def land_cleared(lane, head, push, tid, key):
+        argv = [*landed_argv(root, lane["id"], head, push), "--train", tid, "--train-step", key]
+        r = subprocess.run(argv, cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
+        return r.returncode, (r.stdout + r.stderr)[-2000:]
+
     def push_part2(lane, part2):
         g = ["git", "-c", "safe.directory=*", "-C", lane["worktree"]]
         if subprocess.run([*g, "rev-parse", "--verify", "--quiet", f"refs/heads/{part2}"], capture_output=True).returncode:
@@ -3600,7 +3626,7 @@ def real_procs(root) -> Procs:
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane), session_live=lambda lane: session_live(jail.load(root), lane),
-                 landed=landed, train_run=train_run, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
+                 landed=landed, land_cleared=land_cleared, train_run=train_run, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, fast_forward=lambda p, old, new: refreshed(p, old, new, branch), tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),

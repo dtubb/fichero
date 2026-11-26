@@ -385,3 +385,32 @@ def test_the_train_size_and_the_last_results_survive_a_restart(world):
     queue.TRAIN_SIZE[0], queue.RECENT[:], queue.MEMORY_READ[0] = 0, [], False  # a restart
     queue._train_memory()
     assert (queue.TRAIN_SIZE[0], queue.RECENT) == (size, recent)
+
+
+def test_train_cleared_steps_land_the_trains_merge_with_no_new_ladder_or_review_and_one_failure_never_holds_the_others(world):
+    """train-20261126-181343 was green over kg-readable-representation/2.1, read-any-hand/0.1, seg-finish/bug-7076. The first went
+    back through rebase, fetch, a 31-minute ladder and a whole review (NOT READY on a moved base) and held the other two behind it."""
+    t = Trained(*world, ["1", "2", "3"], cfg=train.Cfg(min_steps=3))
+    chains, lands = [], []
+
+    def chain(lane, step, stage):
+        chains.append(step["step"])
+        return t.chain(lane, step, stage)
+    t.fake.chain = t.fake.procs.chain = chain
+
+    def land_cleared(lane, head, push, tid, key):
+        lands.append((key, tid))
+        return (1, "REFUSED (train-merge): TRAIN MERGE CONFLICT\nmerging h1 conflicts in: a.py") if key == "l1/1" else (0, f"landed {head}")
+    t.fake.procs.land_cleared = land_cleared
+    hs: dict = {}
+    for _ in range(8):
+        queue.tick(t.fake.procs, hs, workers_n=3, push=True, out=lambda s: None)
+    (row,) = [r for r in journal.read() if r["event"] == "train"][:1]
+    assert row["result"] == "green" and row["landed"] == ["l1/1", "l2/2", "l3/3"]
+    assert chains.count("2") == chains.count("3") == 1, "one ladder each, before the train; none after it cleared them"
+    assert chains.count("1") == 2, "the conflicting step's fix round is checked again, as any new head"
+    assert [k for k, _t in lands[:3]] == ["l1/1", "l2/2", "l3/3"] and all(tid == row["id"] for _k, tid in lands[:3])
+    assert not t.fake.landed_calls, "no `builder landed` for the plain READY path"
+    s = states()
+    assert s["l2"] == "landed" and s["l3"] == "landed", "the first one's conflict never holds the other two"
+    assert s["l1"] != "landed" and any("merging h1 conflicts" in m for m in t.fake.sent), "the conflicting step goes back to its worker"

@@ -131,6 +131,8 @@ def main(argv=None) -> int:
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
     ld.add_argument("--keep-worktree", action="store_true", help="leave the worktree the work rows name: the queue's session is still open in it")
     ld.add_argument("--lane", default="", help="the lane the landing is for: named on its spec-ok-proposed rows")
+    ld.add_argument("--train", default="", help="a merge train's id: the train's green is the verdict and the check; sha is merged onto the land branch")
+    ld.add_argument("--train-step", default="", help="with --train: the lane/step key the train's row must list as landed")
     ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
     tr = sub.add_parser("triage", help="clean up the repo's GitHub metadata directly by the rules in harness.toml [triage]; --dry reads only")
     tr.add_argument("--labels", action="store_true", help="the closed label set only (step, type, priority, phase, needs-*, status:blocked); any other label is reported, never deleted, and its issues get what [triage.labels] maps it to")
