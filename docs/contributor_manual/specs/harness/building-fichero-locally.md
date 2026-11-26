@@ -666,7 +666,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `fichero-builder/tests/test_dry_run.py::test_a_moved_branch_with_a_question_is_one_alert_in_one_tick`,
   `fichero-builder/tests/test_dry_run.py::test_a_moved_branch_with_no_question_is_nudged_once_then_alerted`,
   `fichero-builder/tests/test_dry_run.py::test_a_turn_that_goes_on_after_the_nudge_starts_the_ended_count_again`, and the hook's own `--test` run by `test_client_scripts.py`.
-- `local.disk.thin-snapshots-before-holding` [GAP] (#6589) — before the loop holds a new lane for disk, it frees what
+- `local.disk.thin-snapshots-before-holding` [OK] (#6589) — before the loop holds a new lane for disk, it frees what
   the system's local backup snapshots pin and measures again. On macOS, space freed by a sweep stays held by local Time
   Machine snapshots until they are thinned. Once in a low-disk episode, and at most once an hour, the loop runs
   `tmutil thinlocalsnapshots / <bytes> 4` (no sudo; bytes from `[loop].disk_thin_gb`, default 8), writes one
@@ -677,6 +677,10 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   with one `disk-thinned` row; one that frees nothing holds; a second low reading within the hour does not thin again.
   Serves: reliable, with little supervision.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+  Built: `queue.tick_lane` calls `Procs.thin` (`queue.thin_snapshots`, `tmutil thinlocalsnapshots / <bytes> 4`) when the floor would hold a new lane and none ran in the last hour (`THINNED_AT`), writes one `disk-thinned` `queue` row (free before and after, and the failure text when it failed), and measures again. Tests
+  `fichero-builder/tests/test_loop.py::test_a_thin_that_frees_space_starts_the_lane_with_one_disk_thinned_row`,
+  `fichero-builder/tests/test_loop.py::test_a_thin_that_frees_nothing_holds_and_a_second_low_reading_within_the_hour_does_not_thin_again`,
+  `fichero-builder/tests/test_loop.py::test_a_thin_that_fails_is_a_row_and_the_hold_goes_on`.
 - `local.run.waiting-is-one-ask-alert` [OK] (#6855) — a worker whose last line is `WAITING: <question>` is one ask alert
   for the manager. The step row records `waiting=<question>`, the step is `blocked` with that one alert, and
   `console.status()["open_questions"]` lists each open question with its lane and step (a Questions section in the

@@ -1726,6 +1726,51 @@ def test_a_new_lane_does_not_start_under_the_disk_floor_and_the_row_says_why(sta
     assert fake.starts, "above the floor it starts"
 
 
+def _thin_setup(state, monkeypatch, after):
+    lane(state)
+    fake = Fake()
+    free, asked = [12.0], []
+    fake.procs.free_gb = lambda: free[0]
+
+    def thin(nbytes):
+        asked.append(nbytes)
+        free[0] = after
+        return ""
+    fake.procs.thin = thin
+    monkeypatch.setattr(queue, "DISK_FLOOR_GB", [30.0])
+    monkeypatch.setattr(queue, "THINNED_AT", [0.0])
+    return fake, free, asked
+
+
+def test_a_thin_that_frees_space_starts_the_lane_with_one_disk_thinned_row(state, monkeypatch):
+    fake, free, asked = _thin_setup(state, monkeypatch, 40.0)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.starts and asked == [8_000_000_000]
+    (r,) = [r for r in journal.read() if r.get("state") == "disk-thinned"]
+    assert "12 GB free before, 40 GB after" in r["detail"] and not [r for r in journal.read() if r.get("state") == "disk-hold"]
+
+
+def test_a_thin_that_frees_nothing_holds_and_a_second_low_reading_within_the_hour_does_not_thin_again(state, monkeypatch):
+    fake, free, asked = _thin_setup(state, monkeypatch, 12.0)
+    tick = lambda: queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    tick()
+    assert fake.starts == [] and len(asked) == 1
+    assert len([r for r in journal.read() if r.get("state") == "disk-thinned"]) == 1 and len([r for r in journal.read() if r.get("state") == "disk-hold"]) == 1
+    later = time.time() + 3601
+    monkeypatch.setattr(queue, "_now", lambda: later)
+    tick()
+    assert len(asked) == 2, "an hour on, it thins once more"
+
+
+def test_a_thin_that_fails_is_a_row_and_the_hold_goes_on(state, monkeypatch):
+    fake, free, asked = _thin_setup(state, monkeypatch, 12.0)
+    fake.procs.thin = lambda nbytes: "tmutil: not found"
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    (r,) = [r for r in journal.read() if r.get("state") == "disk-thinned"]
+    assert "thinning failed: tmutil: not found" in r["detail"] and fake.starts == []
+
+
 def test_a_falling_disk_holds_every_lane_with_one_alert_and_clearing_raises_one_more(state, monkeypatch):
     """#6852: the figure moving under the floor is no new reason: one hold row a lane, one alert for the loop, one when it clears."""
     lane(state)

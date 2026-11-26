@@ -41,6 +41,9 @@ ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
 APPROVED_PINNED: list = [{}]  # [loop.approved_pinned] {path: blob sha}: a maintainer lane's pinned diff of exactly these blobs is approved by itself (#6466)
 DISK_FLOOR_GB: list = [0.0]  # [loop].disk_floor_gb: under this many free GB no new lane starts; 0 = off
+DISK_THIN_GB: list = [8.0]  # [loop].disk_thin_gb: the bytes (in GB) asked of `tmutil thinlocalsnapshots` before a lane is held for disk
+THINNED_AT: list = [0.0]  # when the loop last thinned local snapshots: at most once an hour
+THIN_EVERY_S = 3600
 PARKED: list = []  # the lanes whose worker a cap or a provider refusal parked in this tick: one alert for them all
 DISK_HELD: list = []  # the lanes the floor held in this tick; `tick` turns them into one alert, and one more when the floor clears
 STALE_H: list = [dict(stale.HOURS)]  # [loop].stale_hours.<state> over the defaults (builder-console.stale.acted-on)
@@ -318,6 +321,7 @@ class Procs:
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
     attach: Callable[[dict, dict, str], object | None] = lambda lane, step, window: None  # a new `builder run --attach` on a live window's session
+    thin: Callable[[int], str] | None = None  # bytes -> "" when local snapshots were thinned, else why not; None = not tried (local.disk.thin-snapshots-before-holding)
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
     head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
     descends: Callable[[dict, str], bool] = lambda lane, sha: bool(sha)  # lane, sha -> the tree's HEAD is the sha or a commit on it
@@ -698,6 +702,13 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             if h is None:
                 if _working(handles) >= workers_n:
                     return True
+                if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0] and procs.thin is not None \
+                        and _now() - THINNED_AT[0] >= THIN_EVERY_S:  # local.disk.thin-snapshots-before-holding: what a sweep freed may be pinned by a snapshot
+                    THINNED_AT[0] = _now()
+                    err = procs.thin(int(DISK_THIN_GB[0] * 1e9))
+                    after = procs.free_gb()
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="disk-thinned",
+                                   detail=f"{free:.0f} GB free before, {after:.0f} GB after" + (f"; thinning failed: {err}"[:200] if err else ""))
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0]:
                     why = f"{free:.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts"
                     DISK_HELD.append(lane["id"])
@@ -2346,7 +2357,7 @@ DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
-PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "sent_hours", "approved_pinned", "disk_floor_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
+PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "sent_hours", "approved_pinned", "disk_floor_gb", "disk_thin_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
 
 
 def code_mark(root="") -> tuple:
@@ -2423,6 +2434,7 @@ def apply_loop_cfg(cfg: dict) -> None:
     BLOCKED_H[0] = float(cfg.get("blocked_hours", BLOCKED_H[0]))
     SENT_H[0] = float(cfg.get("sent_hours", SENT_H[0]))
     DISK_FLOOR_GB[0] = float(cfg.get("disk_floor_gb", DISK_FLOOR_GB[0]))
+    DISK_THIN_GB[0] = float(cfg.get("disk_thin_gb", DISK_THIN_GB[0]))
     STALE_H[0] = {**stale.HOURS, **{str(k): float(v) for k, v in dict(cfg.get("stale_hours", {})).items()}}
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
 
@@ -2860,6 +2872,15 @@ def live_windows(j, lane: dict) -> list:
     return [wid for wid, cmd in worker_windows(j, lane["id"], with_command=True) if cmd and cmd.lstrip("-") not in SHELLS]
 
 
+def thin_snapshots(nbytes: int) -> str:
+    """`tmutil thinlocalsnapshots / <bytes> 4` (no sudo); "" when it exited 0, else why not (no tmutil, a failure, a timeout)."""
+    try:
+        r = subprocess.run(["tmutil", "thinlocalsnapshots", "/", str(nbytes), "4"], capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as e:
+        return str(e)
+    return "" if r.returncode == 0 else (r.stderr or r.stdout).strip()[-150:] or f"exit {r.returncode}"
+
+
 def session_live(j, lane: dict):
     """True: the lane's window runs more than a shell; False: a successful listing shows only a shell or no such window;
     None: the list could not be read (no jail user, or tmux failed or printed nothing), so nothing is known."""
@@ -3181,7 +3202,7 @@ def real_procs(root) -> Procs:
         finally:  # the candidate refs are only kept while the train runs: a ref pins its commits against gc
             train.drop_refs(repo, tid)
 
-    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
+    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, thin=thin_snapshots, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
