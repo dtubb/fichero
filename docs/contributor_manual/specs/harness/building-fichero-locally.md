@@ -2486,7 +2486,7 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   queued → sent → said-done → checking → red → fixing → said-done → checking → reviewing → done-not-landed → landed has at
   each point one state, a `why` about that state, and an age that resets; pausing the lane changes the flag and nothing
   else. Built: `queue.state_view` and the `entered_at` stamp; the console page does not show the state, age and flags yet. Test: fichero-builder/tests/test_step_state.py.
-- `builder-console.stale.acted-on` [GAP] (#6646) (a week-old half-finished lane is a defect, owner 2026-11-16; 30 of 50 lanes today
+- `builder-console.stale.acted-on` [PARTIAL] (#6646) (a week-old half-finished lane is a defect, owner 2026-11-16; 30 of 50 lanes today
   are finished-but-listed, two are 9-day-old paused trials, one is blocked on a question since 11-08) — every tick the loop
   lists each step older than `[loop].stale_hours.<state>` (defaults: said-done 1 h, checking 3 h, reviewing 3 h, fixing
   12 h, red 12 h, blocked 48 h, done-not-landed 24 h, queued 7 d, sent/working 2 × the step's usual run time) and acts,
@@ -2498,14 +2498,18 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   resume", and `retired` after 7 more unanswered. Nothing is ever silently left: a step the loop cannot move has an open
   alert, and the page's "Needs you" lists it with its age. Acceptance (fake clock, fake journal): each state past its
   hours gets its action and row; a lane paused 15 d is retired with a row; a step under its hours is untouched; the
-  `stale` rows for one tick never act twice on one step. Test (to write): fichero-builder/tests/test_stale (new).
+  `stale` rows for one tick never act twice on one step. Built (`stale.act`, run by `queue.tick`, cursor step only): said-done,
+  checking, reviewing, red, fixing and blocked, with `[loop].stale_hours` read each tick; not built: done-not-landed, queued and
+  sent steps, the paused or held lane's alert and `retired`, and "Needs you" listing the stale step. Test: fichero-builder/tests/test_stale.py.
 - `builder-console.step.moves-on` [PARTIAL] (#6646) (the queue feeds the next brief after a landing; a finished lane stops; a
   closed-out or retired step does not advance the cursor) — when a step reaches a final state the lane takes its next step
   itself, in the same session when one is open, else a fresh one; a lane with no step left takes the next step of its
   milestone from the work tree, and a milestone with none left frees the lane for the next milestone in order, within
   `[loop].lanes`. A `moves-on` row names the step left and the step taken. Acceptance: landing step 2 of 3 sends step 3
-  within a tick; a closed-out step 2 sends step 3; the last step landed starts the next milestone's first step. Test (to
-  write): fichero-builder/tests/test_moves_on (new).
+  within a tick; a closed-out step 2 sends step 3; the last step landed starts the next milestone's first step. Built: `queue.moved_on` writes the
+  `moves-on` row at each cursor advance (landed, already-landed, `closed-out`), the feed writes one when it takes a milestone, and a
+  `closed-out` step does not hold the lane; not built: taking the next step of the milestone from the work tree when a lane has none
+  left. Test: fichero-builder/tests/test_moves_on.py.
 - `builder-console.cleanup.is-a-step` [PARTIAL] (#6647) (`builder sweep` exists, offered by a button; `agent-profiles.cleanup.after-land`
   names the position) — cleanup is the last step of every lane and runs itself: once a step's head is on the integration
   branch its land snapshot goes; once a lane is `finished` its worker tree, feed, inbox and branch go after
