@@ -377,12 +377,14 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     approved = maintainer or approve or bool(red_ok) or pin_new or bool(guard_data) or bool(getattr(a, "retry", False))  # a retry resumes at the failed rung too (2026-11-11)
     check_tool.REUSE[0] = partial[0] if partial else green_before_approve(ladder, since, head, a.pinned) if approved else None
     check_tool.HEAD_GREEN_ONLY[0] = bool(partial)
+    check_tool.SKIP_RUNGS[0] = ("build", "ui") if getattr(a, "train", False) else ()  # a merge train runs them once for many steps
     try:
         r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                                    approve_pinned_new=pin_new, guard_data=guard_data)
     finally:
         check_tool.REUSE[0] = None
         check_tool.HEAD_GREEN_ONLY[0] = False
+        check_tool.SKIP_RUNGS[0] = ()
     Path(ladder).write_text(json.dumps({**r, "head": head, "since": since, "pinned": str(a.pinned)}, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                    **({"kept": partial[2], "reran": list(partial[1])} if partial else {}))

@@ -191,7 +191,7 @@ def _auto_rules(names) -> tuple:
     return tuple(names)
 
 
-KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly"}
+KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly", "train"}
 
 
 def rules_warnings(root) -> list[str]:
@@ -1699,6 +1699,7 @@ class _PerThread(threading.local):
 
 
 HEAD_GREEN_ONLY = _PerThread(False)  # a kept rebase: red-on-base runs only its head-green half (the base run stood on the old base)
+SKIP_RUNGS = _PerThread(())  # rung names this thread's ladder does not run: the merge train runs them once per train (work.do_check sets it)
 ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
 BASE_RUN = _PerThread(False)  # this thread runs red-on-base's base tests: _run takes the runners after the head run's
@@ -1837,16 +1838,18 @@ def _perf_swift(root, cfg: Config) -> dict:
     return _report_only("perf", cfg.perf, True, [line], {"results": [row]})
 
 
-def unit(root, changed: list[str], cfg: Config, tests_run_elsewhere: bool = True) -> dict:
+def unit(root, changed: list[str], cfg: Config, tests_run_elsewhere: bool = True, everything: bool = False) -> dict:
     """The unit rung (speed-tests-1): the tests this batch can affect (`affected.select`: the importers of every changed source file, the
     changed tests, `[check].always_tests`), or the whole suite when a change cannot be placed. A changed test file already ran in
     red-on-base (`tests_run_elsewhere`) and is not run twice, unless the whole suite runs. The nightly `verify-all --full` runs everything.
-    Journals how many test files ran, how many tests passed, and why. Off with no `[check].always_tests`."""
+    Journals how many test files ran, how many tests passed, and why. Off with no `[check].always_tests`. `everything`: the whole suite
+    (the merge train's unit tier, once per train)."""
     from . import affected
     if not cfg.always_tests:
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].always_tests", "results": []}
     blobs = {row.partition("\t")[2]: row.split()[1] for row in _lines(root, "ls-files", "-s", "*.py") or []}  # "<mode> <blob> <stage>\t<path>"
-    sel = affected.select(root, changed, blobs, cfg.test_globs, cfg.python_path, cfg.always_tests, journal.STATE)
+    sel = ({"whole": "the merge train runs the full unit tier", "tests": [], "changed_tests": [], "always": []} if everything
+           else affected.select(root, changed, blobs, cfg.test_globs, cfg.python_path, cfg.always_tests, journal.STATE))
     if sel["whole"]:
         whole = tuple(sorted({v for v in cfg.whole_tests.values() if isinstance(v, str)}))
         dirs = sorted(f"{p.parent.name}/tests" for p in Path(root).glob("*/tests") if p.is_dir() and f"{p.parent.name}/tests" not in whole)
@@ -2105,6 +2108,9 @@ def ladder(rungs: list) -> dict:
     reds: list[str] = []
     for name, fn in rungs:
         if reds and name not in CHEAP_RUNGS:
+            continue
+        if name in SKIP_RUNGS[0]:
+            out.append({"name": name, "ok": True, "skipped": True, "stdout_tail": "skipped: the merge train runs it once per train", "results": []})
             continue
         if (prior := (REUSE[0] or {}).get(name)) is not None:  # green before the approve, for this exact head: not run again (dev-workflows.run.loop-needs-maintainer)
             out.append({**prior, "name": name, "cached": True})

@@ -122,3 +122,36 @@ def test_git_merge_merges_in_order_and_names_a_conflicting_head(tmp_path):
     assert git(repo, "rev-parse", "refs/train/t-1") == cand
     assert git(repo, "show", f"{cand}:a.txt") == "a" and git(repo, "show", f"{cand}:f.txt") == "b"
     assert git(repo, "worktree", "list").count("\n") == 0, "the throwaway worktree is gone"
+
+
+def test_the_ladder_skips_the_rungs_the_train_runs_once(monkeypatch):
+    from fichero_builder import check_tool
+    ran = []
+    rungs = [(n, (lambda n=n: ran.append(n) or {"ok": True})) for n in ("ready", "build", "ui", "unit")]
+    monkeypatch.setattr(check_tool, "ACTIVITY", lambda **k: None)
+    check_tool.SKIP_RUNGS[0] = ("build", "ui")
+    try:
+        out = check_tool.ladder(rungs)
+    finally:
+        check_tool.SKIP_RUNGS[0] = ()
+    assert out["ok"] and ran == ["ready", "unit"]
+    skipped = {r["name"]: r for r in out["rungs"]}
+    assert skipped["build"]["skipped"] and "merge train" in skipped["build"]["stdout_tail"] and skipped["ui"]["skipped"]
+    ran.clear()
+    assert check_tool.ladder(rungs)["ok"] and ran == ["ready", "build", "ui", "unit"], "off by default: a hand `builder check` runs everything"
+
+
+def test_the_unit_rung_can_run_the_whole_tier(tmp_path, monkeypatch):
+    from fichero_builder import check_tool
+    (tmp_path / "pkg" / "tests").mkdir(parents=True)
+    got = {}
+    monkeypatch.setattr(check_tool, "green_runs", lambda root, files, whole, cfg, t: got.update(files=files) or {"ok": True, "runs": [], "stdout_tail": ""})
+    monkeypatch.setattr(check_tool, "_lines", lambda *a, **k: [])
+    cfg = check_tool.Config(always_tests=("pkg/tests/test_a.py",))
+    r = check_tool.unit(tmp_path, [], cfg, everything=True)
+    assert r["ok"] and got["files"] == ["pkg/tests"] and "the whole suite: the merge train" in r["stdout_tail"]
+
+
+def test_the_train_table_is_a_known_rules_table():
+    from fichero_builder import check_tool
+    assert "train" in check_tool.KNOWN_TABLES
