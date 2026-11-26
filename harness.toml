@@ -491,6 +491,13 @@ m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air:
 # owner 2026-11-14 (#6590): two at once
 workers = 2
 
+[train]
+# The merge train (local.train.*): a step green on the cheap rungs waits; the build, Swift tests, UI pass and unit tier run once
+# on the merge of all waiting steps. enabled = false keeps per-step landing. Owner 2026-11-25: more things can land.
+enabled = true
+min_steps = 4        # a train starts when this many steps wait
+max_wait_min = 45    # or when the oldest has waited this long
+
 [brief]
 # Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.
 rules = """
