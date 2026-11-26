@@ -652,10 +652,13 @@ class TestTheHandlerIsGeneralNotSegmentsSpecific:
     `PermissionError` that has nothing to do with authz."""
 
     def test_a_non_segment_route_with_a_body_only_id_gets_403_not_500(
-        self, multiuser_client, app_db, users, db,
+        self, multiuser_client, app_db, users, db, monkeypatch,
     ):
+        from fichero_server.db.embeddings import DatabaseEmbeddingMixin
         from fichero_server.models import KnowledgeClaim
 
+        # saving a claim would start the embedding model, which writes to the maintainer's model directory
+        monkeypatch.setattr(DatabaseEmbeddingMixin, "_schedule_embedding_task", lambda *a, **k: None)
         client, login, library_path = multiuser_client
         _grant_role(app_db, users.editor, library_path, "editor")
 
