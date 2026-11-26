@@ -250,6 +250,36 @@ def test_test_execute_failed_with_failing_cases_is_a_test_failure_naming_them_ne
     assert "5074 tests, 3 failed" in r["stdout_tail"]
 
 
+def test_the_failing_cases_come_from_the_whole_log_and_a_selection_runs_only_those_suites(tmp_path, monkeypatch):
+    """2026-11-26 14:16: the row's tail cut the top of a 40-name `Failing tests:` list, no name was read, so the base judge could not
+    run and the train bisected every prefix over the whole suite. The names come from the whole log; `only` is -only-testing."""
+    fake = Fake(monkeypatch, tmp_path, [(0, ""), (65, "\tB.two()\n\n** TEST EXECUTE FAILED **\n")])
+    log = tmp_path / "test.log"
+    log.write_text("Failing tests:\n\tA.one()\n\tB.two()\n\n** TEST EXECUTE FAILED **\n")
+    real = fake.run
+    monkeypatch.setattr(check_tool, "run_command", lambda *a, **k: {**real(*a, **k), "log": str(log)})
+    r = check_tool.swift_tests(tmp_path, _cfg(swift_tests=SWIFT), only=["T/ASuite", "T/BSuite"])
+    assert r["failing"] == ["A.one()", "B.two()"] and not r.get("not_run")
+    assert "-only-testing:T/ASuite -only-testing:T/BSuite" in fake.runs[1][1] and "test-without-building" in fake.runs[1][1]
+    assert "-only-testing" not in fake.runs[0][1], "build-for-testing builds the whole target"
+
+
+def test_swift_affected_picks_the_suites_a_changed_type_can_reach_and_falls_back_to_everything(tmp_path):
+    """Like affected.select for Python (owner 2026-11-26: only what changed; the whole suite in the nightly)."""
+    t = tmp_path / "fichero" / "Tests" / "Unit" / "general"
+    t.mkdir(parents=True)
+    (t / "SegmentToolTests.swift").write_text("import Testing\n@testable import Fichero\n\nstruct SegmentToolTests {\n}\nstruct Helper {}\n")
+    (t / "CanvasTests.swift").write_text("import XCTest\nfinal class CanvasBoardTests: XCTestCase {\n  let x = SegmentTool()\n}\n")
+    (t / "OtherTests.swift").write_text("@Suite(\"other\")\nstruct Elsewhere {\n}\n")
+    cfg = check_tool.Config(build_paths=("fichero/",), swift_test_target="FicheroTests", swift_test_dir="fichero/Tests/Unit")
+    pick = check_tool.swift_affected(tmp_path, ["fichero/fichero/Views/SegmentTool.swift", "fichero/fichero.xcodeproj/project.pbxproj"], cfg)
+    assert pick == ["FicheroTests/CanvasBoardTests", "FicheroTests/SegmentToolTests"]
+    assert check_tool.swift_affected(tmp_path, ["fichero/Tests/Unit/general/OtherTests.swift"], cfg) == ["FicheroTests/Elsewhere"]
+    assert check_tool.swift_affected(tmp_path, ["fichero/fichero/Views/Nowhere.swift"], cfg) == []
+    assert check_tool.swift_affected(tmp_path, ["fichero/fichero/Assets.xcassets/Contents.json"], cfg) is None, "a resource: everything"
+    assert check_tool.swift_affected(tmp_path, ["fichero/fichero/Views/SegmentTool.swift"], check_tool.Config()) is None, "no target: everything"
+
+
 def test_the_swift_tests_never_run_without_a_build_remote(tmp_path, monkeypatch):
     Fake(monkeypatch, tmp_path)
     r = check_tool.swift_tests(tmp_path, check_tool.Config(swift_tests=SWIFT))

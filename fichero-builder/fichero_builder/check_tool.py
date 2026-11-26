@@ -95,6 +95,8 @@ class Config:
     ui_tests: tuple = ()                # -only-testing ids of the segment editor's UI tests; () = no ui rung
     ui_runner: str = ""                 # "host:dir" with a logged-in GUI session; "" = build_remote
     ui: dict = field(default_factory=dict)  # [check.ui]: enforce (report-only until three green runs)
+    swift_test_target: str = ""         # the Swift unit-test target ("" = the train runs the whole suite): with it, `swift_affected` picks
+    swift_test_dir: str = ""            # the suites under this dir the train's Swift diff can affect, as -only-testing:<target>/<suite>
     swift_tests: tuple = ()             # the build tool's argv up to the action (project, scheme, destination, -testPlan fichero): `swift_tests()` appends build-for-testing, then test-without-building
     rungs: tuple = ()                   # [check].rungs: the rungs to run, in this order, by name (RUNGS and the [[check.rung]] names); () = every RUNGS rung
     rung: tuple = ()                    # [[check.rung]]: {name, argv, timeout_s}: a rung that runs argv in the scratch tree, green on exit 0
@@ -151,7 +153,7 @@ def load(root) -> Config:
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
-        always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())),
+        always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())), swift_test_target=c.get("swift_test_target", d.swift_test_target), swift_test_dir=c.get("swift_test_dir", d.swift_test_dir),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), guards_by_diff=bool(c.get("guards_by_diff", d.guards_by_diff)), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -1044,7 +1046,7 @@ BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is no
 
 SHARED_DERIVED = ("build", "test", "ui")  # these share the runner's one `<gate>/derived`, kept between checks so a build is incremental
 STALE_CACHE = re.compile(r"No such module '|module '[^']+' not found|PCM|precompiled module|was compiled with module cache path|module file '[^']+' is out of date")
-TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed|^Failing tests:[ \t]*\n[ \t]+\S|✘ Test run with \d+ tests?", re.M)
+TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed|^Failing tests:[ \t]*\n[ \t]+\S|✘ Test run with \d+ tests?|^[ \t]+\S+\(\)[ \t]*\n\s*\*\* TEST EXECUTE FAILED \*\*", re.M)
 # a failing test is the code's red, not the runner's: XCTest's lines, Swift Testing's run line and xcodebuild's `Failing tests:` list,
 # which end in "** TEST EXECUTE FAILED **" (2026-11-26, the train: 14 failing cases were labelled "the runner could not run the tests")
 FAILING_LIST = re.compile(r"^Failing tests:[ \t]*\n((?:[ \t]+\S.*(?:\n|$))+)", re.M)
@@ -1973,7 +1975,54 @@ def ui(root, changed: list[str], cfg: Config) -> dict:
     return {"ok": r["ok"] or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines), "stderr_tail": "", "results": [row]}
 
 
-def swift_tests(root, cfg: Config) -> dict:
+SWIFT_SELECT_MAX = 300  # more suites than this: the whole suite runs (the selection would not save much)
+SWIFT_NEUTRAL = (".pbxproj", ".xcfilelist", ".md")  # project bookkeeping: the Swift files the change adds carry the selection
+_SUITE = re.compile(r"^(?:@Suite\b[^\n]*\n)?(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:final|public|internal)\s+)*(?:struct|class|actor|enum)\s+(\w+)([^{\n]*)", re.M)
+
+
+def _suites(text: str) -> list[str]:
+    """The test suites a Swift test file declares at top level: a type named ...Test(s), an XCTestCase, or one marked @Suite."""
+    out = []
+    for m in _SUITE.finditer(text):
+        name, rest = m.group(1), m.group(2)
+        if name.endswith(("Tests", "Test")) or "XCTestCase" in rest or m.group(0).startswith("@Suite"):
+            out.append(name)
+    return out
+
+
+def swift_affected(root, changed: list[str], cfg: Config) -> list[str] | None:
+    """The `<target>/<suite>` ids of the Swift test suites a diff can affect, the way `affected.select` picks Python tests: a changed
+    test file's own suites; for any other changed Swift file, the suites of the test files named after its type or that name it.
+    None = run the whole suite: no `[check].swift_test_target`, a changed non-Swift build input (a resource, a setting, a package
+    pin), or more suites than SWIFT_SELECT_MAX. The nightly always runs the whole suite (owner 2026-11-26)."""
+    if not cfg.swift_test_target or not cfg.swift_test_dir:
+        return None
+    built = [f for f in changed if f.startswith(tuple(cfg.build_paths))] if cfg.build_paths else changed
+    if any(not f.endswith((".swift", *SWIFT_NEUTRAL)) for f in built):
+        return None
+    tests = {str(p.relative_to(root)): p for p in Path(root, cfg.swift_test_dir).rglob("*.swift")}
+    texts: dict = {}
+
+    def text(f: str) -> str:
+        if f not in texts:
+            try:
+                texts[f] = tests[f].read_text(errors="replace")
+            except OSError:
+                texts[f] = ""
+        return texts[f]
+    picked: set[str] = set()
+    for f in (x for x in built if x.endswith(".swift")):
+        if f in tests:
+            picked.add(f)
+            continue
+        stem = Path(f).stem.split("+")[0]
+        word = re.compile(rf"\b{re.escape(stem)}\b")
+        picked |= {t for t, p in tests.items() if p.stem.startswith(stem) or word.search(text(t))}
+    suites = sorted({f"{cfg.swift_test_target}/{n}" for t in picked for n in _suites(text(t))})
+    return None if len(suites) > SWIFT_SELECT_MAX else suites
+
+
+def swift_tests(root, cfg: Config, only: list[str] | tuple = (), timeout_s: float | None = None) -> dict:
     """The Swift unit tests (not a per-step rung; the merge train runs it once per train): `[check].swift_tests` with build-for-testing,
     then test-without-building, on `[check].build_remote` in the runner's one kept DerivedData. A test target that does not compile
     is RED with the compiler errors; failing tests are RED naming them. No runner, or one that cannot run it, is a not-run row (never green)."""
@@ -1987,7 +2036,7 @@ def swift_tests(root, cfg: Config) -> dict:
         return not_run("no [check].build_remote: the Swift tests never run on the manager's Mac")
     t0 = time.time()
     base = cfg.swift_tests if "-derivedDataPath" in cfg.swift_tests else (*cfg.swift_tests, "-derivedDataPath", "derived")  # the runner's kept dir is put in by _remote_build
-    b = _remote_build(root, cfg, (*base, "build-for-testing"), "test", reuse=False)
+    b = _remote_build(root, cfg, (*base, "build-for-testing"), "test", reuse=False, timeout_s=timeout_s)
     if b is None:
         return not_run("the build runner is unreachable")
     if b.get("remote_env_red"):
@@ -1996,15 +2045,20 @@ def swift_tests(root, cfg: Config) -> dict:
         row = b["results"][0]
         return {"ok": False, "skipped": False, "stdout_tail": "RED: the test target does not compile\n" + (row.get("errors") or row.get("stdout_tail") or "")[-3000:],
                 "stderr_tail": row.get("stderr_tail") or "", "results": [row]}
-    t = _remote_build(root, cfg, (*base, "test-without-building"), "test", reuse=False)
+    left = None if timeout_s is None else max(60.0, timeout_s - (time.time() - t0))
+    t = _remote_build(root, cfg, (*base, *(f"-only-testing:{x}" for x in only), "test-without-building"), "test", reuse=False, timeout_s=left)
     if t is None:
         return not_run("the build runner became unreachable")
     if t.get("remote_env_red"):
         return not_run("the runner could not run the tests (not a test failure)", t["results"][0].get("stderr_tail") or "")
     row = t["results"][0]
     out = (row.get("stdout_tail") or "")
+    try:  # the names from the whole log: the tail cut the top of a long `Failing tests:` list (2026-11-26 14:16: 0 names read of 40)
+        full = Path(row["log"]).read_text(errors="replace") if row.get("log") and Path(row["log"]).is_file() else out
+    except OSError:
+        full = out
     ran = re.findall(r"Executed (\d+) tests?, with (\d+) failures?", out)
-    names = failing_cases(out)
+    names = failing_cases(full)
     count, failed = (int(ran[-1][0]), int(ran[-1][1])) if ran else (int((re.findall(r"Test run with (\d+) tests?", out) or ["0"])[-1]), len(names))
     secs = round(time.time() - t0, 1)
     journal.append("check", state="swift-tests", rung="swift-tests", ok=t["ok"], seconds=secs, tests=count, failures=failed)

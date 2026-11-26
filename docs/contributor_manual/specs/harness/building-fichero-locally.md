@@ -1187,6 +1187,27 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   `fichero-builder/tests/test_train.py::test_the_trains_swift_tests_are_red_only_for_cases_that_pass_on_the_base_which_runs_once_per_sha`,
   `::test_when_the_rest_is_red_on_the_same_cases_as_the_prefix_no_step_is_sent_back`,
   `fichero-builder/tests/test_speed_tests.py::test_test_execute_failed_with_failing_cases_is_a_test_failure_naming_them_never_not_run`.
+- `local.train.swift-search-not-bisect` [OK] (#6589; built 2026-11-26; owner 2026-11-26: an 88-minute merge is not acceptable) — a
+  train red at swift-tests on cases that pass on its base is never bisected by prefixes: each step that touches Swift, newest
+  first, runs alone on the land branch with only those cases (`-only-testing`), and the first that fails one is sent back naming
+  them; the rest go on as after a bisect. When none fails alone, none goes back and all wait. The failing cases are read from the
+  run's whole log, never its cut tail (14:16: none read of 40, so the base judge could not run). (train-20261126-120639: 4404 s,
+  797 s on the candidate and 808, 1107 and 1471 s of whole-suite prefix runs.) Tests:
+  `fichero-builder/tests/test_train.py::test_a_swift_red_on_new_cases_searches_the_swift_steps_newest_first_with_only_those_cases_never_by_prefix`,
+  `::test_a_swift_red_no_single_step_reproduces_sends_none_back`,
+  `fichero-builder/tests/test_speed_tests.py::test_the_failing_cases_come_from_the_whole_log_and_a_selection_runs_only_those_suites`.
+- `local.train.swift-affected-suites` [OK] (#6589; built 2026-11-26) — with `[check].swift_test_target` and `[check].swift_test_dir`
+  set (unset: the whole suite, as before), the train's swift-tests run only the suites its Swift diff can affect: a changed test
+  file's own suites, and for any other changed Swift file the test files named after its type or naming it; a changed non-Swift
+  build input (other than the project file, file lists, docs), or more than 300 suites, runs the whole suite; no affected suite is
+  green with that said. The base judge runs the same selection, kept per selection. The nightly runs the whole suite. The build for
+  testing stays incremental in the runner's one kept DerivedData (`<gate>/derived`, never wiped per tree). Tests:
+  `fichero-builder/tests/test_speed_tests.py::test_swift_affected_picks_the_suites_a_changed_type_can_reach_and_falls_back_to_everything`,
+  `::test_a_second_build_reuses_the_same_derived_dir_and_never_a_fresh_one`.
+- `local.train.time-limit` [OK] (#6589; built 2026-11-26) — a train never holds its steps longer than `[train].max_run_min`
+  (default 30): no run starts past it and a Swift test run is cut at it; the train ends `timeout`, every step not sent back waits
+  for the next train, and one alert says so (train-20261126-134056 ran 90 min with no result). Test:
+  `fichero-builder/tests/test_train.py::test_a_train_past_its_time_limit_stops_and_every_step_waits_again`.
 - `local.train.off-keeps-per-step` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_a_train_that_is_off_lands_each_step_by_itself`) — with `[train].enabled = false` a step runs the whole ladder alone and lands as before.
 - `local.train.journal-row` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`) — every train writes one journal row: its id, its steps, the candidate, the result, the steps
   landed and the steps sent back.

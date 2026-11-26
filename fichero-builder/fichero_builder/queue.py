@@ -2297,6 +2297,9 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
         else:
             journal.append("train", id=tid, steps=res.steps, candidate=res.candidate, rungs=res.rungs, result=res.result, landed=res.landed,
                            back=res.back, again=res.again, bisect=res.bisect, extra_runs=res.extra_runs, seconds=round(_now() - t0, 1))
+            if res.result == "timeout":  # owner 2026-11-26: a train never holds its steps past [train].max_run_min; one alert, they wait again
+                alert("-", "train", f"the merge train {tid} stopped after {TRAIN[0].max_run_min:g} min with no verdict; its {len(res.again)} step(s) "
+                      f"wait for the next train ({(res.bisect or [''])[-1][:120]})", str(journal.path()), [])
         apply_train(res, spec)
     if chains is None:
         run_it()
@@ -3219,9 +3222,11 @@ def real_procs(root) -> Procs:
 
     def train_run(spec, tid):
         pinned = work.ensure_pinned(str(root), "", land_tool.resolve_branch(repo, branch))
-        merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid)
+        deadline = time.time() + TRAIN[0].max_run_min * 60
+        merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid, deadline)
         try:
-            return train.run_train(spec, merge=merge, rung=rung, rungs_for=rungs_for, tid=tid)
+            return train.run_train(spec, merge=merge, rung=rung, rungs_for=rungs_for, tid=tid, deadline=deadline,
+                                   touches_swift=getattr(rung, "touches_swift", None))
         finally:  # the candidate refs are only kept while the train runs: a ref pins its commits against gc
             train.drop_refs(repo, tid)
 

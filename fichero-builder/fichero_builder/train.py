@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 RUNG_ORDER = ("build", "swift-tests", "ui", "unit")
-KEYS = {"enabled", "min_steps", "max_wait_min"}
+KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min"}
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,7 @@ class Cfg:
     enabled: bool = True
     min_steps: int = 4
     max_wait_min: float = 45.0
+    max_run_min: float = 30.0  # owner 2026-11-26: a train never holds its steps longer; past it, it stops and they wait again
 
 
 def load(rules: dict) -> Cfg:
@@ -33,9 +34,10 @@ def load(rules: dict) -> Cfg:
     t = rules.get("train", {})
     if unknown := sorted(set(t) - KEYS):
         raise ValueError(f"harness.toml [train]: unknown keys {unknown}")
-    cfg = Cfg(enabled=bool(t.get("enabled", True)), min_steps=int(t.get("min_steps", 4)), max_wait_min=float(t.get("max_wait_min", 45)))
-    if cfg.min_steps < 1 or cfg.max_wait_min <= 0:
-        raise ValueError("harness.toml [train]: min_steps must be at least 1 and max_wait_min above 0")
+    cfg = Cfg(enabled=bool(t.get("enabled", True)), min_steps=int(t.get("min_steps", 4)), max_wait_min=float(t.get("max_wait_min", 45)),
+              max_run_min=float(t.get("max_run_min", 30)))
+    if cfg.min_steps < 1 or cfg.max_wait_min <= 0 or cfg.max_run_min <= 0:
+        raise ValueError("harness.toml [train]: min_steps must be at least 1, max_wait_min and max_run_min above 0")
     return cfg
 
 
@@ -58,9 +60,27 @@ class Result:
     result: str = ""                             # green | red | conflict | unresolved
 
 
-def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: Callable, tid: str, clock: Callable = time.time) -> Result:
+class OutOfTime(Exception):
+    pass
+
+
+def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: Callable, tid: str, clock: Callable = time.time,
+              deadline: float | None = None, touches_swift: Callable[[str], bool] | None = None) -> Result:
     """`steps`: [{key, head}] in queue order. `merge(heads) -> (candidate sha, {head: conflict text})`; `rung(name, candidate) ->
-    (ok, output)`; `rungs_for(heads) -> [rung names]`, in RUNG_ORDER."""
+    (ok, output)` (`rung(name, candidate, only=cases)` for a targeted Swift run); `rungs_for(heads) -> [rung names]`, in RUNG_ORDER.
+    `deadline` (a clock value): no run starts past it, and the train ends `timeout` with every step waiting again. `touches_swift(head)`:
+    a swift-tests red that names new cases looks for its step among the Swift steps only, newest first, never by prefixes."""
+    try:
+        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift)
+    except OutOfTime as e:
+        res = e.args[0]
+        res.again, res.result = [s["key"] for s in steps if s["key"] not in res.back], "timeout"
+        res.bisect.append(f"stopped: past the train's time limit ({'%.0f' % (clock() - e.args[1])} s in)")
+        return res
+
+
+def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift) -> Result:
+    t_start = clock()
     res = Result(id=tid, steps=[s["key"] for s in steps])
     cand, conflicts = merge([s["head"] for s in steps])
     for s in steps:
@@ -75,6 +95,8 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
     def run(names: list[str], on: str, phase: str) -> tuple[str, str] | None:
         """The first red (name, output) of `names` on `on`, else None; one row each."""
         for name in names:
+            if deadline is not None and clock() > deadline:
+                raise OutOfTime(res, t_start)
             t0 = clock()
             ok, out = rung(name, on)
             res.rungs.append({"name": name, "ok": bool(ok), "seconds": round(clock() - t0, 1), "phase": phase, "on": on})
@@ -91,6 +113,9 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
     rung_name, tails = red[0], {len(keep): red[1]}
     rest_names = names[names.index(rung_name):]
     unresolved = [s["key"] for s in keep]
+    new = cases(red[1])
+    if rung_name == "swift-tests" and new and touches_swift is not None:
+        return _swift_search(res, keep, new, red[1], rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run)
 
     def subset(n: int) -> str | None:
         """The candidate of the first n kept steps; None when that merge conflicts (the bisect then cannot judge)."""
@@ -141,6 +166,50 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
     return res
 
 
+def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run) -> Result:
+    """2026-11-26 (owner: an 88-minute merge is crazy): a train red at swift-tests on cases that pass on its base is searched for the
+    step that adds them, never by running the whole suite over each prefix: each step that touches Swift, newest first, on the base
+    alone, running only the new cases; the first that fails one is sent back and the rest go on as after any bisect."""
+    culprit = None
+    for s in reversed([s for s in keep if touches_swift(s["head"])]):
+        if deadline is not None and clock() > deadline:
+            raise OutOfTime(res, t_start)
+        c, bad = merge([s["head"]])
+        if bad:
+            continue
+        res.extra_runs += 1
+        t0 = clock()
+        ok, out = rung("swift-tests", c, only=sorted(new))
+        res.rungs.append({"name": "swift-tests", "ok": bool(ok), "seconds": round(clock() - t0, 1), "phase": "search", "on": c})
+        res.bisect.append(f"{s['key']} alone, the {len(new)} new case(s): {'green' if ok else 'red'}")
+        if not ok:
+            culprit = s
+            break
+    if culprit is None:
+        res.bisect.append("no Swift step alone fails the new cases: they come from the steps together; none is sent back")
+        res.again, res.result = [s["key"] for s in keep], "unresolved"
+        return res
+    res.back[culprit["key"]] = {"kind": "red", "why": f"the merge train {tid} is red at swift-tests with this step in it",
+                                "findings": f"The merge train {tid} is red at swift-tests: this step alone on the land branch fails "
+                                            f"{', '.join(sorted(new))}, which pass on the land branch.\nswift-tests on the train candidate:\n{tail}"}
+    rest = [s for s in keep if s is not culprit]
+    if not rest:
+        return res
+    c, bad = merge([s["head"] for s in rest])
+    if bad:
+        res.bisect.append("rest: does not merge without the culprit; stopped")
+        res.again, res.result = [s["key"] for s in rest], "unresolved"
+        return res
+    res.extra_runs += 1
+    r = run(rest_names, c, "bisect")
+    res.bisect.append(f"rest without {culprit['key']}: {'red on ' + r[0] if r else 'green'}")
+    if r:
+        res.again, res.result = [s["key"] for s in rest], "unresolved"
+    else:
+        res.landed = [s["key"] for s in rest]
+    return res
+
+
 def cases(out: str) -> frozenset:
     """The failing cases a rung's output names (its `failing: a, b` line, else xcodebuild's own lists); empty when it names none."""
     from fichero_builder import check_tool
@@ -149,7 +218,7 @@ def cases(out: str) -> frozenset:
     return frozenset(named or check_tool.failing_cases(out))
 
 
-def against_base(failing: list[str], out: str, base: str, run_base: Callable[[], dict]) -> tuple[bool, str]:
+def against_base(failing: list[str], out: str, base: str, run_base: Callable[[], dict], only: list[str] | tuple = ()) -> tuple[bool, str]:
     """The train's swift-tests judged like red-on-base: red only for the cases that fail on the candidate and pass on the base. The
     base's failing cases are run once per base sha and kept (`swift-base-<sha>.json` in the state dir); a base that could not be run
     or does not compile judges nothing, and the candidate's red stands. 2026-11-26: the land branch's own known reds (#7095) made
@@ -157,7 +226,9 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
     import json
 
     from fichero_builder import journal
-    f = journal.STATE / f"swift-base-{base}.json"
+    import hashlib
+    sel = hashlib.sha256("\n".join(sorted(only)).encode()).hexdigest()[:12] if only else "all"  # the base runs the same selection
+    f = journal.STATE / f"swift-base-{base}-{sel}.json"
     try:
         known = json.loads(f.read_text())["failing"]
     except (OSError, ValueError, KeyError):
@@ -225,8 +296,9 @@ def drop_refs(repo, tid: str) -> None:
         _git(repo, "update-ref", "-d", ref)
 
 
-def real_runners(repo, branch: str, pinned: str, tid: str):
-    """(merge, rung, rungs_for) over the engine repo, as the ladder runs them: jailed, in a scratch tree of the candidate."""
+def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | None = None):
+    """(merge, rung, rungs_for) over the engine repo, as the ladder runs them: jailed, in a scratch tree of the candidate. `rung` carries
+    `touches_swift(head)` for the Swift search; a swift-tests run is cut at `deadline`."""
     from fichero_builder import check_tool, jail, land_tool
     cfg = check_tool.load(pinned)
     base = land_tool.resolve_branch(repo, branch)
@@ -239,7 +311,10 @@ def real_runners(repo, branch: str, pinned: str, tid: str):
     def files_over(cand: str) -> list[str]:
         return _git(repo, "diff", "--name-only", f"{base}...{cand}").stdout.split()
 
-    def rung(name, cand):
+    def left() -> float | None:
+        return None if deadline is None else max(60.0, deadline - time.time())
+
+    def rung(name, cand, only=()):
         j = jail.load(pinned)
         if j is not None:
             j.require()
@@ -248,7 +323,10 @@ def real_runners(repo, branch: str, pinned: str, tid: str):
         files, tree = files_over(cand), None
         try:
             tree = check_tool._scratch_tree(repo, cand, pinned, cfg, overlay=(name != "unit"))
-            r = (check_tool.build(tree, files, cfg) if name == "build" else check_tool.swift_tests(tree, cfg) if name == "swift-tests"
+            sel = list(only) or (check_tool.swift_affected(tree, files, cfg) if name == "swift-tests" else None)
+            if sel == []:
+                return True, "swift-tests: no Swift test suite the train's Swift diff can affect (the nightly runs the whole suite)"
+            r = (check_tool.build(tree, files, cfg) if name == "build" else check_tool.swift_tests(tree, cfg, sel or (), left()) if name == "swift-tests"
                  else check_tool.ui(tree, files, cfg) if name == "ui" else check_tool.unit(tree, files, cfg, everything=True))
         finally:
             check_tool._jail_exit()
@@ -257,10 +335,15 @@ def real_runners(repo, branch: str, pinned: str, tid: str):
         row = (r.get("results") or [{}])[0]
         out = (r.get("stdout_tail") or row.get("errors") or row.get("stdout_tail") or "")[-3000:]
         if name == "swift-tests" and not r.get("ok") and r.get("failing"):
-            return against_base(r["failing"], out, base, lambda: swift_on(base))
+            return against_base(r["failing"], out, base, lambda: swift_on(base, sel or ()), sel or ())
         return bool(r.get("ok")), out
 
-    def swift_on(sha: str) -> dict:
+    def touches_swift(head: str) -> bool:
+        return any(f.endswith(".swift") and (not cfg.build_paths or f.startswith(tuple(cfg.build_paths)))
+                   for f in _git(repo, "diff", "--name-only", f"{base}...{head}").stdout.split())
+    rung.touches_swift = touches_swift
+
+    def swift_on(sha: str, sel=()) -> dict:
         j = jail.load(pinned)
         if j is not None:
             j.require()
@@ -269,7 +352,7 @@ def real_runners(repo, branch: str, pinned: str, tid: str):
         tree = None
         try:
             tree = check_tool._scratch_tree(repo, sha, pinned, cfg, overlay=True)
-            return check_tool.swift_tests(tree, cfg)
+            return check_tool.swift_tests(tree, cfg, sel, left())
         finally:
             check_tool._jail_exit()
             if tree:

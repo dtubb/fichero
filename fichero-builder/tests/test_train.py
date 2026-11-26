@@ -194,3 +194,47 @@ def test_when_the_rest_is_red_on_the_same_cases_as_the_prefix_no_step_is_sent_ba
     assert r.back == {} and r.landed == [] and r.again == ["l/a", "l/b", "l/c"] and r.result == "unresolved"
     assert "no step is sent back" in r.bisect[-1]
     assert r.extra_runs <= train.budget(3)
+
+
+def test_a_swift_red_on_new_cases_searches_the_swift_steps_newest_first_with_only_those_cases_never_by_prefix():
+    """2026-11-26, owner: an 88-minute merge (train-20261126-120639: 797 s, then 808, 1107 and 1471 s of whole-suite prefix runs).
+    Only the Swift steps are tried, newest first, each alone on the base with only the new cases; the first red one goes back."""
+    seen = []
+    new = "RED: 1 case(s) fail on the candidate and pass on the base\nfailing: SegmentToolTests.drawsABox()\n"
+
+    def rung(name, cand, only=()):
+        seen.append((name, cand, tuple(only)))
+        if name != "swift-tests":
+            return True, "ok"
+        bad = "b" in cand.split("+")
+        return (not bad), (new if bad else "green")
+    swift = {"b", "d"}
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "abcd"], merge=lambda heads: ("+".join(heads), {}), rung=rung,
+                        rungs_for=lambda heads: ["build", "swift-tests", "unit"], tid="t", touches_swift=lambda h: h in swift)
+    assert set(r.back) == {"l/b"} and "this step alone on the land branch fails SegmentToolTests.drawsABox()" in r.back["l/b"]["findings"]
+    assert r.landed == ["l/a", "l/c", "l/d"] and r.result == "red"
+    searched = [(c, o) for n, c, o in seen if o]
+    assert searched == [("d", ("SegmentToolTests.drawsABox()",)), ("b", ("SegmentToolTests.drawsABox()",))], "newest Swift step first, only the new case"
+    assert not any(c in ("a", "a+b", "a+b+c") for _n, c, _o in seen), "no prefix run"
+    assert r.extra_runs == 3
+
+
+def test_a_swift_red_no_single_step_reproduces_sends_none_back():
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "ab"], merge=lambda heads: ("+".join(heads), {}),
+                        rung=lambda name, cand, only=(): (len(cand.split("+")) < 2, "failing: X.y()\n"),
+                        rungs_for=lambda heads: ["swift-tests"], tid="t", touches_swift=lambda h: True)
+    assert r.back == {} and r.again == ["l/a", "l/b"] and r.result == "unresolved" and "none is sent back" in r.bisect[-1]
+
+
+def test_a_train_past_its_time_limit_stops_and_every_step_waits_again():
+    """Owner 2026-11-26: train-134056 ran 90 min with no result. No run starts past [train].max_run_min."""
+    now = [0.0]
+
+    def rung(name, cand, only=()):
+        now[0] += 1000
+        return name != "swift-tests", "swift-tests failed: no names"
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "abc"], merge=lambda heads: ("+".join(heads), {}), rung=rung,
+                        rungs_for=lambda heads: ["build", "swift-tests", "unit"], tid="t", clock=lambda: now[0], deadline=1800.0)
+    assert r.result == "timeout" and r.again == ["l/a", "l/b", "l/c"] and r.back == {} and r.landed == []
+    assert [x["name"] for x in r.rungs] == ["build", "swift-tests"] and "time limit" in r.bisect[-1]
+    assert train.load({"train": {}}).max_run_min == 30 and train.load({"train": {"max_run_min": 20}}).max_run_min == 20
