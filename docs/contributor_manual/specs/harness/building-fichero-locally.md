@@ -1318,6 +1318,68 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
 
   The targets are `[flow]` keys in `harness.toml` with these defaults. Tests: `fichero-builder/tests/test_rung_stats.py::test_flow_prints_each_target_from_a_fixture_journal_and_exits_1_when_one_is_over`. Serves: reliable.
 
+#### In flight: check slots, stacked steps and train size (owner 2026-11-26, #6589)
+
+The owner asked (2026-11-26) why only three lanes are checked at once, and for more work in flight and landed together.
+Over the same 24 h the lanes' cursor steps spent 13.5 h being written and 172 h said-done or in a check (`done` 101.8 h,
+`checking` 70.5 h), and 9.6 h waiting for a train; the load average of the loop's machine at a rung's start was 52 at
+the median and 117 at the 90th percentile. Of 8 trains, 2 were green, each of one step; the trains of 4, 6 and 8 steps
+ended unresolved or at the time limit. So a fixed lane count caps the wrong thing: writing is a small share of a lane's
+day, checks are the queue, and what limits checks is what the runners can carry, which is measured, not set. Owed tests
+are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-26 for more in flight).
+
+- `local.flow.check-slots-from-runners` [GAP] (#6589) — the number of ladders that run at once is counted each tick from
+  the runners, not read as a fixed number. Each runner in `[check].remote` writes one `runner` row a tick (reachable,
+  cores, 1-minute load, free memory, free disk). A runner gives `[check].slots_per_runner` slots (default 1) while its
+  row is under three ticks old, its load for each core is at most `[check].runner_max_load` (default 1.0), its free
+  memory is at least `[check].runner_min_free_ram_gb` (default 4) and its free disk at least `remote_min_free_gb`; else
+  it gives none and a ladder already on it finishes. `[check].parallel`, when set, is a ceiling; with no runner counted
+  one ladder runs on the loop's machine. A change of the count is one `slots` row naming each runner and why it counts
+  or not. This replaces the fixed count of `local.perf.ladder-slots-follow-runners`. Test (owed): `test_heavy_lock.py`
+  `test_ladder_slots_are_the_sum_of_runners_under_the_load_and_memory_limits_and_parallel_is_a_ceiling`,
+  `test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_row_says_why`. Serves: reliable, fast.
+- `local.flow.writers-are-not-capped-by-checks` [GAP] (#6589) — `[loop].lanes` counts writers: a lane holds one of
+  them only while its cursor step is `sent` or `fixing` (a model session at work). A step that is said-done, done,
+  checking, reviewing or waiting for the train holds none, so another lane's step starts, or the same lane stacks its
+  next step (`local.step.stacks-on-a-waiting-step`). Steps past DONE and not yet landed are capped by
+  `[loop].max_in_flight` (default three times `[loop].lanes`): at the cap no new step starts, with one `queue` row
+  `in-flight-cap`, so finished work never piles up faster than the checks land it. A blocked or red step keeps its
+  writer, as built. When built this replaces the list of states in `local.run.idle-windows-hold-no-slot`. Test (owed):
+  `test_loop_lane_set.py` `test_a_step_waiting_for_its_check_or_the_train_holds_no_writer_so_the_next_queued_step_starts`,
+  `test_no_step_starts_past_max_in_flight_and_one_row_says_so`. Serves: fast.
+- `local.step.stacks-on-a-waiting-step` [GAP] (#6589) — with `[loop].stack_depth = 1` (default 0: a lane's next step
+  starts when the one before it lands, as before) a lane's step N+1 starts in the lane's worktree on N's head once N is
+  green and READY and waits for the train. N+1's checks and review read the range from N's head to its own, with N's
+  head as the base of red-on-base. N+1 enters a train only behind N in the same train, or after N has landed, never
+  before it; when N lands, N+1's range is rebased onto the land branch as any lane is. When N is sent back, the loop
+  commits N+1's uncommitted work as one commit `wip: <step>`, keeps N+1's commits under the ref `stack/<lane>/<step>`,
+  sets the worktree to N's head and sends N's fix round; N+1 is `queued` with the row `stack-held` and any check of it
+  is cancelled. When N is green again the loop rebases the kept commits onto N's new head, puts the `wip` commit back as
+  uncommitted work and resumes N+1; a conflict in that rebase is N+1's conflict fix round of section J. A rebased N+1 is
+  checked and reviewed whole (`local.check.fix-round-reuses-verdicts` keeps nothing over a rebase). One step stacks on
+  one; a third waits. Test (owed): `test_work_tree.py`
+  `test_step_two_starts_on_step_ones_head_while_one_waits_for_the_train_and_is_checked_over_its_own_range`,
+  `test_when_step_one_goes_back_step_twos_commits_are_kept_under_a_ref_and_rebased_onto_the_fixed_head`,
+  `test_a_conflict_in_that_rebase_is_step_twos_fix_round`; `test_train_queue.py`
+  `test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it`. Serves: fast.
+- `local.train.size-follows-the-last-result` [GAP] (#6589) — a train takes at most `size` waiting steps in queue
+  order and the rest wait for the next; a stacked pair is never split with the upper step first. `size` starts at
+  `[train].max_steps` (default 6: at nine trains in ten green for a step alone, six together are green about half the
+  time, and a red of six costs at most four more runs). After a train that is red, unresolved or timed out, `size` is
+  halved (never under 1); after a green train it doubles, up to `max_steps`. The train's journal row carries `size`
+  and the number left waiting. Test (owed): `test_train_queue.py`
+  `test_a_train_takes_at_most_size_steps_in_order_and_the_rest_wait`,
+  `test_size_halves_after_a_red_train_and_doubles_after_a_green_one_up_to_max_steps`. Serves: reliable, fast.
+- `local.train.second-train-on-the-first` [GAP] (#6589) — with `[train].overlap = 2` (default 1: one train at a time, as
+  built) a second train starts while one runs when `[train].min_steps` steps wait, a runner that can build the app is
+  free, and at least 4 of the last 5 trains were green. Its base is the first train's candidate. When the first lands
+  every step, the second's result stands and it lands after it; when the first sends a step back or ends any other way,
+  the second is cancelled with one `train` row `cancelled: its base did not land` and its steps wait again, sent back
+  to no worker. Never more than two. Test (owed): `test_train_queue.py`
+  `test_a_second_train_runs_on_the_firsts_candidate_and_lands_after_it`,
+  `test_when_the_first_train_sends_a_step_back_the_second_is_cancelled_and_its_steps_wait_again`,
+  `test_no_second_train_starts_unless_four_of_the_last_five_were_green`. Serves: fast.
+
 ### M. The merge train: the expensive checks run once for many steps (owner 2026-11-25, #6589)
 
 A step used to run the Swift build, the UI pass and the full unit tier alone before it landed, so the checks that cost the
