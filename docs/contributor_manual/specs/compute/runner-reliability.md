@@ -414,8 +414,8 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   the engine's refusal where pressed; a workflow that cannot start is titled for a run, never "Import Error"; a chain the app
   cannot follow says so; a batch run with an empty scope, no project or a workflow not in the library says so; a Stop or a
   Continue the engine refuses is shown; the workflow row is no scope (#4961); the bar sends no model override to a workflow
-  that takes none (#4963). Owed:
-  the mid-run alert, the bar's model control disabled with its reason, the dropped model pin said.
+  that takes none (#4963); the bar says when a pinned model is not sent to a workflow that takes none (#4963). Owed:
+  the mid-run alert, the bar's model control disabled with its reason.
 - `runner.hand-run.redo-selection` — **[PARTIAL]** (#6744, #6602) "Run a Step Again on the Selection" in a library row's
   context menu (`RunStepAgainOnSelectionMenu`) runs the chosen step on the selected folders and items as one run: the pages
   are the selection with each folder expanded to its files (`RecipeFolderScope.redoPages`, once, no duplicates). The menu
