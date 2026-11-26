@@ -1256,13 +1256,11 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
 - `local.train.guards-on-candidate` [OK] (#6589; built 2026-11-26) — a train runs, once on its candidate, the guards its combined diff
   touches (the `local.check.guards-by-diff` rule over base...candidate); a guard red on the candidate and green on the
   base makes the train red at `guards`. Tests: `fichero-builder/tests/test_train.py::test_two_steps_each_green_alone_that_break_a_guard_together_make_the_train_red_at_guards`. Serves: reliable.
-- `local.train.security-and-perf-once` [GAP] (#6589) — with the train on, a step's security rung runs only the
+- `local.train.security-and-perf-once` [OK] (#6589; built 2026-11-26; on with [train].security_perf (default false) beside the train; a finding is matched to a step by the text of the line it names) — with the train on, a step's security rung runs only the
   added-line lints, and its perf rung is skipped with the row `owed to the train`; the train runs the security scanners
   and perf once over base...candidate. A scanner finding goes back to the step whose diff added the line it names, and
   the other steps go on. Perf stays report-only: its row names the train and the steps whose diff touches the measured
-  paths, and sends none back. With the train off both run per step, as before. Test (owed):
-  `test_security_rung.py` `test_with_the_train_on_a_step_runs_only_the_added_line_lints_and_a_scanner_finding_goes_to_the_step_that_added_the_line`,
-  `test_perf_rung.py` `test_with_the_train_on_perf_runs_once_on_the_candidate_and_sends_no_step_back`.
+  paths, and sends none back. With the train off both run per step, as before. Tests: `fichero-builder/tests/test_security_rung.py::test_with_the_train_on_a_step_runs_only_the_added_line_lints_and_a_scanner_finding_goes_to_the_step_that_added_the_line`, `fichero-builder/tests/test_perf_rung.py::test_with_the_train_on_perf_runs_once_on_the_candidate_and_sends_no_step_back`.
   Serves: reliable, fast.
 - `local.train.red-goes-to-its-step` [OK] (#6589; built 2026-11-26; hosted CI's red cases go through the same search, as whole-tests) — a train red at whole-tests or guards on cases or guards that are
   green on its base is searched like `local.train.swift-search-not-bisect`, never bisected by prefix: each step whose

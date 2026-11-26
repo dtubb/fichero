@@ -3322,6 +3322,7 @@ def real_procs(root) -> Procs:
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1],
                                      train=TRAIN[0].enabled,  # a merge train runs the build and ui rungs once for many steps
                                      owe_whole=TRAIN[0].enabled and TRAIN[0].whole_tests,  # and, with [train].whole_tests, the whole-tests dirs
+                                     owe_scans=TRAIN[0].enabled and TRAIN[0].security_perf,  # and, with [train].security_perf, the scanners and perf
                                      stack_base=(step or {}).get("stack_base", "") if (step or {}).get("stacked_on") else "")
 
     def start(lane, step):
@@ -3539,7 +3540,7 @@ def real_procs(root) -> Procs:
     def train_run(spec, tid, base=""):
         pinned = work.ensure_pinned(str(root), "", land_tool.resolve_branch(repo, branch))
         deadline = time.time() + TRAIN[0].max_run_min * 60
-        merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid, deadline, base=base)
+        merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid, deadline, base=base, scans=TRAIN[0].security_perf)
         cicfg = ci.load(tomllib.loads((root / "harness.toml").read_text()))  # local.ci.*: read each train, so a change needs no restart
         hosted = ci.Hosted(cicfg, str(repo)) if cicfg.train != "off" else None
         base_sha = base or land_tool.resolve_branch(repo, branch)

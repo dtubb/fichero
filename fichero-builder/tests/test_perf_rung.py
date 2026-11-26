@@ -261,3 +261,20 @@ def test_tail_keeps_a_long_final_perf_result_line_whole_so_the_rung_reads_it():
     assert len(line) > 300
     m = check_tool.PERF_LINE.search(check_tool.tail("pytest exit 1\n" + line + "\n"))
     assert m and json.loads(m.group(1)) == verdict
+
+
+def test_with_the_train_on_perf_runs_once_on_the_candidate_and_sends_no_step_back(tmp_path, monkeypatch):
+    import pytest
+
+    from fichero_builder import check_tool, train
+    monkeypatch.setattr(check_tool, "SCANS_OWED", check_tool._PerThread(True))
+    monkeypatch.setattr(check_tool, "_perf_engine", lambda *a, **k: pytest.fail("no perf run for a step"))
+    r = check_tool.perf(tmp_path, "b", ["fichero-server/src/x.py"], check_tool.Config(perf={"enforce": False}))
+    assert r["ok"] and r["skipped"] and "owed to the train" in r["stdout_tail"]
+    names = train.names_for(["fichero-server/src/x.py"], (), lambda f: False, scans=True)
+    assert names[-2:] == ["security", "perf"]
+    calls = []
+    res = train.run_train([{"key": "l/a", "head": "a"}, {"key": "l/b", "head": "b"}], merge=lambda hs: ("+".join(hs), {}),
+                          rung=lambda n, c, only=(): calls.append(n) or (True, "perf (report-only) for train t; steps touching what it measured: a"),
+                          rungs_for=lambda hs: names, tid="t")
+    assert calls.count("perf") == 1 and not res.back and res.landed == ["l/a", "l/b"]

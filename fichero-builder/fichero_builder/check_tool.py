@@ -2201,6 +2201,8 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
     """The perf rung: the engine half, and, when a changed path is under `fichero/`, the Swift half. ok = both ok; a Swift-only batch is
     never "not required"."""
     from . import perf_rung
+    if SCANS_OWED[0]:
+        return {"ok": True, "skipped": True, "stdout_tail": "owed to the train: perf runs once on its candidate", "stderr_tail": "", "results": []}
     eng = _perf_engine(root, since, changed, cfg)
     if not cfg.perf or not any(f.startswith(perf_rung.APP_PATHS) for f in changed):
         return eng
@@ -2274,6 +2276,9 @@ def security_lints(root, since: str, head: str, approved=None, dirs: tuple[str, 
     return out
 
 
+SCANS_OWED = _PerThread(False)  # local.train.security-and-perf-once: the scanners and perf are the train's (work.do_check sets it)
+
+
 def security(root, since: str, head: str, changed: list[str], cfg: Config) -> dict:
     """The security rung: the waiver lints, then `scripts/security_scan_run.py` over the batch (bandit with its baseline, semgrep with
     --baseline-commit, gitleaks over the batch's commits; osv-scanner only when `[check.security].osv` is on), reading only what is NEW.
@@ -2286,6 +2291,8 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     if not [f for f in changed if (dirs and f.startswith(dirs)) or f in ("osv-scanner.toml", ".gitleaks.toml")]:
         return {"ok": True, "skipped": True, "stdout_tail": "not required: no changed path is under a scanned directory", "stderr_tail": "", "results": []}
     problems = security_lints(root, since, head, dirs=dirs)
+    if SCANS_OWED[0]:  # the added-line lints only; the scanners run once on the train's candidate
+        return _report_only("security", cfg.security, not problems, [*problems, "the scanners are owed to the train"])
     pins = dict(cfg.security.get("pins") or {})
     osv_on = bool(cfg.security.get("osv", False))
     if not cfg.build_remote:

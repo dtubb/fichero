@@ -19,8 +19,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
-RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "whole-tests", "unit")
-KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps", "overlap", "whole_tests"}
+RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "whole-tests", "unit", "security", "perf")
+KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps", "overlap", "whole_tests", "security_perf"}
 CAND: dict = {}  # tid -> its first candidate merge, once made: a second train's base (local.train.second-train-on-the-first)
 
 
@@ -33,6 +33,7 @@ class Cfg:
     overlap: int = 1  # local.train.second-train-on-the-first: 2 = a second train may run on the first one's candidate; 1 = one at a time
     max_steps: int = 6  # local.train.size-follows-the-last-result: the most steps one train takes; its size halves after a red, doubles after a green
     whole_tests: bool = False  # local.check.red-on-base-changed-tests-only: the steps owe their whole-tests dirs to the train, which runs them once
+    security_perf: bool = False  # local.train.security-and-perf-once: a step runs the added-line lints only; the train the scanners and perf
 
 
 def load(rules: dict) -> Cfg:
@@ -42,7 +43,7 @@ def load(rules: dict) -> Cfg:
         raise ValueError(f"harness.toml [train]: unknown keys {unknown}")
     cfg = Cfg(enabled=bool(t.get("enabled", True)), min_steps=int(t.get("min_steps", 4)), max_wait_min=float(t.get("max_wait_min", 45)),
               max_run_min=float(t.get("max_run_min", 30)), max_steps=int(t.get("max_steps", 6)), overlap=int(t.get("overlap", 1)),
-              whole_tests=bool(t.get("whole_tests", False)))
+              whole_tests=bool(t.get("whole_tests", False)), security_perf=bool(t.get("security_perf", False)))
     if cfg.overlap not in (1, 2):
         raise ValueError("harness.toml [train]: overlap is 1 or 2 (never more than two trains)")
     if cfg.min_steps < 1 or cfg.max_steps < 1 or cfg.max_wait_min <= 0 or cfg.max_run_min <= 0:
@@ -137,6 +138,15 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
     new = cases(red[1])
     if rung_name == "swift-tests" and new and touches_swift is not None:
         return _swift_search(res, keep, new, red[1], rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run)
+    if rung_name == "security" and (heads := _named_heads(red[1])):  # local.train.security-and-perf-once: back to the step that added the line
+        for s in keep:
+            if s["head"] in heads:
+                res.back[s["key"]] = {"kind": "red", "why": f"the merge train {tid}'s security scan names a line this step added",
+                                      "findings": f"The merge train {tid}'s security scan over its candidate names lines this step added:\n{red[1]}"}
+        if res.back:
+            res.landed = [s["key"] for s in keep if s["key"] not in res.back]
+            res.bisect.append(f"security: sent back {', '.join(res.back)}; the rest go on")
+            return res
     if rung_name in ("whole-tests", "guards") and new and touches is not None:
         return _swift_search(res, keep, new, red[1], rest_names, merge, rung, tid, clock, deadline, t_start,
                              lambda h: touches(rung_name, h, new), run, name=rung_name)
@@ -261,6 +271,12 @@ def search(res: Result, steps: list[dict], new: list[str], merge: Callable, rung
                          lambda h: touches("whole-tests", h, frozenset(new)), run, name="whole-tests")
 
 
+def _named_heads(out: str) -> set:
+    """The heads a train rung's `added by: <head>, <head>` line names (the security scan's findings, by the step that added the line)."""
+    line = next((ln[len("added by: "):] for ln in out.splitlines() if ln.startswith("added by: ")), "")
+    return {x.strip() for x in line.split(",") if x.strip()}
+
+
 def cases(out: str) -> frozenset:
     """The failing cases a rung's output names (its `failing: a, b` line, else xcodebuild's own lists); empty when it names none."""
     from fichero_builder import check_tool
@@ -345,12 +361,12 @@ def swift_changed(files: list[str], build_paths: tuple) -> bool:
     return bool(build_paths) and any(f.startswith(tuple(build_paths)) for f in files)
 
 
-def names_for(files: list[str], build_paths: tuple, ui_required: Callable[[list[str]], bool], whole: tuple = ()) -> list[str]:
+def names_for(files: list[str], build_paths: tuple, ui_required: Callable[[list[str]], bool], whole: tuple = (), scans: bool = False) -> list[str]:
     """The rungs a train over `files` runs: the Swift build and tests when Swift changed, the UI pass when the segment editor did, the
-    whole-tests dirs its steps owe when there are any, the unit tier always."""
+    whole-tests dirs its steps owe when there are any, the unit tier always, and with `scans` the security scanners and perf, last."""
     swift = swift_changed(files, build_paths)
     return [n for n in RUNG_ORDER if n in ("guards", "unit") or (n in ("build", "swift-tests") and swift) or (n == "ui" and ui_required(files))
-            or (n == "whole-tests" and bool(whole))]
+            or (n == "whole-tests" and bool(whole)) or (n in ("security", "perf") and scans)]
 
 
 def _git(repo, *args, cwd=None) -> subprocess.CompletedProcess:
@@ -388,7 +404,7 @@ def drop_refs(repo, tid: str) -> None:
         _git(repo, "update-ref", "-d", ref)
 
 
-def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | None = None, base: str = ""):
+def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | None = None, base: str = "", scans: bool = False):
     """(merge, rung, rungs_for) over the engine repo, as the ladder runs them: jailed, in a scratch tree of the candidate. `rung` carries
     `touches_swift(head)` for the Swift search; a swift-tests run is cut at `deadline`."""
     from fichero_builder import check_tool, jail, land_tool
@@ -427,6 +443,8 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
                 return bool(g.get("ok")), "\n".join(f"{x['name']}: {'ok' if x.get('ok') else 'red'}" for x in g.get("results") or [])
             if name == "whole-tests":
                 return whole_on(tree, cand, files)
+            if name in ("security", "perf"):
+                return scans_on(name, tree, cand, files)
             if name == "guards":
                 return guards_against_base(check_tool.guards(tree, replace(cfg, guards_by_diff=True), files),
                                            lambda reds: guards_on(base, reds))
@@ -480,6 +498,29 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
                     check_tool.drop_tree(repo, btree)
         return against_base(failing, out, base, on_base, dirs, label="whole-tests")
 
+    def scans_on(name: str, tree, cand: str, files: list[str]) -> tuple[bool, str]:
+        """local.train.security-and-perf-once: the security scanners and perf, once over base...candidate. A scanner finding names the
+        head of each step whose diff added that line (`added by:`); perf stays report-only and names the steps touching what it measured."""
+        from fichero_builder import perf_rung
+        if name == "perf":
+            r = check_tool.perf(tree, base, files, cfg)
+            touching = [h for h in heads_now if any(f.startswith(perf_rung.ENGINE_PATHS + perf_rung.APP_PATHS) for f in _git(repo, "diff", "--name-only", f"{base}...{h}").stdout.split())]
+            rung.last = {"steps": touching}
+            return True, f"perf (report-only) for train {tid}; steps touching what it measured: {', '.join(h[:9] for h in touching) or 'none'}\n{r.get('stdout_tail') or ''}"[-3000:]
+        r = check_tool.security(tree, base, cand, files, cfg)
+        out = r.get("stdout_tail") or ""
+        if r.get("ok"):
+            return True, out
+        blamed = set()
+        for m in re.finditer(r"(\S+?):(\d+)\b", out):  # a finding's `where`: file:line on the candidate
+            text = (_git(repo, "show", f"{cand}:{m.group(1)}").stdout.splitlines() or [""])[max(0, int(m.group(2)) - 1):int(m.group(2))]
+            for h in heads_now:
+                if text and any(f == m.group(1) and t == text[0] for f, _n, t in check_tool._added_lines(repo, base, h, (m.group(1),))):
+                    blamed.add(h)
+        return False, (f"added by: {', '.join(sorted(blamed))}\n" if blamed else "") + out
+
+    heads_now: list = []
+
     def guards_on(sha: str, names: list[str]) -> dict:
         """Only `names` of the guards, over a scratch tree of `sha` (the train's base)."""
         tree = None
@@ -524,6 +565,7 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
                 check_tool.drop_tree(repo, tree)
 
     def rungs_for(heads):
+        heads_now[:] = list(heads)
         files = sorted({f for h in heads for f in _git(repo, "diff", "--name-only", f"{base}...{h}").stdout.split()})
-        return names_for(files, tuple(cfg.build_paths), check_tool.ui_required, check_tool._whole_tests(files, cfg))
+        return names_for(files, tuple(cfg.build_paths), check_tool.ui_required, check_tool._whole_tests(files, cfg), scans)
     return merge, rung, rungs_for
