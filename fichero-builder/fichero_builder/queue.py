@@ -344,6 +344,7 @@ class Procs:
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
     attach: Callable[[dict, dict, str], object | None] = lambda lane, step, window: None  # a new `builder run --attach` on a live window's session
+    autofix: Callable[[dict, dict, str, tuple], dict] | None = None  # (lane, step, findings, classes tried at this head) -> {"rows": [fixes committed], "ask": bool}; None = off
     thin: Callable[[int], str] | None = None  # bytes -> "" when local snapshots were thinned, else why not; None = not tried (local.disk.thin-snapshots-before-holding)
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
     head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
@@ -1033,7 +1034,21 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True
     if r.get("kind") != "conflict":
         s.pop("conflict_rounds", None)  # the rebase went through: a later conflict is a new one
-    if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
+    ask = False
+    if r.get("kind") in ("red", "not-ready", "refused") and procs.autofix and lane.get("kind") != "external":
+        # local.autofix.loop-applies-the-printed-fix: a red whose fix the check prints, of an opted-in class, is one commit and a second check;
+        # no worker is asked. A class is tried once for a head (the head it fixed counts too): the same red again goes to the worker.
+        head = procs.head_of(lane)
+        tried = s.setdefault("autofix_tried", [])
+        res = procs.autofix(lane, s, r.get("findings") or r["why"], tuple(sorted({t.split(":", 1)[1] for t in tried if t.startswith(head + ":")})))
+        ask = res["ask"]
+        if res["rows"]:
+            after = procs.head_of(lane)
+            tried += [f"{h}:{x['class']}" for x in res["rows"] for h in (head, after)]
+            move(s, "red", r["why"])
+            move(s, "done", "autofix " + ", ".join(x["class"] for x in res["rows"]) + ": the check runs again, no message to the worker")
+            return True
+    if r.get("kind") in ("red", "not-ready", "refused") and not ask and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
         move(s, "red", r["why"])  # the failed check is its own state with its rung; the fix brief below moves the step on
         text = split_text(lane["id"], s["step"], r.get("findings") or "")
@@ -3334,7 +3349,7 @@ def real_procs(root) -> Procs:
         finally:  # the candidate refs are only kept while the train runs: a ref pins its commits against gc
             train.drop_refs(repo, tid)
 
-    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, thin=thin_snapshots, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
+    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),

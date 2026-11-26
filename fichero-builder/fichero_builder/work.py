@@ -262,6 +262,48 @@ def regen(a, branch: str, before: str) -> str:
     return ""
 
 
+def autofix(a, step: str, findings: str, brief: str, skip: tuple = ()) -> dict:
+    """local.autofix.loop-applies-the-printed-fix: the opted-in `[check].autofix` classes (autofix.plan) applied to a red in the lane's
+    worktree as the worker. Each fix is one commit with the lane's own trailers (the spec-change class amends the head with the brief's
+    `Spec-change:` line) and one `autofix` row; a fix that fails, or changes a file its class does not name, is undone and changes
+    nothing. `skip` = classes already tried at this head. {"rows": [..], "ask": a red only the manager can answer}."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    cfg = check_tool.load(a.pinned)
+    sh = lambda cmd: as_worker(a, f"cd {wt} && {cmd}")  # noqa: E731
+    head = lambda: sh(f"{g} rev-parse HEAD").stdout.strip()  # noqa: E731
+    env = f"PYTHONPATH={q(':'.join(cfg.python_path))} FICHERO_PYTHON_BIN={q(cfg.python)} " if cfg.python else ""
+    from fichero_builder import autofix as af
+    items = [p for p in af.plan(tuple(c for c in cfg.autofix if c not in skip), findings, brief,
+                                lambda f: sh(f"{g} show HEAD:{q(f)}").stdout, cfg.regen, tuple(cfg.contract_guards))]
+    rows, ask = [], False
+    for p in sorted(items, key=lambda p: "amend" not in p):  # the amend first: it rewrites the lane's own head, the fixes go on top
+        if p.get("ask"):
+            ask = True
+            continue
+        before = head()
+        if "amend" in p:
+            if sh(f"{g} commit -q --amend --no-edit --trailer {q(p['amend'])}").returncode:
+                continue
+            files = []
+        else:
+            if any(sh(env + c.replace("{python}", q(cfg.python))).returncode for c in p["cmds"]):
+                sh(f"{g} checkout -q -- .")  # a half-run fix never reaches a commit
+                continue
+            files = sh(f"{g} diff --name-only").stdout.split()
+            ok = bool(files) and (p["allowed"] is None or all(f in p["allowed"] if isinstance(p["allowed"], tuple) else p["allowed"].search(f) for f in files))
+            if not ok:
+                sh(f"{g} checkout -q -- .")  # anything outside the class is undone and the red goes to the worker
+                continue
+            trailers = "\n".join(ln for ln in sh(f"{g} log -1 --format=%B").stdout.splitlines() if ln.startswith(("Written-By:", "Directed-By:", "Co-Authored-By:")))
+            msg = "chore(autofix): " + p["class"] + " (" + p["rung"] + ")"
+            sh(f"{g} add -u && {g} commit -q -m {q(msg)} -m {q(trailers or 'Written-By: Claude')}")
+        after = head()
+        if after != before:
+            rows.append({"class": p["class"], "rung": p["rung"], "before": before, "after": after, "files": sorted(files)})
+            journal.append("autofix", lane=a.name, step=step, **rows[-1])
+    return {"rows": rows, "ask": ask and not rows}
+
+
 def do_export(a, branch: str) -> int:
     """The worktree's commits over origin/<land branch> as patch files; the count (0 = nothing to land)."""
     out = shared_state(a) / f"patches-{a.name}"

@@ -77,6 +77,7 @@ class Config:
     generated: tuple = ()               # generated files a rebase may re-bake itself (the contract identity): never hand-merged
     rebake: tuple = ()                  # argv run in the worktree to re-bake them from the merged sources ("{python}" = [check].python)
     rebake_issue: str = ""              # the issue a re-bake commit cites, e.g. "#4705"
+    autofix: tuple = ()                 # rule classes the loop applies itself to a managed lane's red (autofix.CLASSES), each one `autofix` row
     regen: tuple = ()                   # shell lines that regenerate every generated file (contracts, embed list), run after each rebase
                                         # that moved the lane and committed when they changed a tracked file ("{python}" = [check].python)
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then the next in `remotes`, then here
@@ -140,6 +141,9 @@ def load(root) -> Config:
         raise ValueError("harness.toml [brief]: rules must be text")
     if c.get("regen") and not c.get("python"):  # review: a regen line must never run whatever python3 is on the PATH
         raise ValueError("harness.toml [check]: regen needs [check].python (the interpreter `{python}` names)")
+    from fichero_builder import autofix
+    if bad := [x for x in c.get("autofix", ()) if x not in autofix.CLASSES]:
+        raise ValueError(f"harness.toml [check]: unknown autofix classes {bad}; known: {list(autofix.CLASSES)}")
     d = Config()
     return Config(
         python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),
@@ -152,7 +156,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), autofix=tuple(c.get("autofix", d.autofix)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
         always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())), swift_test_target=c.get("swift_test_target", d.swift_test_target), swift_test_dir=c.get("swift_test_dir", d.swift_test_dir),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),

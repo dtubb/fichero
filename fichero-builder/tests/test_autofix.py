@@ -222,3 +222,85 @@ def test_regen_without_a_python_is_refused_in_the_rules(tmp_path):
     (tmp_path / "harness.toml").write_text('[check]\nregen = ["{python} x.py"]\n')
     with pytest.raises(ValueError, match="regen needs"):
         check_tool.load(tmp_path)
+
+
+# local.autofix.loop-applies-the-printed-fix / local.autofix.classes (#6589)
+KNOWN_RED = "FAIL: scripts/check_endpoint_coverage_matrix.py\n  2 KNOWN_GAPS entries are now clean; remove them:\n      GET /a\n      GET /c\n"
+RATCHET_RED = "FAIL: scripts/check_ratchet.py\nFAIL: down to 3 (baseline 5): lower it with --update-baseline.\n"
+SPEC_RED = "FAIL: scripts/check_spec_acceptance.py\nFAIL: spec.md: acceptance changed: add a `Spec-change:` trailer\n"
+RULING = "Spec-change: the acceptance line was reworded, ruled by the manager 2026-11-24"
+
+
+@pytest.fixture
+def lane_repo(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(work, "as_worker", lambda a, script: subprocess.run(["sh", "-c", script], capture_output=True, text=True))
+    for k, v in {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}.items():
+        monkeypatch.setenv(k, v)
+    pin, w = tmp_path / "pin", tmp_path / "wt"
+    (w / "scripts").mkdir(parents=True), pin.mkdir()
+    (pin / "harness.toml").write_text(f'[check]\npython = "{sys.executable}"\nautofix = ["known-gaps-now-clean", "ratchet-baseline-lower", "spec-change-trailer"]\n')
+    (w / "scripts" / "check_endpoint_coverage_matrix_known_gaps.json").write_text('{\n  "GET /a": "x",\n  "GET /b": "y",\n  "GET /c": "z"\n}\n')
+    (w / "scripts" / "check_ratchet.py").write_text("import sys\nprint('ok')\nif '--update-baseline' in sys.argv:\n    open('scripts/ratchet.json', 'w').write('{\"n\": 3}\\n')\n")
+    (w / "scripts" / "ratchet.json").write_text('{"n": 5}\n')
+    (w / "other.txt").write_text("keep\n")
+    _g(w, "init", "-q", "-b", "integration"), _g(w, "add", "."), _g(w, "commit", "-qm", "mine (#1)\n\nWritten-By: claude-opus-5-5")
+    return type("A", (), {"worktree": str(w), "name": "n1", "pinned": str(pin)})(), w, pin
+
+
+def test_a_known_gaps_red_is_one_commit_with_the_lane_trailers_one_autofix_row_and_only_the_named_entries_gone(lane_repo):
+    a, w, _ = lane_repo
+    before = _g(w, "rev-parse", "HEAD")
+    res = work.autofix(a, "1.1", KNOWN_RED, "")
+    assert (w / "scripts" / "check_endpoint_coverage_matrix_known_gaps.json").read_text() == '{\n  "GET /b": "y"\n}\n'
+    assert _g(w, "rev-list", "--count", f"{before}..HEAD") == "1" and _g(w, "status", "--porcelain") == ""
+    assert "Written-By: claude-opus-5-5" in _g(w, "log", "-1", "--format=%B")
+    row = [r for r in journal.read() if r["event"] == "autofix"]
+    assert len(row) == 1 and (row[0]["class"], row[0]["before"], row[0]["after"], row[0]["files"]) == (
+        "known-gaps-now-clean", before, _g(w, "rev-parse", "HEAD"), ["scripts/check_endpoint_coverage_matrix_known_gaps.json"])
+    assert res["rows"][0]["class"] == "known-gaps-now-clean" and not res["ask"]
+
+
+def test_a_ratchet_that_prints_a_lower_count_is_lowered_and_one_that_would_rise_is_left(lane_repo):
+    a, w, _ = lane_repo
+    assert work.autofix(a, "1.1", RATCHET_RED.replace("down to 3 (baseline 5)", "down to 7 (baseline 5)"), "") == {"rows": [], "ask": False}
+    assert (w / "scripts" / "ratchet.json").read_text() == '{"n": 5}\n'
+    assert work.autofix(a, "1.1", RATCHET_RED, "")["rows"][0]["files"] == ["scripts/ratchet.json"]
+    assert (w / "scripts" / "ratchet.json").read_text() == '{"n": 3}\n'
+
+
+def test_a_fix_that_changes_a_file_outside_its_class_is_undone_and_changes_nothing(lane_repo):
+    a, w, _ = lane_repo
+    (w / "scripts" / "check_ratchet.py").write_text("open('other.txt', 'w').write('changed')\n")
+    _g(w, "commit", "-qam", "rewrite")
+    head = _g(w, "rev-parse", "HEAD")
+    assert work.autofix(a, "1.1", RATCHET_RED, "")["rows"] == []
+    assert (w / "other.txt").read_text() == "keep\n" and _g(w, "rev-parse", "HEAD") == head and _g(w, "status", "--porcelain") == ""
+
+
+def test_a_spec_change_red_gets_the_briefs_line_word_for_word_and_none_without_one_is_a_question(lane_repo):
+    a, w, _ = lane_repo
+    assert work.autofix(a, "1.1", SPEC_RED, "do it\n") == {"rows": [], "ask": True}, "no ruling in the brief: the manager is asked"
+    assert "Spec-change" not in _g(w, "log", "-1", "--format=%B")
+    res = work.autofix(a, "1.1", SPEC_RED, f"do it\n{RULING}\n")
+    assert _g(w, "log", "-1", "--format=%B").splitlines()[-1] == RULING and res["rows"][0]["files"] == []
+    assert _g(w, "rev-list", "--count", "HEAD") == "1", "the trailer amends the lane's head: no new commit"
+
+
+def test_a_class_not_named_in_the_rules_is_never_tried_and_an_unknown_class_refuses_the_rules_file(lane_repo, tmp_path):
+    a, w, pin = lane_repo
+    (pin / "harness.toml").write_text(f'[check]\npython = "{sys.executable}"\nautofix = ["spec-change-trailer"]\n')
+    assert work.autofix(a, "1.1", KNOWN_RED, "") == {"rows": [], "ask": False}
+    assert work.autofix(a, "1.1", KNOWN_RED, "", skip=("spec-change-trailer",)) == {"rows": [], "ask": False}
+    (tmp_path / "harness.toml").write_text('[check]\nautofix = ["rm-rf"]\n')
+    with pytest.raises(ValueError, match="unknown autofix classes"):
+        check_tool.load(tmp_path)
+
+
+def test_an_openapi_regen_red_runs_the_regen_lines_and_commits_the_tracked_files_they_changed(lane_repo):
+    a, w, pin = lane_repo
+    (pin / "harness.toml").write_text(f'[check]\npython = "{sys.executable}"\nautofix = ["openapi-regen"]\n'
+                                      "regen = [\"{python} -c \\\"open('other.txt', 'w').write('regenerated')\\\"\"]\n")
+    res = work.autofix(a, "1.1", "FAIL: scripts/check_openapi_contract.py\ngenerated copy is stale\n", "")
+    assert res["rows"][0]["files"] == ["other.txt"] and (w / "other.txt").read_text() == "regenerated"
+    assert work.autofix(a, "1.1", "FAIL: scripts/check_other.py\nall fine\n", "")["rows"] == []
