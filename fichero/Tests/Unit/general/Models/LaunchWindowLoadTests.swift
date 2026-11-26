@@ -17,4 +17,42 @@ final class LaunchWindowLoadTests: XCTestCase {
         XCTAssertFalse(LibraryManager.windowShouldAskForLoad(engineReady: true, loaded: true, loading: false))
         XCTAssertFalse(LibraryManager.windowShouldAskForLoad(engineReady: true, loaded: false, loading: true))
     }
+
+    func testTheReaskKeepsAGrantGateThatIsStillSet() async {
+        // A grant in flight holds the gate; the engine-ready re-ask must not release it (#3986-A, #3773).
+        let manager = LibraryManager.shared
+        let library = manager.createNewLibrary()
+        manager.backendIsReady = true
+        manager.libraryIdsAwaitingGrant.insert(library.id)
+        defer { manager.libraryIdsAwaitingGrant.remove(library.id) }
+
+        await manager.askForLoadOnEngineReady(library, engineReady: true)
+
+        XCTAssertTrue(manager.libraryIdsAwaitingGrant.contains(library.id), "the re-ask released a gate in flight")
+        XCTAssertFalse(manager.loadingLibraryIds.contains(library.id))
+        XCTAssertFalse(manager.loadedLibraryIds.contains(library.id))
+    }
+
+    func testAFailedGrantClearsItsOwnGate() {
+        let manager = LibraryManager.shared
+        let library = manager.createNewLibrary()
+        manager.libraryIdsAwaitingGrant.insert(library.id)
+
+        manager.grantDidFail(for: library)
+
+        XCTAssertFalse(manager.libraryIdsAwaitingGrant.contains(library.id))
+    }
+
+    func testTheWorkspaceRootStartsTheLoadInItsOwnTaskBeforeTheStreams() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Library/Workspace/LibraryWorkspaceRoot.swift")
+        let source = try String(contentsOf: root, encoding: .utf8)
+        let ask = try XCTUnwrap(source.range(of: "askForLoadOnEngineReady"))
+        let stream = try XCTUnwrap(source.range(of: "library.changeStream.start()"))
+        XCTAssertTrue(ask.lowerBound < stream.lowerBound)
+        let before = source[..<ask.lowerBound]
+        XCTAssertTrue(before.suffix(120).contains("Task { @MainActor in"), "the load is awaited inline, so it delays the streams")
+    }
 }

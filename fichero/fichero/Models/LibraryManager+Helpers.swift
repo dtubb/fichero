@@ -377,18 +377,22 @@ extension LibraryManager {
         engineReady && !loaded && !loading
     }
 
-    /// The window's re-ask once the engine is ready (#7078). The engine is ready, so a grant gate still set is a grant
-    /// whose own work never ran (a pre-auth grant refused): release it, so the load runs and says why it fails.
+    /// The window's re-ask once the engine is ready (#7078). A grant gate still set is left alone: it may be a grant
+    /// in flight, and releasing it would let the load read the package before the sandbox grant lands (#3986-A, #3773).
+    /// A grant that failed clears its own gate (`grantDidFail`), so a gate that is set is never stale here.
     func askForLoadOnEngineReady(_ library: LibraryReference, engineReady: Bool) async {
         guard Self.windowShouldAskForLoad(
             engineReady: engineReady,
             loaded: loadedLibraryIds.contains(library.id),
             loading: loadingLibraryIds.contains(library.id)
         ) else { return }
-        if libraryIdsAwaitingGrant.remove(library.id) != nil {
-            libraryManagerLogger.info("Engine ready, grant gate still set — releasing it: \(library.displayName, privacy: .public)")
-        }
         await loadLibraryDataIfNeeded(for: library)
+    }
+
+    /// The open-time sandbox grant threw, so its engineWork leg will never clear the gate: clear it here, so the
+    /// window's re-ask loads the library and the load reports its own failure (#7078).
+    func grantDidFail(for library: LibraryReference) {
+        libraryIdsAwaitingGrant.remove(library.id)
     }
 
     /// Initialize the backend database and load app data once per library.

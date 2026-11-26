@@ -155,19 +155,23 @@ extension LibraryManager {
         // between here and the grant scheduling.
         libraryIdsAwaitingGrant.insert(library.id)
         Task { @MainActor in
-            // try?: a denied grant is already surfaced via engineAccessFailure and
-            // must stop the load/registry (grantThenEngineWork skips engineWork on a
-            // grant throw) without crashing the open.
-            try? await FolderAccessManager.grantThenEngineWork(
-                grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
-                engineWork: {
-                    // Grant completed — clear the gate BEFORE scheduling the load so
-                    // this path's own load is the first read of the package.
-                    libraryIdsAwaitingGrant.remove(library.id)
-                    scheduleLoadWhenBackendReady(for: library)
-                    await KnownLibraryRegistryStore.shared.noteOpenedLibrary(url: url, displayName: displayName)
-                }
-            )
+            // A denied grant is already surfaced via engineAccessFailure and must stop the load/registry
+            // (grantThenEngineWork skips engineWork on a grant throw) without crashing the open. It also
+            // never clears the gate, so clear it here (#7078).
+            do {
+                try await FolderAccessManager.grantThenEngineWork(
+                    grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+                    engineWork: {
+                        // Grant completed — clear the gate BEFORE scheduling the load so
+                        // this path's own load is the first read of the package.
+                        libraryIdsAwaitingGrant.remove(library.id)
+                        scheduleLoadWhenBackendReady(for: library)
+                        await KnownLibraryRegistryStore.shared.noteOpenedLibrary(url: url, displayName: displayName)
+                    }
+                )
+            } catch {
+                grantDidFail(for: library)
+            }
         }
     }
 
