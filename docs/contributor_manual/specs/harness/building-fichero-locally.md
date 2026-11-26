@@ -1351,20 +1351,18 @@ are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-
   time, and a red of six costs at most four more runs). After a train that is red, unresolved or timed out, `size` is
   halved (never under 1); after a green train it doubles, up to `max_steps`. The train's journal row carries `size`
   and the number left waiting. Tests: `fichero-builder/tests/test_train_queue.py::test_a_train_takes_at_most_size_steps_in_order_and_the_rest_wait`, `fichero-builder/tests/test_train_queue.py::test_size_halves_after_a_red_train_and_doubles_after_a_green_one_up_to_max_steps`, `fichero-builder/tests/test_train_queue.py::test_a_red_train_halves_the_next_ones_size`. Serves: reliable, fast.
-- `local.train.second-train-on-the-first` [OK] (#6589; built 2026-11-26; the free-build-runner test is a Procs hook that is always true until local.train.build-lock-first; the last five results are kept in memory) — with `[train].overlap = 2` (default 1: one train at a time, as
+- `local.train.second-train-on-the-first` [OK] (#6589; built 2026-11-26; the free build runner is the build lock's state (local.train.build-lock-first); the last five results are kept in memory) — with `[train].overlap = 2` (default 1: one train at a time, as
   built) a second train starts while one runs when `[train].min_steps` steps wait, a runner for the Xcode build is
   free, and at least 4 of the last 5 trains were green. Its base is the first train's candidate. When the first lands
   every step, the second's result stands and it lands after it; when the first sends a step back or ends any other way,
   the second is cancelled with one `train` row `cancelled: its base did not land` and its steps wait again, sent back
   to no worker. Never more than two. Tests: `fichero-builder/tests/test_train_queue.py::test_a_second_train_runs_on_the_firsts_candidate_and_lands_after_it`, `fichero-builder/tests/test_train_queue.py::test_when_the_first_train_sends_a_step_back_the_second_is_cancelled_and_its_steps_wait_again`, `fichero-builder/tests/test_train_queue.py::test_no_second_train_starts_unless_four_of_the_last_five_were_green`. Serves: fast.
-- `local.train.build-lock-first` [GAP] (#6589) — a merge train's build takes the next turn at `[check].build_lock`, ahead of
+- `local.train.build-lock-first` [OK] (#6589; built 2026-11-26) — a merge train's build takes the next turn at `[check].build_lock`, ahead of
   any lane's build rung that waits for it: the train writes one wait file beside the lock while it waits, and a lane's build
   rung that gets the lock meanwhile lets it go at once, with one `check` row `build-lock-yield`, and tries again. A wait file
   of a process that is gone is removed. `Procs.build_free` (`local.train.second-train-on-the-first`) is true only when no
   build holds the lock and no train waits for it. With no `[check].build_lock` both are as before. On whenever the train
-  runs (no key). Test (owed): `test_heavy_lock.py`
-  `test_a_train_waiting_for_the_build_lock_builds_before_a_lane_that_waited_longer`,
-  `test_a_second_train_sees_the_build_runner_busy_while_a_build_holds_the_lock`. Serves: fast.
+  runs (no key). Tests: `fichero-builder/tests/test_heavy_lock.py::test_a_train_waiting_for_the_build_lock_builds_before_a_lane_that_waited_longer`, `fichero-builder/tests/test_heavy_lock.py::test_a_second_train_sees_the_build_runner_busy_while_a_build_holds_the_lock`. Serves: fast.
 
 #### Hosted CI in the flow: the train's candidate is checked on GitHub Actions and Xcode Cloud (owner 2026-11-26, #6589)
 

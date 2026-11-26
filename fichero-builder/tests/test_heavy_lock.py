@@ -203,3 +203,49 @@ def test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_
     assert n == 1 and "no row in three ticks" in [r for r in journal.read() if r["event"] == "slots"][-1]["runners"]["imac:~/g"]
     (tmp_path / "harness.toml").write_text('[check]\nparallel = 4\n')
     assert queue.count_slots(tmp_path) == 0 and work.SLOTS[0] == 0, "off: [check].parallel, as before"
+
+
+def test_a_train_waiting_for_the_build_lock_builds_before_a_lane_that_waited_longer(state, monkeypatch, tmp_path):
+    """local.train.build-lock-first: the lane's build rung waits first, the train second; the train builds first."""
+    import fcntl
+    import threading
+    import time
+    monkeypatch.setattr(check_tool, "BUILD_YIELD_S", 0.05)
+    cfg = check_tool.Config(build_lock=str(tmp_path / "build.lock"))
+    order = []
+    holder = open(tmp_path / "build.lock", "a")
+    fcntl.flock(holder, fcntl.LOCK_EX)
+
+    def take(who, train):
+        with check_tool.build_lock(cfg, train=train):
+            order.append(who)
+            time.sleep(0.1)
+    lane = threading.Thread(target=take, args=("lane", False))
+    lane.start()
+    time.sleep(0.2)
+    tr = threading.Thread(target=take, args=("train", True))
+    tr.start()
+    for _ in range(100):
+        if list(tmp_path.glob("build.lock.train-*")):
+            break
+        time.sleep(0.02)
+    holder.close()
+    lane.join(5), tr.join(5)
+    assert order == ["train", "lane"]
+    assert not list(tmp_path.glob("build.lock.train-*")), "the train's wait file goes with its turn"
+    assert any(r.get("state") == "build-lock-yield" for r in journal.read())
+
+
+def test_a_second_train_sees_the_build_runner_busy_while_a_build_holds_the_lock(state, tmp_path):
+    """local.train.build-lock-first: Procs.build_free is the build lock's real state."""
+    import fcntl
+    cfg = check_tool.Config(build_lock=str(tmp_path / "build.lock"))
+    assert check_tool.build_lock_free(cfg)
+    with check_tool.build_lock(cfg, train=False):
+        assert not check_tool.build_lock_free(cfg)
+    assert check_tool.build_lock_free(cfg)
+    f = open(tmp_path / "build.lock", "a")
+    fcntl.flock(f, fcntl.LOCK_EX)
+    assert not check_tool.build_lock_free(cfg)
+    f.close()
+    assert check_tool.build_lock_free(check_tool.Config()), "no build lock: always free"

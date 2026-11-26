@@ -9,6 +9,7 @@ result, never a raise.
 from __future__ import annotations
 
 import ast
+import contextlib
 from concurrent.futures import ThreadPoolExecutor
 import difflib
 import fcntl
@@ -1214,17 +1215,8 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
     if name == "security" and not _security_push(root, host, rbase):  # local prep, before the lock
         return None
     # one build at a time over the stable tree here and the one there: a second ladder's rsync must never rewrite a tree mid-build
-    lock = None
-    if cfg.build_lock:
-        lp = Path(os.path.expanduser(cfg.build_lock))
-        lp.parent.mkdir(parents=True, exist_ok=True)
-        lock = open(lp, "a")
-        fcntl.flock(lock, fcntl.LOCK_EX)
-    try:
+    with build_lock(cfg):
         return _remote_build_locked(root, cfg, host, rbase, cmd, name, reuse, timeout_s)
-    finally:
-        if lock is not None:
-            lock.close()
 
 
 def _security_push(root, host: str, rbase: str) -> bool:
@@ -1327,16 +1319,72 @@ def daily_builds(root, cfg: Config) -> list[tuple[str, dict | None]]:
         out.append((name, None if r and r.get("remote_env_red") else r))  # could not run there: as before
     return out
 
+BUILD_YIELD_S = 2.0  # a lane's build rung that took the build lock while a train waits for it lets go and tries again this much later
+
+
+def _train_waiting(lp: Path) -> bool:
+    """A train of a live process waits for the build lock (its `<lock>.train-<pid>-<thread>` file); a dead process's file is removed."""
+    for w in lp.parent.glob(lp.name + ".train-*"):
+        try:
+            os.kill(int(w.name.rsplit(".train-", 1)[1].split("-")[0]), 0)
+            return True
+        except (ValueError, ProcessLookupError):
+            w.unlink(missing_ok=True)
+        except PermissionError:
+            return True
+    return False
+
+
+@contextlib.contextmanager
+def build_lock(cfg: Config, train: bool | None = None):
+    """local.train.build-lock-first: `[check].build_lock` held for one build. A merge train's build (its rung key starts `train `) says it
+    waits first, so a lane's build rung that gets the lock meanwhile lets go at once and tries again: the train takes the next turn."""
+    if not cfg.build_lock:
+        yield
+        return
+    lp = Path(os.path.expanduser(cfg.build_lock))
+    lp.parent.mkdir(parents=True, exist_ok=True)
+    train = str(_KEY[0]).startswith("train ") if train is None else train
+    with open(lp, "a") as f:
+        if train:
+            want = lp.with_name(f"{lp.name}.train-{os.getpid()}-{threading.get_ident()}")
+            want.write_text(str(_KEY[0]))
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX)
+            finally:
+                want.unlink(missing_ok=True)
+        else:
+            said = False
+            while True:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                if not _train_waiting(lp):
+                    break
+                fcntl.flock(f, fcntl.LOCK_UN)
+                if not said:
+                    said = True
+                    journal.append("check", state="build-lock-yield", rung="build", detail="a merge train waits for the build lock: it builds first")
+                time.sleep(BUILD_YIELD_S)
+        yield
+
+
+def build_lock_free(cfg: Config) -> bool:
+    """No build holds `[check].build_lock` now (local.train.second-train-on-the-first: a second train starts only then)."""
+    if not cfg.build_lock:
+        return True
+    lp = Path(os.path.expanduser(cfg.build_lock))
+    if not lp.exists():
+        return True
+    with open(lp, "a") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return False
+    return not _train_waiting(lp)
+
+
 @_heavy("xcodebuild (the build rung)")
 def _build_locked(root, changed: list[str], cfg: Config) -> dict:
-    lock = None
-    if cfg.build_lock:  # ~ = the owner's own state dir (review 1 N3); the owner's process takes it, the build itself runs jailed
-        lp = Path(os.path.expanduser(cfg.build_lock))
-        lp.parent.mkdir(parents=True, exist_ok=True)
-        lock = open(lp, "a")
-    try:
-        if lock is not None:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+    with build_lock(cfg):  # ~ = the owner's own state dir (review 1 N3); the owner's process takes it, the build itself runs jailed
         src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
         key = _build_key(src, cfg)
         if key and (hit := _build_results().get(key)):  # the same fichero/ tree, command and Xcode built green before: reused
@@ -1357,9 +1405,6 @@ def _build_locked(root, changed: list[str], cfg: Config) -> dict:
             r = {**_run("build", cfg.build, src, cfg.build_timeout_s, cfg, log=log.with_suffix(".clean.log")), "retried": "clean"}
         if r["ok"] and key:
             _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])
-    finally:
-        if lock is not None:
-            lock.close()
     return {"ok": r["ok"], "skipped": False, "results": [r]}
 
 
