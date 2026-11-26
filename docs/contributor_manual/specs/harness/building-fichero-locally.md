@@ -1406,19 +1406,15 @@ Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
   until `builder rung-stats --flow` shows, over the last seven days of `report` rows, that CI's 90th percentile is
   under `wait_min` and that it disagreed with the local result on at most one train in twenty; `--flow` prints that
   line once report rows exist. Tests: `fichero-builder/tests/test_ci_train.py::test_in_report_mode_the_train_lands_on_its_local_rungs_and_records_each_check_and_its_agreement`, `fichero-builder/tests/test_ci_train.py::test_in_required_mode_a_green_local_train_with_a_red_or_missing_check_does_not_land`, `fichero-builder/tests/test_ci_train.py::test_required_is_refused_until_seven_days_of_report_rows_meet_the_time_and_agreement_bars`. Serves: reliable.
-- `local.ci.red-is-retried-once-and-judged-against-base` [GAP] (#6589) — a required check that fails is sorted before
+- `local.ci.red-is-retried-once-and-judged-against-base` [OK] (#6589; built 2026-11-26; off with [ci]) — a required check that fails is sorted before
   it counts. Infrastructure (no runner acquired, a cancelled or timed-out job, a failure in a set-up step before any
   test ran): its failed jobs are re-run once; a second such failure is not run, with one alert, and
   `local.ci.caps-and-fallback` decides the train. Tests: the failing cases are read from the job logs, as
   `builder github-watch` reads them, and the failed jobs are re-run once; a case that passes the second time is green
   with one `flaky` row naming it and its job, so it is filed and never hidden. A case that fails twice is judged
-  against the base: the same check's newest completed run at the train's base sha, started once by dispatch when there
-  is none; a case red there too is the base's, and the candidate is red only for cases green on its base. Those cases
-  go to `local.train.red-goes-to-its-step`, which finds the step on the local runners. Test (owed): `test_ci_train.py`
-  `test_an_infrastructure_failure_is_rerun_once_and_a_second_one_is_not_run_never_red`,
-  `test_a_case_green_on_the_rerun_is_green_with_a_flaky_row`,
-  `test_a_case_red_twice_and_red_on_the_base_run_sends_no_step_back`,
-  `test_a_case_red_twice_and_green_on_the_base_goes_to_the_step_search`. Serves: reliable.
+  against the base: the same check's newest completed run at the train's base sha, started once (the base pushed to
+  `train/<train id>-base`, deleted with the train's branch) when there is none; a case red there too is the base's, and the candidate is red only for cases green on its base. Those cases
+  go to `local.train.red-goes-to-its-step`, which finds the step on the local runners. Tests: `fichero-builder/tests/test_ci_train.py::test_an_infrastructure_failure_is_rerun_once_and_a_second_one_is_not_run_never_red`, `fichero-builder/tests/test_ci_train.py::test_a_case_green_on_the_rerun_is_green_with_a_flaky_row`, `fichero-builder/tests/test_ci_train.py::test_a_case_red_twice_and_red_on_the_base_run_sends_no_step_back`, `fichero-builder/tests/test_ci_train.py::test_a_case_red_twice_and_green_on_the_base_goes_to_the_step_search`. Serves: reliable.
 - `local.ci.nightly-gate-on-the-frozen-sha` [GAP] (#6589) — with `[ci].nightly = true` (default false) the nightly, at
   its freeze, pushes the frozen sha as `nightly/<date>` and starts the tests workflow on it by dispatch with every
   tier on, and the Xcode Cloud full test plan; a cron schedule is not used, because it cannot know the frozen sha. The

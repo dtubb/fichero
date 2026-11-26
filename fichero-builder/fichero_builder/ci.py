@@ -242,13 +242,14 @@ class Verdict:
     minutes: float = 0.0
 
 
-def wait(h: Hosted, sha: str, names: tuple, cfg: Cfg, clock=time.time, sleep=time.sleep, poll_s: float = 30.0) -> tuple[dict, str]:
-    """({name: check} of the newest check per required name once all completed; "" or "not-started" / "timeout"). Down raises."""
+def wait(h: Hosted, sha: str, names: tuple, cfg: Cfg, clock=time.time, sleep=time.sleep, poll_s: float = 30.0, newer: dict | None = None) -> tuple[dict, str]:
+    """({name: check} of the newest check per required name once all completed; "" or "not-started" / "timeout"). Down raises.
+    `newer` {name: id}: only a check run after that one counts (a re-run makes a new check run; the old one stays completed)."""
     t0 = clock()
     while True:
         got, every = {}, h.checks(sha)
         for c in every:
-            if c["name"] in names and (c["name"] not in got or c["id"] > got[c["name"]]["id"]):
+            if c["name"] in names and c["id"] > (newer or {}).get(c["name"], -1) and (c["name"] not in got or c["id"] > got[c["name"]]["id"]):
                 got[c["name"]] = c
         if got and all(n in got and got[n]["status"] == "completed" for n in names):
             return got, ""
@@ -266,7 +267,6 @@ def _failed(h: Hosted, check: dict) -> tuple[bool, list[str], list[dict]]:
     jobs = [j for j in h.jobs(check["run_id"]) if j["conclusion"] not in ("success", "skipped", "")] if check.get("run_id") else []
     if any(j["conclusion"] in INFRA for j in jobs):
         return True, [], jobs
-    from fichero_builder import check_tool
     cases, infra = [], bool(jobs)
     for j in jobs:
         steps = j.get("steps", [])
@@ -275,7 +275,7 @@ def _failed(h: Hosted, check: dict) -> tuple[bool, list[str], list[dict]]:
         if first_bad is not None and (first_test is None or first_bad < first_test):
             continue  # this job failed setting up
         infra = False
-        cases += sorted(check_tool.failing_cases(h.failed_log(check["run_id"], j["id"])))
+        cases += failing(h.failed_log(check["run_id"], j["id"]))
     return infra, sorted(set(cases)), jobs
 
 
@@ -305,8 +305,8 @@ def judge(h: Hosted, sha: str, base: str, cfg: Cfg, alert: Callable[[str], None]
             infra, cases, _jobs = _failed(h, c)
             if c.get("run_id"):
                 h.rerun_failed(c["run_id"])
-            again, _ = wait(h, sha, (name,), cfg, clock, sleep)
-            c2 = again.get(name, c)
+            again, end2 = wait(h, sha, (name,), cfg, clock, sleep, newer={name: c["id"]})
+            c2 = again.get(name, c) if not end2 else c
             got[name] = c2
             if c2["conclusion"] == "success":
                 if cases:
@@ -412,7 +412,7 @@ def land_on_checks(res, cfg: Cfg, h: Hosted | None, base: str, alert: Callable[[
         if ok:
             return res
         res.ci["local"] = out[-500:]
-        v.cases = check_tool_cases(out) or ["the local whole suites (see the train row)"]
+        v.cases = failing(out) or ["the local whole suites (see the train row)"]
     elif v.timeout:
         res.again, res.landed, res.result = list(res.landed), [], "timeout"
         res.bisect.append(f"stopped: no required check completed within [ci].wait_min = {cfg.wait_min:g} min")
@@ -427,9 +427,10 @@ def land_on_checks(res, cfg: Cfg, h: Hosted | None, base: str, alert: Callable[[
     return res
 
 
-def check_tool_cases(out: str) -> list[str]:
+def failing(out: str) -> list[str]:
+    """The failing cases a job log names: pytest's `FAILED|ERROR path::case` summary lines and XCTest's (check_tool.failing_cases)."""
     from fichero_builder import check_tool
-    return sorted(check_tool.failing_cases(out))
+    return sorted(set(check_tool.failing_cases(out)) | set(re.findall(r"\b(?:FAILED|ERROR) (\S+::\S+)", out)))
 
 
 def local_rungs(cfg: Cfg, names: list[str]) -> list[str]:

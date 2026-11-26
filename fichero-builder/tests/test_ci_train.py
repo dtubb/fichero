@@ -224,3 +224,59 @@ def test_required_is_refused_until_seven_days_of_report_rows_meet_the_time_and_a
     assert "90th percentile" in ci.problems(cfg, rows(20, 6.9, minutes=50), now)[0]
     assert "disagreed" in ci.problems(cfg, rows(20, 6.9, bad=2), now)[0]
     assert ci.problems(ci.Cfg(train="report", xcode_cloud_hours_month=25), [], now) == [], "report needs no rows"
+
+
+# --- local.ci.red-is-retried-once-and-judged-against-base --------------------------------------------------------------------
+
+TEST_JOB = {"id": 11, "name": "engine (3/8)", "conclusion": "failure", "status": "completed", "os": "ubuntu-latest", "seconds": 600, "kind": "actions",
+            "steps": [{"name": "Install the engine", "conclusion": "success"}, {"name": "Unit tests", "conclusion": "failure"}]}
+LOG = "engine (3/8)\tUnit tests\t2026-11-26T10:00:00Z FAILED tests/unit/test_x.py::test_a - assert 1 == 2\n"
+
+
+def _judge(plan, jobs=None, logs=None, cfg=None):
+    cfg = cfg or ci.Cfg(train="required", xcode_cloud_hours_month=25)
+    h = FakeHosted(plan, jobs or {}, logs or {})
+    clock, said = Clock(), []
+    v = ci.judge(h, "cand", "base", cfg, said.append, push_base=lambda: h.push("base", "train/train-1-base"), clock=clock, sleep=clock.sleep)
+    return v, h, said
+
+
+def test_an_infrastructure_failure_is_rerun_once_and_a_second_one_is_not_run_never_red(state):
+    v, h, said = _judge({"cand": [[check("train-gate", "startup_failure", cid=1, run_id="r1")],
+                                  [check("train-gate", "startup_failure", cid=2, run_id="r1")]]})
+    assert [c for c in h.calls if c[0] == "rerun"] == [("rerun", "r1")], "its failed jobs re-run once"
+    assert not v.ok and not v.cases and "infrastructure twice" in v.fallback, "not run: caps-and-fallback decides, never a red"
+    assert len(said) == 1
+    v2, h2, _ = _judge({"cand": [[check("train-gate", "cancelled", cid=1, run_id="r1")], [check("train-gate", "success", cid=2, run_id="r1")]]})
+    assert v2.ok and not v2.flaky, "green on its re-run: nothing to file, a cancel names no case"
+
+
+def test_a_case_green_on_the_rerun_is_green_with_a_flaky_row(state):
+    v, h, _ = _judge({"cand": [[check("train-gate", "failure", cid=1, run_id="r1")], [check("train-gate", "success", cid=2, run_id="r1")]]},
+                     {"r1": [TEST_JOB]}, {("r1", 11): LOG})
+    assert v.ok and v.flaky == [{"check": "train-gate", "cases": ["tests/unit/test_x.py::test_a"]}]
+    (row,) = [r for r in journal.read() if r.get("state") == "flaky"]
+    assert row["cases"] == ["tests/unit/test_x.py::test_a"] and row["check"] == "train-gate"
+
+
+def test_a_case_red_twice_and_red_on_the_base_run_sends_no_step_back(state):
+    red = [check("train-gate", "failure", cid=1, run_id="r1")]
+    v, h, _ = _judge({"cand": [red, [check("train-gate", "failure", cid=2, run_id="r1")]], "base": [[check("train-gate", "failure", cid=5, run_id="r9")]]},
+                     {"r1": [TEST_JOB], "r9": [TEST_JOB]}, {("r1", 11): LOG, ("r9", 11): LOG})
+    assert v.ok and not v.cases, "the case is the base's own red"
+    assert not [c for c in h.calls if c[0] == "push"], "the base had a completed run: none started"
+
+
+def test_a_case_red_twice_and_green_on_the_base_goes_to_the_step_search(state):
+    plan = {"cand": [[check("train-gate", "failure", cid=1, run_id="r1")], [check("train-gate", "failure", cid=2, run_id="r1")]],
+            "base": [[], [check("train-gate", "success", cid=5)]]}
+    v, h, _ = _judge(plan, {"r1": [TEST_JOB]}, {("r1", 11): LOG})
+    assert not v.ok and v.cases == ["tests/unit/test_x.py::test_a"]
+    assert ("push", "base", "train/train-1-base") in h.calls, "no base run: one started once"
+    searched = []
+    plan2 = {"cand": [[check("train-gate", "failure", cid=1, run_id="r1")], [check("train-gate", "failure", cid=2, run_id="r1")]],
+             "base": [[check("train-gate", "success", cid=5)]]}
+    h2, clock = FakeHosted(plan2, {"r1": [TEST_JOB]}, {("r1", 11): LOG}), Clock()
+    res = ci.land_on_checks(green_res(), ci.Cfg(train="required", xcode_cloud_hours_month=25), h2, "base", lambda m: None,
+                            search=lambda cases: searched.append(cases) or green_res(), clock=clock, sleep=clock.sleep)
+    assert searched == [["tests/unit/test_x.py::test_a"]] and res.result == "green"
