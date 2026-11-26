@@ -19,7 +19,7 @@ def _tree(tmp_path, files):
 
 
 def _blobs(root, files):
-    return {f: hashlib.sha1((root / f).read_bytes()).hexdigest() for f in files if f.endswith(".py")}
+    return {f: hashlib.sha1((root / f).read_bytes(), usedforsecurity=False).hexdigest() for f in files if f.endswith(".py")}
 
 
 def _select(tmp_path, files, changed, always=()):
