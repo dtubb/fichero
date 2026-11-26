@@ -75,7 +75,8 @@ struct HiddenPagesLine: View {
                 if revealed {
                     ForEach(hidden) { page in
                         HStack {
-                            Text(DocumentTitle.displayName(for: page, parent: documents.first { $0.id == page.parentId })).font(.callout).lineLimit(1)
+                            Text(DocumentTitle.displayName(for: page, parent: documents.first { $0.id == page.parentId }))
+                                .font(.callout).lineLimit(1)
                             Spacer()
                             Button("Unhide") { Task { await unhide(page) } }
                                 .controlSize(.small)

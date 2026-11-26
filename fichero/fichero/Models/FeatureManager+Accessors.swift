@@ -154,7 +154,8 @@ extension FeatureManager {
         isEnabled(.settingsCaptureTab, settingsCaptureTabEnabledInternal)
     }
     var isWorkflowToolsMCPEnabled: Bool {
-        isEnabled(.workflowToolsMcp, workflowToolsMCPEnabledInternal)
+        // Follows the MCP switch (both alpha): an enabled server's tools are in the palette, no second flag.
+        isEnabled(.workflowToolsMcp, mcpEnabledInternal)
     }
     var isWorkflowToolsAgentsEnabled: Bool {
         isEnabled(.workflowToolsAgents, workflowToolsAgentsEnabledInternal)

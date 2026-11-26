@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 /// #5652 slice 4, group 5: a project's verbs (Rename Project…, Edit Document Types…, Share Project…, Show in Finder,
