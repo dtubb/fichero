@@ -1159,6 +1159,173 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   directory and asserts the fake `gh` is the only issue client called. Serves: reliable.
 
 
+### Check flow: what runs per step, per train and per night (owner 2026-11-26, #6589)
+
+The owner asked (2026-11-26) for a much faster path from DONE to landed: whether review, perf and the other costly checks
+can run once over several steps, and whether a step should be many small commits. This section is the answer and the
+behaviours it needs. Sections J, K and M keep their built behaviours; a line below says so where it replaces one.
+Spec-change: manager (owner asked 2026-11-26 for a faster check flow). Each behaviour names its owed test as a file under
+`fichero-builder/tests` and the test function in it; the citation takes the `file::name` form when the test is written.
+
+| Where | Runs | Why there |
+|---|---|---|
+| Per step, at each DONE | pinned-checks, ready, diff-bound; the changed tests red on the base and green on the head; the guards the diff touches; contract-current and the since-guards; the security lints on added lines; the review, beside the ladder | cheap, needs the step's own diff, or is what the worker's fix round is written from |
+| Per train, once on the candidate | the build, the affected Swift suites and the UI pass (built); the whole test directories of the combined diff; the guards the combined diff touches; the security scanners; perf; each judged against the train's base | costs minutes whatever the step, and is where two steps first meet |
+| Per night, on the frozen sha | every guard, the full suites, the DMG, the smoke, the perf sweep | a day of landings is the most a rare red may cost |
+
+No test, guard or scanner is dropped or weakened: each runs before a step lands or, as today, at night. What changes
+is how many times it runs and when the worker hears.
+
+#### What was measured (the journal, 24 h to 2026-11-26 15:35)
+
+- 155 ladder runs took 37.6 h of wall time, 10.9 min at the median and 23 min at the 90th percentile. By rung:
+  red-on-base 19.5 h (50%), guards 13.6 h (35%), security 2.6 h, perf 1.5 h, build 1.1 h, ready 0.4 h. (The manager's
+  count over 2026-11-25 12:00 to 2026-11-26 09:00, by in-rung seconds: 123 checks, 24.9 h, and 17.5 h more waiting for
+  a slot, 11.4 h of it because two steps sharing a file never check at once.)
+- 81 reviews took 0.9 h in all: 29 s at the median, 94 s at the 90th percentile. 52 of them said NOT READY.
+- Of 157 ladder ends, 82 were green; the reds were red-on-base 24, guards 23, ready 19, pinned-checks 7, diff-bound 2.
+- 27 steps said DONE 129 times, 4.8 times a step. 15 steps landed.
+- From a step's first DONE to landed: 7.8 h at the median, 16.4 h at the 90th percentile. From its last DONE to
+  landed: 31 min and 2.5 h.
+- 7 trains ran. 2 were green, of one step each; 3 ended unresolved, 1 red, 1 in error.
+
+The time is not in the review. It is in the rounds: a step is checked nearly five times, each check runs the whole
+ladder again, and a red and a NOT READY arrive one after the other, never together.
+
+#### The five answers
+
+1. **What stays per step, what moves to the train, what is nightly.** The table above. Per step keeps what is cheap,
+   reads the step's own diff, or writes the fix round. Red-on-base splits: the changed tests stay per step (the base
+   run and the head run of those files only); the whole test directories that the head run adds today move to the
+   train, judged against the train's base. Guards stay per step by diff and run once more on the candidate, which is
+   what makes dropping the same-file rule safe. The security scanners and perf move to the train; the added-line
+   security lints stay. The nightly is unchanged.
+2. **Review stays per step, and moves beside the ladder.** A review costs 29 s and 64% of them send work back, so it is
+   the worker's feedback, not a cost to batch: in a train it would save under an hour a day and put a train's wait in
+   front of each of 52 findings. It starts as soon as the instant rungs are green and runs while the ladder runs, and
+   the worker gets the ladder's reds and the review's findings in one fix round. A step enters a train only when it is
+   READY, so a NOT READY step is never in a candidate and holds no other step. On a fix round the reviewer reads the
+   earlier findings and the fix, never the whole diff again.
+3. **A step is one landing made of many small commits.** The step stays the unit of the brief, the spec line, the
+   review and the landing (three to five related fixes, or one behaviour). Inside it the worker commits each logical
+   change, and after its first DONE only adds commits. Commits do not land one by one: each would owe its own test
+   red on the base, its own spec line and its own review, which is a smaller step and is made when the work is planned,
+   not by landing parts. What small commits buy is the fix round: a verdict judged on files the fix did not touch is
+   kept, so the second check costs what the fix changed, and the reviewer reads the fix alone.
+4. **The train replaces the same-file rule.** With the train on, two steps that share a file check at once. The
+   candidate merge finds a textual conflict and the train's rungs, with the guards now among them, judge the two
+   together. So that the worker hears before the train, each DONE is test-merged against the land branch and the steps
+   waiting for the train. With the train off the rule stays.
+5. **Targets.** Under `local.flow.report` below, each with the one number that proves it.
+
+One setting, no code: with `[train].min_steps = 1` a train starts whenever a step waits and none runs, and steps that
+turn green meanwhile ride the next one, so the batch grows with the load and an idle train never holds a step for
+`max_wait_min`. `local.train.start` already does this.
+
+#### Behaviours
+
+- `local.review.beside-the-ladder` [GAP] (#6589) — with `[review].beside_ladder = true` (default false: the review
+  follows a green ladder, as before) a step's review starts when its pinned-checks, ready and diff-bound rungs are
+  green and runs while the other rungs run; an instant rung red starts no review. The step leaves `checking` when both
+  have ended. A red ladder and a NOT READY at one head make one fix round whose text holds both, each under its own
+  heading, counted as one round of `[loop].rounds`. A green ladder with a NOT READY, and a red ladder with a READY,
+  go back as today. A step moves to `train` only with a green ladder and a READY at the same head. Test (owed):
+  `test_loop.py` `test_a_review_runs_beside_the_ladder_and_a_red_with_a_not_ready_is_one_fix_round`,
+  `test_a_ready_red_no_review_is_started`, `test_a_step_enters_the_train_only_green_and_ready_at_one_head`.
+  Serves: reliable, fast.
+- `local.review.fix-round-reads-the-fix` [GAP] (#6589) — a review of a head that descends from a head already
+  reviewed for the same step is given that review's findings and the diff between the two heads, and answers each
+  earlier finding as fixed or not fixed and names any new fault in that diff; READY needs every earlier finding fixed
+  and no new fault. A head that does not descend from the reviewed one (a rebase, an amend) is reviewed whole, with one
+  `review` row `whole-again`. Test (owed):
+  `test_loop.py` `test_a_fix_round_review_gets_the_earlier_findings_and_only_the_fix_diff`,
+  `test_a_rebased_head_is_reviewed_whole_with_a_row`. Serves: reliable, fast.
+- `local.check.fix-round-reuses-verdicts` [GAP] (#6589) — a ladder over a head that descends from a head the same
+  step was checked at, on the same base sha and the same pinned copy, keeps a rung's earlier green without running it
+  when no path the new commits change is an input of that rung: for red-on-base, the changed tests, the files under
+  `[check].red_paths` and the tests' `conftest.py` files; for the guards, each guard's `[check.guard_inputs]` and its
+  script (a guard with no declared inputs runs); for security, contract-current, the since-guards and the build, the
+  paths each already reads to decide whether it runs. The kept rung is a `rung` row with `reused` naming the head it
+  was judged at. A red rung, the instant rungs, a moved base, another pinned copy or a head that does not descend
+  always run. Test (owed):
+  `test_ladder_all_reds.py` `test_a_fix_commit_that_touches_no_input_of_a_green_rung_keeps_its_verdict_with_a_reused_row`,
+  `test_a_moved_base_a_rebased_head_or_a_touched_input_runs_the_rung_again`. Serves: reliable, fast.
+- `local.check.red-on-base-changed-tests-only` [GAP] (#6589) — with the train on, the step's red-on-base rung runs the
+  changed test files and nothing else, on the base and on the head; the `[check.whole_tests]` directories of the diff
+  are not run by the step and the rung's row lists them as `owed to the train`. With `[train].enabled = false` the
+  head run includes them, as before. Test (owed):
+  `test_ladder_all_reds.py` `test_with_the_train_on_red_on_base_runs_only_the_changed_tests_and_lists_the_whole_dirs_as_owed`,
+  `test_with_the_train_off_the_head_run_still_includes_the_whole_dirs`. Serves: reliable, fast.
+- `local.train.whole-tests-against-base` [GAP] (#6589) — a train runs, once on its candidate, every
+  `[check.whole_tests]` directory that any of its steps owes. A failing case is run once on the train's base (kept per
+  base sha and selection, like `local.train.swift-tests-against-base`); the candidate is red only for cases that fail
+  on it and pass on the base, and a base that could not run judges nothing. A step lands only from a train that ran
+  the directories it owes. Test (owed):
+  `test_train.py` `test_the_train_runs_the_owed_whole_dirs_once_and_is_red_only_for_cases_green_on_its_base`,
+  `test_train_queue.py` `test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs`.
+  Serves: reliable.
+- `local.train.guards-on-candidate` [GAP] (#6589) — a train runs, once on its candidate, the guards its combined diff
+  touches (the `local.check.guards-by-diff` rule over base...candidate); a guard red on the candidate and green on the
+  base makes the train red at `guards`. Test (owed):
+  `test_train.py` `test_two_steps_each_green_alone_that_break_a_guard_together_make_the_train_red_at_guards`.
+  Serves: reliable.
+- `local.train.security-and-perf-once` [GAP] (#6589) — with the train on, a step's security rung runs only the
+  added-line lints, and its perf rung is skipped with the row `owed to the train`; the train runs the security scanners
+  and perf once over base...candidate. A scanner finding goes back to the step whose diff added the line it names, and
+  the other steps go on. Perf stays report-only: its row names the train and the steps whose diff touches the measured
+  paths, and sends none back. With the train off both run per step, as before. Test (owed):
+  `test_security_rung.py` `test_with_the_train_on_a_step_runs_only_the_added_line_lints_and_a_scanner_finding_goes_to_the_step_that_added_the_line`,
+  `test_perf_rung.py` `test_with_the_train_on_perf_runs_once_on_the_candidate_and_sends_no_step_back`.
+  Serves: reliable, fast.
+- `local.train.red-goes-to-its-step` [GAP] (#6589) — a train red at whole-tests or guards on cases or guards that are
+  green on its base is searched like `local.train.swift-search-not-bisect`, never bisected by prefix: each step whose
+  diff touches the failing test's directory, its `[check.whole_tests]` prefix or the guard's inputs, newest first, runs
+  alone on the land branch with only those cases or guards, and the first that fails one is sent back with their
+  output; the rest go on. When none fails alone (two steps break it only together) the newest such step goes back with
+  the output and the names of the others. Test (owed):
+  `test_train.py` `test_a_whole_tests_red_searches_the_steps_that_touch_it_with_only_the_failing_cases_and_sends_one_back`,
+  `test_a_red_only_two_steps_make_together_sends_the_newest_back_naming_the_other`. Serves: reliable.
+- `local.train.rungs-side-by-side` [GAP] (#6589) — a train's rungs that need no app build (whole-tests, guards,
+  security, perf) start when the candidate is made and run while the build and the Swift tests run, each on a free
+  runner; the train's wall time is the longest chain, not the sum, and `local.train.time-limit` holds over all of
+  them. Test (owed):
+  `test_train.py` `test_the_python_rungs_run_while_the_swift_rungs_run_and_the_wall_time_is_the_longest`.
+  Serves: fast.
+- `local.check.no-same-file-wait` [GAP] (#6589) — with the train on, a ladder slot is given to a step whatever files
+  another running ladder holds: no `lock` row of state `clash` is written. With `[train].enabled = false` two batches
+  that share a file take turns, as built (Speed 3). This replaces `local.perf.ladder-slots-follow-runners`'s rule for
+  shared files. Test (owed):
+  `test_work_verb.py` `test_with_the_train_on_two_batches_sharing_a_source_file_check_at_once_with_no_clash_row`,
+  `test_with_the_train_off_a_batch_sharing_a_file_still_waits`. Serves: fast.
+- `local.check.conflict-told-at-done` [GAP] (#6589) — at each DONE, before a ladder slot is taken, the head is
+  test-merged in memory (`git merge-tree`, no worktree) onto the land branch and then onto each step waiting for the
+  train, in train order. A conflict with the land branch goes to the worker at once as the conflict fix round of
+  section J. A conflict with a waiting step is one `queue` row `conflicts-with` naming that step and the files; the
+  step is checked as usual and is held out of that step's train, so it merges after it. Test (owed):
+  `test_train_queue.py` `test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`,
+  `test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`. Serves: reliable, fast.
+- `local.step.small-commits-one-landing` [GAP] (#6589) — the common worker prompt says: commit each logical change by
+  itself as the work goes; after the first DONE only add commits, never amend, squash or rebase (the loop rebases); a
+  step lands whole. Nothing lands a part of a step. Test (owed):
+  `test_profiles.py` `test_the_common_prompt_says_small_commits_and_only_added_commits_after_done`.
+  Serves: fast.
+- `local.flow.report` [GAP] (#6589) — `builder rung-stats --flow [--since TS]` prints, from the journal alone, one line
+  for each target with its measured value and `ok` or `over`, and exits 1 when any is over:
+
+  | Target | Number | Today |
+  |---|---|---|
+  | a ladder run's wall time | median 4 min, 90th percentile 10 min | 10.9 min, 23 min |
+  | time a step waits for a ladder slot because of a shared file | 0 | 11.4 h a day |
+  | DONE rows for each landed step | mean 2.5 | 4.8 |
+  | last DONE to landed | median 25 min, 90th percentile 45 min | 31 min, 2.5 h |
+  | first DONE to landed | median 90 min, 90th percentile 4 h | 7.8 h, 16.4 h |
+  | a train's wall time | 90th percentile 30 min | up to 88 min |
+  | `ready` reds inside a ladder (the presubmit at DONE catches them) | 0 | 19 a day |
+
+  The targets are `[flow]` keys in `harness.toml` with these defaults. Test (owed):
+  `test_rung_stats.py` `test_flow_prints_each_target_from_a_fixture_journal_and_exits_1_when_one_is_over`.
+  Serves: reliable.
+
 ### M. The merge train: the expensive checks run once for many steps (owner 2026-11-25, #6589)
 
 A step used to run the Swift build, the UI pass and the full unit tier alone before it landed, so the checks that cost the
