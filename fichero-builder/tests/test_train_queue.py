@@ -23,6 +23,7 @@ def world(tmp_path, monkeypatch):
     clock = Clock()
     monkeypatch.setattr(queue, "_now", clock)
     monkeypatch.setattr(queue, "TRAIN", [train.Cfg()])
+    monkeypatch.setattr(queue, "TRAIN_SIZE", [0])
     return tmp_path, clock
 
 
@@ -210,3 +211,31 @@ def test_a_worker_lanes_done_is_premerged_by_its_chain_right_after_the_fetch(mon
     except Exception:  # noqa: BLE001 - the fake ladder stops the chain; only the premerge call is under test
         pass
     assert seen == ["abc123"]
+
+
+def test_a_train_takes_at_most_size_steps_in_order_and_the_rest_wait(world):
+    """local.train.size-follows-the-last-result: at most `size` (from [train].max_steps) waiting steps, in queue order; the rest wait
+    for the next train; the row carries size and the number left."""
+    t = Trained(*world, ["1", "2", "3", "4", "5"], cfg=train.Cfg(max_steps=3))
+    t.go(5)
+    assert t.trains[0] == ["l1/1", "l2/2", "l3/3"] and t.trains[1][:2] == ["l4/4", "l5/5"]
+    first = [r for r in journal.read() if r["event"] == "train"][0]
+    assert (first["size"], first["left"]) == (3, 2)
+    assert set(states().values()) == {"landed"}
+
+
+def test_size_halves_after_a_red_train_and_doubles_after_a_green_one_up_to_max_steps():
+    cfg = train.Cfg(max_steps=6)
+    assert [train.next_size(6, r, cfg) for r in ("red", "unresolved", "timeout", "error")] == [3, 3, 3, 3]
+    assert train.next_size(1, "red", cfg) == 1 and train.next_size(3, "green", cfg) == 6 and train.next_size(6, "green", cfg) == 6
+    assert train.next_size(2, "conflict", cfg) == 4, "a green train that dropped a conflicting step is green"
+    assert train.load({"train": {"max_steps": 2}}).max_steps == 2 and train.load({}).max_steps == 6
+    with pytest.raises(ValueError):
+        train.load({"train": {"max_steps": 0}})
+
+
+def test_a_red_train_halves_the_next_ones_size(world):
+    t = Trained(*world, ["1", "2", "3", "4"], bad={"h3"}, cfg=train.Cfg(max_steps=4))
+    t.go(4)
+    rows = [r for r in journal.read() if r["event"] == "train"]
+    assert rows[0]["size"] == 4 and rows[0]["result"] == "red" and rows[1]["size"] == 2

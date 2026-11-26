@@ -1358,14 +1358,12 @@ are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-
   `test_when_step_one_goes_back_step_twos_commits_are_kept_under_a_ref_and_rebased_onto_the_fixed_head`,
   `test_a_conflict_in_that_rebase_is_step_twos_fix_round`; `test_train_queue.py`
   `test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it`. Serves: fast.
-- `local.train.size-follows-the-last-result` [GAP] (#6589) — a train takes at most `size` waiting steps in queue
+- `local.train.size-follows-the-last-result` [OK] (#6589; built 2026-11-26; stacked pairs come with local.step.stacks-on-a-waiting-step; the size is kept in memory, so a restart starts again at max_steps) — a train takes at most `size` waiting steps in queue
   order and the rest wait for the next; a stacked pair is never split with the upper step first. `size` starts at
   `[train].max_steps` (default 6: at nine trains in ten green for a step alone, six together are green about half the
   time, and a red of six costs at most four more runs). After a train that is red, unresolved or timed out, `size` is
   halved (never under 1); after a green train it doubles, up to `max_steps`. The train's journal row carries `size`
-  and the number left waiting. Test (owed): `test_train_queue.py`
-  `test_a_train_takes_at_most_size_steps_in_order_and_the_rest_wait`,
-  `test_size_halves_after_a_red_train_and_doubles_after_a_green_one_up_to_max_steps`. Serves: reliable, fast.
+  and the number left waiting. Tests: `fichero-builder/tests/test_train_queue.py::test_a_train_takes_at_most_size_steps_in_order_and_the_rest_wait`, `fichero-builder/tests/test_train_queue.py::test_size_halves_after_a_red_train_and_doubles_after_a_green_one_up_to_max_steps`, `fichero-builder/tests/test_train_queue.py::test_a_red_train_halves_the_next_ones_size`. Serves: reliable, fast.
 - `local.train.second-train-on-the-first` [GAP] (#6589) — with `[train].overlap = 2` (default 1: one train at a time, as
   built) a second train starts while one runs when `[train].min_steps` steps wait, a runner that can build the app is
   free, and at least 4 of the last 5 trains were green. Its base is the first train's candidate. When the first lands

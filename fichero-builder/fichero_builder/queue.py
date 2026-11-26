@@ -2312,6 +2312,9 @@ def _waiting_for_train() -> list[tuple[dict, dict]]:
     return sorted(got, key=lambda p: p[1].get("train_since", 0))
 
 
+TRAIN_SIZE: list = [0]  # the next train's size (0 = [train].max_steps); ponytail: in memory, a restart starts again at max_steps
+
+
 def train_when_due(procs: Procs, chains: dict | None) -> None:
     """local.train.start: when `[train].min_steps` steps wait, or the oldest has waited `[train].max_wait_min`, one train runs over them
     (a thread; inline when `chains` is None). One at a time; a step's cheap rungs never wait for it."""
@@ -2331,6 +2334,8 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
     waiting = [(x, s) for x, s in waiting if not set(s.get("train_after") or ()) & keys]  # it merges after the step it conflicts with
     if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]):
         return
+    size = min(TRAIN_SIZE[0] or TRAIN[0].max_steps, TRAIN[0].max_steps)
+    waiting, left = waiting[:size], len(waiting) - min(size, len(waiting))  # queue order; the rest wait for the next train
     tid = "train-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(_now()))
     spec = [{"key": f"{x['id']}/{s['step']}", "head": s["head"]} for x, s in waiting]
     with journal.Lock("queue"):
@@ -2350,10 +2355,12 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
             res = train.Result(id=tid, steps=[x["key"] for x in spec], again=[x["key"] for x in spec], result="error")
         else:
             journal.append("train", id=tid, steps=res.steps, candidate=res.candidate, rungs=res.rungs, result=res.result, landed=res.landed,
-                           back=res.back, again=res.again, bisect=res.bisect, extra_runs=res.extra_runs, seconds=round(_now() - t0, 1))
+                           back=res.back, again=res.again, bisect=res.bisect, extra_runs=res.extra_runs, seconds=round(_now() - t0, 1),
+                           size=size, left=left)
             if res.result == "timeout":  # owner 2026-11-26: a train never holds its steps past [train].max_run_min; one alert, they wait again
                 alert("-", "train", f"the merge train {tid} stopped after {TRAIN[0].max_run_min:g} min with no verdict; its {len(res.again)} step(s) "
                       f"wait for the next train ({(res.bisect or [''])[-1][:120]})", str(journal.path()), [])
+        TRAIN_SIZE[0] = train.next_size(size, res.result, TRAIN[0])
         apply_train(res, spec)
     if chains is None:
         run_it()

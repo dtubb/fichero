@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable
 
 RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "unit")
-KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min"}
+KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps"}
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,7 @@ class Cfg:
     min_steps: int = 4
     max_wait_min: float = 45.0
     max_run_min: float = 30.0  # owner 2026-11-26: a train never holds its steps longer; past it, it stops and they wait again
+    max_steps: int = 6  # local.train.size-follows-the-last-result: the most steps one train takes; its size halves after a red, doubles after a green
 
 
 def load(rules: dict) -> Cfg:
@@ -37,10 +38,16 @@ def load(rules: dict) -> Cfg:
     if unknown := sorted(set(t) - KEYS):
         raise ValueError(f"harness.toml [train]: unknown keys {unknown}")
     cfg = Cfg(enabled=bool(t.get("enabled", True)), min_steps=int(t.get("min_steps", 4)), max_wait_min=float(t.get("max_wait_min", 45)),
-              max_run_min=float(t.get("max_run_min", 30)))
-    if cfg.min_steps < 1 or cfg.max_wait_min <= 0 or cfg.max_run_min <= 0:
-        raise ValueError("harness.toml [train]: min_steps must be at least 1, max_wait_min and max_run_min above 0")
+              max_run_min=float(t.get("max_run_min", 30)), max_steps=int(t.get("max_steps", 6)))
+    if cfg.min_steps < 1 or cfg.max_steps < 1 or cfg.max_wait_min <= 0 or cfg.max_run_min <= 0:
+        raise ValueError("harness.toml [train]: min_steps and max_steps must be at least 1, max_wait_min and max_run_min above 0")
     return cfg
+
+
+def next_size(size: int, result: str, cfg: Cfg) -> int:
+    """local.train.size-follows-the-last-result (2026-11-26: trains of 4, 6 and 8 all failed; only trains of 1 were green): a train
+    that is green (a dropped conflict included) doubles the size up to max_steps; red, unresolved, timed out or an error halves it."""
+    return min(cfg.max_steps, size * 2) if result in ("green", "conflict") else max(1, size // 2)
 
 
 def due(since: list[float], now: float, cfg: Cfg) -> bool:
