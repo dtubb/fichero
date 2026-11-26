@@ -20,9 +20,8 @@ class WindowState {
     /// intent on a revision tick and hijack the open into the wrong window.
     var pendingOpenDocumentId: String?
 
-    /// The document selection a workflow run must honor (#4523 LAW: "a
-    /// workflow's scope is the CURRENT SELECTION at gesture time; selection
-    /// means the selected items, not their peers").
+    /// The document selection a workflow run must honor (#4523 LAW: "a workflow's scope is the CURRENT SELECTION at
+    /// gesture time; selection means the selected items, not their peers").
     ///
     /// Written by ContentView whenever the library-pane selection becomes
     /// non-empty, and — deliberately — NOT cleared by sidebar navigation:
@@ -34,14 +33,10 @@ class WindowState {
     /// Every run surface reads its effective selection through this.
     var preservedDocumentSelection: [String] = []
 
-    /// The LIVE library-pane selection, mirrored from `browserSelection` on
-    /// every change — INCLUDING to empty. A sidebar row's context-menu run
-    /// reads THIS, never the preserved snapshot: the snapshot can be
-    /// arbitrarily old, and a stale multi-selection that happened to contain
-    /// the clicked file expanded a one-file run onto every sibling
-    /// (Daniel, 2026-08-15). Preservation keeps serving the workflow-editor
-    /// surface it was built for (#4523); the live mirror serves surfaces
-    /// where the user is pointing at a specific row RIGHT NOW.
+    /// The LIVE library-pane selection, mirrored from `browserSelection` on every change, including to empty. A
+    /// sidebar row's context-menu run reads THIS, never the preserved snapshot: a stale multi-selection that held the
+    /// clicked file expanded a one-file run onto every sibling (2026-08-15). Preservation keeps serving the
+    /// workflow-editor surface (#4523); this serves surfaces where the user points at a row RIGHT NOW.
     var liveDocumentSelection: [String] = []
 
     /// The Activity pane's selected row in this window (`activity.pane.inspector-shows-the-selected-row`, #6441): what the
@@ -51,9 +46,8 @@ class WindowState {
     /// The iPhone's ONE navigation path: folders, then an item (`ios.nav.one-path`, #6944).
     var compactPath = CompactPath()
 
-    /// The item page last used, for this window while the app runs (`ios.item.page-is-remembered-per-window`, #6947).
+    /// The item page last used in this window (`ios.item.page-is-remembered-per-window`, #6947).
     var compactItemPage = ItemPage.source
-
     /// Whether the Source picture is zoomed above fit: the item pages do not change page then (#6947).
     var compactImageZoomed = false
 
