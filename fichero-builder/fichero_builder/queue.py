@@ -3208,9 +3208,15 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
         if not planned["clusters"]:
             _SKIPPED.add(lane)
             continue
-        written = milestone.write_briefs(planned, out=journal.STATE / f"briefs-{lane}", repo_dir=str(root), base="", lane=lane,
-                                         rules=rules.get("brief", {}).get("rules", ""), fetch=lambda n: brief_tool.fetch_issue(n, gh=gh),
-                                         cluster=brief_tool.cluster_for(root), spec_path=str(spec_path), binary=codemap.owner_binary(root))
+        try:
+            written = milestone.write_briefs(planned, out=journal.STATE / f"briefs-{lane}", repo_dir=str(root), base="", lane=lane,
+                                             rules=rules.get("brief", {}).get("rules", ""), fetch=lambda n: brief_tool.fetch_issue(n, gh=gh),
+                                             cluster=brief_tool.cluster_for(root, need_tests="check" in rules),
+                                             spec_path=str(spec_path), binary=codemap.owner_binary(root))
+        except brief_tool.Refused as e:  # agent-profiles.worker.small: not a worker's brief; a person splits the step
+            _SKIPPED.add(lane)
+            alert(lane, "plan", f"{lane}: the brief is refused: {e}"[:300], str(spec_path), ["park"])
+            continue
         worktree = str(Path(rules["jail"]["workroot"]) / f"wt-{lane}")
         return lane, worktree, [{"step": c["step"], "brief": str(b), "issues": [i["number"] for i in c["issues"]], "waits": c["waits"]}
                                 for c, b in zip(planned["clusters"], written)]
@@ -3377,7 +3383,11 @@ def lane_from_issues(root, lane_id: str, issues: list[int], gh: str = "gh") -> t
     except (RuntimeError, OSError, ValueError) as e:
         return 1, f"gh could not read the issues: {e}"
     base = land_tool.resolve_branch(str(root), branch) or f"origin/{branch}"
-    text = brief_tool.cluster_for(root)(got, repo=str(root), branch=branch, base=base, rules=rules.get("brief", {}).get("rules", ""))
+    try:
+        text = brief_tool.cluster_for(root, need_tests="check" in rules)(got, repo=str(root), branch=branch, base=base,
+                                                                         rules=rules.get("brief", {}).get("rules", ""))
+    except brief_tool.Refused as e:
+        return 1, f"the brief is refused: {e}"
     out = journal.STATE / f"briefs-{lane_id}"
     out.mkdir(parents=True, exist_ok=True)
     step = "issues-" + "-".join(str(n) for n in issues[:4])

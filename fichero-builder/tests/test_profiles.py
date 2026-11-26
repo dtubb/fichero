@@ -43,7 +43,7 @@ def test_common_is_first_project_free_and_carries_policy_and_trailer():
 
 def test_assembly_order_and_a_planted_file_is_not_obeyed(tmp_path):
     agents = tmp_path / "agents"
-    for sub, name, body in (("common", "common", "COMMON {{TRAILER}} {{POLICY}}"), ("roles", "feature", "ROLE"), ("stacks", "python", "STACK"),
+    for sub, name, body in (("common", "common", "COMMON {{TRAILER}} {{POLICY}}"), ("roles", "feature", "ROLE\ndiff_bound: 300"), ("stacks", "python", "STACK"),
                             ("projects/demo", "project", "PROJECT")):
         (agents / sub).mkdir(parents=True, exist_ok=True)
         (agents / sub / f"{name}.md").write_text(body)

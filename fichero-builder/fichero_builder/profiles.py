@@ -40,6 +40,15 @@ def _part(agents: Path, rel: str) -> str:
     return f.read_text().rstrip() + "\n"
 
 
+def role_bound(agents: Path, role: str) -> int:
+    """The role's `diff_bound:` (changed lines, generated files excluded); a role file without one is a ProfileError."""
+    from fichero_builder import small_worker
+    bound = small_worker.diff_bound(_part(agents, f"roles/{role}.md"))
+    if bound is None:
+        raise ProfileError(f"roles/{role}.md has no `diff_bound: N` line: a role with no bound does not start")
+    return bound
+
+
 def assemble(root, *, worktree, scratch, harness: str, model: str, role: str | None = None, stack: str | None = None,
              project: str | None = None, agents_dir: Path | None = None, servers: list[str] | None = None) -> str:
     agents = Path(agents_dir) if agents_dir else AGENTS
@@ -49,6 +58,8 @@ def assemble(root, *, worktree, scratch, harness: str, model: str, role: str | N
     common = (_part(agents, "common/common.md").replace("{{WORKTREE}}", str(worktree)).replace("{{SCRATCH}}", str(scratch))
               .replace("{{POLICY}}", policy).replace("{{TRAILER}}", trailer(model, harness, root)))
     rels = (role and f"roles/{role}.md", stack and f"stacks/{stack}.md", project and f"projects/{project}/project.md")
+    if role:
+        role_bound(agents, role)
     parts = [common, *[_part(agents, rel) for rel in rels if rel]]
     if servers is not None:
         parts.append(f"MCP servers you have: {', '.join(servers) or 'none'}.\n")
