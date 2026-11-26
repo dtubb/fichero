@@ -600,3 +600,17 @@ w10 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = [
 # GUI session for xctrace. sudo lists the tools the owner allowed without a password through one narrow sudoers line (py-spy, the M4 only).
 tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]
 sudo = ["py-spy"]
+
+[flow]
+# local.flow.report: `builder rung-stats --flow` measures each target from the journal (ok or over; exit 1 when one is over).
+# Read by nothing else: the owner's 2026-11-26 targets for the check flow.
+ladder_median_min = 4
+ladder_p90_min = 10
+shared_file_wait_s = 0
+done_per_landed = 2.5
+last_done_median_min = 25
+last_done_p90_min = 45
+first_done_median_min = 90
+first_done_p90_min = 240
+train_p90_min = 30
+ready_reds = 0

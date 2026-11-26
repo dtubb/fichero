@@ -228,6 +228,8 @@ def main(argv=None) -> int:
     pf.add_argument("--workload", default="logs"), pf.add_argument("--group-by", default="", help="comma-separated PERF context keys that split a span row")
     rs = sub.add_parser("rung-stats", help="per-rung duration (mean, p90, max, total) from the journal's rung rows")
     rs.add_argument("--since", default="", help="an ISO timestamp or date: only rows from then on"), rs.add_argument("--state")
+    rs.add_argument("--flow", action="store_true", help="the check flow's targets (local.flow.report): one line each, ok or over; exit 1 when any is over")
+    rs.add_argument("--root", default=".", help="where harness.toml's [flow] targets are read")
     mc = sub.add_parser("machines", help="test machines: `sync <name>` installs the test plugins at the jail venv's exact pins into the machine's gate venv")
     mc.add_argument("action", choices=["sync"]), mc.add_argument("machine"), mc.add_argument("--root", default=str(Path.cwd())), mc.add_argument("--state")
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
