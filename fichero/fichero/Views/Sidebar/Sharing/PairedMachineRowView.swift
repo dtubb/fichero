@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One library a paired Mac shared with this person, labelled by that Mac; choosing it opens Connect to Library.
+/// One library a paired Mac shared with this person, labelled by that Mac; choosing it opens Connect to Project.
 struct SharedLibraryRowView: View {
     /// The row's symbol: a project's, as on the Mac's project rows, so no sidebar row is drawn bare (#6557).
     nonisolated static let systemImage = LibrarySectionHeader.systemImage
@@ -76,7 +76,7 @@ struct SharedMachineHeader: View {
 struct PairedMachinesEmptyView: View {
     #if os(macOS)
     static let sentence = "No Macs yet. On the other Mac, turn on Sharing and copy a pairing link, "
-        + "then choose File › Connect to Library…"
+        + "then choose File › Connect to Project…"
     #else
     static let sentence = "No Macs yet. On the Mac, turn on Sharing and show its pairing code, then choose Connect."
     #endif

@@ -144,7 +144,7 @@ extension SidebarView {
                 }
             }
             // No "Shared Libraries" section until a Mac is paired (`sharing.guest.no-section-until-paired`);
-            // File > Connect to Library… is the way in.
+            // File > Connect to Project… is the way in.
             // App-level destinations pinned once at the bottom, not repeated
             // under every library (#1456).
             pinnedGlobalNavigationRows()

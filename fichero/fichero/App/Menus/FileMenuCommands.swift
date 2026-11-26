@@ -55,7 +55,7 @@ struct FileMenuCommands: View {
             }
             // No chord: ⌘N is New Window, as in Finder and Safari (#5286).
 
-            Button("Connect to Library…") { libraryManager.connectToLibraryRequested = true }
+            Button("Connect to Project…") { libraryManager.connectToLibraryRequested = true }
 
             Button("Open…") {
                 if let openLibraryAction {

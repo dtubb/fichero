@@ -17,7 +17,7 @@ struct SharedLibraryChooserView: View {
             }
             if Self.showsHowToPair(machines) { PairedMachinesEmptyView() }
         }
-        .navigationTitle("Shared Libraries")
+        .navigationTitle("Shared Projects")
     }
 
     /// With no library shared yet the list says how to pair, never an empty screen (`sharing.ios.no-empty-detail`).

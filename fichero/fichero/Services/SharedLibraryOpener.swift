@@ -34,7 +34,7 @@ enum SharedLibraryOpener {
         }
     }
 
-    /// The connect sheet shows at an Option launch and when File ▸ Connect to Library… asks.
+    /// The connect sheet shows at an Option launch and when File ▸ Connect to Project… asks.
     static func connectSheet(_ libraryManager: LibraryManager, optionLaunch: Binding<Bool>) -> Binding<Bool> {
         Binding(
             get: { optionLaunch.wrappedValue || libraryManager.connectToLibraryRequested },

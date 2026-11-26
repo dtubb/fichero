@@ -154,7 +154,7 @@ private struct FicheroSharedPlatformRoot: View {
                         .environment(library.apiClient)
                         .toolbar {
                             ToolbarItem(placement: .navigation) {
-                                Button("Libraries", systemImage: "books.vertical") { showingChooser = true }
+                                Button("Projects", systemImage: "books.vertical") { showingChooser = true }
                             }
                         }
                 } else {

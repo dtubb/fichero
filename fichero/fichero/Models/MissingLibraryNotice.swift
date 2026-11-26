@@ -63,7 +63,7 @@ extension View {
     /// The alert for `MissingLibraryNotice`: the buttons answer it, so a dismissal is not an answer (Locate… opens a panel first).
     func missingLibraryAlert() -> some View {
         alert(
-            "Library Not Found",
+            "Project Not Found",
             isPresented: Binding(get: { MissingLibraryNotice.shared.isShowing }, set: { _ in })
         ) {
             #if os(macOS)
