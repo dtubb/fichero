@@ -266,10 +266,12 @@ def autofix(a, step: str, findings: str, brief: str, skip: tuple = ()) -> dict:
     """local.autofix.loop-applies-the-printed-fix: the opted-in `[check].autofix` classes (autofix.plan) applied to a red in the lane's
     worktree as the worker. Each fix is one commit with the lane's own trailers (the spec-change class amends the head with the brief's
     `Spec-change:` line) and one `autofix` row; a fix that fails, or changes a file its class does not name, is undone and changes
-    nothing. `skip` = classes already tried at this head. {"rows": [..], "ask": a red only the manager can answer}."""
+    nothing; a worktree with uncommitted tracked edits is left alone. `skip` = classes already tried at this head. {"rows": [..], "ask": a red only the manager can answer}."""
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
-    cfg = check_tool.load(a.pinned)
     sh = lambda cmd: as_worker(a, f"cd {wt} && {cmd}")  # noqa: E731
+    if sh(f"{g} status --porcelain --untracked-files=no").stdout.strip():
+        return {"rows": [], "ask": False}  # uncommitted tracked edits are the worker's: undo, `add -u` and amend would discard or sweep them in
+    cfg = check_tool.load(a.pinned)
     head = lambda: sh(f"{g} rev-parse HEAD").stdout.strip()  # noqa: E731
     env = f"PYTHONPATH={q(':'.join(cfg.python_path))} FICHERO_PYTHON_BIN={q(cfg.python)} " if cfg.python else ""
     from fichero_builder import autofix as af

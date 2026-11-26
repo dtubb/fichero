@@ -323,3 +323,16 @@ def test_a_file_a_failed_fix_created_is_removed_and_the_workers_own_untracked_fi
     (w / "mine.txt").write_text("worker's")
     assert work.autofix(a, "1.1", RATCHET_RED, "")["rows"] == []
     assert not (w / "stray.txt").exists() and (w / "mine.txt").read_text() == "worker's"
+
+
+def test_uncommitted_tracked_edits_survive_every_class_and_the_red_goes_to_the_worker(lane_repo):
+    a, w, _ = lane_repo
+    (w / "other.txt").write_text("worker's edit\n")
+    (w / "scripts" / "ratchet.json").write_text('{"n": 9}\n')
+    _g(w, "add", "scripts/ratchet.json")
+    head = _g(w, "rev-parse", "HEAD")
+    for red, brief in ((KNOWN_RED, ""), (RATCHET_RED, ""), (SPEC_RED, f"do it\n{RULING}\n")):
+        assert work.autofix(a, "1.1", red, brief) == {"rows": [], "ask": False}
+    assert _g(w, "rev-parse", "HEAD") == head and "Spec-change" not in _g(w, "log", "-1", "--format=%B")
+    assert (w / "other.txt").read_text() == "worker's edit\n" and (w / "scripts" / "ratchet.json").read_text() == '{"n": 9}\n'
+    assert _g(w, "status", "--porcelain").splitlines() == ["M other.txt", "M  scripts/ratchet.json"]
