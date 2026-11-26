@@ -32,25 +32,33 @@ final class KGFilterBarGuardrailTests: XCTestCase {
     // MARK: - The shared footer is the ONE place that draws the filter and the add control
 
     func testSharedFooterDeclaresOneFilterSlotUsedByBothContentKinds() throws {
-        let footer = try source("Views/Library/LibraryView+BottomActionBar.swift")
+        // `panes.chrome.one-filter-pattern`: the Entities and Claims list is filtered by one inline field in the
+        // shared mini toolbar; the old `kgContentFilterControls` slot and its popover are gone.
+        let bar = try source("Views/Library/LibraryView+MiniToolbar.swift")
         XCTAssertEqual(
-            footer.components(separatedBy: "private var kgContentFilterControls").count - 1, 1,
-            "there must be exactly ONE filter-slot definition, shared by Entities and Claims"
+            bar.components(separatedBy: "accessibilityID: \"kgContentFilterField\"").count - 1, 1,
+            "there must be exactly ONE filter field definition, shared by Entities and Claims"
         )
+        XCTAssertTrue(bar.contains("effectiveContentKind == .claims ? \"Filter claims\" : \"Filter entities\""))
+        let footer = try source("Views/Library/LibraryView+BottomActionBar.swift")
+        XCTAssertFalse(footer.contains("kgContentFilterControls"))
     }
 
     func testSharedFooterHasExactlyOneAddControlPerRender() throws {
-        // The essential row must build the add Button exactly once — never two "+"s for the
-        // one content kind that is actually mounted (the literal #4856 regression: a folder
-        // "+" and a content-specific "New Entity"/"New Claim" button present at once).
+        // The essential row builds one add control per render: a Menu (New Folder, Import Files…) when the pane shows
+        // documents, else a single "+" Button for the entity or claim in view. The two sit in the two branches of one
+        // `if effectiveContentKind == .documents`, so never two "+"s at once (the #4856 regression).
         let footer = try source("Views/Library/LibraryView+BottomActionBar.swift")
         let essentialBody = try XCTUnwrap(
             footer.components(separatedBy: "private var essentialBarButtons: some View {").last
         )
         let scope = try XCTUnwrap(essentialBody.components(separatedBy: "\n    }").first)
+        XCTAssertEqual(scope.components(separatedBy: "if effectiveContentKind == .documents {").count - 1, 1)
+        XCTAssertEqual(scope.components(separatedBy: "} else {").count - 1, 1)
         XCTAssertEqual(
-            scope.components(separatedBy: "performAdd()").count - 1, 1,
-            "essentialBarButtons must call performAdd() from exactly one Button"
+            scope.components(separatedBy: "performAdd()").count - 1, 2,
+            "essentialBarButtons calls performAdd() from the documents Menu's New Folder and from the one other-kind Button"
         )
+        XCTAssertEqual(scope.components(separatedBy: "Button { performAdd() }").count - 1, 1)
     }
 }
