@@ -20,7 +20,8 @@ from pathlib import Path
 from typing import Callable
 
 RUNG_ORDER = ("build", "swift-tests", "ui", "guards", "unit")
-KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps"}
+KEYS = {"enabled", "min_steps", "max_wait_min", "max_run_min", "max_steps", "overlap"}
+CAND: dict = {}  # tid -> its first candidate merge, once made: a second train's base (local.train.second-train-on-the-first)
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class Cfg:
     min_steps: int = 4
     max_wait_min: float = 45.0
     max_run_min: float = 30.0  # owner 2026-11-26: a train never holds its steps longer; past it, it stops and they wait again
+    overlap: int = 1  # local.train.second-train-on-the-first: 2 = a second train may run on the first one's candidate; 1 = one at a time
     max_steps: int = 6  # local.train.size-follows-the-last-result: the most steps one train takes; its size halves after a red, doubles after a green
 
 
@@ -38,7 +40,9 @@ def load(rules: dict) -> Cfg:
     if unknown := sorted(set(t) - KEYS):
         raise ValueError(f"harness.toml [train]: unknown keys {unknown}")
     cfg = Cfg(enabled=bool(t.get("enabled", True)), min_steps=int(t.get("min_steps", 4)), max_wait_min=float(t.get("max_wait_min", 45)),
-              max_run_min=float(t.get("max_run_min", 30)), max_steps=int(t.get("max_steps", 6)))
+              max_run_min=float(t.get("max_run_min", 30)), max_steps=int(t.get("max_steps", 6)), overlap=int(t.get("overlap", 1)))
+    if cfg.overlap not in (1, 2):
+        raise ValueError("harness.toml [train]: overlap is 1 or 2 (never more than two trains)")
     if cfg.min_steps < 1 or cfg.max_steps < 1 or cfg.max_wait_min <= 0 or cfg.max_run_min <= 0:
         raise ValueError("harness.toml [train]: min_steps and max_steps must be at least 1, max_wait_min and max_run_min above 0")
     return cfg
@@ -344,17 +348,20 @@ def drop_refs(repo, tid: str) -> None:
         _git(repo, "update-ref", "-d", ref)
 
 
-def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | None = None):
+def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | None = None, base: str = ""):
     """(merge, rung, rungs_for) over the engine repo, as the ladder runs them: jailed, in a scratch tree of the candidate. `rung` carries
     `touches_swift(head)` for the Swift search; a swift-tests run is cut at `deadline`."""
     from fichero_builder import check_tool, jail, land_tool
     cfg = check_tool.load(pinned)
-    base = land_tool.resolve_branch(repo, branch)
+    base = base or land_tool.resolve_branch(repo, branch)  # a second train's base is the first one's candidate
     n = [0]
 
     def merge(heads):
         n[0] += 1
-        return git_merge(repo, base, heads, f"refs/train/{tid}-{n[0]}")
+        cand, bad = git_merge(repo, base, heads, f"refs/train/{tid}-{n[0]}")
+        if cand:
+            CAND.setdefault(tid, cand)
+        return cand, bad
 
     def files_over(cand: str) -> list[str]:
         return _git(repo, "diff", "--name-only", f"{base}...{cand}").stdout.split()

@@ -358,6 +358,7 @@ class Procs:
     gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
     premerge: Callable[[dict, str], list] | None = None  # (lane, head) -> [(waiting step key, [files])] its head conflicts with (merge-tree)
+    build_free: Callable[[], bool] = lambda: True  # a runner that can build the app is free for a second train (local.train.second-train-on-the-first)
     train_run: Callable[[list, str], train.Result] | None = None  # ([{key, head}] in queue order, train id) -> the merge train's result; None = no train, each step lands by itself
 
 
@@ -2319,11 +2320,16 @@ def train_on(procs: Procs) -> bool:
 
 def train_waits(lane: dict, s: dict) -> bool:
     """A step the train cleared waits while an earlier step of the same train is still on its way to landing."""
-    return any(x["id"] != lane["id"] and x["cursor"] < len(x["steps"]) and (o := x["steps"][x["cursor"]]).get("train_cleared") == s["train_cleared"]
-               and o.get("train_pos", 0) < s.get("train_pos", 0) and o["state"] in ("done", "checking", "reviewing") for x in load())
+    return any(x["id"] != lane["id"] and x["cursor"] < len(x["steps"]) and (
+        ((o := x["steps"][x["cursor"]]).get("train_cleared") == s["train_cleared"] and o.get("train_pos", 0) < s.get("train_pos", 0))
+        or (s.get("train_base") and o.get("train_cleared") == s["train_base"])) and o["state"] in ("done", "checking", "reviewing") for x in load())
 
 
-TRAIN_THREAD: list = [None]  # the one train in flight
+TRAIN_THREAD: list = [None]  # the first train in flight
+FIRST_TID: list = [""]
+SECOND: dict = {}  # local.train.second-train-on-the-first: {"tid", "thread", "base"} of a train started on the first one's candidate
+TRAIN_DONE: dict = {}  # tid -> its Result, for the second train to read the first's outcome
+RECENT: list = []  # the last train results, newest last (in memory: a restart waits for four greens again)
 
 
 def _waiting_for_train() -> list[tuple[dict, dict]]:
@@ -2339,37 +2345,48 @@ TRAIN_SIZE: list = [0]  # the next train's size (0 = [train].max_steps); ponytai
 def train_when_due(procs: Procs, chains: dict | None) -> None:
     """local.train.start: when `[train].min_steps` steps wait, or the oldest has waited `[train].max_wait_min`, one train runs over them
     (a thread; inline when `chains` is None). One at a time; a step's cheap rungs never wait for it."""
-    if not train_on(procs) or (TRAIN_THREAD[0] is not None and TRAIN_THREAD[0].is_alive()):
+    if not train_on(procs):
         return
+    first = TRAIN_THREAD[0] is not None and TRAIN_THREAD[0].is_alive()
+    base_tid = ""
+    if first:  # local.train.second-train-on-the-first: one more, on the running train's candidate, only when the trains are mostly green
+        if (TRAIN[0].overlap < 2 or (SECOND.get("thread") and SECOND["thread"].is_alive()) or not (cand := train.CAND.get(FIRST_TID[0]))
+                or sum(1 for r in RECENT[-5:] if r in ("green", "conflict")) < 4 or not procs.build_free()):
+            return
+        base_tid = FIRST_TID[0]
     with journal.Lock("queue"):
         lanes, requeued = load(), False
         for x in lanes:  # a train a restart cut short: its steps wait again
             for st in x["steps"]:
-                if st["state"] == "train" and "train_back" not in st and st.pop("train_id", None):
+                if not first and st["state"] == "train" and "train_back" not in st and st.pop("train_id", None):
                     requeued = True
                     journal.append("queue", lane=x["id"], step=st["step"], state="train-requeued", detail="the train that held it did not finish: it waits for the next one")
         if requeued:
             save(lanes)
-    waiting = _waiting_for_train()
+    waiting = [(x, s) for x, s in _waiting_for_train() if not s.get("train_id")]  # a step another train holds is not taken twice
     keys = {f"{x['id']}/{s['step']}" for x, s in waiting}
     waiting = [(x, s) for x, s in waiting if not set(s.get("train_after") or ()) & keys]  # it merges after the step it conflicts with
-    if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]):
+    if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]) or (base_tid and len(waiting) < TRAIN[0].min_steps):
         return
     size = min(TRAIN_SIZE[0] or TRAIN[0].max_steps, TRAIN[0].max_steps)
     waiting, left = waiting[:size], len(waiting) - min(size, len(waiting))  # queue order; the rest wait for the next train
-    tid = "train-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(_now()))
+    tid = "train-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(_now())) + ("-2" if base_tid else "")
     spec = [{"key": f"{x['id']}/{s['step']}", "head": s["head"]} for x, s in waiting]
     with journal.Lock("queue"):
         lanes = load()
         for i, (x, s) in enumerate(waiting):
             st = next(y for z in lanes if z["id"] == x["id"] for y in z["steps"] if y["step"] == s["step"])
             st["train_id"], st["train_pos"] = tid, i
+            if base_tid:
+                st["train_base"] = base_tid  # it lands only after every step of that train
+            else:
+                st.pop("train_base", None)
         save(lanes)
 
     def run_it():
         t0 = _now()
         try:
-            res = procs.train_run(spec, tid)
+            res = procs.train_run(spec, tid, **({"base": cand} if base_tid else {}))
         except Exception as e:  # noqa: BLE001 - a train that cannot run is a row and an alert; its steps wait again
             journal.append("train", id=tid, steps=[x["key"] for x in spec], result="error", detail=f"{type(e).__name__}: {e}"[:500])
             alert("-", "train", f"the merge train {tid} could not run: {type(e).__name__}: {e}"[:300], str(journal.path()), [])
@@ -2381,11 +2398,27 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
             if res.result == "timeout":  # owner 2026-11-26: a train never holds its steps past [train].max_run_min; one alert, they wait again
                 alert("-", "train", f"the merge train {tid} stopped after {TRAIN[0].max_run_min:g} min with no verdict; its {len(res.again)} step(s) "
                       f"wait for the next train ({(res.bisect or [''])[-1][:120]})", str(journal.path()), [])
+        if base_tid:  # its result stands only when the first train landed every step it held
+            if TRAIN_THREAD[0] is not None:
+                TRAIN_THREAD[0].join()
+            under = TRAIN_DONE.get(base_tid)
+            if under is None or under.back or under.again or under.result not in ("green",):
+                journal.append("train", id=tid, steps=res.steps, result="cancelled", detail=f"cancelled: its base did not land ({base_tid}: "
+                               f"{under.result if under else 'no result'})")
+                res = train.Result(id=tid, steps=res.steps, again=list(res.steps), result="cancelled")
+        TRAIN_DONE[tid] = res
+        RECENT.append(res.result)
+        del RECENT[:-5]
         TRAIN_SIZE[0] = train.next_size(size, res.result, TRAIN[0])
         apply_train(res, spec)
-    if chains is None:
+    if base_tid:
+        SECOND.update(tid=tid, base=base_tid, thread=threading.Thread(target=run_it, name="merge-train-2", daemon=True))
+        SECOND["thread"].start()
+    elif chains is None:
+        FIRST_TID[0] = tid
         run_it()
     else:
+        FIRST_TID[0] = tid
         TRAIN_THREAD[0] = threading.Thread(target=run_it, name="merge-train", daemon=True)
         TRAIN_THREAD[0].start()
 
@@ -3359,10 +3392,10 @@ def real_procs(root) -> Procs:
                 out.append((f"{x['id']}/{st['step']}", r.stdout.split()[1:]))
         return out
 
-    def train_run(spec, tid):
+    def train_run(spec, tid, base=""):
         pinned = work.ensure_pinned(str(root), "", land_tool.resolve_branch(repo, branch))
         deadline = time.time() + TRAIN[0].max_run_min * 60
-        merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid, deadline)
+        merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid, deadline, base=base)
         try:
             return train.run_train(spec, merge=merge, rung=rung, rungs_for=rungs_for, tid=tid, deadline=deadline,
                                    touches_swift=getattr(rung, "touches_swift", None))

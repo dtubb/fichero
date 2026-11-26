@@ -239,3 +239,75 @@ def test_a_red_train_halves_the_next_ones_size(world):
     t.go(4)
     rows = [r for r in journal.read() if r["event"] == "train"]
     assert rows[0]["size"] == 4 and rows[0]["result"] == "red" and rows[1]["size"] == 2
+
+
+def _two_trains(world, monkeypatch, first_back=False, greens=4):
+    """Two lanes waiting for a train; the first train blocks until released; then two more lanes wait (the second train)."""
+    import threading
+    tmp, _clock = world
+    for k in ("FIRST_TID", "TRAIN_THREAD"):
+        monkeypatch.setattr(queue, k, [""] if k == "FIRST_TID" else [None])
+    monkeypatch.setattr(queue, "SECOND", {})
+    monkeypatch.setattr(queue, "TRAIN_DONE", {})
+    monkeypatch.setattr(queue, "RECENT", ["green"] * greens)
+    monkeypatch.setattr(train, "CAND", {})
+    queue.TRAIN[0] = train.Cfg(overlap=2, min_steps=2)
+
+    def wait(names):
+        for n in names:
+            (tmp / f"b{n}").write_text("b")
+            queue.add(f"l{n}", f"/w/l{n}", n, str(tmp / f"b{n}"), [int(n)])
+        lanes = queue.load()
+        for x in lanes:
+            if x["id"] in {f"l{n}" for n in names}:
+                x["steps"][0].update(state="train", head="h" + x["steps"][0]["step"], train_since=1.0)
+        queue.save(lanes)
+    release, calls = threading.Event(), []
+
+    def train_run(spec, tid, base=""):
+        calls.append((tid, base, [x["key"] for x in spec]))
+        keys = [x["key"] for x in spec]
+        if not base:
+            train.CAND[tid] = "cand1"
+            release.wait(10)
+            if first_back:
+                return train.Result(id=tid, steps=keys, landed=keys[:1], back={keys[1]: {"kind": "red", "why": "x", "findings": "x"}}, result="red")
+        return train.Result(id=tid, steps=keys, landed=keys, result="green")
+    fake = Fake()
+    fake.procs.train_run = train_run
+    wait(["1", "2"])
+    queue.train_when_due(fake.procs, {})
+    wait(["3", "4"])
+    queue.train_when_due(fake.procs, {})
+    release.set()
+    queue.TRAIN_THREAD[0].join(10)
+    if queue.SECOND.get("thread"):
+        queue.SECOND["thread"].join(10)
+    return calls
+
+
+def test_a_second_train_runs_on_the_firsts_candidate_and_lands_after_it(world, monkeypatch):
+    """local.train.second-train-on-the-first: [train].overlap = 2, 4 of the last 5 green: a second train starts on the first's
+    candidate while it runs; its steps are cleared and land only after the first train's."""
+    calls = _two_trains(world, monkeypatch)
+    assert [(c[1], c[2]) for c in calls] == [("", ["l1/1", "l2/2"]), ("cand1", ["l3/3", "l4/4"])]
+    st = {x["id"]: x["steps"][0] for x in queue.load()}
+    assert st["l3"]["state"] == "done" and st["l3"]["train_base"] == calls[0][0]
+    assert queue.train_waits(next(x for x in queue.load() if x["id"] == "l3"), st["l3"]), "it waits for the first train's steps to land"
+
+
+def test_when_the_first_train_sends_a_step_back_the_second_is_cancelled_and_its_steps_wait_again(world, monkeypatch):
+    calls = _two_trains(world, monkeypatch, first_back=True)
+    assert len(calls) == 2
+    rows = [r for r in journal.read() if r["event"] == "train" and r.get("result") == "cancelled"]
+    assert len(rows) == 1 and rows[0]["detail"].startswith("cancelled: its base did not land")
+    st = {x["id"]: x["steps"][0] for x in queue.load()}
+    assert st["l3"]["state"] == "train" and not st["l3"].get("train_id") and "train_back" not in st["l3"], "waits again, sent back to no worker"
+
+
+def test_no_second_train_starts_unless_four_of_the_last_five_were_green(world, monkeypatch):
+    calls = _two_trains(world, monkeypatch, greens=3)
+    assert len(calls) == 1
+    queue.TRAIN[0] = train.Cfg()
+    with pytest.raises(ValueError):
+        train.load({"train": {"overlap": 3}})
