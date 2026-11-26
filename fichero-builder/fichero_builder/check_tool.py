@@ -160,6 +160,7 @@ def load(root) -> Config:
 # speed batch 1 (manager 2026-11-03): narrow rule classes the ladder resolves without a person, each opted in by name in
 # [check].auto and journalled with that name, so the manager audits instead of approving
 AUTO_RULES = {
+    "red-on-base-pure-move": "a changed test file that is a pure rename (R100, content unchanged) of a file on base owes no red on base: its old copy already runs there; it still runs green on head, and a move with any edit keeps the red owed (manager 2026-11-25)",
     "red-on-base-timeout-only": "a changed test file whose diff touches ONLY timeout numbers (`timeout...=N`, `pytest.mark.timeout(N)`), "
                                 "whole `pytest.mark.timeout` lines or comments owes no red on base: a time bound proves nothing there; any "
                                 "other changed line keeps the red owed (manager 2026-11-05)",
