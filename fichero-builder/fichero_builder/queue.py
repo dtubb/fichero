@@ -2167,7 +2167,7 @@ def clean_up(lane: dict, ref: str, on_removed: Callable[[str], None] = lambda tr
             CLEAN_KEPT[(lane["id"], wt)] = why
             _cleanup_row(lane, "", wt, "kept", why)
         return
-    if _cg(wt, "merge-base", "--is-ancestor", branch, ref).returncode != 0:
+    if _cg(wt, "merge-base", "--is-ancestor", branch, ref).returncode != 0 and not _fully_on(wt, ref, branch):
         why = f"{wt} kept: its branch {branch} is not merged into {ref}"
         if CLEAN_KEPT.get((lane["id"], wt)) != why:
             CLEAN_KEPT[(lane["id"], wt)] = why
@@ -2176,6 +2176,27 @@ def clean_up(lane: dict, ref: str, on_removed: Callable[[str], None] = lambda tr
     if _remove_tree(lane, "", wt, common, on_removed):
         r = subprocess.run(["git", "--git-dir", common, "branch", "-D", branch], capture_output=True, text=True)
         _cleanup_row(lane, "", wt, "removed" if r.returncode == 0 else "kept", f"branch {branch} " + ("removed" if r.returncode == 0 else f"kept: {r.stderr.strip()[-200:]}"))
+        prune_remote(lane, common, ref, branch)
+
+
+def _fully_on(cwd, ref: str, commit: str) -> bool:
+    """`git cherry ref commit` shows no '+': every commit of it is on `ref`, as itself or as a rebased copy."""
+    r = _cg(cwd, "cherry", ref, commit)
+    return r.returncode == 0 and not any(x.startswith("+") for x in r.stdout.splitlines())
+
+
+def prune_remote(lane: dict, common: str, ref: str, branch: str) -> None:
+    """local.landed.prune-branch (2026-11-26: 54 merged branches had piled up on origin): the lane's branch on origin goes when it is
+    fully on `ref`; one with a commit of its own stays, with a row. No such branch on origin: nothing."""
+    remote = ref.split("/", 1)[0] if "/" in ref else "origin"
+    if _cg(common, "fetch", "-q", remote, f"refs/heads/{branch}").returncode != 0:
+        return  # not on origin (or origin unreachable): nothing to prune
+    if not _fully_on(common, ref, "FETCH_HEAD"):
+        _cleanup_row(lane, "", f"{remote}/{branch}", "kept", f"{remote}/{branch} kept: it has commits not on {ref}")
+        return
+    r = _cg(common, "push", "-q", remote, "--delete", branch)
+    _cleanup_row(lane, "", f"{remote}/{branch}", "removed" if r.returncode == 0 else "kept",
+                 f"{remote}/{branch} " + ("deleted: fully on " + ref if r.returncode == 0 else f"kept: {(r.stderr or r.stdout).strip()[-200:]}"))
 
 
 IDLE_S = 600  # reliab-1: queued work and nothing running, unexplained, this long is one alert

@@ -2281,3 +2281,22 @@ def test_a_window_list_that_could_not_be_read_is_unknown_and_never_ends_a_live_s
     for _ in range(4):
         queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
     assert steps()["1.1"]["state"] == "sent" and not fake.stops and not [r for r in journal.read() if r.get("state") == "sent-no-session"]
+
+
+def test_a_landed_lanes_branch_fully_on_the_land_branch_is_deleted_on_origin_and_one_with_its_own_commit_stays(state, tmp_path):
+    """local.landed.prune-branch (2026-11-26: 54 merged branches on origin): the lane's branch on origin goes once `git cherry` shows
+    no '+' against the land branch (a rebased copy counts); one with a commit of its own stays, with a row."""
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
+    g(wt, "push", "-q", "origin", "w1")
+    g(repo, "branch", "-q", "w2", "origin/integration")
+    (repo / "x").write_text("x")
+    g(repo, "checkout", "-q", "w2"), g(repo, "add", "."), g(repo, "commit", "-qm", "own"), g(repo, "push", "-q", "origin", "w2"), g(repo, "checkout", "-q", "--detach")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    heads = g(tmp_path / "origin.git", "branch", "--format=%(refname:short)").split()
+    assert "w1" not in heads and "w2" in heads and not wt.exists()
+    assert any(r["state"] == "removed" and r["path"] == "origin/w1" for r in _cleanup_rows())
+    queue.prune_remote({"id": "w2"}, str(repo / ".git"), "origin/integration", "w2")
+    assert "w2" in g(tmp_path / "origin.git", "branch", "--format=%(refname:short)").split()
+    assert _cleanup_rows()[-1]["state"] == "kept" and "not on origin/integration" in _cleanup_rows()[-1]["detail"]
+    queue.prune_remote({"id": "w3"}, str(repo / ".git"), "origin/integration", "nope")  # not on origin: nothing, no row
+    assert _cleanup_rows()[-1]["path"] == "origin/w2"
