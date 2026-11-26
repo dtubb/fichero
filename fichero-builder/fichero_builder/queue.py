@@ -2559,12 +2559,17 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
                                f"{under.result if under else 'no result'})")
                 res = train.Result(id=tid, steps=res.steps, again=list(res.steps), result="cancelled")
         TRAIN_DONE[tid] = res
+        train.CANCEL.pop(tid, None)
         RECENT.append(res.result)
         del RECENT[:-5]
         TRAIN_SIZE[0] = train.next_size(size, res.result, TRAIN[0])
         _train_memory(save_it=True)
         apply_train(res, spec)
     if base_tid:
+        def base_failed(b=base_tid) -> str:  # it stops at its next run once the first train has a result that is not all landed
+            u = TRAIN_DONE.get(b)
+            return "" if u is None or (u.result == "green" and not u.back and not u.again) else f"its base {b} did not land ({u.result})"
+        train.CANCEL[tid] = base_failed
         SECOND.update(tid=tid, base=base_tid, thread=threading.Thread(target=run_it, name="merge-train-2", daemon=True))
         SECOND["thread"].start()
     elif chains is None:

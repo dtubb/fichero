@@ -85,6 +85,16 @@ class OutOfTime(Exception):
     pass
 
 
+CANCEL: dict = {}  # tid -> () -> reason ("" = go on): a second train stops at its next run once its base train failed
+
+
+def _stop(res, t_start, deadline, clock) -> None:
+    if deadline is not None and clock() > deadline:
+        raise OutOfTime(res, t_start)
+    if (f := CANCEL.get(res.id)) and (why := f()):
+        raise OutOfTime(res, t_start, why)
+
+
 def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: Callable, tid: str, clock: Callable = time.time,
               deadline: float | None = None, touches_swift: Callable[[str], bool] | None = None,
               on_candidate: Callable[[str], None] | None = None, touches: Callable[[str, str, frozenset], bool] | None = None,
@@ -99,8 +109,9 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
         return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate, touches, side_by_side)
     except OutOfTime as e:
         res = e.args[0]
-        res.again, res.result = [s["key"] for s in steps if s["key"] not in res.back], "timeout"
-        res.bisect.append(f"stopped: past the train's time limit ({'%.0f' % (clock() - e.args[1])} s in)")
+        res.again, res.result = [s["key"] for s in steps if s["key"] not in res.back], "timeout" if len(e.args) < 3 else "cancelled"
+        res.bisect.append(f"stopped: past the train's time limit ({'%.0f' % (clock() - e.args[1])} s in)" if len(e.args) < 3
+                          else f"cancelled {'%.0f' % (clock() - e.args[1])} s in: {e.args[2]}")
         return res
 
 
@@ -122,8 +133,7 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
     def run(names: list[str], on: str, phase: str) -> tuple[str, str] | None:
         """The first red (name, output) of `names` on `on`, else None; one row each."""
         for name in names:
-            if deadline is not None and clock() > deadline:
-                raise OutOfTime(res, t_start)
+            _stop(res, t_start, deadline, clock)
             t0 = clock()
             ok, out = rung(name, on)
             res.rungs.append(_row(rung, name, ok, out, round(clock() - t0, 1), phase, on))
@@ -233,8 +243,7 @@ def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, dea
     culprit, others = None, []
     touching = [s for s in keep if touches_swift(s["head"])]
     for s in reversed(touching):
-        if deadline is not None and clock() > deadline:
-            raise OutOfTime(res, t_start)
+        _stop(res, t_start, deadline, clock)
         c, bad = merge([s["head"]])
         if bad:
             continue

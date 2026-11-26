@@ -378,3 +378,19 @@ def test_the_python_rungs_run_while_the_swift_rungs_run_and_the_wall_time_is_the
     late = train.run_train([{"key": "l/a", "head": "a"}], merge=lambda hs: ("c", {}), tid="t", side_by_side=True, rungs_for=lambda hs: names,
                            rung=rung, deadline=_t.time() + 0.15)
     assert late.result == "timeout", "the time limit holds over both chains"
+
+
+def test_a_second_train_stops_at_its_next_run_once_its_base_train_failed():
+    """local.train.second-train-on-the-first: no waiting for the second train's whole ladder after the first went red."""
+    failed, calls = [""], []
+
+    def rung(name, cand, only=()):
+        calls.append(name)
+        failed[0] = "its base train-1 did not land (red)"  # the first train's result arrives while this rung runs
+        return True, "ok"
+    train.CANCEL["t2"] = lambda: failed[0]
+    try:
+        res = train.run_train([{"key": "l/a", "head": "a"}], merge=lambda hs: ("c", {}), rung=rung, rungs_for=lambda hs: ["guards", "unit"], tid="t2")
+    finally:
+        train.CANCEL.pop("t2", None)
+    assert calls == ["guards"] and res.result == "cancelled" and res.again == ["l/a"] and "did not land" in res.bisect[-1]
