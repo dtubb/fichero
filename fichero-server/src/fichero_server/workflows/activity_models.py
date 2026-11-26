@@ -286,7 +286,7 @@ def _new(place: str, provider: str, name: str) -> dict[str, Any]:
             "active": False, "memory_bytes": None, "memory_estimated": False, "running": 0, "pages_today": 0,
             "calls_today": 0, "seconds_today": 0.0, "size_bytes": None, "licence": None, "fits_here": None,
             "needs_bytes": None, "fits_note": None, "unload_to_fit": [], "account": None, "using_now": [],
-            "last_failed": None}
+            "last_failed": None, "model_type": None, "model_id": None}
 
 
 #: `FitEstimate.word` -> the column's word (`models.row.fits-here`).
@@ -350,12 +350,13 @@ def provider_hosts() -> dict[str, str]:
 
 def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
            installed: list[tuple] | None = None, now: datetime | None = None,
-           physical_memory: int | None = None, accounts: dict[tuple[str, str], str | None] | None = None
-           ) -> list[dict[str, Any]]:
+           physical_memory: int | None = None, accounts: dict[tuple[str, str], str | None] | None = None,
+           apple_intelligence: bool | None = None) -> list[dict[str, Any]]:
     """Every model used today, held now or installed on this Mac, with where it runs, whether it is loaded and active, its
     memory, and today's pages, calls and seconds; an installed model's size on disk, licence and whether it fits this Mac
     (`physical_memory`, read when not given), a cloud or remote model's `accounts[(place, provider)]`, the kinds of job
-    running on each (`using_now`) and its newest failure today (`last_failed`). `installed`: (provider, id[, catalogue
+    running on each (`using_now`) and its newest failure today (`last_failed`). `apple_intelligence`: whether this Mac's
+    on-device model can run (read when not given); when it can, it is a This Mac row under its own provider. `installed`: (provider, id[, catalogue
     entry]). Sorted by place (this Mac, remote, cloud), then provider, then name."""
     from fichero_server.execution import jobs as job_queue
     from fichero_server.remote_read import job as read_job
@@ -440,10 +441,18 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
     facts: dict[str, Any] = {}
     for provider, installed_id, *entry in installed if installed is not None else installed_on_this_mac():
         one = row(THIS_MAC, provider, installed_id)
+        # The local-models routes' address of this model (`models.manage.*`, #6588): its runtime and id there.
+        one["model_type"], one["model_id"] = next(r for r, word in _INSTALLED_RUNTIMES.items() if word == provider), installed_id
         if entry:
             facts[one["id"]] = entry[0]
             one["size_bytes"] = entry[0].disk_usage_bytes or None
             one["licence"] = entry[0].license_label
+    if apple_intelligence is None:
+        from fichero_server.llm.local_model_choice import apple_intelligence_in_this_build
+
+        apple_intelligence = apple_intelligence_in_this_build()
+    if apple_intelligence:
+        row(THIS_MAC, "Apple Intelligence", "Foundation Models")["licence"] = "Apple"
     _fits_here(list(rows.values()), facts, physical_memory)
     for one in rows.values():
         if one["place"] != THIS_MAC:

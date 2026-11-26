@@ -122,6 +122,7 @@ def test_the_mlx_row_says_which_part_is_missing(monkeypatch, audio_ready, expect
         assert row.reason is None
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_a_download_reports_its_bytes_as_they_arrive(tmp_path, monkeypatch):
     from fichero_server.llm import mlx_model_store

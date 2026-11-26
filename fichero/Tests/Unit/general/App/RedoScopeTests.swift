@@ -34,4 +34,27 @@ struct RedoScopeTests {
             == ["p2"])
         #expect(RecipeFolderScope.redoPages(selection: [], in: documents).isEmpty)
     }
+
+    @Test("a two-item selection is both pages (#7087)")
+    func twoItemSelection() {
+        #expect(RecipeFolderScope.redoPages(selection: ["p1", "p2"], in: documents).sorted() == ["p1", "p2"])
+    }
+
+    @Test("a click inside the selection acts on the selection; outside it, on the clicked row alone")
+    func clickedRowOrSelection() {
+        #expect(RecipeFolderScope.runStepTargets(clicked: "p1", selection: ["p1", "p2"]) == ["p1", "p2"])
+        #expect(RecipeFolderScope.runStepTargets(clicked: "loose", selection: ["p1", "p2"]) == ["loose"])
+        #expect(RecipeFolderScope.runStepTargets(clicked: "f1", selection: []) == ["f1"])
+    }
+
+    @Test("pages the sidebar has not loaded still count: the pane's rows are joined in, each document once")
+    func knownDocumentsJoinSurfaces() {
+        let known = RecipeFolderScope.knownDocuments([documents[3]], [documents[3], documents[4]])
+        #expect(known.map(\.id) == ["p1", "p2"])
+    }
+
+    @Test("the menu is named Run Step on every surface")
+    func menuTitle() {
+        #expect(RunStepAgainOnSelectionMenu.title == "Run Step")
+    }
 }

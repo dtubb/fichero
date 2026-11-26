@@ -79,6 +79,10 @@ enum SegmentEdit {
         case direction(String)
         case language(String)
         case script(String)
+        /// The region type a person chose, written to `kind_raw` (`source.editor.region-type-is-seen-and-set`).
+        case type(String)
+        /// A region's line progression (ltr, rtl, ttb, btt).
+        case lineProgression(String)
     }
 
     /// The directions the engine accepts (`language_policy.DIRECTIONS`), in the menu's order.
@@ -152,6 +156,8 @@ enum SegmentEdit {
             case .direction(let direction): update.direction = direction
             case .language(let language): update.language = language
             case .script(let script): update.script = script
+            case .type(let type): update.kindRaw = type
+            case .lineProgression(let progression): update.lineProgression = progression
             }
             updates.append(update)
         }
@@ -204,6 +210,18 @@ enum SegmentEdit {
     /// re-read: the kept one alone once the others are gone, all of them once an undo has brought them back.
     static func selectionAfterJoin(joined: [String], live: Set<String>) -> [String] {
         joined.allSatisfy(live.contains) ? joined : Array(joined.prefix(1))
+    }
+
+    /// The ids a Move leaves selected (`segment-editor.move-keeps-selection`): the moved ones the store still holds after
+    /// the re-read, in the order they were picked; after the move's undo or redo the same ids are all still there.
+    static func selectionAfterMove(moved: [String], live: Set<String>) -> [String] {
+        moved.filter(live.contains)
+    }
+
+    /// The ids Make Region from Lines leaves selected: the new region the engine answered (`region_id`), or none when it
+    /// answered none (the selection stays as it was).
+    static func selectionAfterGroup(regionId: String?) -> [String] {
+        regionId.map { [$0] } ?? []
     }
 
     /// Whether a Join merges regions (so their lines move into the kept one and the order is shown after).
@@ -331,10 +349,15 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
     var direction: String?
     var language: String?
     var script: String?
+    /// The region type a person chose; the engine keeps the model's label in the version history.
+    var kindRaw: String?
+    /// A region's line progression (ltr, rtl, ttb, btt).
+    var lineProgression: String?
 
     enum CodingKeys: String, CodingKey {
         case segmentId = "segment_id", expectedVersion = "expected_version", kind
-        case isFurniture = "is_furniture", direction, language, script
+        case isFurniture = "is_furniture", direction, language, script, lineProgression = "line_progression"
+        case kindRaw = "kind_raw"
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -342,6 +365,8 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
         try container.encode(segmentId, forKey: .segmentId)
         try container.encode(expectedVersion, forKey: .expectedVersion)
         try container.encodeIfPresent(kind, forKey: .kind)
+        try container.encodeIfPresent(kindRaw, forKey: .kindRaw)
+        try container.encodeIfPresent(lineProgression, forKey: .lineProgression)
         try container.encodeIfPresent(isFurniture, forKey: .isFurniture)
         try container.encodeIfPresent(direction, forKey: .direction)
         try container.encodeIfPresent(language, forKey: .language)

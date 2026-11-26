@@ -17,6 +17,8 @@ value from the xcconfig. These tests pin:
 
 from __future__ import annotations
 
+import pytest
+
 import subprocess
 from pathlib import Path
 
@@ -69,6 +71,7 @@ def _run_stamp(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+@pytest.mark.macos_only(reason='the release stamp uses BSD date')
 def test_stamp_round_trips_through_xcconfig(tmp_path: Path) -> None:
     root = _make_fixture(tmp_path)
     result = _run_stamp(root, "2026.07.31", "--beta")
@@ -116,6 +119,7 @@ def test_print_version_gives_the_version_and_touches_nothing(tmp_path: Path) -> 
     assert (root / "RELEASE_NOTES.md").read_text(encoding="utf-8").startswith("## 2026.07.31-beta\n")
 
 
+@pytest.mark.macos_only(reason='the release stamp uses BSD date')
 def test_build_counter_increments_from_previous_stamp(tmp_path: Path) -> None:
     """A second stamp in the counter era is previous + 1, never a date."""
     root = _make_fixture(tmp_path)
@@ -208,6 +212,7 @@ def test_self_check_contract_still_passes() -> None:
     assert "self-check: PASS" in result.stdout
 
 
+@pytest.mark.macos_only(reason='the release stamp uses BSD date')
 def test_the_stamp_leaves_another_tables_own_version_alone(tmp_path: Path) -> None:
     """A version that is NOT the app's stays put (2026-09-20).
 

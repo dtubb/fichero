@@ -84,10 +84,11 @@ def scratch(tmp_path, monkeypatch):
     (repo / "tests").mkdir()
     (repo / "tests" / "test_base.py").write_text("from src.mod import base\n\ndef test_base():\n    assert base() == 0\n")
     (repo / "scripts").mkdir()
-    shutil.copy(ROOT / "scripts" / "lane_ready_check.sh", repo / "scripts" / "lane_ready_check.sh")
+    shutil.copy(ROOT / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh", repo / "scripts" / "lane_ready_check.sh")
     (repo / "fichero-builder" / "fichero_builder").mkdir(parents=True)
     shutil.copy(ROOT / "fichero-builder" / "fichero_builder" / "lint.py", repo / "fichero-builder" / "fichero_builder" / "lint.py")
     (repo / "scripts" / "check_no_bad.py").write_text(GUARD)
+    (repo / "harness.toml").write_text('[models.display]\nsonnet = "Claude Sonnet 5.5"\n')  # the ready check reads the Written-By model names from it
     (repo / "specs").mkdir()
     (repo / "specs" / "s.md").write_text("- `demo.one` [MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py\n")
     git(repo, "add", ".")
@@ -110,7 +111,7 @@ def scratch(tmp_path, monkeypatch):
                  "specs": "specs", "check_paths": ["scripts/", "pipeline/", "fichero-builder/fichero_builder/lint.py"], "python_path": ".", "test_env": {},
                  "scratch_base_env": "", "pinned": str(repo)},
         "labels": {"bug": "type:bug", "urgent": "urgent", "claimed": "claimed", "from_user": "from-user", "residue": "residue"},
-        "github": {"maintainer": "dtubb", "allowed_authors": ["dtubb"], "agent_email": "noreply@anthropic.com"},
+        "github": {"maintainer": "dtubb", "allowed_authors": ["dtubb"], "agent_email": "noreply@anthropic.com", "trailer_tool": "Fichero Builder"},
         "ladder": [
             {"name": "ready", "cmd": "{pinned}/scripts/lane_ready_check.sh --no-guards HEAD"},
             {"name": "red-on-base", "kind": "red-on-base", "test_glob": ["*test*.py"],
@@ -198,7 +199,7 @@ class FakeCoder:
         else:  # a test that passes on the base proves nothing (a different file each attempt, so each commits)
             (wt / "tests" / f"test_{n}.py").write_text(f"# attempt {mine}\ndef test_trivial():\n    assert True\n")
         git(wt, "add", ".")
-        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", f"fix ({self.keyword} #{n})" + "\n\nDirected-By: the maintainer")
+        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", f"fix ({self.keyword} #{n})" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
         self.turns += 1
 
     def status(self, session_dir):

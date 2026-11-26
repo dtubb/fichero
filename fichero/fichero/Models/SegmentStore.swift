@@ -24,6 +24,8 @@ final class SegmentStore {
     private(set) var passesByDocument: [String: [SegmentPassValue]] = [:]
     /// Each page's resolved line directions (segment id -> direction), for the on-image labels (#5199).
     private(set) var directionsByDocument: [String: [String: String]] = [:]
+    /// Each page's region types (`source.editor.region-type-is-seen-and-set`), for the Type submenus everywhere.
+    private(set) var regionTypesByDocument: [String: [RegionTypeChoice]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
     /// The pass a person picked to see on each page (#6670, `source.editor.pass-shown-is-picked`), while the app runs.
     /// Not a promotion: the engine's working pass is unchanged, and stays the default.
@@ -48,8 +50,28 @@ final class SegmentStore {
 
     private let service: SegmentService
 
+    /// Sends the lines a shape edit touched, once, after the person stops editing (`SegmentReread`).
+    @ObservationIgnored private var rereadScheduler: SegmentRereadScheduler?
+
     init(service: SegmentService) {
         self.service = service
+    }
+
+    /// A shape edit touched these lines: after a pause with no further edit, the engine reads again the ones a local model
+    /// read, and the ones a paid cloud model read are marked out of date (`segment-actions.automatic-rerun-after-an-edit`).
+    func noteShapeEdited(_ ids: [String]) {
+        let scheduler = rereadScheduler ?? SegmentRereadScheduler { [service] ids in
+            let state = SegmentRereadState.shared
+            do {
+                let answer = try await service.rereadEdited(segmentIds: ids)
+                state.clear(ids)
+                state.markStale(answer.stale)
+            } catch {
+                state.markFailed(ids, "Could not read again: \(error.localizedDescription)")
+            }
+        }
+        rereadScheduler = scheduler
+        scheduler.note(ids)
     }
 
     /// One store per `SegmentService`, the same keyed-singleton idiom
@@ -93,6 +115,7 @@ final class SegmentStore {
             segmentsByDocument[documentId] = result.segments
             // Best effort: a page whose text cannot be read still draws, its labels isolated but unoriented.
             directionsByDocument[documentId] = (try? await service.lineDirections(documentId: documentId)) ?? [:]
+            regionTypesByDocument[documentId] = (try? await service.regionTypes(documentId: documentId)) ?? []
             if force || moved { revisions[documentId, default: 0] += 1 }
             if let generation { loadedAtArtifactRevision[documentId] = generation }
         } catch {

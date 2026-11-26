@@ -19,6 +19,8 @@ extension SegmentShapes {
         }
         /// Points it needs before it can be finished.
         var minimumPoints: Int { self == .baseline ? 2 : 3 }
+        /// Said when a close is asked for with fewer points than `minimumPoints`.
+        var tooFewWords: String { "A \(title.lowercased()) needs at least \(minimumPoints) points" }
     }
 
     /// The four corners of a normalised `[x, y, width, height]` rect, clockwise from the top left: a marquee
@@ -36,6 +38,12 @@ extension SegmentShapes {
         passShown && onlyIndex == nil
     }
 
+    /// True when clicks in the image place points (a polygon or baseline in Edit Segments), so the
+    /// double-click that zooms the page must not take them: it delays and swallows the second click (#7082).
+    static func clicksPlacePoints(kind: DrawKind, isEditing: Bool) -> Bool {
+        isEditing && kind != .box
+    }
+
     /// A click on the FIRST point of a polygon with enough points closes it.
     static func closes(_ points: [[Double]], at point: [Double], tolerance: [Double]) -> Bool {
         guard points.count >= DrawKind.polygon.minimumPoints, let first = points.first,
@@ -48,8 +56,9 @@ extension SegmentShapes {
     /// baseline itself as an open path -- no outline is invented for it -- and whose `baseline` it is.
     /// The anchor's page, image and space are those of a segment already on the pass (`onPass`), so the
     /// new one names the same picture. Refused, and said, with too few points.
+    /// `level` is the kind a polygon or box makes (a region unless asked); a baseline is always a line.
     static func create(
-        _ kind: DrawKind, points: [[Double]], documentId: String, passId: String, onPass: Segment?,
+        _ kind: DrawKind, level: DrawnLevel = .region, points: [[Double]], documentId: String, passId: String, onPass: Segment?,
         parentSegmentId: String? = nil
     ) -> Result<SegmentEdit.Call, SegmentEdit.Refusal> {
         guard kind != .box, points.count >= kind.minimumPoints, points.allSatisfy({ $0.count >= 2 }) else {
@@ -62,8 +71,8 @@ extension SegmentShapes {
             shapes: polygon ? nil : [SegmentCreateShape(kind: "path", points: points)]
         )
         return .success(SegmentEdit.Call(action: "segment.create", params: .create(SegmentCreateRequest(
-            documentId: documentId, passId: passId, kind: polygon ? "region" : "line", anchor: anchor,
-            baseline: polygon ? nil : points, parentSegmentId: polygon ? nil : parentSegmentId
+            documentId: documentId, passId: passId, kind: polygon ? level.rawValue : "line", anchor: anchor,
+            baseline: polygon ? nil : points, parentSegmentId: polygon && level == .region ? nil : parentSegmentId
         ))))
     }
 
@@ -71,7 +80,10 @@ extension SegmentShapes {
     /// half, measured by area (a flat baseline padded to `minimumSpan`, as it is drawn) -- never merely
     /// the first one touched. Nil when no region holds most of it: the line stays at page level, and the
     /// path says so. Ties go to the smaller region, the more specific one.
-    static func containingRegion(for points: [[Double]], among segments: [Segment], minimumSpan: Double = 0.004) -> Segment? {
+    /// `kind` is the level that holds it: a region for a line, a line for a word.
+    static func containingRegion(
+        for points: [[Double]], among segments: [Segment], kind: String = "region", minimumSpan: Double = 0.004
+    ) -> Segment? {
         guard !points.isEmpty else { return nil }
         var drawn = bounds(points)
         if drawn[2] < minimumSpan { drawn[0] -= (minimumSpan - drawn[2]) / 2; drawn[2] = minimumSpan }
@@ -83,7 +95,7 @@ extension SegmentShapes {
             let size: Double
         }
         let scored: [Candidate] = segments.compactMap { segment in
-            guard segment.kind.lowercased() == "region", !segment.provisional,
+            guard segment.kind.lowercased() == kind, !segment.provisional,
                   let box = segment.anchor.rect ?? segment.anchor.polygon.map(bounds), box.count >= 4 else { return nil }
             let width = min(drawn[0] + drawn[2], box[0] + box[2]) - max(drawn[0], box[0])
             let height = min(drawn[1] + drawn[3], box[1] + box[3]) - max(drawn[1], box[1])

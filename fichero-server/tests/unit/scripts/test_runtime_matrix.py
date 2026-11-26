@@ -156,3 +156,15 @@ def test_engine_app_runs_the_workers_under_the_apps_python_with_its_packages(tmp
     assert rm.main(["--engine-app", str(app), "--out", str(tmp_path / "m.json")]) == 0
     assert rm.WORKER_PYTHON == str(python)
     assert str(packages) in os.environ["PYTHONPATH"].split(":")
+
+
+def test_the_machine_reads_ram_through_the_full_sysctl_path_so_a_bare_path_still_reports_it(monkeypatch):
+    """#6860: `sysctl` is not on a worker's PATH (only /usr/sbin/sysctl works); the matrix reported ram_gb None."""
+    import subprocess
+
+    def fake_run(argv, **_kw):
+        out = "17179869184\n" if argv[:3] == ["/usr/sbin/sysctl", "-n", "hw.memsize"] else ""
+        return subprocess.CompletedProcess(argv, 0, stdout=out, stderr="")
+
+    monkeypatch.setattr(rm.subprocess, "run", fake_run)
+    assert rm.machine()["ram_gb"] == 16

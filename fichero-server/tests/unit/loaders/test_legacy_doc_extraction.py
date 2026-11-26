@@ -60,6 +60,7 @@ def test_the_primary_extractor_still_rejects_it():
 
 
 @macos_only
+@pytest.mark.macos_only
 class TestTheFallback:
     def test_legacy_doc_text_is_extracted(self):
         content = _load(FIXTURE)
@@ -101,6 +102,7 @@ class TestTheFallback:
 
 
 @macos_only
+@pytest.mark.macos_only
 def test_an_ingested_doc_carries_its_text(db, test_package, tmp_path):
     """End to end — the user-visible symptom was an empty extraction."""
     import shutil

@@ -27,6 +27,7 @@ def test_a_connected_socket_names_this_process():
     assert peer["pid"] == os.getpid() and peer["uid"] == os.getuid() and peer["token"]
 
 
+@pytest.mark.macos_only
 @pytest.mark.skipif(sys.platform != "darwin", reason="the audit token and Security.framework are macOS")
 def test_identity_comes_from_the_audit_token_and_names_the_executable():
     left, right = socket.socketpair(socket.AF_UNIX)

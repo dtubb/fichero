@@ -327,14 +327,15 @@ struct StatusIslandToolbarTests {
     /// REVERSED 2026-08-23 (Daniel: "separate the dynamic island from server
     /// status and activity — they're all in one right now"): each is its OWN
     /// toolbar item with its own glass; the island hosts NEITHER.
-    @Test("engine and activity share ONE machinery item, never the island")
+    @Test("engine and activity are never inside the island")
     func engineAndActivityAreSeparateItems() throws {
         // Re-ruled 2026-08-30 (Daniel: "maybe combine server and network"):
         // server + activity share the engineStatus capsule. What must still
         // hold from 2026-08-23: neither lives INSIDE the island's item.
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.engineStatus"))
-        #expect(!toolbar.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
+        // Activity left that capsule for the far right (#7090): its own item, in `ActivityToolbarPlacementTests`.
+        #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
 
         let island = try Self.appSource("Views/Shell/Toolbar/StatusIslandToolbarItem.swift")
         #expect(!island.contains("EngineStatusToolbarItem()"))

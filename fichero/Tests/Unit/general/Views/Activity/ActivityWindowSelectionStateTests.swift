@@ -92,7 +92,10 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertFalse(appSource.contains("detailWindowID"))
         // The window is the pane plus the Inspector showing the selected row, not a view tree of its own.
         XCTAssertTrue(monitorSource.contains("ActivityPaneView(libraryId: nil"))
-        XCTAssertTrue(monitorSource.contains(".inspector(isPresented: $showsInspector)"))
+        // The pane draws the Inspector column (`windowInspector`, `activity.window.is-the-pane-plus-inspector`).
+        let paneSource = try Self.appSource("Views/Activity/Pane/ActivityPaneView.swift")
+        XCTAssertTrue(paneSource.contains(".inspector(isPresented: $showsInspector)"))
+        XCTAssertTrue(monitorSource.contains("windowInspector:"))
         XCTAssertTrue(monitorSource.contains("ActivityInspectorSection(pick: selectionState.pick)"))
         // The details view is mounted once, in the Inspector section, with the project's ONE service chain (#4284).
         let section = try Self.appSource("Views/Activity/Pane/ActivityInspectorSection.swift")

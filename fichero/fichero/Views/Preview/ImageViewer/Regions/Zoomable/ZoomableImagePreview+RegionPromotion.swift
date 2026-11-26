@@ -167,6 +167,11 @@ extension ZoomableImagePreview {
     /// a headless host reads, it does not edit.
     var isEditingSegments: Bool { windowState?.isEditingSegments ?? false }
 
+    /// The region types the engine offers for this page; empty until the page's segments are read.
+    var shownRegionTypes: [RegionTypeChoice] {
+        documentId.flatMap { segmentEditStore?.regionTypesByDocument[$0] } ?? []
+    }
+
     /// What the menu bar's Segment menu acts on (#5229): this pane's own verbs, nothing new.
     var segmentMenuTarget: SegmentMenuTarget {
         SegmentMenuTarget(
@@ -182,6 +187,8 @@ extension ZoomableImagePreview {
             convertToBox: { convertSelectedToBox() },
             convertToLine: { convertSelected(to: "line") },
             convertToRegion: { convertSelected(to: "region") },
+            addVerb: documentId.flatMap { SegmentShapes.addLevel(for: selectedSegments($0)) },
+            addDrawn: { addDrawnInSelection() },
             makeRegion: { makeRegionFromSelectedLines() },
             ungroupRegion: { ungroupSelectedRegions() },
             cutWords: { cutWordsOnSelectedLines() },
@@ -189,6 +196,9 @@ extension ZoomableImagePreview {
             hasBrokenWords: windowState?.brokenWords.isEmpty == false,
             joinBrokenWords: { joinBrokenWords() },
             addBaseline: { addBaselineToSelectedLines() },
+            types: shownRegionTypes,
+            attributeToLastHand: { attributeSelectedToLastHand() },
+            removeHand: { removeHandFromSelected() },
             apply: { setSelectedSegments($0) }
         )
     }
@@ -262,10 +272,8 @@ extension ZoomableImagePreview {
     func finishShapeDrawingFromKey() -> KeyPress.Result {
         // Return leaves the Order tool, which sends its clicks (`segment-editor.order-by-clicking`).
         if windowState?.orderArmed == true { windowState?.chooseSegmentTool(nil); return .handled }
-        guard let windowState, windowState.drawingPoints.count >= windowState.shapeKind.minimumPoints else { return .ignored }
-        let points = windowState.drawingPoints
-        windowState.drawingPoints = []
-        drawSegmentShape(windowState.shapeKind, points: points)
+        guard let windowState, !windowState.drawingPoints.isEmpty else { return .ignored }
+        if let points = windowState.closeDrawing() { drawSegmentShape(windowState.shapeKind, points: points) }
         return .handled
     }
 

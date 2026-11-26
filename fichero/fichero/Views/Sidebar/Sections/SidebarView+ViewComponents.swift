@@ -281,6 +281,10 @@ extension SidebarView {
                         rebuiltRecently: SidebarView.rebuiltRecently(
                             at: max(lastTreeRebuildAt, selectionState.programmaticSelectionAt))
                     )
+                },
+                isAncestor: { ancestor, descendant in
+                    guard let item = cachedItem(id: ancestor.serializedID) else { return false }
+                    return Self.sidebarItem(item, containsDescendantId: descendant.serializedID)
                 }
             )
             if newValue == selectionState.selectedDestinations, newValue != proposed {
@@ -331,7 +335,8 @@ extension SidebarView {
     static func sidebarResilientSelection(
         current: Set<SidebarDestination>,
         proposed: Set<SidebarDestination>,
-        isMomentarilyMissing: (SidebarDestination) -> Bool
+        isMomentarilyMissing: (SidebarDestination) -> Bool,
+        isAncestor: (_ ancestor: SidebarDestination, _ descendant: SidebarDestination) -> Bool
     ) -> Set<SidebarDestination> {
         // A write that ADDS a row is always a genuine gesture — the List's
         // rebuild reconciliation only ever REMOVES tags it cannot resolve. So a
@@ -340,7 +345,8 @@ extension SidebarView {
         guard proposed.subtracting(current).isEmpty else { return proposed }
         let dropped = current.subtracting(proposed)
         guard !dropped.isEmpty else { return proposed }
-        let spurious = dropped.filter(isMomentarilyMissing)
+        // #7079: a carried-over row is never an ancestor of a newly proposed row; a row in the proposal stays.
+        let spurious = dropped.filter { row in isMomentarilyMissing(row) && !proposed.contains { child in isAncestor(row, child) } }
         return proposed.union(spurious)
     }
 

@@ -1,6 +1,7 @@
 # Per-project rules for the dev harness (fichero-builder/fichero_builder/check_tool.py `load`).
 # Fichero is the first project; another project carries its own harness.toml with the same keys.
 [check]
+max_files = 40  # owner 2026-11-24: steps carry 3-5 related bugs, so a batch passes the 25 files one bug needed
 # The jail user's own tools, copied into the workroot by the owner-side set-up (nothing is read from the owner's home).
 python = "/Users/Shared/fichero-worker/venv/bin/python"
 path = "/Users/Shared/fichero-worker/bin:/Users/Shared/fichero-worker/venv/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -12,7 +13,7 @@ max_commits = 100  # the most commits a lane may be ahead of origin/integration 
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
 min_guards = 20
-parallel = 3   # owner 2026-11-23 afternoon: the iMac runs two checks at once (two gate dirs, two heavy locks), the M1 Air one
+parallel = 4   # owner 2026-11-23 afternoon: the iMac runs two checks at once (two gate dirs, two heavy locks), the M1 Air one
 # Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).
 guard_skip = [
   "check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
@@ -40,7 +41,7 @@ red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fic
 spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 # speed batch 1 (manager 2026-11-03): rule classes the ladder decides by itself, each an `auto` journal row the manager audits
-auto = ["red-on-base-trim-only", "red-on-base-timeout-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes",
+auto = ["red-on-base-tests-only", "red-on-base-pure-move", "red-on-base-trim-only", "red-on-base-timeout-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes",
         "allowlist-entries-only-removed"]
 routes_file = "fichero-server/tests/contracts/openapi.json"  # the engine's routes at head (guard-data-added-routes)
 # manager 2026-11-04: a rebase whose ONLY conflict is the generated contract identity takes upstream's and re-bakes it with the
@@ -58,13 +59,13 @@ pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
 # synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
 # rung and the guards that call git stay on the Pro
-remote = ["imac:~/fichero-gate", "imac:~/fichero-gate2", "air:~/fichero-gate"]  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
+remote = ["imac:~/fichero-gate", "imac:~/fichero-gate2", "air:~/fichero-gate", "localhost:~/fichero-gate"]  # owner 2026-11-25 20:40: all three Macs available; the Pro last (only when the others are busy); the Air over Tailscale; earlier:# 2026-11-25 18:15: the M1 Air unreachable since 17:00 (checks fell back to the Pro); add "air:~/fichero-gate" back first when it answers; 2026-11-25 14:30: the Pro dropped (load 260, 12 GB swap, the owner working on it); 2026-11-25 10:55: the Pro last (load 180 with Swift builds and checks at once); it keeps build_remote  # owner 2026-11-25: the Pro first while the iMac is nearly full;  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
 # manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
 # or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
 remote_guards = "auto"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
-build_remote = "imac:~/fichero-gate"  # owner 2026-11-23: the M4 Air is taken away; the iMac has Xcode 27.2
+build_remote = "imac:~/fichero-gate"  # 2026-11-25 12:25: back to the iMac (27 GB free); the Pro swapped 14 GB running Swift builds beside the owner's work
 remote_min_free_gb = 4  # manager 2026-11-22: checks need about 1-2 GB of /tmp; the M4 internal disk sits near 5 GB with the work on its external disk
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
@@ -82,6 +83,10 @@ build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fich
          "-destination", "platform=macOS", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-jobs", "4",
          "-skipPackagePluginValidation", "-disableAutomaticPackageResolution", "CODE_SIGNING_ALLOWED=NO", "build"]
 build_timeout_s = 3600
+# The Swift unit tests (the merge train runs them once per train, never per step): `builder` appends build-for-testing, then
+# test-without-building, and runs both on [check].build_remote in the runner's one kept derived data. The UI test target stays out.
+swift_tests = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "platform=macOS",
+               "-testPlan", "fichero", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO"]
 # Only the owner's process takes this lock, so it lives in the owner's own state dir (~ expands), not the shared area.
 build_lock = "~/.local/state/fichero-builder/build.lock"
 # one STABLE tree for the build rung (and build-check), so xcodebuild is incremental (manager 2026-11-03: every ladder built
@@ -195,6 +200,8 @@ daily_tests = [
   "fichero-server/tests/unit/llm/test_kraken_runtime.py",
 ]
 "fichero-server/src/fichero_server/" = [
+  "fichero-server/tests/contracts/test_docs_coverage.py",  # both contract tests run in about 3 s, so every engine source change runs them (#6589)
+  "fichero-server/tests/contracts/test_extensibility_guarantee.py",
   "fichero-server/tests/unit/db/test_shared_connection_lock.py",
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
   "fichero-server/tests/unit/api/test_no_alias_modules_in_routes.py",
@@ -393,7 +400,6 @@ OMP_NUM_THREADS = "2"
 enforce = false
 timeout_s = 360   # the 6-minute budget
 # swift_test = "FicheroUITests/LaunchPerformanceUITests"   # #6600: left unset until run.swift-tests gives the build remote a GUI session; set, the app half runs it under /usr/bin/time -l on build_remote
-
 [check.security]
 # #6600 Step 2.30: the security rung (REPORT-ONLY). Reads only what is NEW in the batch. Runs in the scratch tree because semgrep
 # --baseline-commit and gitleaks need git history. osv-scanner stays OFF until lane deps-security clears the Dependabot alerts.
@@ -544,6 +550,11 @@ haiku = "Claude Haiku 5.5"
 opus = "Claude Opus 5.5"
 fable = "Claude Fable 5.2"
 claude-fable-5-1 = "Claude Fable 5.1"
+claude-fable-5-2 = "Claude Fable 5.2"
+# the ids a pipeline worker is started with (provider/model); the lookup also tries the id without its "anthropic/" prefix
+"anthropic/claude-sonnet-5-5" = "Claude Sonnet 5.5"
+"anthropic/claude-haiku-5-5" = "Claude Haiku 5.5"
+"anthropic/claude-opus-5-5" = "Claude Opus 5.5"
 
 [triage.labels]
 # `builder triage --labels` (dev-workflows.tool.triage, rules in specs/harness/issues-and-labels.md): a label outside

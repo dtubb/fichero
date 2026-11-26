@@ -184,9 +184,9 @@ filters Activity by `model:`.
 ### A. The window and its bones
 
 - `models.window.is-activitys-shape` — **[PARTIAL]** (#6588, #4307) the window is a `NavigationSplitView` with a source
-  list (This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
+  list (Models: All Models, Usable now, Bookmarked, Found; Providers; This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
   window can show it as a pane; the toolbar leads with Activity's run controls; the bottom bar is the filter.
-  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowLayoutTests.swift`. **Also built:** the `Window` scene "Models & Cluster" (Window menu, id `models-cluster`), `PaneKind.models`, `ModelsPaneView` (the `NavigationSplitView`, the one table of size, memory, fits here, account, using now and last failed, and the Inspector), reading the one list through `ModelsAnswerStore`, which Activity's Models tree shares. Tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowSceneTests.swift` (the window id and title, the pane kind, the sidebar from the model, the needs-you sort, the Inspector following the selection, the shared store) and `ActivityWindowSelectionStateTests.swift` (the scene is a `Window` that replaces `.newItem` with the File menu). **Not built:** the This Mac row's pressure, the run controls, the filter, the Search field, the column menu and Usable now / Bookmarked / Found.
+  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowLayoutTests.swift`. **Also built:** the `Window` scene "Models & Cluster" (Window menu, id `models-cluster`), `PaneKind.models`, `ModelsPaneView` (the `NavigationSplitView`, the one table of size, memory, fits here, account, using now and last failed, and the Inspector), reading the one list through `ModelsAnswerStore`, which Activity's Models tree shares. Tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowSceneTests.swift` (the window id and title, the pane kind, the sidebar from the model, the needs-you sort, the Inspector following the selection, the shared store) and `ActivityWindowSelectionStateTests.swift` (the scene is a `Window` that replaces `.newItem` with the File menu). **Also written, without a view test:** the Models section (Usable now the default item, Bookmarked, Found), its Search field and a button column on the rows. **Not built:** the This Mac row's pressure, the run controls, the filter and the column menu.
 - `models.window.one-list` — **[PARTIAL]** (#6588; built: `GET /api/activity/models` with place › provider › model,
   `loaded`, `active`, memory, today's pages and calls, `this_mac`; not built: size on disk, `fits_here`, `account`, the
   card's licence, failures today, the Mac's GPU) the window reads ONE engine list, the models answer grown by the columns
@@ -205,26 +205,83 @@ filters Activity by `model:`.
   job on the search lane (`recipes/discovery.py` `search_online`, `search_online_for_step`: Zenodo's Kraken repository,
   HTR-United, Hugging Face), what it finds kept in the model store's `discovery/` folder (`keep_hub`, `found_for` per
   language), served as cards by `GET /api/recipes/candidates` with `runs_here`, `cannot_run_because` and `runs_on`, and
-  Set Up's finder with "Searching online…" (`ModelFinderStore.searchOnline`); not built: the window's Search field and its
-  Found item) the window's search IS the recipe finder's job: one search, one kept result, one card shape; nothing is
+  Set Up's finder with "Searching online…" (`ModelFinderStore.searchOnline`); built in the window, untested by any view test: its Search field and its Found item) the window's search IS the recipe finder's job: one search, one kept result, one card shape; nothing is
   searched twice and no second catalogue exists.
 - `models.bookmark.kept-not-added` — **[PARTIAL]** (#5460, #6588) a found card is BOOKMARKED, never "added": Bookmark keeps
   the card in the one kept list (`discovery/`, a `bookmarked` mark beside `found_for`) without downloading it, so it
   survives the next search letting it go; Download fetches a bookmarked card; Remove Bookmark lets it go when it is not
   downloaded and not used by a step; a card a step uses cannot lose its bookmark. *Test (to write, in
   `fichero-server/tests/unit/recipes/`):* a bookmarked card outlives a search that no longer finds it; a card a step uses
-  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; The routes `POST` and `DELETE /api/recipes/candidates/bookmark` (404 for a card no search found, 409 naming the step for a card a step uses), tested in `fichero-server/tests/unit/recipes/test_bookmark_route_5460.py`. **Not built:** the bookmark glyph and the Download of a bookmarked card.
-- `models.window.shows-what-a-recipe-can-reach` — **[GAP]** (#6588, #5976, #5974) the default item, Usable now, is
+  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; The routes `POST` and `DELETE /api/recipes/candidates/bookmark` (404 for a card no search found, 409 naming the step for a card a step uses), tested in `fichero-server/tests/unit/recipes/test_bookmark_route_5460.py`. `GET /api/recipes/candidates` says on each card `bookmarked` and `bookmark_key` (the key the two routes take), and `discovery.hub_cards` lists a bookmarked card whichever languages are asked, so a card no search finds any more is still listed; this holds for the rules' own list too (a kept card found for German can be ranked for a project in another language), tested in `fichero-server/tests/unit/recipes/test_candidates_say_bookmarked_6588.py`. The app's pure rules for a card's list, one verb and Usable words (`ModelCandidateRules`), tested in `fichero/Tests/Unit/general/Views/ModelsWindow/ModelCandidateRulesTests.swift`. The window's Models section (Usable now, Bookmarked, Found), its Search field and its Search Online button, and each card's one verb through `ModelsWindowStore`, are written but have no test of their own (no view test runs them), so the tag stays [PARTIAL]. Delete of an installed row (`model_type` and `model_id` on the models answer, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py`) asks first, then calls the delete route with `confirm=true`. **Not built:** the bookmark glyph, a per-model Unload (the engine has only unload-idle) and a Load verb (the engine has no load route).
+- `models.window.shows-what-a-recipe-can-reach` — **[PARTIAL]** (#6588, #5976, #5974) the default item, Usable now, is
   exactly the set of cards Set Up could give a step this minute (`GET /api/recipes/candidates`, every step, filtered to
   `runs_here` true or a reachable `runs_on` with a key and credit); a card that cannot run says why in the finder's own
   words ("No runtime in this build", "Needs a key at <Provider>", "Too big for this Mac"), under Found or Bookmarked,
   never under Usable now. Acceptance: with Kraken installed, a bookmarked HF reader not downloaded and OpenRouter without
   credit, Usable now lists Kraken's cards and no OpenRouter card; Bookmarked lists the HF reader as "After download". *Test
-  (to write):* the window's Usable now equals the candidates route's usable set for a seeded store.
+  (to write):* the window's Usable now equals the candidates route's usable set for a seeded store. **Built:** the acceptance's three cards through `ModelCandidateRules` in `ModelCandidateRulesTests.swift::acceptanceLists`; **Not built:** the equality against the route's own answer.
 - `models.row.use-for-a-step` — **[PARTIAL]** (#5611, #5612; built: `POST /api/recipes/candidates/use` sets a step's
   reader as a project override "chosen by you", and Set Up's step menu calls it; not built: the window's verb) Use for…
   on a usable card offers the open project's steps that take its kind and sets it as that step's model; the Start plan
   shows it at once.
+
+### A3. Providers and Models in the sidebar, search over every model, add a model, and the window replaces Settings' AI panes (owner 2026-11-24)
+
+- `models.window.providers-and-models-in-the-sidebar` — **[PARTIAL]** (#6588, owner 2026-11-24) the sidebar has two sections
+  beside This Mac, Places and Work: **Models** (All Models: every model, local and cloud, then Usable now, Bookmarked,
+  Found) and **Providers** (one item per provider the one list names: the local runtimes Kraken, MLX, Apple Vision and
+  Apple Intelligence first, then the cloud providers, each by name, each badged with its rows needing you). Each item
+  lists its own rows; the Inspector of a row says what it does, its size, where it runs and its cost. Acceptance: with
+  Kraken and Apple Intelligence on this Mac and an Anthropic model without a key, Providers lists Apple Intelligence,
+  Kraken, Anthropic in that order, Anthropic badged 1; All Models lists all three models; a provider item lists only its
+  own. *Test:* `ModelsWindowLayoutTests.swift::providersSection`, `allModelsAndProviderRows`, `inspectorSaysRunsOnAndCost`.
+  **Built:** `ModelsWindowModel.providers`, `Item.provider`, `Item.allModels`, the Providers section in
+  `ModelsWindowModel.sidebar`, the Inspector's Runs on and Cost lines, tested there. **Not built:** a cloud model's price (the
+  models answer carries none; ui-5 and cards-1), whether the project allows cloud use drawn on a cloud row, "what it does".
+- `models.search.over-every-model` — **[PARTIAL]** (#6588, owner 2026-11-24) the window's search field filters the list shown
+  by name, provider, place or licence, every word needed, ignoring case and accents; the finder's Search Online reaches
+  further (cards, Hugging Face, Zenodo and the cloud providers' lists: by name, job, script, language or period) through
+  the one `find-models` job (`models.search.is-the-finder`), not a second catalogue. *Test:*
+  `ModelsWindowLayoutTests.swift::searchOverTheList`. **Built:** the filter over the models answer's rows. **Not built:**
+  the cloud providers' model lists and a search by job, script, language or period over rows that are not cards.
+- `models.apple-intelligence.is-a-provider-and-a-model` — **[OK]** (#6588, owner 2026-11-24: "missing today") on a Mac where
+  the engine can run Apple Intelligence (the fm-bridge present, macOS 26 with Apple Intelligence on:
+  `local_model_choice.apple_intelligence_in_this_build`), the models answer lists a This Mac row "Foundation Models" under the
+  provider "Apple Intelligence"; where it cannot, no row. *Test:*
+  `fichero-server/tests/unit/api/test_activity_models_6588.py::test_apple_intelligence_is_a_provider_and_a_model_on_a_mac_that_has_it`.
+  Offering it where its jobs fit, and a catalogue card for it, are `models.cards.richer-and-more` (cards-1).
+- `models.settings.window-replaces-ai-panes` — **[PARTIAL]** (#6588, #4307, owner 2026-11-24) Models & Cluster folds in Settings'
+  AI models and providers panes: every provider's key, switch, base URL and model list, the defaults per kind of work and
+  the local models move into the window (a provider item's Inspector holds its key field and its switch; the model rows hold
+  the defaults); Settings keeps at most a link, "Models & Cluster…" (this supersedes `models.settings.keeps-preferences`
+  where it keeps the defaults and caps in Settings). Acceptance: no provider key field is reachable from Settings; the
+  window's provider item saves and clears a key through the engine's key routes; the alert's `settings.ai.providers` link
+  lands on that provider item. *Test:* `AISettingsPlacementTests.swift` (every AI tab is in exactly one place: the window or Settings). **Built (ui-4):** `AISettingsView(placement:)`: the window's item "Keys, Defaults & Downloads" (Providers section) draws the existing Defaults, Models & Providers (every provider's key, switch and model list) and Downloads tabs; Settings draws Advanced and an "Open Models & Cluster…" button; the build tier's gate (`isSettingsModelsTabEnabled`, `ai-settings.md`) still decides whether Models & Providers and Downloads are drawn: with it off the window's item holds Defaults only, tested in `AISettingsPlacementTests.swift::gateOff`; the old "Local LLM" selection resolves to Providers. **Not built:** the key field on each provider item's own Inspector (the pane is moved whole, not re-laid per item), and the `settings.ai.providers` deep link landing on a provider item.
+- `models.manage.add-by-id-or-url` — **[PARTIAL]** (#6588, #5460, owner 2026-11-24) from a search result the window downloads a
+  local model or adds a cloud model; "Add by id or URL…" takes a Hugging Face id or a URL and resolves it through the same
+  finder, so the added model is one card like any other, bookmarked until downloaded. *Test:*
+  `test_add_model_by_id_or_url_6588.py` and `ModelsWindowAddByAddressTests.swift`. **Built:** `POST /api/recipes/candidates/add`
+  (`{address}` returns the bookmark key; 422 for an address no model is named by or a `provider:model` id, 404 for a model its
+  source does not know, 403 offline) over `recipes.discovery.add_by_address` and `parse_model_address` (a Hugging Face id or
+  address, a Zenodo address); the window's toolbar "Add by id or URL…" (`models.toolbar.add`) opens a sheet with one field,
+  `ModelsWindowStore.addByAddress` sends it and reloads, a refusal shows the engine's words, and the card lists under
+  Bookmarked. The route's test and the Swift test have not been run in the worker's environment (the route test needs a
+  library location the worker lacks; the app is not built there). **Not built:** a provider's model id by address (a cloud
+  model is added on the provider's page), a Zenodo record that is not in the kept listing, the cloud price on the card.
+- `models.cards.richer-and-more` — **[PARTIAL]** (#6588, owner 2026-11-24) the catalogue's cards (`recipes/seed/cards.yaml`) say
+  what a model does, its size, where it runs and its cost, and cover more models, Apple Intelligence's included, offered
+  where its jobs fit. *Test:* `fichero-server/tests/unit/recipes/test_every_card_states_its_facts_6588.py` (cards-1).
+  **Built (cards-1):** every seed card states, or says in `unstated` why it does not, its note (what it reads), jobs, scripts,
+  languages, period, material, licence, size, memory, published accuracy, where it runs, its cost and `source_url` (its own page,
+  checked against its Zenodo or Hub pin); `Card` carries `cost` and `source_url`. Six cards are added from their own pages
+  (read 2026-11-24): the Kraken readers CATMuS Print, CATMuS Gothic Print, TRIDIS v2 and Sophro Mhiro on Zenodo, and the MLX
+  readers Qwen3-VL 8B and Gemma 3 4B on the Hub. They state no memory, so they are `offered_only`: `assemble._choose` drops every
+  `offered_only` card before it ranks, so the rules never choose one; they are offered to compare only. Apple Intelligence's card and the cloud cards the finder makes carry a cost in words and a link to
+  Apple's or the provider's models page. **Not built:** a card shown with these facts in the window (the finder's
+  `ModelCandidate` does not carry `cost` or `source_url` yet); the cloud providers' current vision models as their own cards
+  with prices (cloud cards come from the person's provider rows); measured accuracy (it is the person's, from a bake-off, so the
+  seed holds none); a CER for TRIDIS v2 and Sophro Mhiro (their cards give a range and a percentage, not one CER); Pixtral
+  (its Hub card states no licence).
 
 ### B. What a row says
 
@@ -261,16 +318,16 @@ filters Activity by `model:`.
 
 - `models.manage.load-and-unload` — **[GAP]** (#6588, owner 2026-11-19) the window loads a downloaded model into memory now
   and unloads a loaded one (one model, not only the idle ones), refused with the reason when it does not fit
-  (`models.row.fits-here`); the work happens as a row in Activity.
-- `models.manage.add-a-model` — **[GAP]** (#6588, #5460, #6747, owner 2026-11-19) the window adds a model: search Hugging
+  (`models.row.fits-here`); the work happens as a row in Activity. **Built:** a loaded row's Unload calls `POST /api/activity/models/unload-idle`, which unloads every idle model, not that row's alone. **Not built:** a per-model unload and any load route.
+- `models.manage.add-a-model` — **[PARTIAL]** (#6588, #5460, #6747, owner 2026-11-19) the window adds a model: search Hugging
   Face or a provider (`models.search.is-the-finder`), then download it to the models folder (#6747), with its progress in
-  Activity (`models.row.download-reports-bytes`).
+  Activity (`models.row.download-reports-bytes`). **Built:** a found card's Download goes through the one download path (`ModelsWindowStore.press`); adding by id or URL is `models.manage.add-by-id-or-url`. **Not built:** adding a cloud provider's model from the window's cards.
 - `models.manage.delete-a-model` — **[PARTIAL]** (#6588, #6747, owner 2026-11-19) the window deletes a downloaded model's files
   (the bookmark stays), says how much disk it frees, and asks first when a recipe uses it (open question 3), with the
   deletion shown in Activity. **Built:** the engine half of asking first: `DELETE /api/local-models/{model_type}/{model_id}`
   with a library open answers 409 naming the steps of its recipe whose model is this one (`recipes.discovery.steps_using_model`,
   the whole id, never a part of one), and deletes with `?confirm=true`; tested in
-  `fichero-server/tests/unit/api/test_delete_model_names_its_steps_6588.py`. **Not built:** the window, its Delete verb, the
+  `fichero-server/tests/unit/api/test_delete_model_names_its_steps_6588.py`. **Also written, without a view test:** an installed row's Delete verb calls the route without `confirm` first, shows the 409's step words in its alert, and sends `confirm=true` only on a second yes. **Not built:** the
   disk it frees, Choose for… (open question 3's recommendation) and the row in Activity.
 
 ### B2. Run settings per model (owner 2026-11-19)
@@ -424,6 +481,33 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 - Depends on: 1.2
 - Size: M
 
+#### Step 2.3 — Providers and Models in the sidebar, search, Apple Intelligence (#6588; ui-3)
+- Behaviours: `models.window.providers-and-models-in-the-sidebar`, `models.search.over-every-model`, `models.apple-intelligence.is-a-provider-and-a-model`
+- Tests: fichero/Tests/Unit/general/Views/ModelsWindow/ModelsWindowLayoutTests.swift, fichero-server/tests/unit/api/test_activity_models_6588.py
+- Depends on: 2.2
+- Size: M
+
+#### Step 2.4 — Providers' keys and switches move into the window; Settings' panes become a link (#6588; ui-4)
+- Behaviours: `models.settings.window-replaces-ai-panes`
+- Tests: fichero/Tests/Unit/general/Views/Settings/AISettingsPlacementTests.swift
+- Status: the panes are moved and Settings links; per-provider Inspector key fields and the deep link are not built.
+- Depends on: 2.3
+- Size: L
+
+#### Step 2.5 — Add a model: download, cloud, by id or URL (#6588, #5460; ui-5)
+- Behaviours: `models.manage.add-by-id-or-url`, `models.manage.add-a-model`
+- Tests: `test_add_model_by_id_or_url_6588.py`, `ModelsWindowAddByAddressTests.swift`
+- Status: partial; the by-id route, store method and sheet are written, see `models.manage.add-by-id-or-url` for what is not built
+- Depends on: 2.4
+- Size: M
+
+#### Step 2.6 — Richer cards and more of them (#6588; cards-1)
+- Behaviours: `models.cards.richer-and-more`
+- Tests: `test_every_card_states_its_facts_6588.py`
+- Status: partial; see `models.cards.richer-and-more` for what is not built
+- Depends on: 2.3
+- Size: M
+
 ### Stage 3 — Places
 
 #### Step 3.1 — Providers' credit and limits; Connect… a Mac, a cluster, HF Jobs (#6675, #5951, #5454)
@@ -460,7 +544,7 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | the row's glyph from `loaded`/`active`/`broken`/account; the one button is the fix; needs-you first | `fichero/Tests/Unit/general/Views/Models/` |
+| Pure rule (Swift) | y | the row's glyph from `loaded`/`active`/`broken`/account; the one button is the fix; needs-you first | `fichero/Tests/Unit/general/Views/ModelsWindow/` |
 | Availability (Swift) | y | the window opens from Settings and from Activity's Models tree; the pane kind is offered | the same |
 | Backend (pytest) | y | the one list's fields; "—" for the unmeasured; fits here from injected memory; account from a stub probe | `fichero-server/tests/unit/api/test_activity_models_6588.py` and the files named above |
 | MCP | y | `fichero_local_models`, `fichero_providers`, `fichero_hpc_clusters` read the same facts | `fichero-mcp/tests/test_mcp_generated.py` |

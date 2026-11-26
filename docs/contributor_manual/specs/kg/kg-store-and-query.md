@@ -205,7 +205,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   (`claim_id`, `related_claim_id`, `relation_type`); the stand-in in
   `tests/unit/kg/test_kg_untested_symbols.py` is a `KnowledgeClaimLink`. The route still reads
   the whole statements table once per node visited (`kg.query.walks-are-bounded`). *Test:*
-  `tests/unit/kg/test_traverse_with_a_real_claim_link.py`, on a real `Database`.
+  `tests/unit/knowledge/test_traverse_with_a_real_claim_link.py`, on a real `Database`.
 - `kg.query.path-is-bounded-and-shows-evidence` — **[PARTIAL]** (#5551, #5032) "how are these two
   connected" answers the shortest chain up to a stated number of hops, in either direction, each
   hop with the statements that make it. Built: `GET /api/kg/graph/path` over the cached directed

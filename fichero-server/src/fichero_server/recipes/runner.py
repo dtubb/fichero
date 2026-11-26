@@ -130,21 +130,26 @@ def _plan(db: Any) -> dict[str, Any]:
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
             redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None, plan_reads: dict | None = None,
-            run_cap_usd: float | None = None, allow_cloud_once: bool = False, over_cap_once: bool = False) -> str:
+            run_cap_usd: float | None = None, allow_cloud_once: bool = False, over_cap_once: bool = False,
+            segments: list[str] | None = None, reread_of: dict[str, str] | None = None) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
     so each step on one waits for it to land (`awaited`, #5660)."""
     awaited = [{"steps": d["steps"], "job_id": d["job_id"], "name": d.get("name") or d["model"]}
                for d in plan.get("downloads") or [] if d.get("downloading")]
-    detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
+    # A run on segments: each step's run is scoped to them (`segment-actions.run-step-on-selection`).
+    runs = [{**card, "segment_ids": list(segments)} for card in plan["runs"]] if segments else plan["runs"]
+    detail = {"runs": runs, "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
               "folder_id": folder_id, "awaited": awaited,
+              # An edited line read again by itself (`segment-actions.automatic-rerun-after-an-edit`): its id and name.
+              **({"reread_of": reread_of["segment_id"], "reread_label": reread_of["label"]} if reread_of else {}),
               # Its name and page count in Activity (#5615), as they were when it was queued.
               "title": _recipe_title(db), "pages": _pages_counted(db, documents, plan_reads),
               **({"run_cap_usd": run_cap_usd} if run_cap_usd is not None else {}),
               # This run only (`ai.cloud.one-run-overrides`): kept on the run's row, read by `_run`, ended with the run.
               **({"allow_cloud_once": True} if allow_cloud_once else {}), **({"over_cap_once": True} if over_cap_once else {})}
-    words = "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
+    words = f"Waiting to read again: {reread_of['label']}" if reread_of else "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
                                            f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
     job_id = jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
@@ -175,6 +180,8 @@ def name_and_pages(db: Any, job_id: str) -> tuple[str, int | None]:
     never the kind's id ("run-a-recipe"). A run queued before these were kept is named by the project's recipe, its
     pages counted now."""
     detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+    if detail.get("reread_label"):
+        return f"Read again: {detail['reread_label']}", 1
     title = detail.get("title") or _recipe_title(db)
     pages = detail.get("pages")
     if pages is None:
@@ -329,6 +336,7 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     )
 
     from fichero_server.workflows.default_workflows import resolve_shipped_workflow
+    from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
 
     thread_id = f"thread-{uuid.uuid4().hex[:12]}"
     # By the shipped preset's stable id; a project seeded before ids were stable holds it under another (#5497).
@@ -359,7 +367,10 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         for node in workflow.nodes:
             node["config"] = {**(node.get("config") or {}), **(card["tool_config"].get(node.get("tool")) or {})}
     once = run_overrides.for_run(parent)  # the recipe's own "once" answers, given to this step's run
+    segment_ids = card.get("segment_ids")
     request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs={"selected_doc_ids": documents},
+                                     **({"selection": WorkflowSelection(kind=SelectionKind.segments, ids=segment_ids)}
+                                        if segment_ids else {}),
                                      thread_id=thread_id, provider_override=card["provider_override"],
                                      model_override=card["model_override"], skip_cache=True,
                                      allow_cloud_once=once.get("allow_cloud", False), over_cap_once=once.get("over_cap", False))
@@ -2128,7 +2139,11 @@ def doing_words(card: dict[str, Any]) -> str:
     provider = (card.get("provider_override") or card.get("provider") or "").lower()
     model = card.get("model_override") or card.get("model")
     reader = _READERS.get(provider) or (str(model).rsplit("/", 1)[-1] if model and provider else None)
-    if reader == "Kraken" and model:
+    if reader == "Kraken" and model and job == "read-a-line" and "/" not in str(model):  # an id, not a model file
+        from fichero_server.llm.kraken_runtime import recognition_display_name
+
+        reader = recognition_display_name(str(model))  # the reader as a person chose it: "PP-OCRv6 (medium)", not its id (#7086)
+    elif reader == "Kraken" and model:
         reader = f"Kraken ({str(model).rsplit('/', 1)[-1]})"  # the model beside the reader (#6745)
     return f"{said} with {reader}" if reader else said
 

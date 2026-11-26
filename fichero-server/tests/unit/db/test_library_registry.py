@@ -407,6 +407,7 @@ class TestGlobalRegistryHeaderless:
         finally:
             db_manager.close_database(str(lib_path))
 
+    @pytest.mark.macos_only(reason='APFS treats NFC and NFD names as one (one inode); ext4 keeps two files')
     def test_unicode_collision_report_case_a_same_inode(self, global_client, tmp_path):
         nfc_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
         _create_library_fixture(nfc_path, "case-a")

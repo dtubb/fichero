@@ -87,6 +87,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/reading_orde
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/renditions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/rights.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_conversion.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_inspect_rows.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_pictures.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_readings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segments.py
@@ -569,6 +570,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare_suggest.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/regions.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/reread.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/review_profiles.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/routes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/run_view.py

@@ -531,5 +531,7 @@
   "POST /api/auth/sign-in-by-key": "a sign-in and a device client row; the device is ended by revoking it, not by undo (#2403)",
   "POST /api/segments/document/{doc_id}/text-layer": "as /api/documents/import: the route runs the import's own conversion (convert_new_results) on the page's PDF text layer, which registers no undo; the pass it makes is removed like any pass, by the segment.pass_delete action (#6664)",
   "POST /api/recipes/candidates/bookmark": "a bookmark is a mark on the kept list of found cards, not project data (#5460, #6588): reversed by the opposite verb, so no audited inverse",
-  "DELETE /api/recipes/candidates/bookmark": "a bookmark is a mark on the kept list of found cards, not project data (#5460, #6588): reversed by the opposite verb, so no audited inverse"
+  "DELETE /api/recipes/candidates/bookmark": "a bookmark is a mark on the kept list of found cards, not project data (#5460, #6588): reversed by the opposite verb, so no audited inverse",
+  "POST /api/recipes/candidates/add": "adds a bookmark, a mark on the kept list of found cards, not project data (#6588): reversed by Remove Bookmark, so no audited inverse",
+  "POST /api/recipes/project/reread-edited": "queues a re-read of lines whose shape was edited (local model only); the readings it makes are new versions of the line, withdrawn like any reading, so the route itself changes nothing to restore (#6069)"
 }

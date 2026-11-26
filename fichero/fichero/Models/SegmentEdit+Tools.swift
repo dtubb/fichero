@@ -109,6 +109,12 @@ extension SegmentEdit {
     /// shape.
     static let simplifyTolerance = 2.0
 
+    /// The menu's tolerance for a page image `imageWidth` pixels wide: a thousandth of the width, never under
+    /// `simplifyTolerance`, so a large scan is not left as it was by a tolerance meant for a small one (#7069).
+    static func menuSimplifyTolerance(imageWidth: Double) -> Double {
+        max(simplifyTolerance, (imageWidth / 1000).rounded())
+    }
+
     /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`): one `segment.simplify`,
     /// one undo. The engine leaves a shape already that simple as it is.
     static func simplify(_ segments: [Segment], tolerance: Double = simplifyTolerance) -> Result<Call, Refusal> {

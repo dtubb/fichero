@@ -6,9 +6,14 @@ import SwiftUI
 struct ModelsPaneView: View {
     @Environment(LibraryManager.self) private var libraryManager
     @State private var answer = ActivityModelsAnswer()
-    @State private var item: ModelsWindowModel.Item? = .thisMac
+    @State private var item: ModelsWindowModel.Item? = .usableNow
+    @State private var search = ""
+    /// The verbs over the first open project's engine; nil until a project is open.
+    @State private var store: ModelsWindowStore?
     @State private var selection: ActivityModelEntry.ID?
     @State private var showsInspector = true
+    @State private var addsModel = false
+    @State private var addressText = ""
 
     /// The derived lists are worked out when the answer or the item changes, not on each redraw.
     @State private var rows: [ActivityModelEntry] = []
@@ -23,20 +28,71 @@ struct ModelsPaneView: View {
     var body: some View {
         NavigationSplitView {
             sidebarList
+                .alert("Delete this model?", isPresented: deleting, presenting: store?.pendingDelete) { row in
+                    Button("Delete", role: .destructive) { Task { await store?.confirmDelete(row) } }
+                    Button("Cancel", role: .cancel) { store?.pendingDelete = nil; store?.deleteWarning = nil }
+                } message: { row in
+                    Text(store?.deleteWarning ?? "\(row.name) is removed from this Mac.")
+                }
         } detail: {
-            table
+            content
                 .inspector(isPresented: $showsInspector) { inspector.inspectorColumnWidth(min: 240, ideal: 300, max: 420) }
         }
         .toolbar {
+            ToolbarItem {
+                Button { Task { await store?.finder.searchOnline() } } label: { Label("Search Online", systemImage: "network") }
+                    .disabled(store == nil || store?.finder.isSearching == true)
+                    .accessibilityIdentifier("models.toolbar.searchOnline")
+            }
+            ToolbarItem {
+                Button { addsModel = true } label: { Label("Add by id or URL…", systemImage: "plus") }
+                    .disabled(store == nil)
+                    .accessibilityIdentifier("models.toolbar.add")
+            }
             ToolbarItem {
                 Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                     .accessibilityIdentifier("models.toolbar.inspector")
             }
         }
+        .searchable(text: $search, prompt: "Search models")
+        .background { Color.clear.sheet(isPresented: $addsModel) { addSheet } }
         .task { await ModelsAnswerStore.shared.watch(libraryManager) }
+        .task { await openStore() }
         .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { refresh() }
         .onChange(of: item) { refresh() }
+        .onChange(of: search) { refresh() }
         .accessibilityIdentifier("models.pane")
+    }
+
+    // MARK: Add by id or URL
+
+    /// One field for a Hugging Face id or address (or a Zenodo address); the engine reads it and keeps the card.
+    private var addSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Add a model by id or URL").font(.headline)
+            TextField("Hugging Face id or address, or a Zenodo address", text: $addressText)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("models.add.address")
+            if let message = store?.errorMessage { Text(message).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { addsModel = false }
+                Button("Add") {
+                    Task {
+                        if await store?.addByAddress(addressText) == true {
+                            addressText = ""
+                            addsModel = false
+                            item = .bookmarked
+                        }
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(ModelsWindowModel.addAddress(addressText) == nil)
+                .accessibilityIdentifier("models.add.confirm")
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
     }
 
     // MARK: Sidebar
@@ -68,6 +124,38 @@ struct ModelsPaneView: View {
         .accessibilityIdentifier("models.sidebar.mac")
     }
 
+    // MARK: The table of the item
+
+    /// The cards for a Models item, else the one table over the models answer.
+    @ViewBuilder private var content: some View {
+        if item == .aiSettings {
+            AISettingsView(placement: .window)
+        } else if let list = item?.candidateList {
+            if let store {
+                VStack(spacing: 0) {
+                    if let message = store.errorMessage { Text(message).foregroundStyle(.red).padding(6) }
+                    ModelCandidatesListView(store: store, list: list, search: search)
+                }
+            } else {
+                ContentUnavailableView("Open a project to find models for its steps.", systemImage: "magnifyingglass")
+            }
+        } else {
+            table
+        }
+    }
+
+    private var deleting: Binding<Bool> {
+        Binding(get: { store?.pendingDelete != nil }, set: { if !$0 { store?.pendingDelete = nil } })
+    }
+
+    /// Takes the first open project's engine for the verbs and asks it for the candidates of its steps.
+    private func openStore() async {
+        guard let library = libraryManager.openLibraries.first else { return }
+        let made = ModelsWindowStore(client: library.ficheroClient, finder: library.modelFinderStore)
+        store = made
+        await made.finder.load(library.recipeSetupStore.finderQuery(job: ModelFinderStore.readingJob))
+    }
+
     // MARK: The one table
 
     private var table: some View {
@@ -84,8 +172,13 @@ struct ModelsPaneView: View {
             TableColumn("Account") { row in Text(row.accountWords) }
             TableColumn("Using now") { row in Text(row.usingNow.isEmpty ? "—" : row.usingNow.joined(separator: ", ")) }
             TableColumn("Last failed") { row in
-                Text([row.lastFailed?.words, ModelsWindowModel.button(for: row)].compactMap { $0 }.joined(separator: " · ")
-                    .nilIfEmpty ?? "—")
+                Text(row.lastFailed?.words ?? "—")
+            }
+            TableColumn("") { row in
+                if let button = ModelsWindowModel.button(for: row), ModelsWindowStore.handles(button) {
+                    Button(button) { Task { await store?.press(row) } }
+                        .accessibilityIdentifier("models.row.\(row.id).button")
+                }
             }
         }
         .overlay {
@@ -119,12 +212,8 @@ struct ModelsPaneView: View {
         let fresh = ModelsAnswerStore.shared.answer(for: libraryIds)
         if fresh != answer { answer = fresh }
         sidebarGroups = ModelsWindowModel.sidebar(answer.models)
-        rows = item.map { ModelsWindowModel.rows($0, in: answer.models) } ?? []
+        rows = item.map { ModelsWindowModel.search(ModelsWindowModel.rows($0, in: answer.models), query: search) } ?? []
     }
-}
-
-private extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 #Preview("The Models and Cluster pane") {

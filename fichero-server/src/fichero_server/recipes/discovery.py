@@ -294,6 +294,13 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
 #: Apple Intelligence as a card: the on-device Foundation Models through this build's fm-bridge (`llm.providers`,
 #: provider `apple`, the text model `apple-intelligence` the factory defaults name).
 APPLE_INTELLIGENCE_PIN = {"cloud": "apple", "model": "apple-intelligence"}
+APPLE_INTELLIGENCE_URL = "https://developer.apple.com/documentation/foundationmodels"
+#: Where each cloud provider lists its own models (`models.cards.richer-and-more`); a provider not here has no link on its cards.
+PROVIDER_MODELS_URL = {
+    "anthropic": "https://platform.claude.com/docs/en/about-claude/models/overview",
+    "openai": "https://developers.openai.com/api/docs/pricing",
+    "google": "https://aistudio.google.com/docs/pricing",
+}
 #: The cloud model a person adds for text work when none is configured (#5660 item 4: "a cloud model (Claude)").
 CLAUDE_PROVIDER = "anthropic"
 
@@ -321,6 +328,7 @@ def other_text_cards() -> list[Card]:
         note="Apple Intelligence, on this Mac", source="installed", runs_here=apple_here, offered_only=True,
         cannot_run_because="" if apple_here else "Apple Intelligence is not available in this build or on this Mac",
         offered_because="Apple's on-device model (Foundation Models): free, and the pages stay on this Mac",
+        cost="Free, on this Mac", source_url=APPLE_INTELLIGENCE_URL,
     )]
     store = get_mlx_model_store()
     for name, spec in MANAGED_MLX_MODELS.items():
@@ -406,6 +414,8 @@ def _cloud_text_cards() -> list[Card]:
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
                 note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,
                 offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
+                cost=f"Billed by {row.name} for each use; its pages leave this Mac",
+                source_url=PROVIDER_MODELS_URL.get(ptype, ""),
                 **gone,
             ))
     if CLAUDE_PROVIDER not in seen_types:
@@ -415,6 +425,7 @@ def _cloud_text_cards() -> list[Card]:
             open_licence=True, licence="", note="Claude (Anthropic), in the cloud", source="installed", offered_only=True,
             runs_here=False, cannot_run_because="add Claude (Anthropic) in Settings › AI first",
             offered_because="a cloud model through your provider settings: its pages leave this Mac",
+            cost="Billed by Anthropic for each use; its pages leave this Mac", source_url=PROVIDER_MODELS_URL[CLAUDE_PROVIDER],
         ))
     return out
 
@@ -1609,21 +1620,26 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
             if not row["found_for"] and not row.get("bookmarked"):  # a bookmarked card outlives the search (#5460)
                 del found[repo]
     for card in cards:
-        key, repo = _hub_key(card), _hub_repo(card)
-        before = found.get(key) or {}
-        # A TrOCR card pins `trocr` and a Kraken repository card `kraken_hf`: their row keeps the id, pin and jobs so the offline
-        # cache gives the same card back (`hub_cards`), not a plain `hf` reader.
-        own = {} if "hf" in card.pin else {"id": card.id, "pin": dict(card.pin), "jobs": sorted(card.jobs)}
-        found[key] = {**own, "repo": repo, "languages": sorted(card.languages) if card.languages else None,
-                       "scripts": sorted(card.scripts) if card.scripts else None,
-                       "material": sorted(card.material), "licence": card.licence, "note": card.note,
-                       "offered_because": card.offered_because, "size_gb": card.size_gb,
-                       "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
-                       "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now,
-                       **({"bookmarked": True} if before.get("bookmarked") else {})}
+        key = _hub_key(card)
+        found[key] = _hub_row(card, found.get(key) or {}, languages, now)
     left = dict(data.get("left_out") or {})
     left[_languages_key(languages)] = left_out
     _write_hub({"found": found, "left_out": left})
+
+
+def _hub_row(card: Card, before: dict[str, Any], languages: frozenset[str], now: str) -> dict[str, Any]:
+    """The kept-list row of a card, beside what an earlier search kept of it (its languages and its bookmark)."""
+    repo = _hub_repo(card)
+    # A TrOCR card pins `trocr` and a Kraken repository card `kraken_hf`: their row keeps the id, pin and jobs so the offline
+    # cache gives the same card back (`hub_cards`), not a plain `hf` reader.
+    own = {} if "hf" in card.pin else {"id": card.id, "pin": dict(card.pin), "jobs": sorted(card.jobs)}
+    return {**own, "repo": repo, "languages": sorted(card.languages) if card.languages else None,
+            "scripts": sorted(card.scripts) if card.scripts else None,
+            "material": sorted(card.material), "licence": card.licence, "note": card.note,
+            "offered_because": card.offered_because, "size_gb": card.size_gb,
+            "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
+            "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now,
+            **({"bookmarked": True} if before.get("bookmarked") else {})}
 
 
 def _write_hub(data: dict[str, Any]) -> None:
@@ -1664,6 +1680,82 @@ def remove_bookmark(key: str, recipe: dict[str, Any] | None) -> None:
     _write_hub({**data, "found": found})
 
 
+_HF_ID = re.compile(r"^[A-Za-z0-9][\w.-]*/[\w.-]+$")
+
+
+def _hub_id(text: str) -> str | None:
+    """`text` when it is exactly `org/name` (no dot-only segment, no escape), else None: it is put into the Hub's URLs."""
+    ok = _HF_ID.fullmatch(text) and not any(part.strip(".") == "" for part in text.split("/"))
+    return text if ok else None
+
+
+def parse_model_address(text: str) -> tuple[str, str]:
+    """What a person typed to add a model (`models.manage.add-by-id-or-url`, #6588): ("hugging-face", "org/name") for a Hub id or
+    URL, ("zenodo", "10.5281/zenodo.N") for a Zenodo record URL or DOI, ("provider", "provider:model") for a provider's model id.
+    ValueError, in words, for anything else."""
+    from urllib.parse import urlparse
+
+    text = text.strip()
+    if not text:
+        raise ValueError("Type a Hugging Face id or address, a Zenodo address or DOI, or a provider:model id")
+    if text.startswith(("http://", "https://")):
+        url = urlparse(text)
+        host, parts = (url.hostname or "").lower(), [p for p in url.path.split("/") if p]
+        if host in ("huggingface.co", "hf.co") and len(parts) >= 2:
+            repo = _hub_id(f"{parts[0]}/{parts[1]}")
+            if repo is None:
+                raise ValueError(f"{text} does not name a Hugging Face model (org/name)")
+            return "hugging-face", repo
+        if host.endswith("zenodo.org") and len(parts) >= 2 and parts[0] in ("record", "records") and parts[1].isdigit():
+            return "zenodo", f"10.5281/zenodo.{parts[1]}"
+        if host in ("doi.org", "dx.doi.org") and re.fullmatch(r"10\.5281/zenodo\.\d+", "/".join(parts)):
+            return "zenodo", "/".join(parts)
+        raise ValueError(f"{text} is not a Hugging Face or Zenodo address")
+    if re.fullmatch(r"10\.5281/zenodo\.\d+", text):
+        return "zenodo", text
+    if _hub_id(text):
+        return "hugging-face", text
+    if re.fullmatch(r"[a-z][a-z0-9_-]*:[^\s/][^\s]*", text):
+        return "provider", text
+    raise ValueError(f"{text} is not a Hugging Face id, a Zenodo address or a provider:model id")
+
+
+def add_by_address(address: str, *, fetch_model: Callable[[str], dict[str, Any] | None],
+                   fetch_card: Callable[[str], str | None]) -> str:
+    """Add the model an address names as a BOOKMARKED card filled in from its source (`models.manage.add-by-id-or-url`): a Hub
+    model from its listing (`fetch_model`) and its README (`fetch_card`: licence, languages, a CER the card states); a Zenodo
+    record from Kraken's kept repository listing. Returns the key the bookmark routes take. LookupError for a model its source
+    does not know; ValueError for an address no model is named by, and for a provider's model id (added on the provider's page)."""
+    kind, ident = parse_model_address(address)
+    if kind == "provider":
+        raise ValueError(f"{ident} is a provider's model: add it on that provider's page under Keys, Defaults & Downloads")
+    if kind == "hugging-face":
+        model = fetch_model(ident)
+        if model is None:
+            raise LookupError(f"{ident} was not found on Hugging Face")
+        model = {**model, "modelId": ident}
+        card = _hf_card(model, "A model you added", "added by you by its Hugging Face id", frozenset())
+        text = fetch_card(ident)
+        read = parse_card_text(text) if text else None
+        from dataclasses import replace
+
+        card = replace(card, offered_because="; ".join([card.offered_because, card_words(read)]),
+                       cer_published=(read or {}).get("cer"), licence=card.licence or ((read or {}).get("licence") or ""),
+                       languages=card.languages or _tags((read or {}).get("languages")))
+    else:
+        row = repository_record(ident)
+        if row is None:
+            raise LookupError(f"{ident} is not in Kraken's model repository listing (refresh the listing and try again)")
+        card = repository_cards([row], ())[0]
+    key = _hub_key(card)
+    data = _hub_file()
+    found = cached_hub()
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    found[key] = {**_hub_row(card, found.get(key) or {}, frozenset(), now), "bookmarked": True}
+    _write_hub({**data, "found": found})
+    return key
+
+
 def steps_using_model(model_id: str, recipe: dict[str, Any] | None) -> list[str]:
     """The steps of `recipe` (the open project's) whose chosen card names the downloaded model `model_id`: the id whole, after
     a `:` or `/` and before an `@` or the end, never a part of another id."""
@@ -1699,7 +1791,9 @@ def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset
         runs_here = bool(row.get("runs_here", True))
         runs_on = str(row.get("runs_on") or "this-mac")
         remote = runs_on != "this-mac"
-        if repo in skip_repos or (languages is not None and not languages & set(row.get("found_for") or ())):
+        # A bookmarked card is listed whichever search found it (`models.bookmark.kept-not-added`, #6588).
+        if repo in skip_repos or (languages is not None and not row.get("bookmarked")
+                                  and not languages & set(row.get("found_for") or ())):
             continue
         if runnable_only and (not runs_here or remote):
             continue

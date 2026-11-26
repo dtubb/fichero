@@ -14,10 +14,10 @@ struct ModelsWindowLayoutTests {
     private let keyless = ActivityModelEntry(id: "cloud|Anthropic|claude", name: "claude", place: .cloud,
                                              provider: "Anthropic", account: .needsKey)
 
-    @Test("the sidebar has three sections, This Mac, Places and Work, each item in the section it belongs to")
+    @Test("the sidebar has five sections, Models, Providers, This Mac, Places and Work, each item in the section it belongs to")
     func sections() {
-        #expect(ModelsWindowModel.items.map(\.section) == [.thisMac, .places, .work])
-        #expect(ModelsWindowModel.Section.allCases.map(\.title) == ["This Mac", "Places", "Work"])
+        #expect(ModelsWindowModel.items.map(\.section) == [.models, .thisMac, .places, .work])  // Providers is drawn from the list
+        #expect(ModelsWindowModel.Section.allCases.map(\.title) == ["Models", "Providers", "This Mac", "Places", "Work"])
         for entry in ModelsWindowModel.items {
             #expect(entry.items.allSatisfy { $0.section == entry.section })
         }
@@ -49,6 +49,9 @@ struct ModelsWindowLayoutTests {
         #expect(ModelsWindowModel.button(for: keyless) == "Add Key…")
         #expect(ModelsWindowModel.button(for: kraken) == "Unload")
         #expect(ModelsWindowModel.button(for: idle) == nil)
+        let installed = ActivityModelEntry(id: "this-mac|MLX|small", name: "small", place: .thisMac, provider: "MLX",
+                                           modelType: "omlx", modelId: "small")
+        #expect(ModelsWindowModel.button(for: installed) == "Delete")
     }
 
     @Test("the columns the engine now answers read in words, and \"—\" for what nothing measures")
@@ -81,5 +84,60 @@ struct ModelsWindowLayoutTests {
         #expect(lines.first { $0.label == "Size" }?.value == "—")
         #expect(lines.first { $0.label == "Last failed" }?.value == "Model failed to load")
         #expect(ModelsWindowModel.inspectorLines(for: kraken).first { $0.label == "Using now" }?.value == "kraken-lines")
+    }
+
+    @Test("the Models section holds All Models, Usable now, Bookmarked and Found; the last three are drawn from the candidates")
+    func modelsSection() {
+        let items: [ModelsWindowModel.Item] = [.usableNow, .bookmarked, .found]
+        #expect(ModelsWindowModel.items.first?.items == [.allModels] + items)
+        #expect(items.map(\.candidateList) == [.usableNow, .bookmarked, .found])
+        #expect(items.allSatisfy { ModelsWindowModel.rows($0, in: [kraken, idle]).isEmpty && $0.section == .models })
+        #expect(ModelsWindowModel.Item.thisMac.candidateList == nil)
+    }
+
+    private let apple = ActivityModelEntry(id: "this-mac|Apple Intelligence|Foundation Models", name: "Foundation Models",
+                                           place: .thisMac, provider: "Apple Intelligence", licence: "Apple")
+
+    @Test("Providers lists every provider the list names, This Mac's first then cloud, each once, with its rows' badge")
+    func providersSection() {
+        let all = [keyless, kraken, apple, broken, idle]
+        #expect(ModelsWindowModel.providers(in: all) == ["Apple Intelligence", "Kraken", "MLX", "Anthropic"])
+        let sidebar = ModelsWindowModel.sidebar(all)
+        #expect(sidebar.map(\.section) == [.models, .providers, .thisMac, .places, .work])
+        let providers = sidebar[1].entries
+        #expect(providers.map(\.title) == ["Keys, Defaults & Downloads"] + ["Apple Intelligence", "Kraken", "MLX", "Anthropic"])
+        #expect(providers.first { $0.title == "MLX" }?.badge == 1)
+        #expect(providers.first { $0.title == "Anthropic" }?.badge == 1)
+        #expect(ModelsWindowModel.sidebar([]).map(\.entries.count) == [4, 1, 1, 2, 2])
+    }
+
+    @Test("All Models lists every model, local and cloud; a provider item lists its own, needing-you first")
+    func allModelsAndProviderRows() {
+        let all = [kraken, idle, broken, keyless, apple]
+        #expect(ModelsWindowModel.rows(.allModels, in: all).count == 5)
+        #expect(ModelsWindowModel.rows(.provider("MLX"), in: all).map(\.name) == ["chandra", "small"])
+        #expect(ModelsWindowModel.rows(.provider("Apple Intelligence"), in: all).map(\.name) == ["Foundation Models"])
+        #expect(ModelsWindowModel.Item.provider("MLX").section == .providers)
+        #expect(ModelsWindowModel.Item.provider("MLX").identifier == "provider.MLX")
+    }
+
+    @Test("the search field finds a model by name, provider, place or licence, every word needed, ignoring case; empty finds all")
+    func searchOverTheList() {
+        let all = [kraken, idle, broken, keyless, apple]
+        #expect(ModelsWindowModel.search(all, query: "").count == 5)
+        #expect(ModelsWindowModel.search(all, query: "FOUNDATION").map(\.name) == ["Foundation Models"])
+        #expect(ModelsWindowModel.search(all, query: "mlx small").map(\.name) == ["small"])
+        #expect(ModelsWindowModel.search(all, query: "cloud").map(\.name) == ["claude"])
+        #expect(ModelsWindowModel.search(all, query: "apple").map(\.name) == ["Foundation Models"])
+        #expect(ModelsWindowModel.search(all, query: "nothing like this").isEmpty)
+    }
+
+    @Test("the Inspector says where a model runs and what it costs: a Mac model costs nothing, a cloud price is a dash")
+    func inspectorSaysRunsOnAndCost() {
+        func line(_ row: ActivityModelEntry, _ label: String) -> String? {
+            ModelsWindowModel.inspectorLines(for: row).first { $0.label == label }?.value
+        }
+        #expect(line(apple, "Runs on") == "This Mac" && line(apple, "Cost") == "None (runs on this Mac)")
+        #expect(line(keyless, "Runs on") == "Cloud" && line(keyless, "Cost") == "—")
     }
 }

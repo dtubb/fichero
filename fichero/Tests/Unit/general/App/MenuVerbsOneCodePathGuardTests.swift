@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 /// #5652: the menu verbs that every surface renders as ONE item (Activity's Stop and Read Again, a trained model's
@@ -29,7 +29,12 @@ struct MenuVerbsOneCodePathGuardTests {
     /// The files that contain `pattern`, outside the store that defines the call (the store's split-out
     /// extension files, `Models/ActivityStore+…swift`, count as the store).
     private static func callers(of pattern: String, definedIn store: String) throws -> Set<String> {
-        Set(try appFiles().filter { !$0.path.hasPrefix(store.replacingOccurrences(of: ".swift", with: "")) && $0.text.contains(pattern) }.map(\.path))
+        let storeName = store.replacingOccurrences(of: ".swift", with: "")
+        // The store's extension files sit beside it or under Models/Activity/.
+        let storeParts = [storeName, storeName.replacingOccurrences(of: "Models/", with: "Models/Activity/")]
+        return Set(try appFiles().filter { file in
+            !storeParts.contains { file.path.hasPrefix($0) } && file.text.contains(pattern)
+        }.map(\.path))
     }
 
     @Test("only the shared Activity target asks the store to stop a job or read pages again")
@@ -53,7 +58,12 @@ struct MenuVerbsOneCodePathGuardTests {
         #expect(!activityViews.isEmpty)
         for file in activityViews {
             #expect(!file.text.contains("Button(\"Stop\")"), "\(file.path) draws its own Stop")
-            #expect(!file.text.contains("Button(offer)"), "\(file.path) draws its own Read Again")
+            // Run again on what was missed (`source.recipe.run-again-on-what-was-missed`, #6170) is its own verb, a Start on
+            // the run's folder: its one button, in the run's summary, is not a Read Again.
+            let ownButtons = file.text.components(separatedBy: "Button(offer)").count - 1
+            let runAgain = file.path == "Views/Activity/Detail/ActivityDetailsSections.swift"
+                && file.text.contains("perform(.runAgainOnMissed(")
+            #expect(ownButtons == (runAgain ? 1 : 0), "\(file.path) draws its own Read Again")
         }
     }
 

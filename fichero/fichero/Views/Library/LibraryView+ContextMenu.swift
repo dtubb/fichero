@@ -283,10 +283,15 @@ extension LibraryView {
             RunRecipeOnFolderMenuItem(folderId: recipeFolder, library: activeLibraryReference)
         }
         // A step run again on several folders, a parent folder, or selected items, as one run (#6744).
-        let redoSelection = selection.contains(document.id) ? selection : [document.id]
+        let redoSelection = RecipeFolderScope.runStepTargets(clicked: document.id, selection: selection)
         if redoSelection.count > 1 || document.docType != .folder {
             RunStepAgainOnSelectionMenu(
-                pages: RecipeFolderScope.redoPages(selection: redoSelection, in: documentStore.sidebarDocuments),
+                pages: RecipeFolderScope.redoPages(
+                    selection: redoSelection,
+                    in: RecipeFolderScope.knownDocuments(
+                        filteredDocuments,
+                        outlineModel?.childDocumentsByParentId.values.flatMap { $0 } ?? [],
+                        documentStore.sidebarDocuments)),
                 library: activeLibraryReference
             )
         }

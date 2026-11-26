@@ -187,6 +187,7 @@ extension ZoomableImagePreview {
                 onDrawRegionBox: { box in
                     drawSegmentShape(.polygon, points: SegmentShapes.corners(ofRect: box), selectingResult: true)
                 },
+                onResizeCommit: { resizeSegments($0) },
                 onKnifeCommit: { stroke in knifeCut(stroke) },
                 onMarkerCommit: { stroke, closed in drawMarkerStroke(stroke, closed: closed) },
                 onPaintCommit: { stroke, width in drawPaintStroke(stroke, widthPixels: width) },
@@ -250,16 +251,27 @@ extension ZoomableImagePreview {
                 Button("New Region from Words") { promoteSelectedWords() }
             }
             if !selection.isEmpty {
+                if let documentId { RunStepOnSegmentsMenu(ids: selectedSegments(documentId).map(\.id)) }
                 // The Segment menu (#5157): kind, direction, text or furniture, on the selection.
-                SegmentAttributeMenu(apply: { setSelectedSegments($0) })
+                SegmentAttributeMenu(apply: { setSelectedSegments($0) }, types: shownRegionTypes)
                 if selectionHasBaselines {
                     Button("Redraw Outline from Baseline") { redrawSelectedOutlines() }
+                }
+                if let documentId, let level = SegmentShapes.addLevel(for: selectedSegments(documentId)) {
+                    Button(level == .word ? "Add Word" : "Add Line") { addDrawnInSelection() }
+                }
+                Menu("Change Kind") {
+                    Button("Region") { convertSelected(to: "region") }
+                    Button("Line") { convertSelected(to: "line") }
                 }
                 Button("Convert to Box") { convertSelectedToBox() }
                 Button("Convert to Line") { convertSelected(to: "line") }
                 Button("Convert to Region") { convertSelected(to: "region") }
                 if selection.count >= 2 {
                     Button("Make Region from Lines") { makeRegionFromSelectedLines() }
+                }
+                if selection.count >= 2 {
+                    Button(SegmentMenuContent.joinTitle(selection.count)) { _ = joinSelectedSegments() }
                 }
                 Button("Ungroup Region") { ungroupSelectedRegions() }
                 Button(

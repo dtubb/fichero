@@ -5822,6 +5822,49 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/types": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "List Region Types",
+        "description": "The region types the editor's Type menu and the Inspector's Type row offer for this page. Reads, writes nothing.",
+        "operationId": "list_region_types_api_segments_document__doc_id__types_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionTypes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}/doubtful": {
       "get": {
         "tags": [
@@ -6772,6 +6815,56 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Carry Across Match Api Segments Carry Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/inspect": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Inspect Segments",
+        "description": "`GET /api/segments/inspect?segment_ids=...` -- the Inspector's form for a selection: the rows of its level, each with\nits state across the selection (set, inherited, mixed, none) and its choices (`source.editor.inspector-form-comes-from-the-engine`).\nAn id that is not found, is deleted, or is on a page the caller may not read is left out and counted in `withheld`.",
+        "operationId": "inspect_segments_api_segments_inspect_get",
+        "parameters": [
+          {
+            "name": "segment_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 500,
+              "description": "The selection.",
+              "title": "Segment Ids"
+            },
+            "description": "The selection."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentInspectRead"
                 }
               }
             }
@@ -18066,6 +18159,52 @@
         }
       }
     },
+    "/api/recipes/candidates/add": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Add Candidate By Address",
+        "description": "Add a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card filled in from its source,\nthe key the bookmark routes take. 422 for an address no model is named by, 404 for a model its source does not know, 403 while\nthis engine works offline (a Hub model is read over the network).",
+        "operationId": "add_candidate_by_address_api_recipes_candidates_add_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddByAddressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Add Candidate By Address Api Recipes Candidates Add Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/candidates": {
       "get": {
         "tags": [
@@ -18884,6 +19023,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/reread-edited": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Reread Edited Segments",
+        "description": "`segment-actions.automatic-rerun-after-an-edit`: read each edited line again on its own, with the local model that\nread it; a line a paid cloud model read is reported as `stale` and never run.",
+        "operationId": "reread_edited_segments_api_recipes_project_reread_edited_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RereadEditedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RereadEditedResponse"
                 }
               }
             }
@@ -53261,6 +53464,18 @@
           "last_failed": {
             "$ref": "#/components/schemas/ModelFailure",
             "nullable": true
+          },
+          "model_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Type",
+            "description": "an installed model's runtime in the local-models routes; null otherwise"
+          },
+          "model_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Id",
+            "description": "an installed model's id in the local-models routes; null otherwise"
           }
         },
         "type": "object",
@@ -53564,6 +53779,22 @@
         "type": "object",
         "title": "ActivitySummary",
         "description": "The ONE engine summary the window and the toolbar popover both read (`activity.popover.same-summary`, #5852):\nthe live blocks, the background group, and how many ended runs are folded into History."
+      },
+      "AddByAddressRequest": {
+        "properties": {
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "address"
+        ],
+        "title": "AddByAddressRequest",
+        "description": "What a person typed to add a model: a Hugging Face id or address, a Zenodo address or DOI."
       },
       "AddressListResponse": {
         "properties": {
@@ -76787,6 +77018,93 @@
         "title": "InputMapping",
         "description": "Maps a node input port to a data source.\n\nAllows referencing output from ANY previous node, not just\nthe immediately preceding one in the graph.\n\nExamples:\n    source_path=\"$.nodes.transcribe.text\"\n    source_path=\"$.nodes.entities.people | join:', '\"\n    source_path=\"$.inputs.language\"\n    source_path=\"$.files\""
       },
+      "InspectChoice": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "InspectChoice"
+      },
+      "InspectRow": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "toggle"
+            ],
+            "title": "Kind"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "set",
+              "inherited",
+              "mixed",
+              "none"
+            ],
+            "title": "State"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Values",
+            "default": []
+          },
+          "inherited_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Inherited From"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/InspectChoice"
+            },
+            "type": "array",
+            "title": "Choices",
+            "default": []
+          },
+          "free_text": {
+            "type": "boolean",
+            "title": "Free Text",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "kind",
+          "state"
+        ],
+        "title": "InspectRow"
+      },
       "IntakeRequest": {
         "properties": {
           "on": {
@@ -83639,6 +83957,18 @@
             "nullable": true,
             "title": "Link",
             "description": "the page of its model (Hugging Face, Zenodo's DOI); null where it has none (#5808)"
+          },
+          "bookmark_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Bookmark Key",
+            "description": "the key the bookmark routes take for a card a Hugging Face search found; null for any other card (#6588)"
+          },
+          "bookmarked": {
+            "type": "boolean",
+            "title": "Bookmarked",
+            "description": "the person kept this found card (`models.bookmark.kept-not-added`, #6588)",
+            "default": false
           },
           "other_period": {
             "type": "boolean",
@@ -93266,6 +93596,57 @@
         "title": "RegionEditOp",
         "description": "A closed vocabulary \u2014 an enum in the schema, never a bare str (rule 4)."
       },
+      "RegionType": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "zone": {
+            "type": "string",
+            "nullable": true,
+            "title": "Zone",
+            "description": "The SegmOnto zone of a known label; none for a label the page brought."
+          },
+          "subtype": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subtype"
+          },
+          "on_page": {
+            "type": "boolean",
+            "title": "On Page",
+            "description": "Some live segment of the page already carries this label."
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "on_page"
+        ],
+        "title": "RegionType"
+      },
+      "RegionTypes": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/RegionType"
+            },
+            "type": "array",
+            "title": "Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "types"
+        ],
+        "title": "RegionTypes"
+      },
       "RegisteredActionInfo": {
         "properties": {
           "name": {
@@ -94359,6 +94740,116 @@
         ],
         "title": "RepresentationRevisionParams",
         "description": "A revision's params. Its `content` is audited in full, unchanged from\nbefore slice 8: this action predates the digest rule and changing what an\nexisting audit chain records would make old rows and new rows mean\ndifferent things. New writes go through `representation.create`."
+      },
+      "RereadEditedRequest": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Segment Ids",
+            "description": "the lines whose shape was just changed (after the person stops dragging)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_ids"
+        ],
+        "title": "RereadEditedRequest"
+      },
+      "RereadEditedResponse": {
+        "properties": {
+          "started": {
+            "items": {
+              "$ref": "#/components/schemas/RereadStarted"
+            },
+            "type": "array",
+            "title": "Started",
+            "description": "each re-read queued, one small run in Activity"
+          },
+          "stale": {
+            "items": {
+              "$ref": "#/components/schemas/RereadStale"
+            },
+            "type": "array",
+            "title": "Stale",
+            "description": "lines whose reading came from a paid cloud model: not run, to be offered"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/RereadSkipped"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "lines not read again, each with why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "started",
+          "stale",
+          "skipped"
+        ],
+        "title": "RereadEditedResponse"
+      },
+      "RereadSkipped": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "why"
+        ],
+        "title": "RereadSkipped"
+      },
+      "RereadStale": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the paid cloud model that made its reading"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "model"
+        ],
+        "title": "RereadStale"
+      },
+      "RereadStarted": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "the small run in Activity that reads this line again"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "job_id"
+        ],
+        "title": "RereadStarted"
       },
       "ResearchChecklist": {
         "properties": {
@@ -98481,6 +98972,11 @@
             "nullable": true,
             "title": "Kind"
           },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
+          },
           "is_furniture": {
             "type": "boolean",
             "nullable": true,
@@ -98506,6 +99002,11 @@
             "type": "string",
             "nullable": true,
             "title": "Direction"
+          },
+          "line_progression": {
+            "type": "string",
+            "nullable": true,
+            "title": "Line Progression"
           }
         },
         "additionalProperties": false,
@@ -98813,6 +99314,37 @@
         ],
         "title": "SegmentForwarding",
         "description": "Append-only forwarding note left by a merge, split, delete or\nrestore (`source.segment.forwarding-notes`). No action ever updates or\ndeletes a row here; undoing a merge writes a NEW `restored` row beside\nthe original."
+      },
+      "SegmentInspectRead": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/InspectRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "count",
+          "rows"
+        ],
+        "title": "SegmentInspectRead"
       },
       "SegmentListResponse": {
         "properties": {
@@ -99368,6 +99900,17 @@
             "type": "string",
             "nullable": true,
             "title": "Direction"
+          },
+          "line_progression": {
+            "type": "string",
+            "nullable": true,
+            "title": "Line Progression"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Updated At"
           },
           "source_artifact_id": {
             "type": "string",
@@ -103300,6 +103843,15 @@
             "type": "array",
             "title": "Steps",
             "description": "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe"
+          },
+          "segments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Segments",
+            "description": "run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does (`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with `folder_id`, `documents` or `first_pages`"
           },
           "run_cap_usd": {
             "type": "number",

@@ -66,7 +66,8 @@ extension ZoomableImagePreview {
     }
 
     /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`, ⌥⌘S): one ⌘Z.
-    func simplifySelectedSegments(tolerance: Double = SegmentEdit.simplifyTolerance) {
+    func simplifySelectedSegments(tolerance: Double? = nil) {
+        let tolerance = tolerance ?? SegmentEdit.menuSimplifyTolerance(imageWidth: Double(imageSize.width))
         guard let documentId else { return }
         runSegmentEdit(
             SegmentEdit.simplify(selectedSegments(documentId), tolerance: tolerance), documentId: documentId,
@@ -106,6 +107,13 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// ADD LINE on a selected region, ADD WORD on a selected line (#7083): the polygon tool armed at that level; the shape
+    /// drawn inside the selection goes into it (`SegmentShapes.containingParent`).
+    func addDrawnInSelection() {
+        guard let documentId, let level = SegmentShapes.addLevel(for: selectedSegments(documentId)) else { return }
+        windowState?.armDraw(level)
+    }
+
     /// JOIN BROKEN WORDS: each word the last Cut Words found broken at a line's end becomes one word with both pieces'
     /// shapes (`segment-editor.edge.word-across-lines`), one merge (and one ⌘Z) per word.
     func joinBrokenWords() {
@@ -142,7 +150,10 @@ extension ZoomableImagePreview {
     /// new region; one ⌘Z.
     func makeRegionFromSelectedLines() {
         guard let documentId else { return }
-        runSegmentEdit(SegmentEdit.groupLines(selectedSegments(documentId)), documentId: documentId, name: "Make Region from Lines")
+        runSegmentEdit(
+            SegmentEdit.groupLines(selectedSegments(documentId)), documentId: documentId, name: "Make Region from Lines",
+            answered: { selectNewSegment($0.resultStrings["region_id"], documentId: documentId) }
+        )
     }
 
     /// UNGROUP REGION: each selected region's lines go back to its parent and the region is removed; one ⌘Z each.
@@ -175,6 +186,19 @@ extension ZoomableImagePreview {
         runSegmentEdit(
             SegmentEdit.set(attribute, on: selectedSegments(documentId)), documentId: documentId, name: "Set Segment"
         )
+    }
+
+    /// After a move's re-read (the move, its undo, its redo) the moved segments stay selected: a box's identity key
+    /// includes its rect, so the old selection no longer found them once they had moved. Selected without a reveal.
+    func reselectAfterMove(_ moved: [String], documentId: String) -> @MainActor () -> Void {
+        { @MainActor in
+            guard let store = segmentEditStore else { return }
+            let live = Set(store.segments(documentId: documentId).map(\.id))
+            InspectorPath.select(
+                segmentIds: SegmentEdit.selectionAfterMove(moved: moved, live: live),
+                into: regionSelection, documentId: documentId, store: store
+            )
+        }
     }
 
     /// The selection as segments, in the order picked, through the Inspector's one resolution.

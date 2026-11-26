@@ -16,6 +16,7 @@ from fichero_server.execution.cancellation import clear_cancellation, clear_paus
 from fichero_server.recipes import runner
 from fichero_server.remote_read import job as read_job
 from fichero_server.remote_read import pipeline
+from fichero_server.training.hf_jobs import FarStatus
 
 CARD = {"place": "huggingface", "target": "huggingface-jobs", "model_override": "catmus", "job": "read-a-line",
         "steps": ["read"], "card": "workflow"}
@@ -121,6 +122,9 @@ def test_a_stop_reaches_the_read_sent_ahead_before_anything_is_sent_and_while_it
         def cancel(self, far_id):
             self.cancelled.append(far_id)
 
+        def statuses(self, job_id):
+            return {"job-0": FarStatus(state="running", stage="RUNNING", message=None)}
+
     with pytest.raises(jobs.JobCancelled):
         read_job.run(db, subject, target=Place(), sleep=lambda s: None)
     detail = json.loads(jobs.read_job(db, ahead)["detail"])
@@ -182,6 +186,9 @@ def test_a_recipe_that_ends_failed_cancels_the_read_sent_ahead_for_its_next_batc
         def cancel(self, far_id):
             cancelled.append(far_id)
 
+        def statuses(self, job_id):
+            return {"job-0": FarStatus(state="running", stage="RUNNING", message=None)}
+
     with pytest.raises(jobs.JobCancelled):
         read_job.run(db, subject, target=Place(), sleep=lambda s: None)
     assert cancelled == ["job-0"]
@@ -217,6 +224,9 @@ def test_a_recipe_stopped_says_where_the_shards_were_cancelled(db, recipe):
     class Cluster:
         def cancel_all(self, ids):
             pass
+
+        def statuses(self, job_id):
+            return {"job-0": FarStatus(state="running", stage="RUNNING", message=None)}
 
     with pytest.raises(jobs.JobCancelled, match="cancelled on the cluster acenet"):
         read_job.run(db, subject, target=Cluster(), sleep=lambda s: None)

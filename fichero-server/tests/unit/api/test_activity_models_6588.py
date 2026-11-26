@@ -427,3 +427,29 @@ def test_the_trained_models_are_read_once_a_minute_not_on_every_poll(db, monkeyp
     clock[0] += 61
     activity_models.trained_rows(db)
     assert len(reads) == 2
+
+
+def test_an_installed_row_says_the_type_and_id_the_delete_and_download_routes_take_6588(db):
+    """`models.manage.*` (#6588): the window addresses Delete on an installed row by the local-models routes' model_type and
+    model_id; a row that is not installed (a cloud model) carries neither."""
+    jobs._ensure(db)
+    found = {(m["provider"], m["name"]): m for m in activity_models.models(
+        db, held=[], installed=[("Kraken", "blla"), ("MLX", "Chandra-OCR")])}
+
+    assert (found[("Kraken", "blla")]["model_type"], found[("Kraken", "blla")]["model_id"]) == ("kraken", "blla")
+    assert (found[("MLX", "Chandra-OCR")]["model_type"], found[("MLX", "Chandra-OCR")]["model_id"]) == ("omlx", "Chandra-OCR")
+    _job(db, "j1", kind="read-a-line", model="openai:gpt-x", state="done")
+    cloud = [m for m in activity_models.models(db, held=[], installed=[]) if m["place"] == "cloud"]
+    assert cloud and all(m["model_type"] is None and m["model_id"] is None for m in cloud)
+
+
+def test_apple_intelligence_is_a_provider_and_a_model_on_a_mac_that_has_it(db):
+    """`models.window.providers-and-models-in-the-sidebar` (#6588): the on-device model is a This Mac row under its own
+    provider when the engine can run it, and no row when it cannot."""
+    jobs._ensure(db)
+    on = {(m["place"], m["provider"], m["name"]): m
+          for m in activity_models.models(db, held=[], installed=[], apple_intelligence=True)}
+    row = on[("this-mac", "Apple Intelligence", "Foundation Models")]
+    assert not row["loaded"] and row["licence"] == "Apple" and row["account"] is None
+    off = activity_models.models(db, held=[], installed=[], apple_intelligence=False)
+    assert not [m for m in off if m["provider"] == "Apple Intelligence"]

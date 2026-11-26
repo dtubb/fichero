@@ -43,7 +43,9 @@ def _page_script(html: str) -> str:
 
 
 def _node(script: str) -> object:
-    done = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=60)
+    # On stdin, not `-e`: Linux caps ONE argument at 128 KB (MAX_ARG_STRLEN) and the reader's page script is longer
+    # (GitHub run 45676804358: "Argument list too long").
+    done = subprocess.run([NODE, "-"], input=script, capture_output=True, text=True, timeout=60)
     assert done.returncode == 0, done.stderr
     return json.loads(done.stdout)
 

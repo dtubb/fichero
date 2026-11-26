@@ -40,4 +40,12 @@ struct SegmentEditMenuTests {
         menu.selectAll()
         #expect(deleted == 1 && selectedAll == 1)
     }
+
+    @Test("the menu target carries the page's region types for the menu bar's Type submenu")
+    func targetCarriesRegionTypes() {
+        var menu = target(selected: 1)
+        #expect(menu.types.isEmpty)
+        menu.types = [RegionTypeChoice(label: "Title", zone: "MainZone", subtype: "head", onPage: true)]
+        #expect(menu.types.map(\.label) == ["Title"])
+    }
 }

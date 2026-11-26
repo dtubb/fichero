@@ -14273,6 +14273,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("add-candidate-by-address")
+    def recipes_add_candidate_by_address_post(
+        ctx: typer.Context,
+        address: str = typer.Option(..., '--address', help='a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model.'),
+    ) -> None:
+        """Add Candidate By Address (POST /api/recipes/candidates/add)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/candidates/add"
+            params = None
+            payload = _build_json_payload({
+                "address": address,
+            }, {
+                "address": {'type': 'string', 'title': 'Address', 'description': 'a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("remove-candidate-bookmark")
     def recipes_remove_candidate_bookmark_delete(
         ctx: typer.Context,
@@ -14723,6 +14740,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("reread-edited-segments")
+    def recipes_reread_edited_segments_post(
+        ctx: typer.Context,
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='the lines whose shape was just changed (after the person stops dragging) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Reread Edited Segments (POST /api/recipes/project/reread-edited)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/reread-edited"
+            params = None
+            payload = _build_json_payload({
+                "segment_ids": segment_ids,
+            }, {
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Segment Ids', 'description': 'the lines whose shape was just changed (after the person stops dragging)', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-review-instructions")
     def recipes_get_review_instructions_get(
         ctx: typer.Context,
@@ -14800,6 +14834,7 @@ def register_generated_openapi_commands(
         over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`) Default: false."),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         run_cap_usd: Optional[float] = typer.Option(None, '--run-cap-usd', help="the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone."),
+        segments: Optional[list[str]] = typer.Option(None, '--segments', help="run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does (`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with `folder_id`, `documents` or `first_pages`. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         steps: Optional[list[str]] = typer.Option(None, '--steps', help="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe. A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Start Project (POST /api/recipes/project/start)."""
@@ -14815,6 +14850,7 @@ def register_generated_openapi_commands(
                 "over_cap_once": over_cap_once,
                 "redo": redo,
                 "run_cap_usd": run_cap_usd,
+                "segments": segments,
                 "steps": steps,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
@@ -14825,6 +14861,7 @@ def register_generated_openapi_commands(
                 "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
                 "run_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Run Cap Usd', 'description': "the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone", 'x-cli-required': False},
+                "segments": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Segments', 'description': "run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does (`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with `folder_id`, `documents` or `first_pages`", 'x-cli-required': False},
                 "steps": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Steps', 'description': "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe", 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -17276,6 +17313,18 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-region-types")
+    def segments_list_region_types_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """List Region Types (GET /api/segments/document/{doc_id}/types)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/types"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("validate-document")
     def segments_validate_document_get(
         ctx: typer.Context,
@@ -17305,6 +17354,20 @@ def register_generated_openapi_commands(
                 "kind": kind,
                 "order": order,
                 "pass_id": pass_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("inspect")
+    def segments_inspect_get(
+        ctx: typer.Context,
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The selection. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Inspect Segments (GET /api/segments/inspect)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/inspect"
+            params = {
+                "segment_ids": _list_values(segment_ids),
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

@@ -329,5 +329,12 @@
     "method": "save",
     "class": "by-design",
     "reason": "by-design 2026-11-20 (#6744): after a save the steps a folder can run again are the saved recipe's, a handful of step names read as one value (redoSteps), not rows with identity to splice; the read is the point of the save"
+  },
+  {
+    "file": "fichero/fichero/Models/ModelsWindow/ModelsWindowStore.swift",
+    "method": "addByAddress",
+    "class": "violation",
+    "reason": "#6588: the engine answers the new card's bookmark key only; its filled-in card is read back by reloading the finder's list, not spliced in",
+    "issue": 6588
   }
 ]

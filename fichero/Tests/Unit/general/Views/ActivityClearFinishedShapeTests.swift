@@ -5,8 +5,10 @@ import XCTest
 /// the Activity list of everything that has ended. What breaks without it: completed runs piled up with no bulk removal.
 final class ActivityClearFinishedShapeTests: XCTestCase {
     func testThePaneOffersArchiveFinishedBehindAConfirmation() throws {
+        // The More menu offers it (`activity.window.toolbar-verbs`); the pane holds the confirmation.
+        let chrome = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Chrome.swift")
+        XCTAssertTrue(chrome.contains("Button(\"Archive Finished…\") { confirmingArchiveFinished = true }"))
         let pane = try AppSource.code("Views/Activity/Pane/ActivityPaneView.swift")
-        XCTAssertTrue(pane.contains("Button(\"Archive Finished…\") { confirmingArchiveFinished = true }"))
         XCTAssertTrue(pane.contains(".confirmationDialog(\"Archive every finished run?\""))
     }
 

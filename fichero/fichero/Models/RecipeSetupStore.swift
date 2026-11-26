@@ -368,16 +368,17 @@ final class RecipeSetupStore {
     /// their output, as a new pass (`source.recipe.step-rerun-on-folder`, #6170). `steps`: run only these steps (Run this step,
     /// `wide.output.run-this-step`). `documents`: a run's pages alone, as
     /// its `missed` names them (a run an import started, #6170).
+    /// `segments`: run `steps` on these segments alone (Run Step on regions, lines or words, `segment-actions.run-step-on-selection`).
     func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil, firstPages first: Int? = nil,
-               steps chosen: [String]? = nil) async -> Bool {
+               steps chosen: [String]? = nil, segments: [String]? = nil) async -> Bool {
         // A step run again is those steps alone (#6744): a run that sent `redo` without `steps` ran the whole recipe, the
         // Kraken lines after a regions-only choice with it.
         let steps = chosen ?? (redo.isEmpty ? nil : redo)
         do {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
-                folderId == nil && redo.isEmpty && documents == nil && first == nil && steps == nil && runCapUsd == nil
+                folderId == nil && redo.isEmpty && documents == nil && first == nil && steps == nil && segments == nil && runCapUsd == nil
                 ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents,
-                                    firstPages: first, steps: steps, runCapUsd: runCapUsd))
+                                    firstPages: first, steps: steps, segments: segments, runCapUsd: runCapUsd))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json

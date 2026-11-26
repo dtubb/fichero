@@ -38,6 +38,7 @@ def _run(engine: Path, *args: str, big_env: int = 0) -> subprocess.CompletedProc
     return subprocess.run(["bash", str(LIST), str(engine), *args], env=env, capture_output=True, text=True, errors="replace")
 
 
+@pytest.mark.macos_only(reason='Mach-O app bundles are swept on the Macs that build them')
 @pytest.mark.skipif(not Path("/usr/bin/file").exists() or not Path("/usr/bin/true").exists(), reason="needs file(1)")
 def test_lists_a_deep_executable_under_a_large_environment(tmp_path):
     engine = _tree(tmp_path)
@@ -86,6 +87,7 @@ def _with_a_file_that_echoes_bad_bytes(tmp_path: Path) -> dict[str, str]:
     return {"PATH": f"{stub}:/usr/bin:/bin", "LANG": "en_US.UTF-8", "LC_ALL": "en_US.UTF-8"}
 
 
+@pytest.mark.macos_only(reason='Mach-O app bundles are swept on the Macs that build them')
 @pytest.mark.skipif(not Path("/usr/bin/file").exists() or not Path("/usr/bin/true").exists(), reason="needs file(1)")
 def test_the_old_awk_pipeline_loses_the_list_to_a_non_utf8_record_and_the_helper_does_not(tmp_path):
     engine = _tree(tmp_path)

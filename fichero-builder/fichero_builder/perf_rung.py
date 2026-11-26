@@ -7,7 +7,10 @@ import importlib.util
 import json
 import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from fichero_builder import client
 
 ENGINE_PATHS = ("fichero-server/", "fichero-cli/", "fichero-mcp/", "pipeline/")
 APP_PATHS = ("fichero/",)
@@ -17,7 +20,7 @@ OWN_FRAME = "fichero_server/"  # a frame under this is ours, not a library's
 
 def trial(root: Path | str | None = None):
     """`scripts/perf_trial.py` loaded by path (it is a script, not a package); from `root`'s copy when given."""
-    here = Path(root) / "scripts" / "perf_trial.py" if root else Path(__file__).resolve().parents[2] / "scripts" / "perf_trial.py"
+    here = Path(root) / "scripts" / "perf_trial.py" if root else client.scripts_dir() / "perf_trial.py"
     spec = importlib.util.spec_from_file_location("perf_trial", here)
     assert spec and spec.loader
     mod = sys.modules.get("perf_trial") or importlib.util.module_from_spec(spec)
@@ -37,6 +40,36 @@ def required(changed: list[str]) -> str:
 def read_benchmarks(text: str) -> dict[str, float]:
     """{test fullname: median ms} from pytest-benchmark's `--benchmark-json` (stats are in seconds)."""
     return {b["fullname"]: float(b["stats"]["median"]) * 1000 for b in json.loads(text).get("benchmarks", [])}
+
+
+def measured(exit_code: int, junit_text: str, bench_text: str = "") -> tuple[dict[str, float], list[str], str]:
+    """What a pytest run measured: (per-test ms, the tests that failed, a note). The figures are pytest-benchmark's medians when its JSON
+    has any, else the per-test durations of pytest's own junit report (the perf tests time themselves with ratchet asserts and do not
+    use the `benchmark` fixture). A run that ran its tests measured something; ValueError only when pytest could not run (exit 2-5: an
+    import or collection error, usage error, no tests) or its report holds no test that ran. A failed test has no figure (its time is
+    the failure's, not the workload's); it is returned by name."""
+    if exit_code in (2, 3, 4, 5):
+        raise ValueError(f"pytest could not run (exit {exit_code}: an import error, a collection error or no tests)")
+    try:
+        root = ET.fromstring(junit_text)
+    except ET.ParseError as e:
+        raise ValueError(f"pytest wrote no readable junit report ({e})") from e
+    ran: dict[str, float] = {}
+    failed: list[str] = []
+    for tc in root.iter("testcase"):
+        if tc.find("skipped") is not None:
+            continue
+        name = f"{tc.get('classname', '')}::{tc.get('name', '')}"
+        if tc.find("failure") is not None or tc.find("error") is not None:
+            failed.append(name)
+        else:
+            ran[name] = float(tc.get("time", 0)) * 1000
+    if not ran and not failed:
+        raise ValueError("pytest ran no test (its junit report is empty or all skipped)")
+    bench = read_benchmarks(bench_text) if bench_text else {}
+    if bench:
+        return {k: v for k, v in bench.items() if k not in failed}, failed, ""
+    return ran, failed, "no pytest-benchmark figures: the per-test durations come from pytest's own junit report"
 
 
 _RSS = re.compile(r"^\s*(\d+)\s+maximum resident set size", re.M)
@@ -106,6 +139,9 @@ def judge(figures: dict, baseline: dict, model: str, thermal: str | None, idle: 
     if thermal in t.MEASURE_VOID_THERMAL or not idle:
         out["void"] = f"VOID: {'thermal state ' + repr(thermal) if thermal in t.MEASURE_VOID_THERMAL else 'the machine was not idle'}: neither pass nor fail"
         return out
+    if failed := figures.get("failed"):  # a ratchet that failed on an idle machine is a worse figure; on a busy one the run was VOID above
+        out["ok"] = False
+        out["reds"].append(f"{len(failed)} perf test(s) failed on {model}: {', '.join(failed[:5])}")
     rows = [("wall_ms", name, v) for name, v in sorted(figures.get("benchmarks", {}).items())]
     if figures.get("peak_rss_mb") is not None:
         rows.append(("peak_rss_mb", "engine perf run", figures["peak_rss_mb"]))

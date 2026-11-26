@@ -9,12 +9,15 @@ enum ModelsWindowModel {
     /// The scene's title, which the Window menu lists.
     static let windowTitle = "Models & Cluster"
 
-    /// The sidebar's sections over the one list: This Mac, Places, Work.
+    /// The sidebar's sections: Models (every model, then the found cards), Providers (every provider, local and cloud), then
+    /// over the one list This Mac, Places, Work (`models.window.providers-and-models-in-the-sidebar`).
     enum Section: String, CaseIterable, Sendable {
-        case thisMac, places, work
+        case models, providers, thisMac, places, work
 
         var title: String {
             switch self {
+            case .models: "Models"
+            case .providers: "Providers"
             case .thisMac: "This Mac"
             case .places: "Places"
             case .work: "Work"
@@ -24,13 +27,29 @@ enum ModelsWindowModel {
 
     /// A sidebar item: a grouping over the one list.
     enum Item: Hashable, Sendable {
+        case allModels, usableNow, bookmarked, found
+        case provider(String)
+        /// Settings' AI panes, moved here: every provider's key and switch, the defaults per kind of work, the downloads.
+        case aiSettings
         case thisMac
         case place(ActivityModelEntry.Place)
         case runningNow
         case failedToday
 
+        /// The candidates' list this item shows; nil for an item over the models answer.
+        var candidateList: ModelCandidateRules.List? {
+            switch self {
+            case .usableNow: .usableNow
+            case .bookmarked: .bookmarked
+            case .found: .found
+            default: nil
+            }
+        }
+
         var section: Section {
             switch self {
+            case .allModels, .usableNow, .bookmarked, .found: .models
+            case .provider, .aiSettings: .providers
             case .thisMac: .thisMac
             case .place: .places
             case .runningNow, .failedToday: .work
@@ -39,6 +58,12 @@ enum ModelsWindowModel {
 
         var title: String {
             switch self {
+            case .allModels: "All Models"
+            case .provider(let name): name
+            case .aiSettings: "Keys, Defaults & Downloads"
+            case .usableNow: "Usable now"
+            case .bookmarked: "Bookmarked"
+            case .found: "Found"
             case .thisMac: "This Mac"
             case .place(let place): place.title
             case .runningNow: "Running now"
@@ -48,6 +73,12 @@ enum ModelsWindowModel {
 
         var icon: String {
             switch self {
+            case .allModels: "cpu"
+            case .provider: "shippingbox"
+            case .aiSettings: "gearshape"
+            case .usableNow: "checkmark.circle"
+            case .bookmarked: "bookmark"
+            case .found: "magnifyingglass"
             case .thisMac: "desktopcomputer"
             case .place(let place): place.icon
             case .runningNow: "play.circle"
@@ -58,6 +89,12 @@ enum ModelsWindowModel {
         /// The accessibility id's last part: `models.sidebar.<item>`.
         var identifier: String {
             switch self {
+            case .allModels: "allModels"
+            case .provider(let name): "provider.\(name)"
+            case .aiSettings: "aiSettings"
+            case .usableNow: "usableNow"
+            case .bookmarked: "bookmarked"
+            case .found: "found"
             case .thisMac: "thisMac"
             case .place(let place): "place.\(place.rawValue)"
             case .runningNow: "runningNow"
@@ -68,6 +105,7 @@ enum ModelsWindowModel {
 
     /// Every item, by section, in the sidebar's order.
     static let items: [(section: Section, items: [Item])] = [
+        (.models, [.allModels, .usableNow, .bookmarked, .found]),
         (.thisMac, [.thisMac]),
         (.places, [.place(.remote), .place(.cloud)]),
         (.work, [.runningNow, .failedToday])
@@ -81,12 +119,41 @@ enum ModelsWindowModel {
         let badge: Int
     }
 
-    /// The sidebar over the one list: each section's items with their badges.
+    /// The sidebar over the one list: each section's items with their badges, the Providers section after Models with one
+    /// item per provider the list names (local runtimes first, then cloud, each by name).
     static func sidebar(_ models: [ActivityModelEntry]) -> [(section: Section, entries: [SidebarEntry])] {
-        items.map { group in
-            (group.section, group.items.map {
+        var result: [(section: Section, entries: [SidebarEntry])] = []
+        for group in items {
+            result.append((section: group.section, entries: group.items.map {
                 SidebarEntry(item: $0, title: $0.title, icon: $0.icon, badge: badge($0, in: models))
-            })
+            }))
+            if group.section == .models {
+                let entries = providers(in: models).map {
+                    SidebarEntry(item: .provider($0), title: $0, icon: Item.provider($0).icon, badge: badge(.provider($0), in: models))
+                }
+                let settings = SidebarEntry(item: .aiSettings, title: Item.aiSettings.title, icon: Item.aiSettings.icon, badge: 0)
+                result.append((section: .providers, entries: [settings] + entries))
+            }
+        }
+        return result
+    }
+
+    /// Every provider the one list names, This Mac's first, then remote, then cloud, each place's by name.
+    static func providers(in models: [ActivityModelEntry]) -> [String] {
+        let order = Dictionary(uniqueKeysWithValues: ActivityModelEntry.Place.allCases.enumerated().map { ($1, $0) })
+        var best: [String: Int] = [:]
+        for model in models { best[model.provider] = min(best[model.provider] ?? .max, order[model.place] ?? .max) }
+        return best.keys.sorted { (best[$0]!, $0.lowercased()) < (best[$1]!, $1.lowercased()) }
+    }
+
+    /// The rows whose name, provider or licence holds the query, ignoring case and accents; every row for an empty query
+    /// (`models.search.over-every-model`).
+    static func search(_ rows: [ActivityModelEntry], query: String) -> [ActivityModelEntry] {
+        let words = query.split(separator: " ").map(String.init)
+        guard !words.isEmpty else { return rows }
+        return rows.filter { row in
+            let text = [row.name, row.provider, row.place.title, row.licence ?? ""].joined(separator: " ")
+            return words.allSatisfy { text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
         }
     }
 
@@ -94,6 +161,10 @@ enum ModelsWindowModel {
     static func rows(_ item: Item, in models: [ActivityModelEntry]) -> [ActivityModelEntry] {
         let rows: [ActivityModelEntry]
         switch item {
+        case .usableNow, .bookmarked, .found: rows = []  // drawn from the candidates, not the models answer
+        case .allModels: rows = models
+        case .provider(let name): rows = models.filter { $0.provider == name }
+        case .aiSettings: rows = []  // drawn by `AISettingsView`, not from the models answer
         case .thisMac: rows = models.filter { $0.place == .thisMac }
         case .place(let place): rows = models.filter { $0.place == place }
         case .runningNow: rows = models.filter { $0.active || !$0.usingNow.isEmpty }
@@ -113,13 +184,25 @@ enum ModelsWindowModel {
     }
 
     /// The row's one button (`activity.pane.fix-button-has-words`): the fix of its newest failure when it has one, else its
-    /// state verb (Unload on a loaded model); nil when there is nothing to press.
+    /// state verb (Unload on a loaded model, Delete on an installed one); nil when there is nothing to press.
     static func button(for row: ActivityModelEntry) -> String? {
         if let failure = row.lastFailed {
             return fixWords(failure.button) ?? (row.loaded ? "Unload" : nil)
         }
         if row.account == .needsKey { return "Add Key…" }
-        return row.loaded ? "Unload" : nil
+        if row.loaded { return "Unload" }
+        return row.modelType != nil && row.modelId != nil ? "Delete" : nil
+    }
+
+    /// The address a person typed into Add by id or URL, trimmed; nil when it is blank (nothing is sent).
+    static func addAddress(_ typed: String) -> String? {
+        let trimmed = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// What the window says when the engine refuses an address: the engine's own words, else the status.
+    static func addRefusal(code: Int, engineWords: String?) -> String {
+        engineWords ?? "The engine could not add this model (HTTP \(code))."
     }
 
     /// A failure's first action in the verbs' words; nil for an action the window has no word for.
@@ -164,6 +247,8 @@ enum ModelsWindowModel {
         [
             InspectorLine(label: "Name", value: row.name),
             InspectorLine(label: "Where", value: row.provider),
+            InspectorLine(label: "Runs on", value: row.place.title),
+            InspectorLine(label: "Cost", value: row.costWords),
             InspectorLine(label: "Size", value: row.sizeWords),
             InspectorLine(label: "Fits here", value: row.fitsWords),
             InspectorLine(label: "Account", value: row.accountWords),

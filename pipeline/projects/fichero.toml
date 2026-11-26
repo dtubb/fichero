@@ -27,6 +27,7 @@ residue = "residue"
 maintainer = "dtubb"
 allowed_authors = ["dtubb", "github-actions[bot]", "app/github-actions"]
 agent_email = "noreply@anthropic.com"
+trailer_tool = "Fichero Builder"  # the last words of a Written-By trailer: `<model> using <harness> using <this>`
 
 # The check ladder (pipeline.quick-checks-per-item). Each rung is an existing script, run from the pinned checkout
 # with the worktree as cwd. {worktree} and {files} are filled in by the runner.

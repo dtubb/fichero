@@ -140,7 +140,7 @@ class WindowState {
     /// What the one Shape tool draws in Edit Segments (`source.editor.draw-shapes`): a dragged box, or a
     /// polygon or baseline clicked point by point. Outside Edit Segments the tool always drags a box.
     var shapeKind: SegmentShapes.DrawKind = .box
-
+    var drawnLevel: SegmentShapes.DrawnLevel?  // the kind picker's choice, kept; nil follows the selection (#7083)
     /// The shape point last pressed in Edit Segments: the arrow keys nudge it (1 px, ⇧ 10) instead of
     /// paging. A press anywhere else lets it go.
     var selectedShapePoint: SegmentShapes.PointRef?
@@ -225,6 +225,17 @@ class WindowState {
 
     /// The Knife's stroke so far, in the page's fractions, while it is being drawn.
     var knifeStroke: [[Double]] = []
+
+    /// Close the drawing: its points, and it ends. Too few: nil, a notice why, points kept. None: nil.
+    func closeDrawing() -> [[Double]]? {
+        guard !drawingPoints.isEmpty else { return nil }
+        guard drawingPoints.count >= shapeKind.minimumPoints else {
+            segmentNotice = shapeKind.tooFewWords
+            return nil
+        }
+        defer { drawingPoints = [] }
+        return drawingPoints
+    }
 
     /// Escape during a drawing: drop the points clicked so far and make nothing. True when there was a
     /// drawing to abandon -- that Escape does nothing else; the next one clears as it always has.

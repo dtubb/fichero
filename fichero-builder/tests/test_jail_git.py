@@ -28,6 +28,6 @@ def test_the_ready_script_names_the_git_error_when_it_cannot_count(tmp_path):
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     for a in (["config", "user.email", "a@b"], ["config", "user.name", "a"], ["commit", "-q", "--allow-empty", "-m", "x"], ["update-ref", "refs/remotes/origin/integration", "HEAD"]):
         subprocess.run(["git", "-C", str(repo), *a], check=True)
-    script = next(p for p in __import__("pathlib").Path(__file__).resolve().parents if (p / "scripts" / "lane_ready_check.sh").exists()) / "scripts" / "lane_ready_check.sh"
+    script = next(p for p in __import__("pathlib").Path(__file__).resolve().parents if (p / "scripts" / "lane_ready_check.sh").exists()) / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh"
     r = subprocess.run(["/bin/bash", str(script), "--no-guards", "deadbeefdeadbeef"], cwd=repo, capture_output=True, text=True)
     assert r.returncode != 0 and "FAIL: git could not" in r.stdout and "(cap" not in r.stdout, r.stdout + r.stderr

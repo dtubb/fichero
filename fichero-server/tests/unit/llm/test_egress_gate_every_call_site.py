@@ -153,6 +153,7 @@ ALLOWED = {
     "api/routes/ai/models.py::_fetch_hf_models": _OWN_FETCH,
     "api/routes/ai/models.py::_fetch_hf_tasks": _OWN_FETCH,
     "api/routes/ai/models.py::get_hf_model": _OWN_FETCH,
+    "api/routes/system/recipes.py::_fetch_hub_model": _OWN_FETCH,  # its route refuses offline (403) before calling it
     "api/routes/ai/provider_keys.py::test_provider_connection": _SENDS_A_KEY,
     "api/routes/ai/provider_models.py::_live_openrouter_models": _SENDS_A_KEY,
     "api/routes/ai/provider_models.py::_live_huggingface_models": _SENDS_A_KEY,

@@ -1120,6 +1120,7 @@ class TestCopyToLibrary:
 class TestTryApfsClone:
     """Tests for _try_apfs_clone function."""
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="macOS only"
@@ -1427,6 +1428,7 @@ class TestExtractFileMetadata:
 
         assert doc.metadata["mime_type"] == "text/plain"
 
+    @pytest.mark.macos_only
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="Requires Pillow"
@@ -1629,7 +1631,9 @@ class TestIntegration:
             
             # Mock file operations
             with patch("fichero_server.importers.ingest.shutil") as mock_shutil:
-                mock_shutil.copy2.return_value = None
+                # a copy that lands, as the APFS clone tried first does on a Mac (on Linux there is no clone, and
+                # a copy that writes nothing fails the size check, GitHub run 45685569900)
+                mock_shutil.copy2.side_effect = lambda src, dst: Path(dst).write_bytes(Path(src).read_bytes())
                 
                 from fichero_server.importers.ingest import IngestMode
                 
@@ -1663,7 +1667,9 @@ class TestIntegration:
             mock_db.get.return_value = None
             
             with patch("fichero_server.importers.ingest.shutil") as mock_shutil:
-                mock_shutil.copy2.return_value = None
+                # a copy that lands, as the APFS clone tried first does on a Mac (on Linux there is no clone, and
+                # a copy that writes nothing fails the size check, GitHub run 45685569900)
+                mock_shutil.copy2.side_effect = lambda src, dst: Path(dst).write_bytes(Path(src).read_bytes())
                 
                 from fichero_server.importers.ingest import IngestMode
                 
@@ -2148,7 +2154,9 @@ class TestPerformance:
             mock_db.get.return_value = None
             
             with patch("fichero_server.importers.ingest.shutil") as mock_shutil:
-                mock_shutil.copy2.return_value = None
+                # a copy that lands, as the APFS clone tried first does on a Mac (on Linux there is no clone, and
+                # a copy that writes nothing fails the size check, GitHub run 45685569900)
+                mock_shutil.copy2.side_effect = lambda src, dst: Path(dst).write_bytes(Path(src).read_bytes())
                 
                 # Ingest all files
                 results = []
@@ -2184,7 +2192,9 @@ class TestPerformance:
             mock_db.get.return_value = None
             
             with patch("fichero_server.importers.ingest.shutil") as mock_shutil:
-                mock_shutil.copy2.return_value = None
+                # a copy that lands, as the APFS clone tried first does on a Mac (on Linux there is no clone, and
+                # a copy that writes nothing fails the size check, GitHub run 45685569900)
+                mock_shutil.copy2.side_effect = lambda src, dst: Path(dst).write_bytes(Path(src).read_bytes())
                 
                 # Should not crash with large file
                 from fichero_server.importers.ingest import IngestMode

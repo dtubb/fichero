@@ -9817,6 +9817,16 @@
         "response_model": "ModelCandidateList"
       },
       {
+        "method": "POST",
+        "path": "/recipes/candidates/add",
+        "operation_id": "add_candidate_by_address_api_recipes_candidates_add_post",
+        "summary": "Add Candidate By Address",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AddByAddressRequest",
+        "response_model": null
+      },
+      {
         "method": "DELETE",
         "path": "/recipes/candidates/bookmark",
         "operation_id": "remove_candidate_bookmark_api_recipes_candidates_bookmark_delete",
@@ -10166,6 +10176,16 @@
         "query_params": [],
         "request_model": "LayerChangeRequest",
         "response_model": "StartPlan"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/reread-edited",
+        "operation_id": "reread_edited_segments_api_recipes_project_reread_edited_post",
+        "summary": "Reread Edited Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RereadEditedRequest",
+        "response_model": "RereadEditedResponse"
       },
       {
         "method": "GET",
@@ -11803,6 +11823,18 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/types",
+        "operation_id": "list_region_types_api_segments_document__doc_id__types_get",
+        "summary": "List Region Types",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RegionTypes"
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{doc_id}/validate",
         "operation_id": "validate_document_segments_api_segments_document__doc_id__validate_get",
         "summary": "Validate Document Segments",
@@ -11845,6 +11877,22 @@
         ],
         "request_model": null,
         "response_model": "DerivedText"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/inspect",
+        "operation_id": "inspect_segments_api_segments_inspect_get",
+        "summary": "Inspect Segments",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "segment_ids",
+            "required": true,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SegmentInspectRead"
       },
       {
         "method": "POST",

@@ -29,9 +29,10 @@ struct ModelsWindowSceneTests {
     @Test("the sidebar's sections and items, each badged with its rows needing you, come from the model")
     func sidebarFromTheModel() {
         let sidebar = ModelsWindowModel.sidebar([broken, idle, keyless])
-        #expect(sidebar.map(\.section) == [.thisMac, .places, .work])
+        #expect(sidebar.map(\.section) == [.models, .providers, .thisMac, .places, .work])
         let entries = sidebar.flatMap(\.entries)
-        #expect(entries.map(\.item) == ModelsWindowModel.items.flatMap(\.items))
+        let fixed = entries.filter { $0.item.section != .providers }.map(\.item)
+        #expect(fixed == ModelsWindowModel.items.flatMap(\.items))
         #expect(entries.first { $0.item == .thisMac }?.badge == 1)
         #expect(entries.first { $0.item == .place(.cloud) }?.badge == 1)
         #expect(entries.first { $0.item == .runningNow }?.badge == 0)

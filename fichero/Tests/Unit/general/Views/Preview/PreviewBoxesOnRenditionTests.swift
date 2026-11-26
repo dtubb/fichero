@@ -1,3 +1,4 @@
+import CoreGraphics
 @testable import Fichero
 import Testing
 

@@ -101,11 +101,14 @@ takeover regression shared with every other sidebar mode.
 - `automation.audit-trail` [GAP] — a schedule/trigger create/edit/pause/run is not routed
   through `actions/registry.py`'s typed audited-action layer, so an automation run is not
   an actor in the audit log. **(#4739).**
-- `automation.unattended-throttle` [GAP] — a schedule/trigger-initiated workflow run does
+  Not built: needs the typed schedule/trigger actions (a new action domain in `actions/registry.py`) and every route moved onto them.
+- `automation.unattended-throttle` [PARTIAL] — a schedule/trigger-initiated workflow run does
   not drop to background QoS via `background_compute.py`; it can compete for CPU with the
   foreground app the same as an interactive run, which the "user machine always useful"
   rule requires it not to. **(#4740)** — corrected 2026-09-18: was mis-cited to #4739,
   #4740 is this behavior's own issue by title.
+  *Tests:* `fichero-server/tests/unit/execution/test_unattended_runs_throttle_4740.py`: `execution/runner.py`'s `start_run` drops the run's worker thread to
+  background QoS when `started_by` is `schedule` or `trigger`, and leaves a person's run alone.
 - `automation.timezone-correctness` [OK] — #2134 (CLOSED), pinned by `test_scheduler_tz.py`.
 
 ## Test matrix
@@ -117,7 +120,7 @@ takeover regression shared with every other sidebar mode.
 | Availability (Swift) | y | `AutomationAPIService` reachable from a library reference | `LibraryManager.swift:402,110` (needs a pinning test — none found citing this specifically) |
 | Backend (pytest) | y | schedule/trigger CRUD, pause/resume, run-now, OpenAPI schema | `fichero-server/tests/unit/api/test_routes_schedules.py`, `test_routes_triggers.py` |
 | Backend (pytest) — trigger MATCHING | n today | which file events a `TriggerConfig` matches (glob/extension/event-type) | **[GAP]** — `file_watcher.py`'s `FileWatchHandler` has no dedicated matching-policy test file found |
-| Backend (pytest) — throttling policy | n today | a scheduled run drops to background QoS like `background_compute.py`'s other callers | **[GAP]** — no test exists because no call site exists (`automation.unattended-throttle`) |
+| Backend (pytest) — throttling policy | n today | a scheduled run drops to background QoS like `background_compute.py`'s other callers | **[PARTIAL]** — no test exists because no call site exists (`automation.unattended-throttle`); now `fichero-server/tests/unit/execution/test_unattended_runs_throttle_4740.py` |
 | Swift contract | y | response decoding, error surfacing (never silent-empty) | `Contract/TriggersMigrationTests.swift`, `Services/SchedulesMigrationTests.swift` |
 | MCP | n | not exposed as an MCP tool today | — |
 | CLI | n | not exposed as a CLI command today | — |
@@ -217,7 +220,7 @@ not a coherent new surface needing its own spec.
 - `automation.run.history-inspector-tab` — **[GAP]** (#1474) the document inspector lists the workflow runs that ran on this document and lets the user delete (or disable) a run's results, as the image history does
 - `automation.applescript.debug-dictionary-loads` — **[OK]** (#5258) the Debug build's FicheroDebug.sdef includes Fichero.sdef by a path that resolves inside the built bundle, so every scripting command works in Debug. Fixed by copying Fichero.sdef's suites into FicheroDebug.sdef instead of an XInclude (the system resolved the include against the reader's working directory); `AppleScriptSurfaceTests.testTheDebugDictionaryIsTheUserOnePlusTheTestSuite` fails if the copy drifts, and `testTheRunningAppLoadedItsDictionary` checks that the running Debug app loaded every UI verb and the test suite.
 - `automation.applescript.every-command-smoke-tested` — **[GAP]** (#5259) a test launches the built app (Debug and Release, isolated engine and fixture library) and runs every command in Fichero.sdef through osascript, asserting each result.
-- `automation.schedule.runs-on-chosen-documents` **[BROKEN]** (#5410): a schedule can name the pages or folder it runs on, typed as the run's own inputs, and triggering it runs on exactly those; the schedule editor shows what it runs on. Today POST /api/schedules with selected_doc_ids is refused with 422.
+- `automation.schedule.runs-on-chosen-documents` **[BROKEN]** (#5410): a schedule can name the pages or folder it runs on, typed as the run's own inputs, and triggering it runs on exactly those; the schedule editor shows what it runs on. Today POST /api/schedules with selected_doc_ids is refused with 422. Not built: needs `inputs` on `/api/schedules` retyped from `dict[str, str]` (the 422) with the OpenAPI contract, generated CLI/MCP/Swift clients and the schedule editor regenerated.
 
 ## Future (ideas, not scheduled)
 - (#4171) fichero:// deep link for every view: copy link, bookmark, script, click-through from Inspector.

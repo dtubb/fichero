@@ -248,8 +248,8 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   override honoured (#6269's model-choice half). *Test:* `fichero-server/tests/unit/recipes/test_fallback_free_and_asked.py::test_ai_where_fallback_free_and_asked_offers_a_free_place_and_applies_it_only_on_the_press`, `::test_a_paid_or_unpriced_place_is_never_offered`.
 - `runner.cli-mcp.same-words` — **[PARTIAL]** (#6354, #6350) the CLI and MCP print the run's `failure` words, fix and
   actions; a refusal or a pause carries its typed shape intact. Built for a failed workflow run and a cloud refusal; not for a
-  paused recipe run's cause or a remote job. *Test:* `fichero-cli/tests/test_cli_run_failure_words_6354`,
-  `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354`.
+  paused recipe run's cause or a remote job. *Test:* `fichero-cli/tests/test_cli_run_failure_words_6354.py`,
+  `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354.py`.
 
 ### B. Inputs, models and empty results (the recipe's half, owned by `recipes-run.md` §13)
 
@@ -399,7 +399,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `activity.throttle.in-use-slows-to-half` own it) automatic work goes on while the person uses the Mac, at half the
   performance cores and background QoS; a run the person started begins at once, throttled, never waits for Run now
   (#6263). Built: the one in-use rule; a started run's step is never held for use or battery, only for memory or heat (*test:*
-  `fichero-server/tests/unit/jobs/test_started_run_begins_at_once_6263.py`); an import's automatic Kraken reads on half the
+  `fichero-server/tests/unit/execution/test_started_run_begins_at_once_6263.py`); an import's automatic Kraken reads on half the
   performance cores at utility QoS. Owed: other automatic work in use still drops to the lowest QoS class (#6230), and the
   Air's step hold of #6263, not reproduced.
 
@@ -490,7 +490,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   "Open Settings…", `choose-model` "Choose a Model…", `report-bug` "Send a Bug Report…", `reconnect` "Reconnect…", then
   "Show in Activity" and "Not Now". No raw string, no "Server error". `cap-refused` and `images-refused` are handed to
   `CloudRefusalAlert` with the run to resume (decision 5). Tests:
-  `fichero/Tests/Unit/general/Views/RunFailureAlertTests` (buttons from each served kind in the engine's order;
+  `fichero/Tests/Unit/general/Views/RunFailureAlertTests.swift` (buttons from each served kind in the engine's order;
   a cap kind builds a `CloudRefusalPrompt` whose resend resumes the run; an `unexpected` failure offers the report first;
   no kind ever shows the raw `detail` in the message).
 - `run.fail.one-alert-per-attempt` [GAP] (#6354) — the app alerts once per `id@failed_at` (`ActivityErrorWindow.seenKey`),
@@ -512,7 +512,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   (`settings.ai.providers` is new: the provider's row, its key field focused), `choose-model` opens the step's model
   choice (Set Up's step for a recipe run, the workflow's model for a hand run), `reconnect` runs
   `engine.silent.originals-one-press-reconnect`'s picker, `report-bug` the flow in D. Tests:
-  `fichero/Tests/Unit/general/Views/RunFailureAlertTests` (each action calls its one route on a stub client).
+  `fichero/Tests/Unit/general/Views/RunFailureAlertTests.swift` (each action calls its one route on a stub client).
 - `run.fail.activity-says-the-kind` [GAP] (#6354) — a failed row in Activity (DONE TODAY's line, the popover's error
   line, the opened run's heading) says the failure's `words` first and its `fix` under them, from `failure`, falling back
   to `reason` for a row with none (an engine from before this); the opened run has the same action buttons as the
@@ -533,11 +533,11 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   (`fichero workflow retry <id>`, `fichero ai providers set-key <provider>` or the regen's name, `fichero activity
   bug-report <id> --out <file>`); exit 1 for a failure, 3 for a cloud refusal as built; an `unexpected` failure says
   "a bug in Fichero" and the bug-report command first; never a traceback. Tests:
-  `fichero-cli/tests/test_cli_run_failure_words_6354`.
+  `fichero-cli/tests/test_cli_run_failure_words_6354.py`.
 - `run.fail.mcp-says-the-fix` [PARTIAL] (#6354; built: a failed run's `failure` reaches the caller intact in the status and jobs answers, and an error `detail` carrying it names the tool for each action, the bug report first for a bug in Fichero; not built: `fichero_workflow_run` with `wait`, which the tool does not have, so no engine error carries `detail.failure` today) — `fichero_workflow_status` and `fichero_activity_jobs` return `failure`
   intact; `fichero_workflow_run` with `wait` returns it on a failed run as `EngineError` with `detail.failure`, the
   message naming the tool for each action (`fichero_workflow_retry`, `fichero_activity_bug_report` from the regen).
-  Tests: `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354`.
+  Tests: `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354.py`.
 
 ### K. The failure on a run, carried from the former Activity spec section J (2026-11-18)
 
@@ -742,8 +742,8 @@ The two stages below are the former failure-alerts spec's build order, carried h
 | Pure rule (Swift) | y | one alert per cause; the row's words and fix from `failure`; no raw text | `fichero/Tests/Unit/general/Views/RunFailureAlertTests.swift` |
 | Availability (Swift) | y | the alert modifier mounted; the hand-run paths reach it | the same |
 | Backend (pytest) | y | every kind's pause-or-fail; Continue from the first item not done; each runner's failure a `RunFailure` | `fichero-server/tests/unit/llm/`, `fichero-server/tests/unit/recipes/`, `fichero-server/tests/unit/remote_read/` |
-| MCP | y | `failure` intact on a paused recipe run | `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354` |
-| CLI | y | words, fix and the Continue command | `fichero-cli/tests/test_cli_run_failure_words_6354` |
+| MCP | y | `failure` intact on a paused recipe run | `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354.py` |
+| CLI | y | words, fix and the Continue command | `fichero-cli/tests/test_cli_run_failure_words_6354.py` |
 | Click-around (XCUITest, Mac) | later | a stub provider's 402 pauses a run; the dialogue's buttons | — |
 | Load (#4634) | y | the 100-page run with a provider that runs out of credit at page 40 pauses once and finishes after Continue | `fichero-server/tests/perf/test_recipe_run_100_pages.py` (extend) |
 

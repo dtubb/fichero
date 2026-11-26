@@ -85,6 +85,7 @@ struct SegmentsPictureGrid: View {
         // A second route to Open, for touch (iPad has no double-click) and for the keyboard-less.
         .contextMenu {
             if opens(id) { OpenSegmentMenuItem(target: openTarget(id)) }
+            RunStepOnSegmentsMenu(ids: [id])
         }
         // Page › Segments › Open on the selected picture (#5652), the same item as its menu.
         .focusedSceneValue(\.lineVerbs, selected == id ? openTarget(id) : nil)

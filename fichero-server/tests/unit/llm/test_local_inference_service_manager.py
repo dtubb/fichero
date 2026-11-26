@@ -449,6 +449,7 @@ async def test_stop_resets_state() -> None:
     assert process.stop_calls == 1
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_managed_process_starts_and_stops_real_sidecar(tmp_path: Path, reaped_sidecar) -> None:
     script = write_fake_managed_server(tmp_path)
@@ -489,6 +490,7 @@ async def test_managed_process_starts_and_stops_real_sidecar(tmp_path: Path, rea
         os.kill(pid, 0)
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_managed_process_surfaces_crash_error_and_allows_restart(
     tmp_path: Path, reaped_sidecar
@@ -530,6 +532,7 @@ async def test_managed_process_surfaces_crash_error_and_allows_restart(
     await manager.stop()
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_managed_process_missing_runtime_raises_typed_error() -> None:
     managed_profile = profile(
@@ -545,6 +548,7 @@ async def test_managed_process_missing_runtime_raises_typed_error() -> None:
     assert "runtime not found" in process.last_error
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_managed_process_stderr_excerpt_surfaces_in_status(tmp_path: Path) -> None:
     script = write_fake_managed_server(tmp_path)
@@ -593,6 +597,7 @@ async def test_managed_process_stderr_excerpt_surfaces_in_status(tmp_path: Path)
     assert "mlx runtime missing" in (status.last_error or "")
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_stderr_excerpt_survives_regardless_of_start_timeout(tmp_path: Path) -> None:
     """Excerpt plumbing must not depend on winning a wall-clock race.

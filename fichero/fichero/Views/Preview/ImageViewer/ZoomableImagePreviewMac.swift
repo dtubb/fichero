@@ -526,6 +526,10 @@ extension ZoomableImagePreview {
             // only when the zoomed image can actually travel horizontally;
             // otherwise they step siblings via the trackpad-swipe seam.
             .onKeyPress(.leftArrow, phases: .down) { press in
+                // ⌥ grows the selected boxes' left edge, ⌃⌥ shrinks it (`segment-editor.edges-move-by-key`).
+                if press.modifiers.contains(.option), resizeSelectedByKey(
+                    side: .left, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
+                ) { return .handled }
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(-1, 0, fast: press.modifiers.contains(.shift)) { return .handled }
                 if canPanHorizontally { panLeft() } else {
@@ -534,6 +538,10 @@ extension ZoomableImagePreview {
                 return .handled
             }
             .onKeyPress(.rightArrow, phases: .down) { press in
+                // ⌥ grows the selected boxes' right edge, ⌃⌥ shrinks it (`segment-editor.edges-move-by-key`).
+                if press.modifiers.contains(.option), resizeSelectedByKey(
+                    side: .right, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
+                ) { return .handled }
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(1, 0, fast: press.modifiers.contains(.shift)) { return .handled }
                 if canPanHorizontally { panRight() } else {
@@ -542,6 +550,10 @@ extension ZoomableImagePreview {
                 return .handled
             }
             .onKeyPress(.upArrow, phases: .down) { press in
+                // ⌥ grows the selected boxes' up edge, ⌃⌥ shrinks it (`segment-editor.edges-move-by-key`).
+                if press.modifiers.contains(.option), resizeSelectedByKey(
+                    side: .top, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
+                ) { return .handled }
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, -1, fast: press.modifiers.contains(.shift)) { return .handled }
                 if stepSegmentSelection(-1, extend: press.modifiers.contains(.shift)) { return .handled }
@@ -551,6 +563,10 @@ extension ZoomableImagePreview {
                 return .handled
             }
             .onKeyPress(.downArrow, phases: .down) { press in
+                // ⌥ grows the selected boxes' down edge, ⌃⌥ shrinks it (`segment-editor.edges-move-by-key`).
+                if press.modifiers.contains(.option), resizeSelectedByKey(
+                    side: .bottom, outward: !press.modifiers.contains(.control), fast: press.modifiers.contains(.shift)
+                ) { return .handled }
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, 1, fast: press.modifiers.contains(.shift)) { return .handled }
                 if stepSegmentSelection(1, extend: press.modifiers.contains(.shift)) { return .handled }

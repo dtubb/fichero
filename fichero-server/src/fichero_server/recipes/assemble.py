@@ -198,6 +198,10 @@ class Card:
     #: The most lines the model is asked to read in one request (its card's `lines_per_request`), None: the default
     #: (`line_reader.LINES_PER_CALL`). A request never exceeds it (#5722).
     lines_per_request: int | None = None
+    #: What using it costs, in words ("Free, on this Mac"; a cloud model: billed by its provider) and the page of its own source
+    #: (`models.cards.richer-and-more`); empty where nothing states them.
+    cost: str = ""
+    source_url: str = ""
     #: False when the card's runtime is not in this build (its seed row says `runs_here: false`): never a
     #: candidate for the recipe, but the bake-off names it (Tesseract, `source.onboard.bakeoff-tesseract-baseline`).
     runs_here: bool = True
@@ -651,6 +655,7 @@ def rank_key(job: str, card: Card, material: str, a: Answers | None = None) -> t
 
 def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None) -> Choice:
     material = material or a.material
+    cards = [c for c in cards if not c.offered_only]  # offered to compare, never chosen by the rules (#6588)
     kept = [c for c in cards if _refusal(job, c, a, material) is None]
     if not kept:
         # Short: how many cards were refused, by reason, naming the first few; each card and why is the problem's

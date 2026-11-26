@@ -34,6 +34,9 @@ struct ActivityStatusToolbarItem: View {
     var revealActivityPane: () -> Bool = { false }
 
     @State private var showPopover = false
+
+    /// One click opens the popover and the next closes it; a click never leaves a second one up (#7090).
+    nonisolated static func popoverAfterClick(_ isOpen: Bool) -> Bool { !isOpen }
     /// The failures the popover may show, fixed as it opens (#5666): the last hour, or since it was last opened.
     @State private var errorWindow = ActivityErrorWindow()
     private let errorLedger = ActivityErrorLedger.shared
@@ -73,7 +76,7 @@ struct ActivityStatusToolbarItem: View {
         Group {
             if hasError {
                 Button {
-                    showPopover = true
+                    showPopover = Self.popoverAfterClick(showPopover)
                 } label: {
                     Image(systemName: ToolbarSymbols.activityError)
                         .foregroundStyle(.red)
@@ -83,7 +86,7 @@ struct ActivityStatusToolbarItem: View {
                 .help("A background task reported an error — click for details")
             } else if activeCount > 0 {
                 Button {
-                    showPopover = true
+                    showPopover = Self.popoverAfterClick(showPopover)
                 } label: {
                     HStack(spacing: 4) {
                         ProgressView()
@@ -106,7 +109,7 @@ struct ActivityStatusToolbarItem: View {
                 // filter control's three-lines-in-a-circle at toolbar size
                 // (#4360).
                 Button {
-                    showPopover = true
+                    showPopover = Self.popoverAfterClick(showPopover)
                 } label: {
                     // Lit while its popover is open, same rule as the server
                     // button beside it (Daniel, 2026-09-02).

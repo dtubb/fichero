@@ -43,6 +43,19 @@ struct PreviewImageGeometry: Equatable {
         visible.width > 0 && visible.height > 0
             && drawnFrame.width > 0 && drawnFrame.height > 0
     }
+
+    /// True when `other` is the same geometry to within layout's own wobble: 1e-6 of the image on the
+    /// normalized window, 0.01 pt on the drawn frame. The view publishes a measurement only when it does
+    /// NOT settle with the one it holds: exact `!=` let a last-bit difference between two layout passes
+    /// publish every pass, and each publish re-ran the body and the layout that measured it (#7081).
+    func settles(with other: PreviewImageGeometry) -> Bool {
+        Self.near(visible, other.visible, 1e-6) && Self.near(drawnFrame, other.drawnFrame, 0.01)
+    }
+
+    private static func near(_ lhs: CGRect, _ rhs: CGRect, _ tolerance: CGFloat) -> Bool {
+        abs(lhs.minX - rhs.minX) <= tolerance && abs(lhs.minY - rhs.minY) <= tolerance
+            && abs(lhs.width - rhs.width) <= tolerance && abs(lhs.height - rhs.height) <= tolerance
+    }
 }
 
 /// Pane point ↔ normalized image point, through ONE published geometry.

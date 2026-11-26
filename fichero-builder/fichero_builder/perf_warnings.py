@@ -11,6 +11,8 @@ import json
 import re
 from pathlib import Path
 
+from fichero_builder import client
+
 LABEL = "Build warnings"
 MILESTONE = "performance-sweep"
 EXAMPLES = 20
@@ -163,7 +165,7 @@ def file_issues(rows: list[dict], measured: set, run: str, gh) -> list[int]:
 
 def _xcode_reader():
     import importlib.util
-    spec = importlib.util.spec_from_file_location("check_xcode_warning_ratchet", Path(__file__).resolve().parents[2] / "scripts" / "check_xcode_warning_ratchet.py")
+    spec = importlib.util.spec_from_file_location("check_xcode_warning_ratchet", client.scripts_dir() / "check_xcode_warning_ratchet.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

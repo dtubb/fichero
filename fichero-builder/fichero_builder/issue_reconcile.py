@@ -30,15 +30,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import pathlib
 import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from dataclasses import dataclass, field
 
-REPO = "dtubb/fichero"
+REPO = "dtubb/fichero"  # [land].repo of harness.toml (configure)
 SPEC_ROOT = "docs/contributor_manual/specs"
-DEFAULT_REF = "origin/integration"
+DEFAULT_REF = "origin/integration"  # origin/<[land].branch> (configure)
+
+
+def configure(root=".") -> None:
+    """[land].repo and [land].branch of root's harness.toml replace the gh slug and the default ref; no file = Fichero's."""
+    global REPO, DEFAULT_REF
+    f = pathlib.Path(root) / "harness.toml"
+    land = tomllib.loads(f.read_text()).get("land", {}) if f.is_file() else {}
+    REPO, DEFAULT_REF = land.get("repo", REPO), f"origin/{land['branch']}" if "branch" in land else DEFAULT_REF
+
+
 GH = "gh"  # the self-test and the unit tests point this at a fake
 DONE_TAGS = frozenset({"OK", "BUILT"})  # the specs use both words for a finished behaviour
 COMMENT_MARK = "<!-- issue-spec-reconcile -->"
@@ -654,7 +666,7 @@ not a bullet (#18)
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Reconcile open issues against spec lines and fix commits (dry run by default).")
-    ap.add_argument("--ref", default=DEFAULT_REF)
+    ap.add_argument("--ref", default=None, help="default origin/<[land].branch>")
     ap.add_argument("--tsv")
     ap.add_argument("--apply", action="store_true", help="apply the decisions in --tsv (dry run otherwise)")
     ap.add_argument("--self-test", action="store_true")
@@ -669,6 +681,8 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv)
     if args.self_test:
         return self_test()
+    configure()  # always: the gh slug is the checkout's, whatever --ref says (the loop runs this in the owner's checkout)
+    args.ref = args.ref or DEFAULT_REF
     if args.link_audit:
         with open(args.link_audit, "w") as f:
             json.dump(link_audit(args.ref), f, indent=1)

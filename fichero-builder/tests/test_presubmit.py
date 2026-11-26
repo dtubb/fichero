@@ -128,7 +128,7 @@ def test_the_ready_checks_fast_guards_run_a_timed_out_guard_once_more_and_only_a
     import sys
     from pathlib import Path
 
-    script = next(p for p in Path(__file__).resolve().parents if (p / "scripts" / "lane_ready_check.sh").exists()) / "scripts" / "lane_ready_check.sh"
+    script = next(p for p in Path(__file__).resolve().parents if (p / "scripts" / "lane_ready_check.sh").exists()) / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh"
     (tmp_path / "pipeline" / "projects").mkdir(parents=True)
     (tmp_path / "pipeline" / "projects" / "fichero.toml").write_text(
         '[repo]\npython_path = "."\n[[ladder]]\nname = "fast-guards"\nskip = []\ntimeout_s = 1\n')

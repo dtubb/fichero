@@ -33,6 +33,7 @@ def _pages(db, n):
 
 
 def test_one_pages_embed_waits_for_kraken(db, kraken_reading):
+    """While Kraken reads, a page's re-embed raises MemoryShortError, which the lane turns into waiting (#6808)."""
     [page] = _pages(db, 1)
     with pytest.raises(MemoryShortError):
         page_text_cache._reembed(db, page.id)

@@ -30,6 +30,7 @@ pytestmark = pytest.mark.skipif(
     sys.platform != "darwin",
     reason="process_vision renders PDFs via Quartz (macOS-only); skipped on Linux CI",
 )
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 
 @pytest.fixture(autouse=True)

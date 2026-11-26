@@ -14,11 +14,33 @@ extension ZoomableImagePreview {
         }
     }
 
-    func selectNewSegment(_ id: String?, documentId: String) {
+    /// PAINT a line (`segment-editor.paintbrush`): one `segment.create` with the brush's stroke, in the region holding most
+    /// of it; the engine makes the outline and the baseline. ⌘Z.
+    func drawPaintStroke(_ stroke: [[Double]], widthPixels: Double) {
+        if refusesEditOnMappedRendition() { return }
+        guard let store = segmentEditStore else { return }
+        let onThePass = documentId.map { id in store.segments(documentId: id).filter { $0.passId == ocrGeometryPassId } } ?? []
+        switch StrokeTarget.resolve(
+            documentId: documentId, passId: ocrGeometryPassId, onPass: onThePass,
+            region: SegmentShapes.containingRegion(for: stroke, among: onThePass)
+        ) {
+        case .failure(let refusal):
+            Self.logger.notice("Paintbrush stroke not sent: \(refusal.words, privacy: .public)")
+            windowState?.segmentNotice = refusal.words
+        case .success(let target):
+            runSegmentEdit(
+                PaintbrushStroke.create(stroke, widthPixels: widthPixels, on: target),
+                documentId: target.documentId, name: "Paint Line"
+            )
+            windowState?.lastDrawnKind = "line"
+        }
+    }
+
+    func selectNewSegment(_ id: String?, documentId: String, openForText: Bool = true) {
         guard let id, let scope = ocrGeometrySelectionScope, let boxes = ocrGeometry?.boxes,
               let index = boxes.firstIndex(where: { $0.segmentId == id }) else { return }
         regionSelection.select(index, artifactId: scope, documentId: documentId, in: boxes)
-        windowState?.openForTextSegmentId = id
+        if openForText { windowState?.openForTextSegmentId = id }
     }
 
     /// After each re-read of a Join (it, its undo, its redo): the kept line is selected, or the joined lines once undone.

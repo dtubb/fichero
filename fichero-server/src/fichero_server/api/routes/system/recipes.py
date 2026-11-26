@@ -1493,6 +1493,9 @@ class ModelCandidate(BaseModel):
                                       "page can name them before it runs (#5808)")
     link: Optional[str] = Field(default=None, description="the page of its model (Hugging Face, Zenodo's DOI); null "
                                 "where it has none (#5808)")
+    bookmark_key: Optional[str] = Field(default=None, description=(
+        "the key the bookmark routes take for a card a Hugging Face search found; null for any other card (#6588)"))
+    bookmarked: bool = Field(default=False, description="the person kept this found card (`models.bookmark.kept-not-added`, #6588)")
     other_period: bool = Field(default=False, description="made for another period than the project's "
                                "(`answers.period`): the app lists it under 'Other periods', not beside the fitting "
                                "ones (#5808)")
@@ -1651,6 +1654,50 @@ async def bookmark_candidate(request: BookmarkRequest) -> dict[str, str]:
     return {"key": request.key}
 
 
+class AddByAddressRequest(BaseModel):
+    """What a person typed to add a model: a Hugging Face id or address, a Zenodo address or DOI."""
+
+    model_config = ConfigDict(extra="forbid")
+    address: str = Field(description="a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model")
+
+
+async def _fetch_hub_model(repo: str) -> Optional[dict]:
+    """The Hub's listing of one model, or None when the Hub does not know it (a redirect is not followed: it is not a listing)."""
+    import httpx
+
+    async with httpx.AsyncClient() as client:
+        found = await client.get(f"https://huggingface.co/api/models/{repo}", timeout=20.0, follow_redirects=False)
+    return found.json() if found.status_code == 200 else None
+
+
+async def _fetch_hub_card(repo: str) -> Optional[str]:
+    from fichero_server.recipes import discovery
+
+    return await discovery._fetch_card_text(repo)
+
+
+@router.post("/candidates/add")
+async def add_candidate_by_address(request: AddByAddressRequest) -> dict[str, str]:
+    """Add a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card filled in from its source,
+    the key the bookmark routes take. 422 for an address no model is named by, 404 for a model its source does not know, 403 while
+    this engine works offline (a Hub model is read over the network)."""
+    from fichero_server.recipes import discovery
+
+    try:
+        kind, ident = discovery.parse_model_address(request.address)
+        model = card = None
+        if kind == "hugging-face":
+            if not discovery.egress_allowed():
+                raise HTTPException(status_code=403, detail="Offline: a Hugging Face model cannot be looked up")
+            model, card = await _fetch_hub_model(ident), await _fetch_hub_card(ident)
+        key = discovery.add_by_address(request.address, fetch_model=lambda _: model, fetch_card=lambda _: card)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"key": key}
+
+
 @router.delete("/candidates/bookmark")
 async def remove_candidate_bookmark(
     request: BookmarkRequest, library_path: Optional[str] = Depends(optional_library_path),
@@ -1715,6 +1762,8 @@ async def model_candidates(
         egress_allowed,
         size_words,
     )
+    from fichero_server.recipes.discovery import _hub_key
+    from fichero_server.recipes.discovery import cached_hub as discovery_cached_hub
     from fichero_server.recipes.names import resolve_language, resolve_script
 
     from fichero_server.recipes.jobs import get_job
@@ -1824,6 +1873,8 @@ async def model_candidates(
     from fichero_server.recipes.where_it_runs import places_it_can_run
 
     mac_gb, hf_ready, cluster_names = await run_in_threadpool(_where_facts, request)
+    kept = discovery_cached_hub()
+    keys = {c.id: _hub_key(c) if c.source == "hugging-face" else None for c in cards}
     items = [ModelCandidate(
         id=c.id, name=c.note.strip().rstrip(".") or c.id, tier=reader_tier(c, job),
         tier_words=TIER_WORDS.get(reader_tier(c, job) or ""), short_name=short_name(c), source=c.source,
@@ -1840,6 +1891,7 @@ async def model_candidates(
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
         availability_words=availability_words(c), chosen=c.id == pick, default_pick=chosen_id is None and c.id == pick, fit=fit(c),
         link=model_link(c), other_period=other_period(c, a), compared_by_default=c.id in compared,
+        bookmark_key=keys[c.id], bookmarked=bool(keys[c.id] and (kept.get(keys[c.id]) or {}).get("bookmarked")),
     ) for c in sorted(cards, key=lambda c: (c.id != pick, _offered_order(c)[0] != 0, rank.get(c.id, len(rank) + 1), _offered_order(c), c.id))]
     if worth_only:  # the finder's list (owner 2026-10-23); without it every candidate, as Compare and the tests read it
         items = worth_listing(items)
@@ -3005,6 +3057,8 @@ class StartParams(BaseModel):
     first_pages: Optional[int] = Field(default=None, ge=1, description="run on the first N pages of the project in "
                                        "Finder order alone (#6295); never with `folder_id` or `documents`")
     steps: list[str] = Field(default_factory=list, description="run these steps alone (`wide.output.run-this-step`)")
+    segments: Optional[list[str]] = Field(default=None, description="run the `steps` on these segments alone, at any level "
+                                          "(`segment-actions.run-step-on-selection`); `documents` is then their pages")
     run_cap_usd: Optional[float] = Field(default=None, ge=0, description="the most this run's cloud calls may cost (`designer.budget.run-cap`)")
     allow_cloud_once: bool = Field(default=False, description="let THIS run's calls go to a cloud model although the project keeps its pages on this Mac (`ai.cloud.one-run-overrides`)")
     over_cap_once: bool = Field(default=False, description="let THIS run's calls go past a cloud spend cap, the spend still booked (`ai.cloud.one-run-overrides`)")
@@ -3028,6 +3082,10 @@ class StartRequest(BaseModel):
     steps: list[str] = Field(default_factory=list, description=(
         "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); "
         "empty: the whole recipe"))
+    segments: Optional[list[str]] = Field(default=None, description=(
+        "run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does "
+        "(`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with "
+        "`folder_id`, `documents` or `first_pages`"))
     run_cap_usd: Optional[float] = Field(default=None, ge=0, description=(
         "the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, "
         "#6295); kept on the run's row; null: the project's caps alone"))
@@ -3097,6 +3155,18 @@ async def start_project(
             raise ValueError("Start takes a folder or some pages, not both")
         if request and request.first_pages and (folder_id or request.documents is not None):
             raise ValueError("Start takes the first pages, a folder, or some pages: one of them")
+        documents = request.documents if request else None
+        segments = list(request.segments) if request and request.segments else None
+        redo = list(request.redo) if request else []
+        if segments:
+            if folder_id or documents is not None or first:
+                raise ValueError("Start takes segments, a folder, or some pages: one of them")
+            if not request.steps:
+                raise ValueError("a run on segments names the step to run")
+            from fichero_server.workflows.selection import SelectionKind, WorkflowSelection, selection_document_ids
+
+            documents = selection_document_ids(db, WorkflowSelection(kind=SelectionKind.segments, ids=segments))
+            redo = list(dict.fromkeys([*redo, *request.steps]))  # a run on a selection reads what is done: a new pass
 
         from_tries = [0]  # pages that came from a kept try, adopted as Start's first action (`wide.try.start-reuses-a-matching-try`)
 
@@ -3109,12 +3179,12 @@ async def start_project(
             # Read here, outside any transaction; the action's plan inside its transaction reuses these reads and asks the
             # caps again, so the spending check still runs under the gate, just before the run is queued.
             _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx, memo=reads,
-                          first_pages=first if not request or request.documents is None else None,
-                          steps=request.steps if request else None, documents=request.documents if request else None)
+                          first_pages=first if not request or documents is None else None,
+                          steps=request.steps if request else None, documents=documents)
             token = _PLAN_READS.set(reads)
             try:
-                registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
-                                                  "documents": request.documents if request else None,
+                registry.invoke(db, "project.start", {"redo": redo, "folder_id": folder_id,
+                                                  "documents": documents, "segments": segments,
                                                   "first_pages": request.first_pages if request else None,
                                                   "steps": request.steps if request else [],
                                                   "run_cap_usd": request.run_cap_usd if request else None,
@@ -3131,7 +3201,7 @@ async def start_project(
     return StartPlan(**await asyncio.to_thread(lambda: _as_started(
         db, _start_plan(db, folder_id, clusters=clusters, memo=reads,
                         **only_if_set(first_pages=first, steps=(request.steps if request else None) or None,
-                                      documents=request.documents if request else None)), reads)),
+                                      documents=documents)), reads)),
                      from_tries=from_tries[0])
 
 
@@ -3395,6 +3465,66 @@ def _invert_start(before: dict | None, after: dict | None, ctx: ActionContext):
     return ("project.start", {"withdraw": True})
 
 
+def _refuse_unfit_for_segments(db: Database, plan: dict, segments: list[str]) -> None:
+    """A step that works on pages is refused in words, never run on the whole page (`segment-actions.step-that-cannot-run-says-why`)."""
+    from fichero_server.api.routes.workflow.chains import _load_step_workflow
+    from fichero_server.recipes.runner import _title_of
+    from fichero_server.workflows.default_workflows import resolve_shipped_workflow
+    from fichero_server.workflows.selection import (
+        SelectionKind,
+        WorkflowSelection,
+        live_segments,
+        refuse_unfit_selection,
+    )
+
+    selection = WorkflowSelection(kind=SelectionKind.segments, ids=segments)
+    level = live_segments(db, segments)[0].kind
+    for card in plan["runs"]:
+        if card["card"] != "workflow":
+            raise ValueError(f"{_title_of(card)} runs on pages, not on a {level}")
+        workflow = _load_step_workflow(db, card["workflow_id"]) or resolve_shipped_workflow(db, card["workflow_id"], card["workflow"])
+        refuse_unfit_selection(db, list(workflow.nodes) if workflow else [], selection)
+
+
+class RereadEditedRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    segment_ids: list[str] = Field(min_length=1, description="the lines whose shape was just changed (after the person stops dragging)")
+
+
+class RereadStarted(BaseModel):
+    segment_id: str
+    job_id: str = Field(description="the small run in Activity that reads this line again")
+
+
+class RereadStale(BaseModel):
+    segment_id: str
+    model: str = Field(description="the paid cloud model that made its reading")
+
+
+class RereadSkipped(BaseModel):
+    segment_id: str
+    why: str
+
+
+class RereadEditedResponse(BaseModel):
+    started: list[RereadStarted] = Field(description="each re-read queued, one small run in Activity")
+    stale: list[RereadStale] = Field(description="lines whose reading came from a paid cloud model: not run, to be offered")
+    skipped: list[RereadSkipped] = Field(description="lines not read again, each with why")
+
+
+@router.post("/project/reread-edited", response_model=RereadEditedResponse)
+async def reread_edited_segments(
+    request: RereadEditedRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RereadEditedResponse:
+    """`segment-actions.automatic-rerun-after-an-edit`: read each edited line again on its own, with the local model that
+    read it; a line a paid cloud model read is reported as `stale` and never run."""
+    from fichero_server.recipes.reread import reread_edited
+
+    return RereadEditedResponse(**await asyncio.to_thread(reread_edited, db, request.segment_ids, started_by=started_by_for(ctx)))
+
+
 @action("project.start", StartParams, domains=["project"], undoable=True, invert=_invert_start)
 def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.core.timeutil import utc_now_iso
@@ -3429,6 +3559,8 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
                                              documents=params.documents))
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
+        if params.segments:
+            _refuse_unfit_for_segments(db, plan, params.segments)
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
             raise ValueError(NO_MATERIAL)
         if plan["refusals"]:
@@ -3452,6 +3584,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "job_id": runner.enqueue(db, plan, documents=first_pages_of(db, params.first_pages, _PLAN_READS.get()) if params.first_pages else params.documents,
                                      first_pages=params.first_pages, started_by=started_by_for(ctx), redo=params.redo,
                                      folder_id=params.folder_id, plan_reads=_PLAN_READS.get(), run_cap_usd=params.run_cap_usd,
+                                     segments=params.segments,
                                      allow_cloud_once=params.allow_cloud_once, over_cap_once=params.over_cap_once),
             "folder_id": params.folder_id,
         }

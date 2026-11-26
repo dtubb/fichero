@@ -17,17 +17,17 @@ final class AISettingsDefaultsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("@State var visionLargeModels: [ModelInfo] = []"))
     }
 
-    func testModelManagementTabsStayInsideSettingsAndRespectTierGate() throws {
+    func testModelManagementTabsMovedToTheModelsWindowStillRespectTierGateAndSettingsLinksThere() throws {
         let source = try Self.appSource("Views/Settings/AI/AISettingsView.swift")
         XCTAssertTrue(source.contains("featureManager.isSettingsModelsTabEnabled"))
-        XCTAssertTrue(source.contains("Text(\"Models & Providers\").tag(AISettingsTab.providers)"))
-        XCTAssertTrue(source.contains("Text(\"Downloads\").tag(AISettingsTab.downloads)"))
-        // #4503: the "Local LLM" tab is GONE — MLX is a provider row inside
-        // Models & Providers. The CASE survives so a persisted selection or a
-        // pre-#4503 deep link resolves to the providers tab, never to nothing.
+        XCTAssertTrue(source.contains("case .window: modelsTabEnabled ? [.defaults, .providers, .downloads] : [.defaults]"))
+        XCTAssertTrue(source.contains("case .settings: [.advanced]"))
+        // #4503: the "Local LLM" tab is GONE; the case survives and resolves to the providers tab.
         XCTAssertFalse(source.contains("Text(\"Local LLM\")"))
         XCTAssertTrue(source.contains("case .providers, .localLLM:"))
         XCTAssertTrue(source.contains("switch effectiveSelectedTab"))
+        let tabs = try Self.appSource("Views/Settings/AI/AISettingsView+Tabs.swift")
+        XCTAssertTrue(tabs.contains("openWindow(id: ModelsWindowModel.windowID)"))
     }
 
     private static func appSource(_ relativePath: String) throws -> String {

@@ -369,7 +369,7 @@ def test_rebase_puts_the_worktree_on_top_of_the_branch_another_lane_moved(scratc
     assert work.do_rebase(scratch.a, "integration") == ""
     assert _g(scratch.wt, "rev-parse", "HEAD^") == _g(scratch.engine, "rev-parse", "HEAD")
     assert _g(scratch.wt, "log", "--format=%s", "-1") == "mine"
-    assert any("rebase -q origin/integration" in r for r in scratch.ran), "run as the worker (through as_worker), not as the owner"
+    assert any("rebase -q --autostash origin/integration" in r for r in scratch.ran), "run as the worker (through as_worker), not as the owner"
 
 
 def test_a_rebase_conflict_is_aborted_and_said_never_resolved(scratch):
@@ -398,6 +398,30 @@ def test_a_github_blip_in_the_rebase_is_retried_once_not_called_a_conflict(scrat
     _commit(scratch.engine, "theirs")
     assert work.do_rebase(scratch.a, "integration") == ""
     assert len(calls) == 2 and calls[0] == calls[1], "the same fetch and rebase ran once more"
+
+
+REF_LOCK = ("error: cannot lock ref 'refs/remotes/origin/integration': is at 9ec20974b532c93201fe4c89a111bb191677d7f4 "
+            "but expected a40008b70825b0faf7f0b11a5ae4e47e6b512313")
+
+
+@pytest.mark.parametrize("races,ok", [(2, True), (4, False)])
+def test_a_ref_lock_race_in_the_fetch_is_retried_not_called_a_conflict(scratch, monkeypatch, races, ok):
+    """2026-11-25, alerts 1883, 1892-1894: two fetches into the shared object repo at once; the loser's rebase was called a conflict."""
+    monkeypatch.setattr(work, "REF_LOCK_RETRY_S", 0)
+    real, calls = work.as_worker, []
+
+    def racing(a, cmd, *args, **kw):
+        if " fetch -q origin && " in cmd:
+            calls.append(cmd)
+            if len(calls) <= races:
+                return subprocess.CompletedProcess(cmd, 1, "", REF_LOCK)
+        return real(a, cmd, *args, **kw)
+
+    monkeypatch.setattr(work, "as_worker", racing)
+    _commit(scratch.wt, "mine")
+    _commit(scratch.engine, "theirs")
+    why = work.do_rebase(scratch.a, "integration")
+    assert (why == "") is ok and len(calls) == min(races + 1, 1 + work.REF_LOCK_TRIES)
 
 
 def test_a_failed_rebase_is_a_question_before_patches(chain, monkeypatch, capsys):
@@ -586,7 +610,7 @@ def _early_chain(chain, monkeypatch, later_red: bool):
         chain.calls.append(("check", since, head))
         work.check_tool.ON_RUNG[0]("red-on-base", True, [{"name": "ready", "ok": True}, {"name": "red-on-base", "ok": True}])
         assert not (Path(ladder).parent / (Path(ladder).name + ".partial")).exists(), "not after red-on-base: no guard has run yet (reviews 199, 207, 263, 275)"
-        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base")] + [
+        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base", "unit")] + [
             {"name": "guards", "ok": True, "results": [{"name": "check_a", "ok": True}, {"name": "check_b", "ok": True}]},
             {"name": "security", "ok": True}, {"name": "contract-current", "ok": True}, {"name": "since-guards", "ok": True}]
         work.check_tool.ON_RUNG[0]("since-guards", True, cheap)
@@ -614,7 +638,7 @@ def test_the_early_review_is_told_which_rungs_still_run_beside_it(chain, monkeyp
     file names the rungs still to come, in the ladder's order."""
     _early_chain(chain, monkeypatch, later_red=False)
     assert chain() == 0
-    assert chain.pending == ["build", "perf"], "only the build and the perf measurement run beside the review"
+    assert chain.pending == ["build", "ui", "perf"], "only the build, the ui rung and the perf measurement run beside the review"
     assert chain.guard_results == [2], "the reviewer reads every guard's result (the partial is written after since-guards)"
 
 
@@ -633,47 +657,127 @@ def test_a_base_that_moved_during_the_check_is_rebased_before_the_review_and_a_d
     monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
     monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
     monkeypatch.setattr(work, "_base_moved", lambda a, branch, head: next(moved))
-    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg, oh="", h="": f"kept across rebase onto {nb[:9]}: base delta disjoint (1 file(s))"
-                        if (ob, of, f) == ("b" * 40, ["fichero-builder/x.py"], ["fichero-builder/x.py"]) else "")
+    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg, oh="", h="": (f"kept across rebase onto {nb[:9]}: base delta disjoint (1 file(s)); re-running guards", ("guards",))
+                        if (ob, of, f) == ("b" * 40, ["fichero-builder/x.py"], ["fichero-builder/x.py"]) else ("", ()))
+    monkeypatch.setattr(work, "kept_rows", lambda ladder, ob, oh, pinned: {"ready": {"ok": True}, "guards": {"ok": True}})
+    seen = []
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder, partial=None: (chain.calls.append(("check", since, head)), seen.append(partial), {"ok": True, "failed": ""})[2])
     assert chain() == 0
-    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "rebase", "export", "fetch", "review", "land"]
-    (kept,) = [r for r in journal.read() if r["event"] == "check" and r.get("kept")]
-    assert kept["since"] == "c" * 40 and kept["ok"] is True and "ccccccccc" in kept["kept"]
+    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "rebase", "export", "fetch", "check", "review", "land"]
+    assert seen[0] is None and seen[1][0] == {"ready": {"ok": True}} and seen[1][1] == ("guards",), "the old rows stand except the rung the delta can change"
+    assert "ccccccccc" in seen[1][2]
+    assert any(r["step"] == "kept" and "re-running guards" in r["detail"] for r in rows())
 
 
-def test_keep_green_only_for_a_base_delta_outside_the_batchs_dirs_check_files_and_guards(tmp_path):
-    """The keep rule: the same batch files, an ancestor move, and a delta touching none of: the batch's files, the top-level
-    dirs it changes, [check].check_paths, the guard glob."""
+def test_a_kept_rebase_without_the_old_green_rows_runs_the_whole_ladder(chain, monkeypatch):
+    bases, moved = iter(["b" * 40, "c" * 40]), iter([True, False])
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
+    monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
+    monkeypatch.setattr(work, "_base_moved", lambda a, branch, head: next(moved))
+    monkeypatch.setattr(work, "keep_green", lambda *a, **k: ("kept: x", ("guards",)))
+    monkeypatch.setattr(work, "kept_rows", lambda *a: {})
+    assert chain() == 0
+    assert [c[0] for c in chain.calls].count("check") == 2 and not any(r["step"] == "kept" for r in rows())
+
+
+def _kept_chain(chain, monkeypatch, rerun):
+    bases, seen = iter(["b" * 40, "c" * 40]), []
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
+    monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
+    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg, oh="", h="": (seen.append((ob, of, oh)), (f"kept across rebase onto {nb[:9]}", rerun))[1])
+    monkeypatch.setattr(work, "kept_rows", lambda ladder, ob, oh, pinned: {"ready": {"ok": True}, "guards": {"ok": True}})
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder, partial=None: (chain.calls.append(("check", partial)), {"ok": True, "failed": ""})[1])
+    return seen
+
+
+def test_a_later_chain_of_a_ready_range_keeps_its_green_across_a_base_move(chain, monkeypatch):
+    """2026-11-25, seg-inspector swift-green-2: READY at bf62549fc (14:52); its result was never collected and the chain that ran
+    again at 15:30 on a moved base had no carry, so keep_green never ran and the whole ladder waited behind seg-hang. A READY range
+    is remembered for the lane's next chain."""
+    seen = _kept_chain(chain, monkeypatch, ("guards",))
+    assert chain() == 0 and seen == [], "the first chain has nothing to keep"
+    assert chain() == 0
+    assert seen == [("b" * 40, ["fichero-builder/x.py"], HEAD)], "the READY range's base, files and head reach keep_green"
+    assert chain.calls[-3][0] == "check" and chain.calls[-3][1][1] == ("guards",), "only the rung the delta can change runs"
+    assert json.loads((chain.tmp / "s" / "green-n1.json").read_text())["base"] == "c" * 40, "the new READY is remembered in its place"
+
+
+def test_a_kept_check_with_nothing_to_run_again_takes_no_ladder_slot(chain, monkeypatch):
+    """A kept green with no rung to re-run waits behind no other lane's file-overlap hold."""
+    _kept_chain(chain, monkeypatch, ())
+    slots = []
+    real = work.ladder_slot
+    monkeypatch.setattr(work, "ladder_slot", lambda name, files, n, **k: (slots.append(name), real(name, files, n, **k))[1])
+    assert chain() == 0 and slots == ["n1"], "the first chain takes a slot"
+    assert chain() == 0 and slots == ["n1"], "the kept chain does not"
+
+
+def test_keep_green_for_a_base_delta_that_shares_no_file_test_check_file_or_guard_with_the_batch_and_names_what_to_run_again(tmp_path):
+    """The keep rule (manager 2026-11-24: 81 of 89 deltas were file-disjoint): the same patch, an ancestor move, and a delta touching none of:
+    the batch's files, a test the batch ran (its changed tests, its whole-tests dirs), [check].check_paths, the guard glob. The delta then
+    picks the rungs to run again: .md = guards; fichero/ = build; fichero-server/src = red-on-base (head half) and guards."""
     g = lambda *a: _g(tmp_path, *a)  # noqa: E731
     g("init", "-q"), g("config", "user.email", "t@e"), g("config", "user.name", "t")
-    for f in ("pkg/a.py", "other/b.py", "scripts/check_x.py", "harness.toml"):
-        (tmp_path / f).parent.mkdir(exist_ok=True)
+    files = ("pkg/a.py", "pkg/tests/test_a.py", "pkg/tests/NOTES.md", "pkg/NOTES.md", "docs/x.md", "docs/y.md", "fichero/F.swift", "fichero-server/src/s.py",
+             "other/b.py", "scripts/check_x.py", "harness.toml")
+    for f in files:
+        (tmp_path / f).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / f).write_text("1\n")
     g("add", "."), g("commit", "-qm", "base")
     old = g("rev-parse", "HEAD")
-    cfg = work.check_tool.Config(check_paths=("harness.toml",), guard_glob="scripts/check_*.py")
-    batch = ["pkg/a.py"]
+    cfg = work.check_tool.Config(check_paths=("harness.toml",), guard_glob="scripts/check_*.py", whole_tests={"pkg/": "pkg/tests"})
+    batch = ["pkg/a.py", "pkg/tests/test_a.py"]
 
-    def move(f):
-        (tmp_path / f).write_text((tmp_path / f).read_text() + "2\n")
-        g("commit", "-qam", f)
+    def move(*fs):
+        g("reset", "-q", "--hard", old)
+        for f in fs:
+            (tmp_path / f).write_text((tmp_path / f).read_text() + "2\n")
+        g("commit", "-qam", "move")
         return g("rev-parse", "HEAD")
-    new = move("other/b.py")
-    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg, old, new).startswith(f"kept across rebase onto {new[:9]}")
-    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg) == "", "no heads: the patch cannot be compared"
-    assert work.keep_green(str(tmp_path), old, batch, new, ["pkg/a.py", "pkg/c.py"], cfg, old, new) == "", "a different batch"
+    keep = lambda new, files=batch, head=None: work.keep_green(str(tmp_path), old, batch, new, files, cfg, old, head or new)  # noqa: E731
+    words, rungs = keep(move("docs/x.md"))
+    assert words.startswith("kept across rebase onto") and "base delta disjoint (1 file(s))" in words and rungs == ("guards",)
+    assert keep(move("pkg/NOTES.md"))[1] == ("guards",), "a delta in the batch's own top dir, outside its tests, is disjoint now"
+    assert keep(move("fichero/F.swift"))[1] == ("build",)
+    assert keep(move("fichero-server/src/s.py"))[1] == ("red-on-base", "guards")
+    assert keep(move("docs/x.md", "fichero/F.swift", "fichero-server/src/s.py"))[1] == ("red-on-base", "guards", "build"), "a mixed delta runs the union, in ladder order"
+    new = move("docs/x.md")
+    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg) == ("", ()), "no heads: the patch cannot be compared"
+    assert keep(new, ["pkg/a.py", "pkg/c.py"]) == ("", ()), "a different batch"
+    for f in ("pkg/a.py", "harness.toml", "scripts/check_x.py", "pkg/tests/NOTES.md", "other/b.py"):
+        assert keep(move(f)) == ("", ()), f"{f}: the batch's file, a check file, a guard, a dir the green run took whole, a path with no cheap answer"
     # same file names, different content: the patch of the rebased head is not the one the ladder judged
+    new = move("docs/x.md")
     (tmp_path / "pkg" / "a.py").write_text("changed after the check\n")
     g("commit", "-qam", "new content in the batch file")
-    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg, old, g("rev-parse", "HEAD")) == "", "new content rides no green"
-    g("reset", "-q", "--hard", new)
-    for f in ("pkg/a.py", "harness.toml", "scripts/check_x.py"):
-        g("reset", "-q", "--hard", old)
-        assert work.keep_green(str(tmp_path), old, batch, move(f), batch, cfg, old, old) == "", f
-    g("reset", "-q", "--hard", old)
-    (tmp_path / "pkg" / "z.py").write_text("1\n")
-    g("add", "."), g("commit", "-qm", "same dir")
-    assert work.keep_green(str(tmp_path), old, batch, g("rev-parse", "HEAD"), batch, cfg, old, old) == "", "a delta in the batch's own dir"
+    assert keep(new, head=g("rev-parse", "HEAD")) == ("", ()), "new content rides no green"
+
+
+def test_kept_rows_are_the_green_rows_of_the_old_ladder_for_exactly_its_head_base_and_pinned_copy(tmp_path):
+    f = tmp_path / "ladder.json"
+    f.write_text(json.dumps({"ok": True, "head": "h1", "since": "b1", "pinned": "/p/1", "rungs": [{"name": "ready", "ok": True}, {"name": "guards", "ok": True}]}))
+    assert set(work.kept_rows(str(f), "b1", "h1", "/p/1")) == {"ready", "guards"}
+    for args in (("b2", "h1", "/p/1"), ("b1", "h2", "/p/1"), ("b1", "h1", "/p/2")):
+        assert work.kept_rows(str(f), *args) == {}
+    assert work.kept_rows(str(tmp_path / "none.json"), "b1", "h1", "/p/1") == {}
+    f.write_text(json.dumps({"ok": False, "head": "h1", "since": "b1", "pinned": "/p/1", "rungs": []}))
+    assert work.kept_rows(str(f), "b1", "h1", "/p/1") == {}, "a red ladder keeps nothing"
+
+
+def test_a_partial_do_check_reuses_the_held_rows_and_runs_red_on_base_head_only(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(work.land_tool, "resolve_branch", lambda repo, branch: "b2")
+    monkeypatch.setattr(work.check_tool, "ladder_over", lambda *a, **k: seen.append((dict(work.check_tool.REUSE[0] or {}), work.check_tool.HEAD_GREEN_ONLY[0])) or {"ok": True, "failed": "", "rungs": []})
+    monkeypatch.setattr(work.journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    a = types.SimpleNamespace(name="l", pinned="/p/1", ids=[])
+    work.do_check(a, "/r", "integration", "h2", str(tmp_path / "l.json"), partial=({"ready": {"ok": True}}, ("guards",), "kept: x"))
+    assert seen == [({"ready": {"ok": True}}, True)]
+    assert work.check_tool.REUSE[0] is None and work.check_tool.HEAD_GREEN_ONLY[0] is False, "the flags never outlive the check"
+    (row,) = [r for r in work.journal.read() if r["event"] == "check"]
+    assert row["kept"] == "kept: x" and row["reran"] == ["guards"] and row["head"] == "h2"
+    work.do_check(a, "/r", "integration", "h2", str(tmp_path / "l.json"))
+    assert seen[1] == ({}, False)
 
 
 def test_every_reason_a_pinned_refusal_lists_maps_to_the_approval_that_excuses_it():
@@ -771,7 +875,7 @@ def test_a_rebase_with_any_other_conflict_beside_the_identity_is_aborted_as_befo
     (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine f")
     (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs f")
     why = work.do_rebase(scratch.a, "integration")
-    assert "could not finish" in why and not (scratch.wt / ".git" / "rebase-merge").exists()
+    assert why.startswith("rebase onto origin/integration stopped on a conflict in f") and work.REBASE_CONFLICT in why and not (scratch.wt / ".git" / "rebase-merge").exists()
 
 
 def test_a_pinned_copy_removed_before_the_rebase_is_pinned_again_and_the_error_names_the_file_it_read(tmp_path):
@@ -881,3 +985,82 @@ def test_batches_sharing_only_generated_contract_files_get_two_slots_and_one_sha
                 pass
     rows = [r for r in journal.read() if r.get("event") == "lock" and r.get("state") == "clash"]
     assert len(rows) == 1 and "a.py" in rows[0]["detail"] and not any(g in rows[0]["detail"] for g in gen) and rows[0]["holder"] == "a"
+
+
+def test_a_rebase_conflict_names_the_files_and_the_commits_that_touched_them_for_the_worker(scratch):
+    """run.rebase-conflict-fix-round: the why carries, after REBASE_CONFLICT, the worker's fix text: the conflicting files, origin's
+    commits since the branch's base that touched them (sha and subject), and the instruction to rebase keeping both sides."""
+    (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine")
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "ci: theirs changed f")
+    (scratch.engine / "g").write_text("other"), _g(scratch.engine, "add", "g"), _g(scratch.engine, "commit", "-qm", "an unrelated file")
+    why = work.do_rebase(scratch.a, "integration")
+    head, text = why.split(work.REBASE_CONFLICT, 1)
+    assert head == "rebase onto origin/integration stopped on a conflict in f"
+    sha = _g(scratch.engine, "rev-parse", "--short", "HEAD~1")
+    assert "Conflicting files:\n- f\n" in text and f"- {sha} ci: theirs changed f" in text and "an unrelated file" not in text
+    assert "keeping BOTH sides" in text and "DONE" in text and "mine" in text, "it names the commit it stopped applying"
+    assert not (scratch.wt / ".git" / "rebase-merge").exists() and _g(scratch.wt, "log", "--format=%s", "-1") == "mine"
+
+
+def test_a_conflict_is_a_conflict_kind_for_the_loop(chain, monkeypatch, capsys):
+    monkeypatch.setattr(work, "do_rebase", lambda a, branch: "stopped on a conflict in f" + work.REBASE_CONFLICT + "Conflicting files:\n- f")
+    assert chain() == 2
+    assert "stopped on a conflict in f" in capsys.readouterr().out
+    assert [(r["step"], r["ok"], r["detail"]) for r in rows()][-1] == ("rebase", False, "stopped on a conflict in f")
+
+
+@pytest.mark.parametrize("words", ["Your local changes are stashed, however applying them\nresulted in conflicts.", "Successfully rebased."])
+def test_a_kept_autostash_is_said_whatever_git_prints(scratch, monkeypatch, words):
+    """2026-11-25: git 2.56 on GitHub's Linux runner prints "applying them resulted in conflicts", not "autostash resulted in
+    conflicts", and do_rebase called the rebase clean (an edit kept only in the stash). The stash count is read, the words second."""
+    real = work.as_worker
+
+    def reworded(a, cmd, *args, **kw):
+        r = real(a, cmd, *args, **kw)
+        if " rebase " in cmd and r.returncode == 0:
+            return subprocess.CompletedProcess(cmd, 0, "", words)
+        return r
+    monkeypatch.setattr(work, "as_worker", reworded)
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs")
+    (scratch.wt / "f").write_text("unstaged edit")
+    why = work.do_rebase(scratch.a, "integration")
+    assert why.startswith("the rebase onto origin/integration went through but the tree's unstaged changes conflict with it (kept in the stash: f)")
+
+
+ROUTE_OK = ("check_openapi_route_set_current: [ok] fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json\n"
+            "The route set (1015 operations) matches all 3 contracts.")
+
+
+def _timed_out_guards(also=()):
+    return {"ok": False, "failed": "guards", "also_failed": list(also), "rungs": [{"name": "guards", "ok": False, "results": [
+        {"name": "check_openapi_route_set_current", "ok": False, "timed_out": True, "retried": True, "exit_code": -9, "stdout_tail": ROUTE_OK},
+        {"name": "check_spec_citations", "ok": True}]}]}
+
+
+def test_a_guards_red_that_is_only_timeouts_runs_the_ladder_once_more_and_is_never_a_fix_round(chain, monkeypatch, capsys):
+    """local.check.guard-timeout-is-not-red: 2026-11-25 12:27, builder-fixes reliab-1. check_openapi_route_set_current printed every
+    contract [ok], timed out twice at load 66, and the fix round told the worker to regenerate the contracts; it could not, and said
+    WAITING. A red whose every failed guard timed out judged nothing: the ladder runs once more, then it is a timed-out question."""
+    results = [_timed_out_guards(), _timed_out_guards()]
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder: results.pop(0))
+    assert chain() == 2
+    out = capsys.readouterr().out
+    assert "guards timed out twice under load" in out and "check_openapi_route_set_current" in out
+    assert "regenerate" not in out and "Fix:" not in out, "no fix the worker cannot do"
+    assert results == [], "the ladder ran twice"
+    assert any(r["detail"].startswith("guards timed out under load (check_openapi_route_set_current)") for r in rows() if r["step"] == "check")
+
+
+def test_a_timeout_that_passes_the_second_time_goes_on_green(chain, monkeypatch):
+    results = [_timed_out_guards(), {"ok": True, "failed": ""}]
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder: results.pop(0))
+    assert chain() == 0
+
+
+def test_a_timeout_beside_a_real_red_is_the_real_red_with_no_fix_for_the_timed_out_guard():
+    r = _timed_out_guards(also=["ruff"])
+    assert work.timed_out_only(r) == []
+    r2 = _timed_out_guards()
+    r2["rungs"][0]["results"].append({"name": "check_x", "ok": False, "stdout_tail": "FAIL"})
+    assert work.timed_out_only(r2) == []
+    assert work.timed_out_only(_timed_out_guards()) == ["check_openapi_route_set_current"]

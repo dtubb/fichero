@@ -38,14 +38,67 @@ struct SegmentVerbMenu: View {
         if ids.count >= 2 {
             Button("Join") { run("Join Lines", selectingJoined: true) { SegmentEdit.join($0) } }
         }
+        RunStepOnSegmentsMenu(ids: ids)
+        let kinds = ids.compactMap { id in segments.first { $0.id == id }?.kind }
+        ForEach(Self.regionVerbs(kinds: kinds), id: \.self) { verb in
+            Button(verb.title) { run(verb) }
+        }
         if !ids.isEmpty {
             Divider()
+            HandMenu(ids: ids, onNote: onNote)
             Button("Convert to Line") { run("Convert to Line") { SegmentEdit.convertLevel($0, to: "line") } }
             Button("Convert to Region") { run("Convert to Region") { SegmentEdit.convertLevel($0, to: "region") } }
             Divider()
             SegmentAttributeMenu.Items(apply: { attribute in
                 run("Set Segment") { SegmentEdit.set(attribute, on: $0) }
-            })
+            }, types: store?.regionTypesByDocument[documentId] ?? [])
+        }
+    }
+
+    /// Make Region from Lines and Ungroup Region, the same two the Edit menu and the page's menu carry
+    /// (`segment-editor.make-region-in-every-menu`).
+    enum RegionVerb { case makeRegion, ungroupRegion
+
+        var title: String { self == .makeRegion ? "Make Region from Lines" : "Ungroup Region" }
+    }
+
+    /// What the menu offers for a selection of these kinds: Make Region for two or more, Ungroup for any region.
+    static func regionVerbs(kinds: [String]) -> [RegionVerb] {
+        var verbs: [RegionVerb] = []
+        if kinds.count >= 2 { verbs.append(.makeRegion) }
+        if kinds.contains("region") { verbs.append(.ungroupRegion) }
+        return verbs
+    }
+
+    private func run(_ verb: RegionVerb) {
+        guard let store, let actionsService = actionStore?.actionsService else { return }
+        let segments = SegmentDeleter.segments(ids, documentId: documentId, store: store)
+        let steps = windowSteps, documentId = documentId
+        let note = onNote, windowState = windowState
+        let calls: [(SegmentEdit.Call, String)]
+        switch verb {
+        case .makeRegion:
+            guard case .success(let call) = SegmentEdit.groupLines(segments) else { return note("Select two or more lines") }
+            calls = [(call, "Make Region from Lines")]
+        case .ungroupRegion:
+            calls = segments.filter { $0.kind == "region" }.compactMap { region in
+                guard case .success(let call) = SegmentEdit.ungroupRegion(region) else { return nil }
+                return (call, "Ungroup Region")
+            }
+        }
+        Task {
+            do {
+                for (call, name) in calls {
+                    let answer = try await SegmentEditRunner(actionsService: actionsService, store: store).runAnswering(
+                        call, documentId: documentId, actionName: name, steps: steps
+                    )
+                    let region = SegmentEdit.selectionAfterGroup(regionId: answer.resultStrings["region_id"])
+                    if verb == .makeRegion, !region.isEmpty, let windowState {
+                        windowState.pickInReader(region, documentId: documentId, store: store)
+                    }
+                }
+                note(nil)
+            } catch { note("That did not happen: \(error.localizedDescription)") }
         }
     }
 

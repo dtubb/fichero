@@ -20,7 +20,7 @@ import time
 import tomllib
 from pathlib import Path
 
-from fichero_builder import journal, queue
+from fichero_builder import client, journal, queue, review_page
 
 ROOT = Path.cwd()  # set by main: the checkout whose harness.toml the verbs read
 TOKEN = secrets.token_urlsafe(24)
@@ -98,7 +98,7 @@ def _st() -> list[str]:
 
 
 def _plist() -> str:
-    return str(Path.home() / "Library" / "LaunchAgents" / "local.builder.loop.plist")
+    return str(Path.home() / "Library" / "LaunchAgents" / f"{queue.agent_label('loop', ROOT)}.plist")
 
 
 # verb -> (the argument names it takes, argv from them). Values are checked in `argv_for`: text only, never a flag.
@@ -111,7 +111,7 @@ VERBS = {
     "park": (("lane", "step"), lambda a: _builder("queue", "park", "--lane", a["lane"], "--step", a["step"], *_st())),
     "unpark": (("lane", "step"), lambda a: _builder("queue", "unpark", "--lane", a["lane"], "--step", a["step"], *_st())),
     "loop-start": ((), lambda a: ["launchctl", "bootstrap", f"gui/{os.getuid()}", _plist()]),
-    "loop-stop": ((), lambda a: ["launchctl", "bootout", f"gui/{os.getuid()}/local.builder.loop"]),
+    "loop-stop": ((), lambda a: ["launchctl", "bootout", f"gui/{os.getuid()}/{queue.agent_label('loop', ROOT)}"]),
     "alert": (("id", "action"), lambda a: _builder("alert", a["id"], a["action"], "--root", str(ROOT), *_st())),
     "build": ((), lambda a: _builder("build", "--dev", "--root", str(ROOT), *_st())),
     "done": (("lane", "sha"), lambda a: _builder("done", a["lane"], a["sha"], *_st())),
@@ -570,7 +570,7 @@ def steps_on_origin(lane: dict, tip: str) -> list[dict]:
         state = s["state"]
         if state == "landed" and not on_origin(lane["worktree"], s.get("head", ""), tip):
             state = NOT_LANDED
-        out.append({"step": s["step"], "state": state, "issues": s["issues"], "why": s["why"][:300]})
+        out.append({"step": s["step"], "state": state, "issues": s["issues"], "parts": s["issues"], "session": s.get("session", ""), "why": s["why"][:300]})
     return out
 
 
@@ -581,7 +581,8 @@ def _git_text(repo: str, *args: str) -> str:
 
 def git_reads(root, lanes: list[dict], branch: str) -> tuple[dict, str, set]:
     """The unlanded log of every lane's worktree, the land branch's log (90 days) and its shas not on main."""
-    _git_text(str(root), "fetch", "-q", "origin", branch, "main")
+    main = client.release_branch(root)  # "" = no release branch: nothing is unreleased
+    _git_text(str(root), "fetch", "-q", "origin", branch, *([main] if main else []))
     fmt = "--format=%x1e%H%x00%B"
     branches = {x["id"]: _git_text(x["worktree"], "log", fmt, f"origin/{branch}..HEAD") for x in lanes if Path(x["worktree"]).is_dir()}
     # the landing queue: every branch worktree of the repo (land-*, lanes started by hand) with unlanded commits.
@@ -589,11 +590,11 @@ def git_reads(root, lanes: list[dict], branch: str) -> tuple[dict, str, set]:
     for block in _git_text(str(root), "worktree", "list", "--porcelain").strip().split("\n\n"):
         f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
         name = f.get("branch", "").removeprefix("refs/heads/")
-        if name and name not in (branch, "main") and name not in branches:
+        if name and name not in (branch, main) and name not in branches:
             if log := _git_text(f["worktree"], "log", fmt, "--since=7.days", f"origin/{branch}..HEAD"):
                 branches[name] = log
     landing = _git_text(str(root), "log", fmt, "--since=90.days", f"origin/{branch}")
-    unreleased = set(_git_text(str(root), "rev-list", f"origin/main..origin/{branch}").split())
+    unreleased = set(_git_text(str(root), "rev-list", f"origin/{main}..origin/{branch}").split()) if main else set()
     return branches, landing, unreleased
 
 
@@ -757,10 +758,11 @@ def landing(root, lanes: list[dict], branch: str = "integration") -> dict:
     commits of the last 7 days; head, commits, files, the Fixes issues, and the stage the queue gives it."""
     srcs = [(x["id"], x["worktree"], x) for x in lanes if Path(x["worktree"]).is_dir()]
     seen = {os.path.realpath(w) for _n, w, _x in srcs}
+    release = client.release_branch(root)
     for block in _git_text(str(root), "worktree", "list", "--porcelain").strip().split("\n\n"):
         f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
         name = f.get("branch", "").removeprefix("refs/heads/")
-        if name and name not in (branch, "main") and f.get("worktree") and os.path.realpath(f["worktree"]) not in seen:
+        if name and name not in (branch, release) and f.get("worktree") and os.path.realpath(f["worktree"]) not in seen:
             srcs.append((name, f["worktree"], None))
     stage_of = {"queued": "waiting", "sent": "building", "done": "waiting for the check", "checking": "checking", "reviewing": "reviewing",
                 "blocked": "question", "landed": "landed"}
@@ -851,10 +853,13 @@ def since_build(root, rows: list[dict], branch: str = "integration", gh: str = "
 def release(root, branch: str = "integration", gh: str = "gh", pr=None, rows: list[dict] | None = None, issue=None) -> dict:
     """View D: the commits on origin/<branch> not on main, the last release tag, an open release PR (gh, on Refresh), and what
     landed since the last dev build (#6524)."""
-    log = _git_text(str(root), "log", "--format=%h %s", f"origin/main..origin/{branch}").splitlines()
-    tag = _git_text(str(root), "describe", "--tags", "--abbrev=0", "origin/main").strip()
+    main = client.release_branch(root)  # "" = no release branch: no ahead count, no tag, no release PR
+    log = _git_text(str(root), "log", "--format=%h %s", f"origin/{main}..origin/{branch}").splitlines() if main else []
+    tag = _git_text(str(root), "describe", "--tags", "--abbrev=0", f"origin/{main}").strip() if main else ""
+    if pr is None and not main:
+        pr = []
     if pr is None:
-        r = subprocess.run([gh, "pr", "list", "--base", "main", "--head", branch, "--state", "open", "--json", "number,url,title"],
+        r = subprocess.run([gh, "pr", "list", "--base", main, "--head", branch, "--state", "open", "--json", "number,url,title"],
                            capture_output=True, text=True, timeout=60, cwd=str(root))
         pr = json.loads(r.stdout or "[]") if r.returncode == 0 else []
     return {"ts": _ts(time.time()), "ahead": len(log), "commits": log[:40], "tag": tag, "prs": pr,
@@ -929,8 +934,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if not self._host_ok():
             return _json(self, 403, {"error": "a loopback Host only"})
-        if path == "/":
-            b = PAGE.read_text().replace("__TOKEN__", TOKEN).encode()
+        if path in ("/", "/review"):  # /review is the same page opened on its Review tab
+            b = PAGE.read_text().replace("__TOKEN__", TOKEN).replace("__TAB__", "review" if path == "/review" else "lanes").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(b)))
@@ -966,6 +971,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, {"ts": None, "ahead": None, "commits": [], "tag": "", "prs": []})
         if path == "/api/worktrees":
             return _json(self, 200, worktrees_cached(ROOT))
+        if path == "/api/review":
+            try:
+                return _json(self, 200, review_page.load())
+            except ValueError as e:
+                return _json(self, 500, {"error": str(e)})
         if path == "/api/builds":
             return _json(self, 200, {"builds": dev_builds(journal.read())})
         if path.startswith("/download/"):
@@ -1037,6 +1047,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             r = act("order", {"file": str(req)}, f"{getpass.getuser()}@console")
             r.pop("thread", None)
             return _json(self, 200 if r["ok"] else 400, r)
+        if self.path.split("?")[0] == "/api/review":  # one verdict: a status and a note on one item
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                item_id, status, note = str(body["id"]), body.get("status"), body.get("note")
+                if status is None and note is None:
+                    raise KeyError("status")
+            except (ValueError, KeyError, TypeError):
+                return _json(self, 400, {"ok": False, "error": "review needs {id, status, note}"})
+            who = f"{getpass.getuser()}@console"
+            try:
+                item = review_page.set_item(item_id, status, note)
+            except ValueError as e:
+                journal.append("console", who=who, verb=f"review {item_id} {status}", ok=False, state="refused", detail=str(e))
+                return _json(self, 404 if str(e).startswith("no review item") else 400, {"ok": False, "error": str(e)})
+            journal.append("console", who=who, verb=f"review {item_id} {item['status']}", ok=True, state="ended", rc=0, detail=item.get("note", "")[-500:])
+            return _json(self, 200, {"ok": True, "item": item})
         if self.path.split("?")[0] == "/api/refresh":
             refresh(f"{getpass.getuser()}@console")
             return _json(self, 200, {"ok": True, "started": "refresh"})

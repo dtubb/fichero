@@ -27,6 +27,9 @@ struct SegmentMenuTarget {
     /// Convert to Line / Convert to Region: the selection changes level (`segment-editor.convert-level`).
     var convertToLine: () -> Void = {}
     var convertToRegion: () -> Void = {}
+    /// Add Line (one selected region) or Add Word (one selected line): the polygon tool armed at that level (#7083).
+    var addVerb: SegmentShapes.DrawnLevel?
+    var addDrawn: () -> Void = {}
     /// Make Region from Lines (⌘G) and Ungroup Region (no chord: ⇧⌘G shows or hides Items).
     var makeRegion: () -> Void = {}
     var ungroupRegion: () -> Void = {}
@@ -39,6 +42,11 @@ struct SegmentMenuTarget {
     var joinBrokenWords: () -> Void = {}
     /// Add Baseline: a proposed baseline on each selected line that has none.
     var addBaseline: () -> Void = {}
+    /// The region types the engine offers for the shown page, for the Type submenu.
+    var types: [RegionTypeChoice] = []
+    /// Attribute to Last Hand (⌃⌘H) and Remove Hand: the selection's hand, through `HandAssignment` (#5161).
+    var attributeToLastHand: () -> Void = {}
+    var removeHand: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -72,7 +80,7 @@ struct SegmentMenuContent: View {
         // (`SegmentDeleteRoute`). A bare ⌫ here would take the key from every text field.
         Button(Self.deleteTitle(count), role: .destructive) { target?.delete() }
             .disabled(!Self.canDelete(selected: count))
-        Button("Join") { target?.join() }
+        Button(Self.joinTitle(count)) { target?.join() }
             .keyboardShortcut("j", modifiers: [.command, .option])
             .disabled(!Self.canJoin(selected: count))
         // No chord yet: the spec's ⌘⇧R is Run Workflow on Selection's (`FocusedCommandButtons+Workflow`).
@@ -90,6 +98,13 @@ struct SegmentMenuContent: View {
         Button("Convert to Box") { target?.convertToBox() }
             .keyboardShortcut("b", modifiers: [.command, .option])
             .disabled(count == 0)
+        Button(target?.addVerb == .word ? "Add Word" : "Add Line") { target?.addDrawn() }
+            .disabled(target?.addVerb == nil)
+        Menu("Change Kind") {
+            Button("Region") { target?.convertToRegion() }
+            Button("Line") { target?.convertToLine() }
+        }
+        .disabled(count == 0)
         Button("Convert to Line") { target?.convertToLine() }
             .disabled(count == 0)
         Button("Convert to Region") { target?.convertToRegion() }
@@ -108,12 +123,21 @@ struct SegmentMenuContent: View {
             .disabled(count == 0)
         Button("Join Broken Words") { target?.joinBrokenWords() }
             .disabled(target?.hasBrokenWords != true)
+        Menu("Hand") {
+            Button("Attribute to Last Hand") { target?.attributeToLastHand() }
+                .keyboardShortcut("h", modifiers: [.control, .command])
+            Button("Remove Hand") { target?.removeHand() }
+        }
+        .disabled(count == 0)
         Divider()
-        SegmentAttributeMenu.Items(apply: { target?.apply($0) })
+        SegmentAttributeMenu.Items(apply: { target?.apply($0) }, types: target?.types ?? [])
             .disabled(count == 0)
     }
 
     static func deleteTitle(_ count: Int) -> String { count > 1 ? "Delete \(count) Segments" : "Delete Segment" }
+
+    /// Join says how many it joins, as Delete does.
+    static func joinTitle(_ count: Int) -> String { count >= 2 ? "Join \(count) Segments" : "Join" }
 
     /// Delete needs a selection and no mode (#6413: the gate is going).
     static func canDelete(selected: Int) -> Bool { selected > 0 }

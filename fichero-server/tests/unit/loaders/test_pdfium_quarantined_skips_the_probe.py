@@ -14,6 +14,7 @@ import sys
 import pytest
 
 pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="extended attributes as macOS sets them")
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 
 def _quarantine(path) -> None:

@@ -93,6 +93,18 @@ final class RegionSelection {
         }
     }
 
+    /// ⇧/⌘-click on a box that brings others (a region and its lines): if the box is selected, all of `group` go; else
+    /// the ones not yet selected are added.
+    func toggleGroup(_ group: [Int], artifactId: String, documentId: String?, in boxes: [OCRGeometryBox]? = nil) {
+        guard let head = group.first else { return }
+        retarget(artifactId: artifactId, documentId: documentId)
+        if indices.contains(head) {
+            for index in group where indices.contains(index) { toggle(index, artifactId: artifactId, documentId: documentId, in: boxes) }
+        } else {
+            for index in group where !indices.contains(index) { toggle(index, artifactId: artifactId, documentId: documentId, in: boxes) }
+        }
+    }
+
     private static func key(_ index: Int, in boxes: [OCRGeometryBox]?) -> BoxKey? {
         guard let boxes, boxes.indices.contains(index) else { return nil }
         return BoxKey(boxes[index])

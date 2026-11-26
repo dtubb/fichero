@@ -115,11 +115,12 @@ struct WorkflowExecutionStoreSettleTests {
     @Test("the run list observes the control revision, not just the SSE token")
     func activityBrowserObservesControlRevision() throws {
         let source = try String(
-            contentsOf: AppSource.root().appendingPathComponent("Views/Activity/ActivityViewHelpers.swift"),
+            contentsOf: AppSource.root().appendingPathComponent("Views/Activity/Pane/ActivityPaneView+Actions.swift"),
             encoding: .utf8
         )
-        #expect(source.contains("onChange(of: workflowExecutionStore.controlRevision)"))
-        #expect(source.contains("onChange(of: activityStore.refreshToken)"))
+        // The pane rebuilds its list when this key changes (`.task(id: refreshKey)`): both triggers are in it.
+        #expect(source.contains("workflowExecutionStore.controlRevision"))
+        #expect(source.contains("activityStore.refreshToken"))
     }
 
     // MARK: - End to end through the outcome

@@ -9,14 +9,12 @@ import UniformTypeIdentifiers
 enum SegmentMover {
     static let actionName = "Move Lines"
 
-    /// The regions `ids` could move into: every other region of the page, in the page's order, minus any the selection
-    /// itself holds. Uses the one rule `OrderDrop.accepted` (a segment goes only into one exactly a level coarser).
+    /// The segments `ids` could move into: every other segment of the page that is exactly one level coarser than the
+    /// selection (a line into a region, a word into a line, a glyph into a word), in the page's order; none when the
+    /// selection mixes levels. Uses the one rule `OrderDrop.accepted`.
     static func targets(for ids: [String], in segments: [Segment]) -> [Segment] {
         guard !ids.isEmpty else { return [] }
-        return segments.filter { region in
-            region.kind == "region" && !OrderDrop.accepted(ids, into: region, in: segments).isEmpty
-                && OrderDrop.accepted(ids, into: region, in: segments).count == ids.count
-        }
+        return segments.filter { OrderDrop.accepted(ids, into: $0, in: segments).count == ids.count }
     }
 
     /// Whether any of `ids` sits in a region now, so "Lift Out of Region" means something.

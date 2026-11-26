@@ -72,7 +72,7 @@ in the same commit.
 
 - Author `Claude <noreply@anthropic.com>` (the worktree is configured). Conventional subject with the issue: `fix(scope): ... (#N)`.
 - Body: what and why in plain words; `Fixes #N` when the issue is finished, `Part of #N` otherwise.
-- Exactly one trailer, the last line: `{{TRAILER}}`. No `Co-Authored-By`, no `Directed-By`, no other trailer.
+- Exactly one trailer, the last line: `{{TRAILER}}`. No `Co-Authored-By`, no `Directed-By`. The one other trailer allowed: `Spec-change: <what and why>, ruled by the owner|manager`, directly above it, when the commit changes a behaviour's acceptance text.
 - Write the message to a file and `git commit -F` (backticks inside `-m "..."` are run by the shell).
 
 ## Ending

@@ -27,6 +27,21 @@ struct HandAttributeRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey { case handId = "hand_id", segmentId = "segment_id" }
 }
 
+/// `hand.attribute_many`: these segments' ink is this hand's, one audit row, one undo.
+struct HandAttributeManyRequest: Encodable, Equatable {
+    let handId: String
+    let segmentIds: [String]
+
+    enum CodingKeys: String, CodingKey { case handId = "hand_id", segmentIds = "segment_ids" }
+}
+
+/// `hand.unattribute_many`: withdraw several attributions in one step.
+struct HandUnattributeManyRequest: Encodable, Equatable {
+    let attributionIds: [String]
+
+    enum CodingKeys: String, CodingKey { case attributionIds = "attribution_ids" }
+}
+
 /// `hand.unattribute`: withdraw one attribution (kept, never deleted).
 struct HandUnattributeRequest: Encodable, Equatable {
     let attributionId: String

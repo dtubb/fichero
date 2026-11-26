@@ -159,7 +159,7 @@ def test_the_ready_checks_commit_cap_is_max_commits_from_the_trees_harness_toml_
     repo = Path(__file__).resolve().parents[4]
     w = tmp_path / "w"
     (w / "scripts").mkdir(parents=True)
-    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    shutil.copy(repo / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "C", "GIT_AUTHOR_EMAIL": "noreply@anthropic.com",
            "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com", "FICHERO_PYTHON_BIN": sys.executable}
 
@@ -371,7 +371,8 @@ def test_the_ladder_runs_the_pinned_guards_not_the_workers_copies(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "add a failing guard")
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert not r["ok"] and r["failed"] == "guards"
-    assert [x["name"] for x in r["rungs"][-1]["results"] if not x["ok"]] == ["lint_new"]
+    guards = next(x for x in r["rungs"] if x["name"] == "guards")  # the cheap rungs after it still report (49b9cfb59c), so it is not the last
+    assert [x["name"] for x in guards["results"] if not x["ok"]] == ["lint_new"]
 
 
 def test_no_rung_sees_the_workers_home_or_a_real_base_path(tmp_path, monkeypatch):
@@ -596,6 +597,34 @@ def test_the_ladder_excuses_a_deleted_modules_tests_only_when_the_rule_is_named_
         said = "\n".join(x.get("stderr_tail", "") for x in r["rungs"])
         assert ("weakens existing tests" in said) is refused, auto or "off"
     assert [(x["rule"], x["file"]) for x in journal.read() if x["event"] == "auto"] == [("weakened-tests-of-a-deleted-module", "test_page.py")]
+
+def test_the_ladder_skips_the_red_for_a_tests_only_batch_names_every_test_in_the_row_and_keeps_it_for_scripts_source(tmp_path, monkeypatch):
+    """manager review 2026-11-24 (`red-on-base-tests-only`): tests alone owe no red (one auto row naming ALL the tests, they still run green);
+    a scripts/ guard with its test is source outside red_paths and still owes one."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    extra = 'red_paths = ["src/"]\nauto = ["red-on-base-tests-only"]\n'
+    for kind in ("tests", "source"):
+        root = tmp_path / kind
+        root.mkdir()
+        work, g, base, pinned = _project(root, check_extra=extra)
+        for i in range(7):  # more than five: the row names every one
+            (work / f"test_t{i}.py").write_text("def test_ok():\n    assert 1\n")  # passes on base: a red would refuse it
+        if kind == "source":
+            (work / "scripts").mkdir()
+            (work / "scripts" / "check_x.py").write_text("pass\n")
+        g("add", "."), g("commit", "-qm", "batch")
+        r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+        if kind == "tests":
+            assert r["ok"], r
+        else:
+            assert r["failed"] == "red-on-base" and "NOT RED ON BASE" in r["rungs"][-1]["stderr_tail"], r
+        rows = [x for x in journal.read() if x["event"] == "auto" and x["rule"] == "red-on-base-tests-only"]
+        if kind == "tests":
+            assert len(rows) == 1 and rows[0]["file"].split(",") == [f"test_t{i}.py" for i in range(7)], rows
+        else:
+            assert len(rows) == 1, "a scripts/ source change adds no auto row (the one row is the tests batch's)"
+
 
 def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
     """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
@@ -1205,7 +1234,8 @@ def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_
     repo = Path(__file__).resolve().parents[4]
     w = tmp_path / "w"
     (w / "scripts").mkdir(parents=True)
-    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    shutil.copy(repo / "fichero-builder" / "fichero_builder" / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    (w / "harness.toml").write_text('[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
     (w / "pipeline" / "projects").mkdir(parents=True)
     (w / "pipeline" / "projects" / "fichero.toml").write_text('[repo]\npython_path = "."\n[[ladder]]\nname = "fast-guards"\nskip = []\n')
     for i in range(20):
@@ -1219,7 +1249,7 @@ def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_
     g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base #1234")
     g("update-ref", "refs/remotes/origin/integration", "HEAD")
     (w / "notes.txt").write_text("x\n")
-    g("add", "."), g("commit", "-qm", "docs: a note #1234\n\nDirected-By: the maintainer")
+    g("add", "."), g("commit", "-qm", "docs: a note #1234\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
     run = lambda *a: subprocess.run(["bash", "scripts/lane_ready_check.sh", *a], cwd=w, capture_output=True, text=True, env=env)  # noqa: E731
     bare = run("HEAD")
     assert bare.returncode == 1 and "check_red.py" in bare.stdout, bare.stdout
@@ -1488,6 +1518,7 @@ def test_auto_remote_guards_go_in_one_batch_a_git_guard_stays_here_and_a_remote_
     assert len(r["results"]) == 22 and not any(x.get("remote") for x in r["results"]), "no runner: every guard runs here"
 
 
+@pytest.mark.macos_only(reason='the probe is BSD df -g, run on the Mac check runners')
 def test_the_remote_free_space_probe_takes_the_smaller_of_the_base_dir_and_tmp(tmp_path, monkeypatch):
     """#6589 2026-11-20: only the runner's base dir (52 GiB) was measured while pytest wrote to its /tmp (0.2 GiB): a check died
     'No space left on device'. The probe asks `df -g` for both and takes the smallest."""

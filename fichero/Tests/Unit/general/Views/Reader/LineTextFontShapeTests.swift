@@ -9,9 +9,11 @@ final class LineTextFontShapeTests: XCTestCase {
     private let cascade = "BundledFonts.shared.font(.body)"
 
     func testCorrectThisLineDrawsItsWordsInTheCascade() throws {
+        // Whitespace-insensitive: a re-indent of the view must not break the guard.
         let source = try AppSource.code("Views/Segments/CorrectThisLine.swift")
-        XCTAssertTrue(source.contains("TextField(\"Words\", text: $words)\n                    .font(\(cascade))"))
-        XCTAssertTrue(source.contains("Text(line.text ?? \"\")\n        .font(\(cascade))"))
+            .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
+        XCTAssertTrue(source.contains("TextField(\"Words\", text: $words) .font(\(cascade))"))
+        XCTAssertTrue(source.contains("Text(line.text ?? \"\") .font(\(cascade))"))
     }
 
     func testTheDisagreementPopoverDrawsAVariantInTheCascade() throws {

@@ -5,6 +5,8 @@ FICHERO_FRESH_NO_LAUNCH=1 (nothing is opened)."""
 
 from __future__ import annotations
 
+import pytest
+
 import os
 import subprocess
 from pathlib import Path
@@ -17,6 +19,7 @@ def _run(home: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["zsh", str(SCRIPT), *args], env=env, capture_output=True, text=True)
 
 
+@pytest.mark.macos_only(reason="a zsh script for the Mac app's containers")
 def test_set_aside_then_restore_keeps_everything(tmp_path: Path) -> None:
     containers = tmp_path / "Library" / "Containers"
     real = containers / "app.fichero.fichero"

@@ -295,6 +295,22 @@ def cut_words_after_read(db: Any, document_id: str, segment_ids: list[str], *, r
     return list(result.result.get("segment_ids") or [])
 
 
+def cut_words_of_converted_lines(db: Any, document_id: str, artifact_id: str, geometry: Any, *,
+                                 run_id: str | None = None, library_path: str | None = None) -> list[str]:
+    """A Kraken page read in one pass (lines found and read together, then converted to segments): each line it read
+    with character positions is cut into word segments, as `cut_words_after_read` does for lines read onto a page's
+    own lines. A result from any other reader makes no words. Returns the words made."""
+    from fichero_server.models.segments import converted_segment_id
+
+    if getattr(geometry, "source", None) != "kraken-htr":
+        return []
+    return cut_words_after_read(
+        db, document_id,
+        [converted_segment_id(artifact_id, index) for index, box in enumerate(geometry.boxes)
+         if str(box.level) == "line" and box.text and box.metadata.get("char_positions")],
+        run_id=run_id, library_path=library_path)
+
+
 def mark_no_writing(db: Any, segment_ids: list[str], *, model: str | None, run_id: str | None = None,
                     library_path: str | None = None) -> None:
     """Record 'looked, no writing' on each line, by the model that looked, through `segment.update` (versioned and

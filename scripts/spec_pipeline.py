@@ -47,6 +47,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from dataclasses import dataclass, field
 from _scan_files import scan_rglob
 
@@ -77,6 +78,12 @@ BASELINE_PATH = pathlib.Path("scripts/spec_pipeline_baseline.json")
 # finding rather than being silently trusted.
 NON_SPEC_MILESTONES_PATH = pathlib.Path("scripts/spec_pipeline_non_spec_milestones.json")
 GH_REPO = "dtubb/fichero"
+
+
+def repo_of(root) -> str:
+    """[land].repo of root's harness.toml (the gh slug), else Fichero's."""
+    f = pathlib.Path(root) / "harness.toml"
+    return tomllib.loads(f.read_text()).get("land", {}).get("repo", GH_REPO) if f.is_file() else GH_REPO
 # `gh issue list --limit N` silently returns at most N issues — no truncation signal of its
 # own. With ~4100 issues in this repo, a low limit was invisible data loss: rules c/e/f/g
 # only ever saw the newest ~1000 and reported green on the rest by simply never looking
@@ -1367,6 +1374,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("agent-work")
 
     args = parser.parse_args(argv)
+    global GH_REPO
+    GH_REPO = repo_of(".")  # [land].repo of the checkout the script runs in
 
     if args.command == "status":
         return cmd_status()

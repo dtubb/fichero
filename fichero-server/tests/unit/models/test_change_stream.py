@@ -136,13 +136,16 @@ class TestChangeHub:
 
     def test_replay_buffers_are_lru_capped_by_library(self):
         hub = _ChangeHub(replay_library_cap=2)
+        # A folder that exists nowhere: the hub keys a library by its resolved path, and on Linux /lib resolves to
+        # /usr/lib (GitHub run 45676804358).
+        libs = "/fichero-no-such-folder"
 
-        hub.emit("/lib/A.fichero", ChangeEvent(type="entity.updated"))
-        hub.emit("/lib/B.fichero", ChangeEvent(type="entity.updated"))
-        hub.emit("/lib/C.fichero", ChangeEvent(type="entity.updated"))
+        hub.emit(f"{libs}/A.fichero", ChangeEvent(type="entity.updated"))
+        hub.emit(f"{libs}/B.fichero", ChangeEvent(type="entity.updated"))
+        hub.emit(f"{libs}/C.fichero", ChangeEvent(type="entity.updated"))
 
-        assert set(hub._replay_buffers) == {"/lib/B.fichero", "/lib/C.fichero"}
-        assert "/lib/A.fichero" not in hub._next_event_ids
+        assert set(hub._replay_buffers) == {f"{libs}/B.fichero", f"{libs}/C.fichero"}
+        assert f"{libs}/A.fichero" not in hub._next_event_ids
 
     def test_slow_subscriber_queue_stays_bounded_and_signals_gap(self):
         hub = _ChangeHub(subscriber_queue_maxsize=4)

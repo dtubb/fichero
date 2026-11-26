@@ -249,6 +249,9 @@ extension ZoomableImagePreview {
                         coordinator: $imageCoordinator,
                         onPointer: { pointerFeed.publish($0) },
                         imageVisible: imageVisible,
+                        doubleClickZooms: !SegmentShapes.clicksPlacePoints(
+                            kind: windowState?.shapeKind ?? .box, isEditing: windowState?.isEditingSegments == true
+                        ),
                         documentOverlay: PreviewPointerProfile.timingOverlay { documentOverlay }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

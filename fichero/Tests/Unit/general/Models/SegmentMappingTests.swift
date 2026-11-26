@@ -92,9 +92,14 @@ struct SegmentMappingTests {
             // A table cell's place (#5168), mapped as the contract's own type.
             "cell"
         ]
+        // Read from the contract, not yet mapped: no surface shows them from a `Segment` (a line's progression is
+        // WRITTEN through `SegmentEdit.lineProgression`; the counting and read-by facts come from the readings route).
+        let deliberatelyNotMapped: Set<String> = [
+            "counting_basis", "counting_level", "line_progression", "read_by", "updated_at"
+        ]
         #expect(
-            declared == accounted,
-            "SegmentRead's fields changed. Unaccounted: \(declared.subtracting(accounted).sorted()). Update Segment.init(generated:) and this set together."
+            declared == accounted.union(deliberatelyNotMapped),
+            "SegmentRead's fields changed. Unaccounted: \(declared.subtracting(accounted).subtracting(deliberatelyNotMapped).sorted()). Update Segment.init(generated:) and this set together."
         )
     }
 

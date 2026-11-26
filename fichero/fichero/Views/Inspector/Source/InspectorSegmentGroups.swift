@@ -42,6 +42,29 @@ struct InspectorDetailsLine: View {
     }
 }
 
+/// The Details group's top row: the region's type in the engine's words, and a menu to set it
+/// (`source.editor.region-type-is-seen-and-set`). A segment with no type says so.
+struct InspectorTypeRow: View {
+    let type: String?
+    let types: [RegionTypeChoice]
+    let choose: (String) -> Void
+
+    var body: some View {
+        LabeledContent("Type") {
+            Menu(type ?? "Not set") {
+                ForEach(types) { choice in
+                    Button(choice.label) { choose(choice.label) }.help(choice.zoneName ?? choice.label)
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .disabled(types.isEmpty)
+        }
+        .font(.body)
+        .accessibilityLabel("Type, \(type ?? "not set")")
+    }
+}
+
 /// The inspected segment's picture, cut from the page to its shape: the first thing in the head.
 struct InspectorSegmentPicture: View {
     let segmentId: String

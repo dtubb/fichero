@@ -81,8 +81,9 @@ def test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_ses
     assert fake.stops == ["m1"], "the lane is finished: the session ends"
     rows = [(r["step"], r["state"]) for r in journal.read() if r["event"] == "queue"]
     assert rows == [("1.1", "queued"), ("1.2", "queued"),
-                    ("1.1", "sent"), ("1.1", "done"), ("1.1", "checking"), ("1.1", "reviewing"), ("1.1", "landed"),
-                    ("1.2", "sent"), ("1.2", "done"), ("1.2", "checking"), ("1.2", "reviewing"), ("1.2", "landed")]
+                    ("1.1", "sent"), ("1.1", "done"), ("1.1", "checking"), ("1.1", "reviewing"), ("1.1", "session-kept"), ("1.1", "landed"),
+                    ("1.2", "sent"), ("1.2", "done"), ("1.2", "checking"), ("1.2", "reviewing"), ("1.2", "landed"),
+                    ("-", "idle-window-closed")]
 
 
 def test_a_red_check_goes_back_as_a_fix_brief_into_the_same_session_before_the_cursor_moves(state):
@@ -683,7 +684,10 @@ def test_queue_drop_takes_a_parked_step_out_of_its_lane_with_a_reason_and_refuse
     for n in ("1.1", "1.2"):
         queue.add("m1", "/w/m1", n, str(state / "b1.1"), [])
     st = ["--state", str(journal.STATE)]
-    assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", "--text", "x", *st]) == 1, "a queued step is not dropped"
+    lanes = queue.load()
+    lanes[0]["steps"][1]["rounds"] = 1  # it has started: a queued step with a round is in flight (local.queue.drop-takes-a-queued-step)
+    queue.save(lanes)
+    assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", "--text", "x", *st]) == 1, "a queued step that started is not dropped"
     assert cli.main(["queue", "park", "--lane", "m1", "--step", "1.2", *st]) == 0
     assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", *st]) == 1 and "--text" in capsys.readouterr().out, "a reason is owed"
     assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", "--text", "superseded by 1aebb9d0e", *st]) == 0
@@ -759,3 +763,40 @@ def test_a_crashed_daily_builds_verb_is_a_not_run_row_and_a_legible_alert_and_re
     assert a["what"] == "a daily build is red: ios-sim: RED LLVM Profile Error: Failed to write file default.profraw" and a["actions"] == ["retry"]
     page = (Path(console.__file__).parent / "console.html").read_text()
     assert 'action: "park"' in page.split("function Alerts")[1].split("function Resolved")[0], "a no-action alert can be parked from the page"
+
+
+def test_a_queued_step_that_never_started_is_dropped_with_its_reason_and_a_sent_one_is_refused(state, capsys):
+    """local.queue.drop-takes-a-queued-step (Step 2.12): a step queued by mistake no longer has to be parked first."""
+    for n in ("1.1", "1.2"):
+        queue.add("m1", "/w/m1", n, str(state / f"b{n}"), [])
+    st = ["--state", str(journal.STATE)]
+    assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", "--text", "queued by mistake", *st]) == 0
+    assert [s["step"] for s in queue.load()[0]["steps"]] == ["1.1"]
+    assert [r["detail"][:17] for r in journal.read() if r.get("state") == "dropped"] == ["queued by mistake"]
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"] = "sent"
+    queue.save(lanes)
+    assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.1", "--text", "x", *st]) == 1 and "in flight" in capsys.readouterr().out
+
+
+def test_add_refuses_a_repeated_brief_by_name_and_a_continuation_appends_the_landed_and_the_left(state, capsys):
+    """local.queue.add-refuses-a-repeated-brief (Step 2.12): on 2026-11-21 five continuation steps of one lane were queued on one
+    file and the worker, shown nothing new, said DONE with no commit."""
+    st = ["--state", str(state / "s")]
+    brief = state / "loose.txt"
+    brief.write_text("Do the thing.\n")
+    assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "a", "--brief", str(brief), *st]) == 0
+    brief.write_text("Do the thing.")  # the same text, a newline less
+    capsys.readouterr()
+    assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "b", "--brief", str(brief), *st]) == 1
+    out = capsys.readouterr().out
+    assert "m7 a already has this brief" in out and "--continues a" in out
+    assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "b", "--brief", str(brief), "--continues", "a", *st]) == 1
+    assert "needs --left" in capsys.readouterr().out
+    journal.append("queue", lane="m7", step="a", state="sent", detail="")
+    journal.append("queue", lane="m7", step="a", state="landed", detail="landed abcdef123 (pushed)")
+    assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "b", "--brief", str(brief), "--continues", "a",
+                     "--left", "the second half: the tests", *st]) == 0
+    kept = Path(next(s for s in queue.load()[-1]["steps"] if s["step"] == "b")["brief"]).read_text()
+    assert kept.startswith("Do the thing.") and "## Continues a" in kept and "- a: abcdef123" in kept and kept.rstrip().endswith("the second half: the tests")
+    assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "c", "--brief", str(state / "b1.2"), *st]) == 0, "another text is taken"

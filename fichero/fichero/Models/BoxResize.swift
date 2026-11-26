@@ -10,6 +10,11 @@ nonisolated enum BoxResize {
         let index: Int
         let handle: Int
         var bbox: [Double]
+        /// Every box the drag moves (the selection, its first the one pressed) as they were, their positions in the full
+        /// list, and as they are now. One box: just that one.
+        var indices: [Int] = []
+        var origins: [[Double]] = []
+        var live: [[Double]] = []
         /// Where the press was, and the one axis ⇧ fixed once the pointer moved past `axisThreshold` (nil until then).
         var start: [Double] = []
         var axis: Axis?
@@ -59,5 +64,48 @@ nonisolated enum BoxResize {
         if handle.x == -1 { minX = point[0] } else if handle.x == 1 { maxX = point[0] }
         if handle.y == -1 { minY = point[1] } else if handle.y == 1 { maxY = point[1] }
         return [min(minX, maxX), min(minY, maxY), max(abs(maxX - minX), minimum), max(abs(maxY - minY), minimum)]
+    }
+
+    /// What grabbing a handle or edge looks like under the pointer.
+    enum Cursor: Equatable { case arrow, leftRight, upDown, diagonal }
+
+    /// The cursor over handle `index` (nil: over no handle or edge): an edge moving along x shows left-right, along y up-down,
+    /// a corner the diagonal.
+    static func cursor(overHandle index: Int?) -> Cursor {
+        guard let index else { return .arrow }
+        let handle = handles[index]
+        if handle.x != 0, handle.y != 0 { return .diagonal }
+        return handle.x != 0 ? .leftRight : .upDown
+    }
+
+    /// The handle or edge under `point` (`segment-editor.edges-drag-and-say-so`): a corner within `reach` first, then any
+    /// point within `reach` of an edge along its whole length, so a thin line box is grabbed by its edge and not only by a
+    /// midpoint handle. Nil inside the box clear of every edge, or outside.
+    static func grab(at point: [Double], of bbox: [Double], reach: [Double]) -> Int? {
+        guard bbox.count >= 4, point.count >= 2, reach.count >= 2 else { return nil }
+        let corners = [0, 2, 5, 7]
+        if let corner = corners.first(where: { index in
+            let place = position(of: index, on: bbox)
+            return abs(place[0] - point[0]) <= reach[0] && abs(place[1] - point[1]) <= reach[1]
+        }) { return corner }
+        let (minX, maxX, minY, maxY) = (bbox[0], bbox[0] + bbox[2], bbox[1], bbox[1] + bbox[3])
+        let withinX = point[0] >= minX - reach[0] && point[0] <= maxX + reach[0]
+        let withinY = point[1] >= minY - reach[1] && point[1] <= maxY + reach[1]
+        let nearest = [
+            (index: 1, gap: abs(point[0] - minX), along: withinY, reachGap: reach[0]),
+            (index: 6, gap: abs(point[0] - maxX), along: withinY, reachGap: reach[0]),
+            (index: 3, gap: abs(point[1] - minY), along: withinX, reachGap: reach[1]),
+            (index: 4, gap: abs(point[1] - maxY), along: withinX, reachGap: reach[1])
+        ].filter { $0.along && $0.gap <= $0.reachGap }.min { $0.gap < $1.gap }
+        return nearest?.index
+    }
+
+    /// Every box in `boxes` with handle `index` moved by `delta` (page fractions): the same edge or corner of each, by the
+    /// same amount, none thinner than `minimum`. The several-box edge drag.
+    static func resizedTogether(_ boxes: [[Double]], handle index: Int, by delta: [Double], minimum: Double = 0.002) -> [[Double]] {
+        boxes.map { box in
+            let place = position(of: index, on: box)
+            return resized(box, handle: index, to: [place[0] + delta[0], place[1] + delta[1]], minimum: minimum)
+        }
     }
 }

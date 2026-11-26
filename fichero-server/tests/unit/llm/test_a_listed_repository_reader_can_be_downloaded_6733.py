@@ -30,6 +30,7 @@ def test_a_segmentation_record_is_neither_listed_nor_downloadable():
 
 
 def test_the_download_of_a_record_that_is_not_a_reader_says_so_in_words(monkeypatch):
+    pytest.importorskip("htrmopo")  # ci.python-tiers: htrmopo comes with scripts/setup_venv.sh, not uv.lock; a Linux runner has none
     import htrmopo
 
     monkeypatch.setattr(htrmopo, "get_description", lambda doi: _record(model_type=["segmentation"]))

@@ -151,3 +151,37 @@ def test_an_edit_to_the_per_tick_loop_keys_leaves_the_code_mark_alone(state):
     assert queue.code_mark(state) == before
     (state / "harness.toml").write_text("[loop]\nonly = ['x']\ntell = 'b'\n")
     assert queue.code_mark(state) != before
+
+
+def test_ten_ticks_past_the_drain_limit_write_one_row_a_lane_and_head_and_the_loop_re_execs_after_the_running_chain(state):
+    """#6589 local.run.drain-expired-one-row: past DRAIN_MAX_S no chain starts, one `drain-expired` row a lane and head, and
+    restart_due is true at the first tick with no chain running while a second batch still waits."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    queue.add("ext2", "/w/ext2", "1.2", str(state / "b1.2"), [8], kind="external")
+    fake = Fake()
+    from fichero_builder import __main__ as cli
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    assert cli.main(["done", "ext2", "def456", "--state", str(journal.STATE)]) == 0
+    pool = ThreadPoolExecutor(max_workers=2)
+    running = pool.submit(time.sleep, 30)  # a chain of another lane is in flight
+    chains = {"pool": pool, "other": running}
+    queue.DRAIN[0] = True
+    queue.DRAIN_SINCE[0] = time.time() - queue.DRAIN_MAX_S - 1
+    try:
+        for _ in range(10):
+            queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert set(chains) == {"pool", "other"}, "no chain started on the old code"
+        rows = [(r["lane"], r["step"]) for r in journal.read() if r.get("state") == "drain-expired"]
+        assert sorted(rows) == [("ext", "1.1"), ("ext2", "1.2")], "one row a lane and head, not one a tick"
+        mark = ("old",)
+        assert not queue.restart_due(mark, state, chains), "the running chain holds the re-exec"
+        running.cancel()
+        chains["other"] = type("Done", (), {"done": lambda self: True})()
+        assert queue.restart_due(mark, state, chains), "the first tick with no chain running re-execs"
+    finally:
+        queue.DRAIN[0] = False
+        queue.DRAIN_SINCE[0] = 0.0
+        pool.shutdown(wait=False, cancel_futures=True)

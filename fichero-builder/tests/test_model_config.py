@@ -71,3 +71,76 @@ def test_the_loop_has_a_manager_role_and_no_verb_names_a_model_of_its_own(tmp_pa
     (tmp_path / "b.txt").write_text("brief")
     cli.main(["run", "--root", str(tmp_path), "--worktree", str(tmp_path), "--brief", str(tmp_path / "b.txt"), "--name", "w"])
     assert seen.get("model") == "a-local-coder"
+
+
+def test_a_role_on_a_metered_provider_with_no_weekly_figure_is_a_question(tmp_path):
+    """local.spend.metered-provider-needs-a-cap: the Qwen3-Coder-Next trial role (the spec's example) needs [spend.week_usd].openrouter."""
+    from fichero_builder import watcher
+
+    (tmp_path / "harness.toml").write_text('[models]\nproviders = ["claude-code", "openrouter"]\n'
+                                           'qwen-trial = { provider = "openrouter", model = "qwen/qwen3-coder-next", context = 262144 }\n'
+                                           '[spend]\nday_usd = 300\nmetered = ["openrouter"]\n[spend.week_usd]\nopenrouter = 25\n')
+    cfg = models.load(tmp_path)
+    assert models.for_role(cfg, "qwen-trial", watcher.load(tmp_path)) == models.Model("openrouter", "qwen/qwen3-coder-next", 262144)
+    with pytest.raises(models.Question, match="no weekly cap"):
+        models.for_role(cfg, "qwen-trial", watcher.parse({"day_usd": 300}))
+    with pytest.raises(ValueError, match="needs a weekly cap"):
+        watcher.parse({"day_usd": 300, "metered": ["openrouter"]})
+
+
+QWEN_SPEND = {"day_usd": 300, "metered": ["openrouter"], "week_usd": {"openrouter": 25}}
+QWEN_MODELS = {"providers": ["claude-code", "openrouter"], "builder": {"provider": "claude-code", "model": "sonnet"},
+               "qwen-trial": {"provider": "openrouter", "model": "qwen/qwen3-coder-next", "context": 262144}}
+
+
+def test_a_lane_on_a_pi_provider_role_starts_pi_with_the_owners_agent_dir_and_a_claude_role_does_not():
+    """The Qwen3-Coder-Next trial (2026-11-25): the queue started every lane's worker as `--kind claude`; a lane whose [models] role
+    is on openrouter starts `builder run --kind pi --provider openrouter --agent-dir <[models].pi_agent_dir>`."""
+    from fichero_builder import queue
+
+    assert queue.worker_kind(QWEN_MODELS, "") == ("claude", ())
+    assert queue.worker_kind(QWEN_MODELS, "builder") == ("claude", ())
+    with pytest.raises(RuntimeError, match="pi_agent_dir"):
+        queue.worker_kind(QWEN_MODELS, "qwen-trial")
+    mdl = {**QWEN_MODELS, "pi_agent_dir": "/Users/Shared/w/pi-agent"}
+    assert queue.worker_kind(mdl, "qwen-trial") == ("pi", ("--provider", "openrouter", "--agent-dir", "/Users/Shared/w/pi-agent"))
+
+
+@pytest.mark.parametrize("spent,starts", [(24.9, True), (25.0, False)])
+def test_a_qwen_trial_run_parks_before_the_start_once_the_weeks_openrouter_rows_reach_25_usd(tmp_path, monkeypatch, spent, starts):
+    """Dry run, no spend: the `builder run` a Qwen trial lane gets (kind pi, provider openrouter, its role, the feed's rules.json),
+    with this week's openrouter cost rows at the cap, parks before Pi starts; under it, Pi is started."""
+    from fichero_builder import __main__ as cli, journal, queue
+
+    monkeypatch.setattr(cli, "state_dir", lambda root, state: tmp_path / "s")
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    journal.append("cost", task="qwen-trial-0", provider="openrouter", usd=spent)
+    agent = tmp_path / "pi-agent"
+    agent.mkdir()
+    (agent / "models.json").write_text(json.dumps({"providers": {"openrouter": {"models": [
+        {"id": "qwen/qwen3-coder-next", "cost": {"input": 0.2, "output": 0.8}}]}}}))
+    mdl = {**QWEN_MODELS, "pi_agent_dir": str(agent)}
+    (tmp_path / "rules.json").write_text(json.dumps({"spend": QWEN_SPEND, "models": mdl}))
+    (tmp_path / "harness.toml").write_text("")
+    (tmp_path / "b.txt").write_text("brief")
+    started = []
+
+    def no_spend(*a, **k):
+        started.append(k.get("provider"))
+        raise RuntimeError("dry run: Pi would start here")
+    monkeypatch.setattr(pi_rpc, "start", no_spend)
+    from fichero_builder import jail, start_tool
+    monkeypatch.setattr(start_tool, "refusals", lambda *a: [])  # the start wall is the live config's, not this tmp root's
+    monkeypatch.setattr(jail, "note_unjailed", lambda *a, **k: None)
+    kind, pi = queue.worker_kind(mdl, "qwen-trial")
+    argv = ["run", "--root", str(tmp_path), "--worktree", str(tmp_path), "--brief", str(tmp_path / "b.txt"), "--name", "qwen-trial",
+            "--model", "qwen/qwen3-coder-next", "--kind", kind, "--role", "qwen-trial", "--rules", str(tmp_path / "rules.json"),
+            "--scratch", str(tmp_path / "scratch"), *pi]
+    if starts:
+        with pytest.raises(RuntimeError, match="dry run"):
+            cli.main(argv)
+        assert started == ["openrouter"]
+    else:
+        assert cli.main(argv) == 0 and started == []
+        assert any("this week's openrouter spend 25.00 USD reached the cap 25.00 before the start" in r.get("what", "") for r in journal.read())

@@ -33,6 +33,7 @@ import ctypes.util
 import gc
 import json
 import shutil
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -94,6 +95,8 @@ def resident_bytes() -> int | None:
                     ("resident_size_max", ctypes.c_uint64), ("user_time", ctypes.c_int * 2),
                     ("system_time", ctypes.c_int * 2), ("policy", ctypes.c_int), ("suspend_count", ctypes.c_int)]
 
+    if sys.platform != "darwin":  # off macOS find_library shells out (ldconfig, gcc) and can hang under a fork (ci.python-tiers)
+        return None
     try:
         libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
         info, count = _Info(), ctypes.c_uint(ctypes.sizeof(_Info) // 4)

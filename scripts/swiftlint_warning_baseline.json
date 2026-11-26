@@ -1,6 +1,6 @@
 {
   "swift.lint_warnings": {
-    "count": 123,
-    "note": "manually updated"
+    "count": 149,
+    "note": "2026-11-25 (#6589): 123 -> 149 accepted. The tree at the previous baseline commit (3fdff45681) measures 153 under swiftlint 0.63.2, so 123 was not reproducible with this binary; the tree has since dropped 153 -> 149. The tightening is the SwiftLint-version case this ratchet allows."
   }
 }

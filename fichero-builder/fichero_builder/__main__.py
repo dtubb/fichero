@@ -11,7 +11,7 @@ from pathlib import Path
 
 import json
 
-from fichero_builder import check_tool, journal, models, spec_tool, steps, work
+from fichero_builder import check_tool, client, journal, models, spec_tool, steps, work
 from fichero_builder import run as run_mod
 
 
@@ -20,8 +20,9 @@ def state_dir(rules_root, explicit) -> Path:
     both users can read, so the owner reads the worker's journal without sudo), else the XDG default."""
     if explicit:
         return Path(explicit)
-    if os.environ.get("FICHERO_BUILDER_STATE"):
-        return Path(os.environ["FICHERO_BUILDER_STATE"])
+    env = client.state_env()  # the checkout's name, as journal.STATE reads it
+    if os.environ.get(env):
+        return Path(os.environ[env])
     f = Path(rules_root) / "harness.toml"
     if f.is_file():
         import tomllib
@@ -75,6 +76,9 @@ def main(argv=None) -> int:
     r.add_argument("--feed", help="the queue's lane: a folder only the owner writes; DONE ends the step, not the session; msg-<seq+1>.txt is typed into the same pane; `stop` ends it")
     r.add_argument("--role", default="", help="the lane's model role in [models] (queue add --role): its context is the window the handoff mark is taken from")
     r.add_argument("--seq", type=int, default=0, help="with --feed: the first brief's message number")
+    r.add_argument("--attach", default="", help="watch the live session in this tmux pane instead of starting one (a watcher that died; local.run.sessions-survive-watchers)")
+    r.add_argument("--base", default="", help="with --attach: the head the step was sent at")
+    r.add_argument("--idle", action="store_true", help="with --attach: no step is out (the session waits for its next message)")
     r.add_argument("--rules", help="the queue's <feed>/rules.json: the caps and [models], re-read every tick in place of --root's (#6851)")
     r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE, else <[jail].workroot>/state, else the XDG state home)")
     c = sub.add_parser("check", help="run the ladder over SINCE..HEAD from the pinned copy; exit 1 if red")
@@ -96,8 +100,15 @@ def main(argv=None) -> int:
     ms.add_argument("--gh", default="gh")
     ms.add_argument("--enqueue", action="store_true", help="queue each step brief in the milestone's lane (worktree <[jail].workroot>/wt-<lane>), in build order")
     ms.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
-    rv = sub.add_parser("review", help="a review is a step kind: start (a session in a review worktree), check (the report), approve (file the issues, land the spec, queue the steps)")
-    rv.add_argument("action", choices=["start", "check", "approve"]), rv.add_argument("area", help="a word of letters, digits and dashes")
+    rv = sub.add_parser("review", help="a review is a step kind: start (a session in a review worktree), check (the report), approve (file the issues, land the spec, queue the steps); "
+                                       "add, set, list: the owner's review page (what to test in each build, a verdict per item)")
+    rv.add_argument("action", choices=["start", "check", "approve", "add", "set", "list"])
+    rv.add_argument("area", nargs="?", help="start, check, approve: a word of letters, digits and dashes; add, set: the item's id")
+    rv.add_argument("--title", help="add: the item's title"), rv.add_argument("--where", default="", help="add: the item's area (Mac · import)"), rv.add_argument("--build", default="", help="add: the build to test")
+    rv.add_argument("--how", action="append", default=[], help="add: one step to try (repeat)"), rv.add_argument("--why", default="", help="add: why it is on the list")
+    rv.add_argument("--issue", default="", help="add: the issue URL"), rv.add_argument("--order", type=int, help="add: higher lists first (default: above the highest)")
+    rv.add_argument("--status", help="add (default to-test), set: to-test | works | polish | bug | n/a"), rv.add_argument("--note", help="set: the verdict's note")
+    rv.add_argument("--changed-since", help="list: only items whose verdict was set after this ts (2026-11-24T10:00:00)")
     rv.add_argument("--repo-dir", default=str(Path.cwd())), rv.add_argument("--report", help="check: the report file (default review-<area>.md in the review worktree)")
     rv.add_argument("--base", help="start: the commit the review worktree is made from (default origin/<[land].branch>)"), rv.add_argument("--scope", default="", help="start: what the review covers, in the brief")
     rv.add_argument("--milestone", help="approve: the milestone the issues are filed in"), rv.add_argument("--spec", help="approve: the review's spec, relative to the worktree")
@@ -136,12 +147,22 @@ def main(argv=None) -> int:
     tr.add_argument("--dry", action="store_true"), tr.add_argument("--gh", default="gh")
     tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
     tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
+    dp = sub.add_parser("deps", help="the open Dependabot PRs against the land branch: merge a green grouped or Actions bump, queue a step for a major or red one; --dry-run prints only")
+    dp.add_argument("--dry-run", action="store_true"), dp.add_argument("--gh", default="gh")
+    dp.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml; gh runs from it")
+    dp.add_argument("--state", help="where the journal and queue live (default: the owner's journal dir)")
+    gw = sub.add_parser("github-watch", help="one pass over GitHub (the tests and security workflows on the land branch, Xcode Cloud, the release branch's reds as info): alerts for what failed")
+    gw.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml; gh runs from it")
+    gw.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     q = sub.add_parser("queue", help="one long-running worker per lane, fed step by step: no action prints the steps; add; run (the owner-side loop; push only with --push); pause (no new step is fed); stop (the worker commits what is green and its session ends; the tree is kept); resume")
-    q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell", "stop", "move", "park", "unpark", "drop"])
+    q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell", "stop", "move", "park", "unpark", "drop", "landed", "moved", "said-done"])
     q.add_argument("--to", type=int, help="move: the step's new index in the lane's steps (below the cursor = next; past the end = last)")
     q.add_argument("--grace", type=float, default=300.0, help="stop: seconds the worker has to commit what is green before its session is closed")
     q.add_argument("--text", help="tell: the finding to put into the lane's live session"), q.add_argument("--file", help="tell: read the finding from this file")
-    q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
+    q.add_argument("--sha", help="landed: the commit a hand landing put on the branch"), q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
+    q.add_argument("--continues", default="", help="add: this brief repeats STEP's on purpose: a continuation (needs --left)")
+    q.add_argument("--left", default="", help="add --continues: what is left of the step it continues; appended to the kept brief")
+    q.add_argument("--alone", action="store_true", help="add: a step of its own, never a part of the lane's next batch (an urgent hang or crash)")
     q.add_argument("--hold", action="store_true", help="add: a milestone a person holds (the intake never takes this lane)")
     q.add_argument("--maintainer", action="store_true", help="add: a registered maintainer lane (the harness builder): its checks run --maintainer")
     q.add_argument("--role", default="", help="add: the lane's worker runs on this role of harness.toml [models] (and so do its handoff successors), not on `builder`")
@@ -180,6 +201,10 @@ def main(argv=None) -> int:
     la.add_argument("--root", default=str(Path.cwd())), la.add_argument("--state"), la.add_argument("--tick", type=float, default=30.0)
     la.add_argument("--port", type=int, default=8766, help="the console's port"), la.add_argument("--load", action="store_true", help="launchctl bootout + bootstrap each agent")
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
+    nr = sub.add_parser("nightly-run", help="one night's nightly in this process (the loop starts it detached, local.nightly.detached)")
+    nr.add_argument("--root", default=str(Path.cwd())), nr.add_argument("--state"), nr.add_argument("--sha", required=True), nr.add_argument("--night", required=True)
+    npf = sub.add_parser("nightly-preflight", help="what would make tonight's nightly red before any build (venv, jail user, ssh, the text); builds and publishes nothing")
+    npf.add_argument("--root", default=str(Path.cwd())), npf.add_argument("--state")
     rl = sub.add_parser("release", help="run (or resume) tonight's release stages; a model is started only when a stage is red (#6726)")
     rl.add_argument("--root", default=str(Path.cwd())), rl.add_argument("--state"), rl.add_argument("--run", help="the run id to resume (default: today's date)")
     rl.add_argument("--branch", required=True, help="the branch whose origin head is frozen as the candidate")
@@ -280,13 +305,13 @@ def main(argv=None) -> int:
         if not a.spec:
             print("REFUSED: --spec is needed when the milestone is named")
             return 1
-        order = milestone.build_order(a.spec)
+        order = milestone.build_order(a.spec, root=a.repo_dir)
         planned = milestone.plan(milestone.list_issues(a.name, gh=a.gh, cwd=str(a.repo_dir)), order, milestone.spec_slug(a.spec))
         rules_doc = tomllib.loads((Path(a.repo_dir) / "harness.toml").read_text())
         base = a.base or resolve(a.repo_dir, "origin/" + rules_doc.get("land", {}).get("branch", ""))
         rules = rules_doc.get("brief", {}).get("rules", "")
         written = milestone.write_briefs(planned, out=a.out, repo_dir=a.repo_dir, base=base, rules=rules,
-                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster,
+                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster_for(a.repo_dir),
                                          spec_path=a.spec, binary=codemap.owner_binary(a.repo_dir), lane=queue.slug(a.name) if a.enqueue else "")
         for c, p in zip(planned["clusters"], written):
             print(f"Step {c['step']}: {', '.join('#%d' % i['number'] for i in c['issues'])} -> {p}")
@@ -308,6 +333,14 @@ def main(argv=None) -> int:
         from fichero_builder import triage
 
         return triage.main(a)
+    if a.cmd == "github-watch":
+        from fichero_builder import gh_watch
+
+        return gh_watch.main(a)
+    if a.cmd == "deps":
+        from fichero_builder import deps
+
+        return deps.main(a)
     if a.cmd == "build":
         from fichero_builder import build
 
@@ -395,6 +428,21 @@ def main(argv=None) -> int:
             if a.restart:
                 print(f"loop restarted, pid {queue.restart_loop(a.restart, a.tick)}")
         return 1 if aid else 0
+    if a.cmd == "nightly-preflight":
+        import tomllib
+
+        from fichero_builder import nightly
+
+        rules = tomllib.loads((Path(a.root) / "harness.toml").read_text())
+        bad = nightly.preflight(a.root, nightly.load(rules), rules)
+        print("\n".join(f"RED: {b}" for b in bad) or f"nightly preflight green (project venv {nightly.project_venv(a.root)})")
+        return 1 if bad else 0
+    if a.cmd == "nightly-run":
+        from fichero_builder import nightly, queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        ok = nightly.run_detached(a.root, journal.STATE, a.sha, a.night, lambda why: queue.alert("-", "nightly", why, str(journal.STATE), ["retry"]))
+        return 0 if ok else 1
     if a.cmd == "release":
         from fichero_builder import nightly, release_run, start_tool
 
@@ -571,6 +619,13 @@ def main(argv=None) -> int:
         from fichero_builder import review
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
+        if a.action in ("add", "set", "list"):
+            from fichero_builder import review_page
+
+            return review_page.main(a)
+        if not a.area:
+            print(f"REFUSED: review {a.action} needs an area")
+            return 1
         return review.main(a)
     if a.cmd == "landed":
         from fichero_builder import landed
@@ -686,7 +741,8 @@ def main(argv=None) -> int:
     else:
         procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
-                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role, rules=a.rules)
+                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role, rules=a.rules,
+                      provider=a.provider if a.kind == "pi" else "claude-code", attach=a.attach, outstanding=not a.idle, base_sha=a.base)
     return 0 if end in ("done", "done-unsaid", "lane-done", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
 
 

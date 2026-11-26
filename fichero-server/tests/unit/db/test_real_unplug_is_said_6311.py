@@ -25,9 +25,10 @@ from fichero_server.core import failure_ledger
 from fichero_server.db import Database, volume_dropped
 
 pytestmark = pytest.mark.skipif(
-    sys.platform != "darwin" or shutil.which("hdiutil") is None or os.environ.get("CI"),
+    sys.platform != "darwin" or shutil.which("hdiutil") is None or bool(os.environ.get("CI")),
     reason="needs macOS and hdiutil, not under CI",
 )
+pytestmark = [pytestmark, pytest.mark.macos_only]  # ci.python-tiers: the engine-macos job runs it
 
 
 def _route(fn):

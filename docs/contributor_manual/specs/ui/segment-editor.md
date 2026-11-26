@@ -191,7 +191,7 @@ targets are at least 44 pt.
 ### Structure: merge, split, reassign
 
 - `segment-editor.merge-lines` — **[OK]** (→ #4941; app + engine; builds on `source.editor.join-is-easy`, #6182) two or
-  more selected lines and ⌘J become one line: the first picked keeps its id; the outlines are
+  more selected lines and ⌥⌘J become one line: the first picked keeps its id; the outlines are
   joined into one polygon (their union, hulled across the gap when they do not touch); the
   baselines are joined end to end in the page's reading order; the readings join with the
   script's separator; the result sits where the first line sat in every order; the others
@@ -205,6 +205,11 @@ targets are at least 44 pt.
   `keep_restore`) and redo; the Preview's Join sends both flags (`SegmentEdit.join(_:asLines:)`).
   The key is ⌥⌘J, the owner's ruling of 2026-11-08 in menus-and-commands.md. Lines measured on another image are refused, not carried. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
   hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
+- `segment-editor.move-keeps-selection` — **[OK]** (→ #7089; app) after a move of one or more segments by dragging, the moved
+  segments stay selected, in the Preview, the Inspector and the Segments list; ⌘Z puts them back and keeps them selected
+  (`SegmentEdit.selectionAfterMove`, written again by segment id after the store re-reads, since a box's identity key
+  includes its rect and a moved box was no longer found). *Tests:*
+  `fichero/Tests/Unit/general/Views/Source/SegmentMoveSelectionTests.swift`.
 - `segment-editor.join-selects-the-joined-segment` — **[OK]** (→ #7068; app) after a Join answers, the selection is the
   kept segment (the first picked), so the Inspector shows the joined line; after ⌘Z it is the segments that were joined,
   after ⇧⌘Z the kept one again. The Preview's Join and the segment menu's Join both do it, once the store has re-read the
@@ -298,6 +303,12 @@ targets are at least 44 pt.
   starts ON a box (every press on a page) draws it; a click that does not move still selects. The band selects every box it
   touches or encloses (`SegmentSelectionGestures.touching`); the lasso keeps the over-half rule. The band runs in the Source
   view as well as Edit Segments. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SelectPointerTests.swift`.
+  *Built note (#7080):* a region wholly inside the band is selected too, with its lines; a band inside a region selects only
+  the lines it touches (`SegmentSelectionGestures.bandHits`, `withLines`). One rule for every way of adding a region
+  (click, ⇧-click, ⌘-click, band): the region comes with its lines, and ⌘/⇧-click on a selected region removes its lines too
+  (`SegmentSelectionGestures.group`, `RegionSelection.toggleGroup`). *Tests:*
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift` (`bandEnclosingRegion`, `bandInsideRegion`,
+  `regionBringsLines`, `clickAddsAndRemovesGroup`).
 - `segment-editor.select-shift-toggles` — **[PARTIAL]** (→ #4941; app) ⇧-click and ⇧-band add to the selection;
   ⇧-click on a selected segment removes it; ⌘A selects every segment of the level shown; ⌘⇧A
   selects the same kind as the selection ("select the same kind" from the umbrella); ⌘-click toggles one box, in the Source view
@@ -312,11 +323,12 @@ targets are at least 44 pt.
   can be removed, `segment.simplify` answers success with `removed` 0 (not a 422; the usual audit row is written), and the
   page says "Simplify removed no points". An outline whose tolerance would leave fewer than three points (a baseline two)
   is simplified as far as that floor allows, not left as it was. The answer carries `removed`, the points taken out. The
-  slider's release sends in any mode, not only Edit Shape, and only for the focused pane. *Tests:*
+  slider's release sends in any mode, not only Edit Shape, and only for the focused pane. The menu's tolerance is a
+  thousandth of the page image's width in pixels, never under 2 (`SegmentEdit.menuSimplifyTolerance`). *Tests:*
   `fichero-server/tests/unit/api/test_segment_simplify.py` (`test_a_shape_already_simple_answers_removed_zero_and_is_left_alone`,
   `test_the_answer_says_how_many_points_went`, `test_a_dense_outline_at_a_big_tolerance_keeps_at_least_three_points_and_still_simplifies`,
   `test_an_outline_that_would_fall_under_the_floor_is_held_not_discarded`);
-  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift` (`releaseIsForTheFocusedPane`, `noticeReadsTheEnginesCount`).
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift` (`releaseIsForTheFocusedPane`, `noticeReadsTheEnginesCount`, `menuToleranceScalesWithTheImage`).
   *Not built:* ⌘Z on a Simplify that removed nothing is refused by the engine (the audit row holds no segment to restore).
 - `segment-editor.select-brush` — **[PARTIAL]** (→ #4941; app) the Brush paints a mask on the page; every segment the
   mask touches is selected when the stroke ends; ⌥ while painting subtracts; `[` and `]` change
@@ -354,9 +366,18 @@ targets are at least 44 pt.
   each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
   same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
   *Tests:* `test_segment_group_lines.py`; `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
-  *Not built:* the new region selected afterwards and open for its type; the "replace the old region when every line of it
+  *Not built:* the new region open for its type; the "replace the old region when every line of it
   is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
+- `segment-editor.make-region-in-every-menu` — **[OK]** (#6737, #7070; app) Make Region from Lines (two or more selected
+  segments) and Ungroup Region (a selected region) are in every menu that lists the verbs: the Segment menu, the page's
+  context menu and `SegmentVerbMenu` (the Order list's row menu and the Reader's line menu); a verb that cannot apply is
+  absent. Join and Delete in the Preview's menus say what is selected ("Join 3 Segments", "Delete 2 Segments").
+  *Tests:* `fichero/Tests/Unit/general/Views/Preview/SegmentVerbMenuTests.swift` (what the menu offers for two lines, one line, a region; the titles).
+- `segment-editor.make-region-selects-the-region` — **[OK]** (#6737, #7070; app) after Make Region from Lines the new
+  region is the selection, read from the `region_id` the engine answers (`segment.group_lines`), in the Preview and in the
+  lists; a re-read after the answer shows it selected, and an answer with no `region_id` leaves the selection alone.
+  *Tests:* `fichero/Tests/Unit/general/Views/Preview/SegmentVerbMenuTests.swift` (`selectionAfterGroup`, the answer's strings).
 - `segment-editor.vertices` — **[PARTIAL]** (→ #4941; app + engine) a click on a side adds a point; ⌥-click a
   point removes it (built); ⌫ with a pressed point removes it; **Simplify** (⌘⌥S, and a slider
   in the Shape popover) asks the engine for a simpler outline, `segment.simplify` with a
@@ -501,6 +522,51 @@ targets are at least 44 pt.
   first nine carry menu shortcuts with a modifier, ⌃⌥1 … ⌃⌥9. **Never bare number keys**
   (owner 2026-11-13). The menu shows each kind's shortcut as menus do. *Built:*
   `SegmentEditCommand.plan` for `kind`. *Not built:* the menu, its shortcuts, the project list.
+- `source.editor.region-type-is-seen-and-set` — **[PARTIAL]** (#7073-3a; app + engine; refines `segment-editor.type-by-key`)
+  a region's type is seen in the Inspector (a Type row at the top of the Details group) and set from a **Type**
+  submenu of the Segment menu, on every selected segment at once; the first nine types carry ⌃⌥1 … ⌃⌥9. A person's
+  choice is written to the segment's `kind_raw` in ONE audited `segment.update_many` with one undo, and the version
+  history keeps the model's label; segments get no tag fact. The list comes from the engine: the labels it knows
+  (DocLayNet's, each with its SegmOnto zone) and any other label a live segment of the page carries.
+  *Built:* `segment.update_many` takes `kind_raw`; `GET /api/segments/document/{doc_id}/types` (`list_region_types`) answers the list;
+  `SegmentEdit.Attribute.type`, the Type submenu in the Inspector's Segment menu, the Inspector's Type row. *Built also:* the menu bar's Edit › Segments ▸, the Preview's context menu and the Order list's row menu get the
+  list from `SegmentStore.regionTypesByDocument`, read with the page's segments. *Not built:* the Inspector's list of
+  notes anchored to a segment; the Swift tests were not run in the worker. *Tests:* `fichero-server/tests/unit/api/test_segment_update_many.py`;
+  `fichero/Tests/Unit/general/Models/SegmentEditTests.swift`.
+
+- `source.editor.inspector-is-a-form-at-every-level` — **[PARTIAL]** (→ #7074; app; refines `source.editor.set-kind`) the
+  Inspector shows a grouped form for the selection at every level (region, line, word, or a mix), one labelled row per
+  property in the engine's order, which is the Tab and VoiceOver order. Switches are switches; the others are menus, and
+  language and script also take typed codes. *Built:* `InspectorFormView` (a `Form` with `LabeledContent` rows) in
+  `SegmentInspectorView`, replacing the Details sentence and the Segment pull-down in the Inspector's head (the Segment menu
+  in the menu bar keeps its items). *Not built:* the notes anchored to a segment (the Inspector shows them, manager
+  ruling), a window never seen (no worker can run the app). *Tests:* `SegmentInspectorFormTests.swift` (the model; not run).
+- `source.editor.inspector-form-comes-from-the-engine` — **[OK]** (→ #7074; engine) `GET /api/segments/inspect?segment_ids=..`
+  answers the rows for the level: a region has type, furniture, language, script, direction and line_progression; a line
+  has furniture, language, script and direction; a word has language, script and direction. Each row is `set`, `inherited`
+  (with the level it came from), `mixed` (with every distinct value) or `none`, and carries its choices; ids the person may
+  not read are counted as withheld. The app keeps no table of rows. *Built:* `segment_inspect_rows.py`, the route in
+  `segments.py`, `SegmentService.inspectForm`. *Tests:* `fichero-server/tests/unit/api/test_segment_inspect.py`,
+  `fichero/Tests/Unit/general/Models/SegmentInspectorFormTests.swift`.
+- `source.editor.inspector-form-edits-the-selection-at-once` — **[PARTIAL]** (→ #7074; app + engine) a change in the form
+  is ONE `segment.update_many` over every selected segment (type, furniture, language, script, direction; a region's
+  line_progression), so one ⌘Z undoes it, and the form is read again after it. *Built:* `InspectorForm.edit`,
+  `SegmentEdit.Attribute.lineProgression`, `update_many` taking `line_progression`.
+  *Not built:* `updated_at` and `line_progression` on the app's `Segment`. *Tests:* `test_segment_inspect.py`,
+  `SegmentInspectorFormTests.swift`.
+- `source.editor.inspector-form-keyboard-and-voiceover` — **[PARTIAL]** (→ #7074; app) every row is reachable by Tab in the
+  engine's order and reads as its label, its value and how it stands ("Mixed: a, b", "inherited from page", "Not set").
+  Each row carries the identifier `inspector.form.<key>`, the form `inspector.form`. *Built:* `InspectorForm.Row.accessibilityValue`
+  and the identifiers in `InspectorFormView`. *Not built:* the chords ⌥⇧⌘J (row join) and ⌥ArrowKeys / ⌃⌥ArrowKeys (edges),
+  which no menu uses and no step builds yet; a window never seen. *Tests:* `SegmentInspectorFormTests.swift`.
+
+#### What the person sees: the Inspector form
+
+- **Opener:** the Inspector pane (View menu, Show Inspector) with one or more segments selected; the form sits under the pane's head.
+- **Loading:** while the engine's answer is on its way the form area says "Reading the form…"; a newer selection replaces the older read.
+- **Empty:** nothing selected (page level) shows no form and no note.
+- **Error:** a failed read says "The form could not be read. Select again to retry."; ids the engine knows none of say "The engine knows none of the selected segments."; a selection over 500 segments says "N segments selected; the form shows up to 500. Select fewer." The form never goes blank without a word.
+- **Acceptance:** select two lines whose languages differ; the Language row reads "Mixed", VoiceOver reads "Mixed: a, b", and choosing a language sends one `segment.update_many` that one ⌘Z undoes. *Tests:* `fichero/Tests/Unit/general/Models/SegmentInspectorFormTests.swift` (the model and the notes; not run).
 
 ### Words and characters
 
@@ -703,6 +769,19 @@ See section 7.2 below for what exists. The design:
   to fit the ink (snapping to the page's text); Shift applies it to every selected segment. Proposed, C: keys on a selection,
   ⌥↑ and ⌥↓ for height and ⌥← and ⌥→ for width, 1 px a press (10 px with Shift), working on many lines at once. Edge handles
   that move one axis with ⌥-drag are left out as fiddly on small line boxes. Saved and undoable; a test per gesture.
+- `segment-editor.edges-drag-and-say-so` — **[PARTIAL]** (#6735; app) an edge of a box is grabbed anywhere along its length (a corner first), in
+  any mode; with several boxes selected the same edge of every box moves by the same amount, as one undoable change. *Built:*
+  `BoxResize.grab`, `resizedTogether`, `cursor(overHandle:)`, `handleResize` for the selection, and the host commit
+  `resizeSegments` (shapes scale with the box). *Not built:* the pointer-over cursor (the pointer feed has no hover phase, so
+  `BoxResize.cursor` is not wired to `NSCursor`) and the handles drawn on the union rectangle. Needs an on-screen check.
+  Tests: `fichero/Tests/Unit/general/Views/Segments/BoxResizeEdgeTests.swift`.
+- `segment-editor.edges-move-by-key` — **[OK]** (#6735; app) with saved segments selected, ⌥-arrow moves the edge on the arrow's
+  side in the arrow's direction (the box grows), ⌃⌥-arrow moves that edge back (it shrinks); 1 px a press, 10 with ⇧; held to the
+  page, and a press that would leave a box thinner than the minimum leaves it unchanged; several boxes are one ⌘Z; the key is
+  taken even when nothing changes, so it does not page. Tests: `fichero/Tests/Unit/general/Models/EdgeKeysTests.swift` (the plan
+  only; the key handlers are not unit-tested).
+- `segment-editor.edges-set-by-number` — **[GAP]** (#6735; app) set a box's edges by number. Waits on the Shape rows of step 5,
+  which have not landed (no "Shape rows" in the spec or the code).
 - `segment-editor.convert-to-box` — **[PARTIAL]** (#6736; app + engine; owner 2026-11-19) Convert to Box replaces each selected
   segment's polygon with its axis-aligned bounding rectangle, from the Segment menu, the context menu of the selected
   segments, the toolbar's shape menu and a shortcut (⌥⌘B proposed); it works on many at once. An optional second form,
@@ -869,12 +948,31 @@ See section 7.2 below for what exists. The design:
 
 ## Keyboard and gesture map
 
+- `segment-editor.draw-a-line` — **[OK]** (→ #7083; app) the tool row has a New Line tool (⌘⌥⇧L): click the corners of a line, click the
+  first point or double-click to close it. The new segment is a line, in the region that holds most of it; outside every region it
+  is a line with no region and the page says "This line is in no region". The new segment is selected, and ⌘Z removes it.
+  *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`polygonAtALevel`, `parents`, `noRegionNotice`). Needs an on-screen check.
+- `segment-editor.draw-kind-picker` — **[OK]** (→ #7083; app) beside the tools a Makes picker says what the polygon and rectangle tools
+  draw: Region, Line or Word, kept for the window; Follow Selection (the default, until one is chosen) draws a line when a region is
+  selected and a word when a line is selected, else a region. A word goes into the line that holds most of it. Before this every
+  polygon was a region. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`levelFollowsSelection`, `defaultIsRegion`, `polygonAtALevel`).
+  Needs an on-screen check.
+- `segment-editor.add-line-and-add-word` — **[OK]** (→ #7083; app) with one region selected, Add Line (Edit › Segments ▸, the
+  Preview's context menu and the Inspector's head) arms the polygon tool at the Line level; with one line selected, Add Word does
+  the same at the Word level; the shape drawn inside the selection goes into it. Neither is offered for any other selection.
+  *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`addVerbs`, `parents`). Needs an on-screen check.
+- `segment-editor.change-kind` — **[OK]** (→ #7083; app) Change Kind (Edit › Segments ▸, the Preview's context menu and the
+  Inspector's head) makes the selected regions lines or the selected lines regions: one `segment.convert_level`, one ⌘Z. It is
+  not offered for words. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`changeKind`); the call is `SegmentEdit.convertLevel`
+  (`fichero/Tests/Unit/general/Views/Preview/SegmentConvertLevelTests.swift`). Needs an on-screen check.
+
 Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across the app):
 
 | Action | Key |
 |---|---|
 | Select tool / leave mode / clear | V / Esc |
 | Brush select, Knife, Marker, Paintbrush, Order, Shape | B, K, M, P, O, S (hold B/K/M for one stroke) |
+| New Line tool | ⌥⇧⌘L |
 | Brush size down / up | [ / ] |
 | Pan while held | Space |
 | Add to / remove from selection | ⇧-click, ⇧-drag |

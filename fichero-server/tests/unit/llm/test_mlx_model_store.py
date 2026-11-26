@@ -80,6 +80,7 @@ def test_catalog_install_state_from_store_layout(tmp_path: Path) -> None:
     assert entries["user/custom-model"].source == "user_configured"
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_download_job_progress_and_cancel(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")
@@ -114,6 +115,7 @@ def test_delete_never_escapes_store_root(tmp_path: Path) -> None:
         store.delete("mlx-community/Qwen3-VL-8B")
 
 
+@pytest.mark.macos_only(reason='MLX models need Apple Silicon')
 @pytest.mark.asyncio
 async def test_download_command_pins_revision(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")

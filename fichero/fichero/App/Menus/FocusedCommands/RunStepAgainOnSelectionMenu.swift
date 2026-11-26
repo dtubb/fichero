@@ -8,11 +8,19 @@ struct RunStepAgainOnSelectionMenu: View {
     let library: LibraryManager.LibraryReference?
     @Environment(\.openWindow) private var openWindow
 
+    /// One name on every surface: Run Step ▸ the recipe's steps, on exactly what is selected (#7087).
+    nonisolated static let title = "Run Step"
+
+    /// "Run Read on 3 pages": the step by its own name and the count of pages it will run on (#6069).
+    nonisolated static func itemTitle(step: String, count: Int) -> String {
+        "Run \(step) on \(count) \(count == 1 ? "page" : "pages")"
+    }
+
     var body: some View {
         if let library, !pages.isEmpty, !library.recipeSetupStore.redoSteps.isEmpty {
-            Menu("Run a Step Again on the Selection") {
+            Menu(Self.title) {
                 ForEach(library.recipeSetupStore.redoSteps, id: \.steps) { step in
-                    Button(step.name) { Task { await run(step.steps, library: library) } }
+                    Button(Self.itemTitle(step: step.name, count: pages.count)) { Task { await run(step.steps, library: library) } }
                 }
             }
         }

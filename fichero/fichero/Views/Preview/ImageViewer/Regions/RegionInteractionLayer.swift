@@ -86,6 +86,9 @@ struct RegionInteractionLayer: View {
     /// The Region tool's dragged box while editing segments: the host saves it as a region on the shown pass (`segment.create`).
     /// Nil: the box stays a marquee.
     var onDrawRegionBox: (([Double]) -> Void)?
+    /// An edge or corner drag of the selected boxes let go: each box's index and new rect (`segment-editor.edges-drag-and-say-so`).
+    /// Nil: a single box goes through `onMoveCommit` as before.
+    var onResizeCommit: (([(index: Int, bbox: [Double])]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?
     /// Commit a Marker stroke (M held or the Marker chosen): its points in the page's fractions, and whether it closed.
@@ -467,10 +470,12 @@ extension RegionInteractionLayer {
                at: location, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible
            ) {
             let fullIndex = boxes[picked].index
+            // A region comes with its lines, whichever way it is added or removed.
+            let group = SegmentSelectionGestures.group(of: fullIndex, boxes: shownSelectionBoxes)
             if additive {
-                selection.toggle(fullIndex, artifactId: artifactId, documentId: documentId, in: allBoxes)
+                selection.toggleGroup(group, artifactId: artifactId, documentId: documentId, in: allBoxes)
             } else {
-                selection.select(fullIndex, artifactId: artifactId, documentId: documentId, in: allBoxes)
+                selection.selectAll(group, artifactId: artifactId, documentId: documentId, in: allBoxes)
             }
             marquees?.selectedIndex = nil
             return
@@ -550,13 +555,17 @@ extension RegionInteractionLayer {
     /// lines, or regions with ⌘ (`segment-editor.select-marquee-lasso`) — addressed the way a click-select is.
     private func selectRegions(inBand band: [Double]) {
         let shown = shownSelectionBoxes
-        select(hits: SegmentSelectionGestures.touching(
+        select(hits: SegmentSelectionGestures.bandHits(
             band: band, boxes: shown, level: SegmentSelectionGestures.level(of: shown, commandHeld: bandCommand)
         ))
     }
 
     private var shownSelectionBoxes: [SegmentSelectionGestures.Box] {
-        boxes.map { SegmentSelectionGestures.Box(index: $0.index, bbox: $0.box.bbox, level: $0.box.level) }
+        boxes.map { SegmentSelectionGestures.Box(
+                index: $0.index, bbox: $0.box.bbox, level: $0.box.level,
+                segmentId: $0.box.segmentId, parentId: $0.box.parentSegmentId
+            )
+        }
     }
 
     /// Select (⇧ = extend) every DISPLAYED box the loop holds mostly, at the level being edited.
@@ -567,8 +576,9 @@ extension RegionInteractionLayer {
         ))
     }
 
-    private func select(hits: [Int]) {
+    private func select(hits rawHits: [Int]) {
         guard let artifactId else { return }
+        let hits = SegmentSelectionGestures.withLines(rawHits, boxes: shownSelectionBoxes)
         guard !hits.isEmpty else {
             if !shiftHeld { selection.clear() }
             return

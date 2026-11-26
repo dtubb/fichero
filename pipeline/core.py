@@ -390,15 +390,15 @@ def brief_rules() -> list[str]:
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
              "5. Never change your own acceptance: the text of the spec lines for your behaviour ids and the build order's "
              "Behaviours/Tests lines stay as they are (flipping the [TAG] to [OK] or [PARTIAL] is fine). If they are wrong, call `pipeline_ask`.",
-             f"6. Commit your own work, once per issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> (<keyword> #<n>)' -m 'Written-By: Claude'`, "
-             "the issue line below says which. Uncommitted work counts as nothing.",
+             f"6. Commit your own work, once per issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> (<keyword> #<n>)' -m 'Written-By: <your model's display name> using <harness> using {g['trailer_tool']}'`, "
+             "the issue line below says which, and gives your exact Written-By line. Uncommitted work counts as nothing.",
              "7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with the task named below. "
              "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
              "8. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets. "
              "Never push, never `git stash`, never touch the maintainer's data or settings.", ""]
 
 
-def brief(issue: dict, task: str, failure: str = "") -> str:
+def brief(issue: dict, task: str, failure: str = "", worker: dict | None = None) -> str:
     """The coder's prompt: the stable rules, then the issue (only text by allow-listed authors), its spec lines,
     where the change goes and the test to write. Outside text never enters a prompt (pipeline.outside-bugs)."""
     g = cfg()["github"]
@@ -407,7 +407,8 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
     lines = spec_lines(set(issue_ids(issue)))
     fixes = "Part of" if issue.get("part_of") else "Fixes"
     text = [*brief_rules(), f"# Issue #{issue['number']}: {issue['title']}",
-            f"Task `{task}`; commit with `({fixes} #{issue['number']})`.", "", issue.get("body") or "", ""]
+            f"Task `{task}`; commit with `({fixes} #{issue['number']})`.",
+            *([f"Your trailer, exactly: `{config.written_by(worker, cfg()['repo']['path'], g['trailer_tool'])}`"] if worker else []), "", issue.get("body") or "", ""]
     if issue.get("handoff"):
         text += [f"## Handoff: the previous session ended near its context limit; read {issue['handoff']} first (what is done, what failed).", ""]
     if lines:
@@ -680,7 +681,7 @@ def _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, 
     if resume:  # the same session, woken by the maintainer's answer: no new brief
         tell(window, f"The maintainer answered your question: {resume}\nCarry on with issue #{n}. Call the `done` tool with task {task} and issue {n} when your commit is in.", task=task)
     else:
-        path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
+        path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure, worker))
         tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} and issue {n} when your commit is in.", task=task)
     st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
     # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
@@ -1019,7 +1020,7 @@ def _writeup(task, key, iss, wt, window, session_dir, worker) -> dict:
         spec.write_text(spec.read_text().rstrip("\n") + "\n" + line + "\n")
         checks.git(wt, "add", "--", str(spec))
         checks.git(wt, "-c", "user.name=Claude", "-c", f"user.email={cfg()['github']['agent_email']}", "commit", "-qm",
-                   f"spec: proposed [GAP] line for {parts['id']} (write-up of #{n})\n\nWritten-By: Claude")
+                   f"spec: proposed [GAP] line for {parts['id']} (write-up of #{n})\n\n{config.written_by(worker, cfg()['repo']['path'], cfg()['github']['trailer_tool'])}")
     journal.append("writeup", issue=n, key=key, task=task, parts=parts, spec=rel)
     return parts
 

@@ -1,3 +1,4 @@
+@testable import Fichero
 import Foundation
 import Testing
 
@@ -20,20 +21,22 @@ struct PreviewSelectAllPolicyGuardTests {
         let source = try regionsSource()
         #expect(source.contains("func selectAllGeometryForArmedTool()"))
         #expect(source.contains("case .textSelect, .wordSelect:"))
-        #expect(source.contains("all.indices.filter { all[$0].level == \"word\" }"))
-        // The visible-surface ruling: the default path selects what the
-        // overlay is DRAWING, not the whole geometry behind it.
-        #expect(source.contains("let shown = displayedGeometryBoxes.map(\\.index)"))
+        let levels = ["region", "line", "word", "word"]
+        #expect(SegmentOnRendition.selectAllIndices(levels: levels, shown: [1], frameMatches: true, isTextTool: true) == [2, 3])
+        // The visible-surface ruling: the default path selects what the overlay is DRAWING, not the geometry behind it.
+        #expect(SegmentOnRendition.selectAllIndices(levels: levels, shown: [1, 2], frameMatches: true, isTextTool: false) == [1, 2])
+        #expect(source.contains("shown: displayedGeometryBoxes.map(\\.index)"))
     }
 
-    @Test("both paths fall back to the full frame-matched list, never to nothing")
+    @Test("both paths fall back to the full list, never to nothing")
     func bothPathsFallBack() throws {
+        let levels = ["region", "line", "line"]
+        // No word boxes: the text tools take every box. Nothing shown, or a frame that is not the picture's (#6448): every box.
+        #expect(SegmentOnRendition.selectAllIndices(levels: levels, shown: [], frameMatches: true, isTextTool: true) == [0, 1, 2])
+        #expect(SegmentOnRendition.selectAllIndices(levels: levels, shown: [], frameMatches: true, isTextTool: false) == [0, 1, 2])
+        #expect(SegmentOnRendition.selectAllIndices(levels: levels, shown: [1], frameMatches: false, isTextTool: false) == [0, 1, 2])
         let source = try regionsSource()
-        #expect(source.contains("indices = words.isEmpty ? Array(all.indices) : words"))
-        #expect(source.contains("indices = shown.isEmpty ? Array(all.indices) : shown"))
-        // …and the list it starts from is the gated one.
-        #expect(source.contains("let all = frameMatchedGeometryBoxes"))
-        #expect(source.contains("guard !all.isEmpty else { return }"))
+        #expect(source.contains("guard !indices.isEmpty else { return }"))
         #expect(source.contains("regionSelection.selectAll("))
     }
 
@@ -46,7 +49,7 @@ struct PreviewSelectAllPolicyGuardTests {
             "selection highlights drawn from an unmatched frame land beside the page"
         )
         #expect(source.contains("var frameMatchedGeometryBoxes: [OCRGeometryBox]"))
-        #expect(source.contains("geometryFrameMatchesDisplay(ocrGeometry)"))
+        #expect(source.contains("drawnGeometry?.boxes ?? []"))
     }
 
     @Test("⌘A is published as a focused action, not key-handled locally")

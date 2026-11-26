@@ -74,66 +74,90 @@ extension RegionInteractionLayer {
         onReshapeCommit?(drag.boxIndex, drag.target, drag.points)
     }
 
-    /// Resize by the eight handles (#5215): a press on one of the ONE selected box's handles in Edit
-    /// Segments drags that corner or edge; the release is one move to the new box (`onMoveCommit`, which
-    /// sends `segment.update` with the version read and ⌘Z, the shapes scaled with it). Asked BEFORE a
-    /// shape's point handles: a point lying exactly on a frame handle yields to the frame.
+    /// Resize by the edges and corners (#5215, `segment-editor.edges-drag-and-say-so`): a press within reach of any edge of the
+    /// selected box -- or, with several selected, of their union -- grabs that edge (a corner, two), in any mode. The drag
+    /// moves the same edge of every selected box by the same amount; the release is one commit (`onResizeCommit`, else
+    /// `onMoveCommit` for one box). The edge is asked BEFORE a shape's point handles: a point lying on it yields to the frame.
     func handleResize(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
         let point = [Double(event.point.x), Double(event.point.y)]
         switch event.phase {
         case .pressed:
-            guard event.clickCount == 1, isEditing, !event.option, size.width > 0, size.height > 0,
-                  let index = singleSelectedIndex else { return false }
-            let bbox = allBoxes[index].bbox
+            guard event.clickCount == 1, !event.option, size.width > 0, size.height > 0,
+                  let picked = selectedBoxIndices(), let union = Self.union(of: picked.map { allBoxes[$0].bbox }) else { return false }
             let reach = [Double(SelectionStyle.handleSide) / size.width * visible.width,
                          Double(SelectionStyle.handleSide) / size.height * visible.height]
-            guard let handle = BoxResize.handle(at: point, of: bbox, reach: reach) else { return false }
-            resizeDrag = BoxResize.Drag(index: index, handle: handle, bbox: bbox, start: point)
+            guard let handle = BoxResize.grab(at: point, of: union, reach: reach) else { return false }
+            let boxes = picked.map { allBoxes[$0].bbox }
+            resizeDrag = BoxResize.Drag(
+                index: picked[0], handle: handle, bbox: boxes[0], indices: picked, origins: boxes, live: boxes, start: point
+            )
             return true
         case .dragged:
-            guard let drag = resizeDrag, allBoxes.indices.contains(drag.index) else { return false }
+            guard let drag = resizeDrag, drag.indices.allSatisfy(allBoxes.indices.contains) else { return false }
             resizeDragged(drag, to: point, shift: event.shift)
             return true
         case .released:
             guard let drag = resizeDrag else { return false }
             resizeDrag = nil
-            if allBoxes.indices.contains(drag.index), drag.bbox != allBoxes[drag.index].bbox {
-                onMoveCommit(drag.index, drag.bbox)
+            guard drag.live != drag.origins, drag.indices.allSatisfy(allBoxes.indices.contains) else { return true }
+            if let onResizeCommit {
+                onResizeCommit(Array(zip(drag.indices, drag.live)).map { (index: $0, bbox: $1) })
+            } else if drag.indices.count == 1 {
+                onMoveCommit(drag.index, drag.live[0])
             }
             return true
         }
     }
 
-    /// ⇧ fixes one axis by the drag's first direction (`segment-editor.expand-one-axis`); the box stays put until then.
+    /// ⇧ fixes one axis by the drag's first direction (`segment-editor.expand-one-axis`); the boxes stay put until then.
     /// Letting go of ⇧ goes back to the free resize.
     private func resizeDragged(_ drag: BoxResize.Drag, to point: [Double], shift: Bool) {
-        let current = allBoxes[drag.index].bbox
-        guard shift else {
-            resizeDrag?.axis = nil
-            resizeDrag?.bbox = BoxResize.resized(current, handle: drag.handle, to: point)
-            return
+        guard let union = Self.union(of: drag.origins) else { return }
+        let place = BoxResize.position(of: drag.handle, on: union)
+        var delta = [point[0] - place[0], point[1] - place[1]]
+        resizeDrag?.axis = nil
+        if shift {
+            let axis = drag.axis ?? BoxResize.axis(from: drag.start, to: point)
+            resizeDrag?.axis = axis
+            switch axis {
+            case .horizontal: delta[1] = 0
+            case .vertical: delta[0] = 0
+            case nil: delta = [0, 0]
+            }
         }
-        let axis = drag.axis ?? BoxResize.axis(from: drag.start, to: point)
-        resizeDrag?.axis = axis
-        resizeDrag?.bbox = axis.map { BoxResize.resized(current, handle: drag.handle, to: point, axis: $0) } ?? current
+        let live = BoxResize.resizedTogether(drag.origins, handle: drag.handle, by: delta)
+        resizeDrag?.live = live
+        resizeDrag?.bbox = live[0]
     }
 
-    /// The one selected box, by its position in the full list.
-    private var singleSelectedIndex: Int? {
+    /// The selected boxes' positions in the full list (the first picked first), or nil when none are selected here.
+    private func selectedBoxIndices() -> [Int]? {
         guard let artifactId, selection.artifactId == artifactId else { return nil }
-        let picked = selection.resolvedIndices(in: allBoxes)
-        guard picked.count == 1, let index = picked.first, allBoxes.indices.contains(index) else { return nil }
-        return index
+        let picked = selection.resolvedIndices(in: allBoxes).filter(allBoxes.indices.contains)
+        return picked.isEmpty ? nil : picked
+    }
+
+    /// The smallest rect holding every box in `boxes`.
+    static func union(of boxes: [[Double]]) -> [Double]? {
+        let valid = boxes.filter { $0.count >= 4 }
+        guard !valid.isEmpty else { return nil }
+        let minX = valid.map { $0[0] }.min() ?? 0, minY = valid.map { $0[1] }.min() ?? 0
+        let maxX = valid.map { $0[0] + $0[2] }.max() ?? 0, maxY = valid.map { $0[1] + $0[3] }.max() ?? 0
+        return [minX, minY, maxX - minX, maxY - minY]
     }
 
     /// The shape as it is being reshaped, over the drawn one until the edit lands.
     @ViewBuilder
     func liveReshape(in size: CGSize) -> some View {
-        if let drag = resizeDrag, let rect = BoundingBoxGeometry.viewRect(normalized: drag.bbox, in: size, visible: visible) {
-            Rectangle()
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                .frame(width: rect.width, height: rect.height)
-                .offset(x: rect.minX, y: rect.minY)
+        if let drag = resizeDrag {
+            ForEach(Array(drag.live.enumerated()), id: \.offset) { _, bbox in
+                if let rect = BoundingBoxGeometry.viewRect(normalized: bbox, in: size, visible: visible) {
+                    Rectangle()
+                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                        .frame(width: rect.width, height: rect.height)
+                        .offset(x: rect.minX, y: rect.minY)
+                }
+            }
         }
         if let drag = reshapeDrag {
             Path { path in

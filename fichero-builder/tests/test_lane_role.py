@@ -51,6 +51,29 @@ def test_a_lane_with_a_role_starts_its_worker_on_that_roles_model_and_a_lane_wit
         procs.start({"id": lane_id, "worktree": str(state / "wr" / f"wt-{lane_id}"), "seq": 0, **extra}, {"step": "1.1", "brief": str(state / "brief"), "issues": []})
     assert "--model claude-fable-5-1" in popens[0] and "--role maintainer-fable" in popens[0]
     assert "--model sonnet" in popens[1] and "--role" not in popens[1]
+    assert "--kind claude" in popens[0] and "--kind claude" in popens[1]
+
+
+def test_a_qwen_trial_lane_starts_pi_on_openrouter_with_the_owners_agent_dir(state, monkeypatch):
+    """The Qwen3-Coder-Next trial: a lane on an openrouter role starts `builder run --kind pi --provider openrouter --agent-dir <dir>`
+    (the queue started every worker as `--kind claude`); with no [models].pi_agent_dir it does not start."""
+    toml = state / "harness.toml"
+    toml.write_text(toml.read_text().replace('providers = ["claude-code"]', 'providers = ["claude-code", "openrouter"]')
+                    + 'qwen-trial = { provider = "openrouter", model = "qwen/qwen3-coder-next", context = 262144 }\n')
+    popens = []
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv[-1]) or object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    lane = {"id": "qwen", "worktree": str(state / "wr" / "wt-qwen"), "seq": 0, "role": "qwen-trial"}
+    with pytest.raises(RuntimeError, match="pi_agent_dir"):
+        queue.real_procs(state).start(dict(lane), {"step": "1.1", "brief": str(state / "brief"), "issues": []})
+    toml.write_text(toml.read_text().replace("[models]\n", '[models]\npi_agent_dir = "/Users/Shared/w/pi-agent"\n'))
+    queue.real_procs(state).start(dict(lane), {"step": "1.1", "brief": str(state / "brief"), "issues": []})
+    (cmd,) = popens
+    assert "--kind pi" in cmd and "--provider openrouter" in cmd and "--agent-dir /Users/Shared/w/pi-agent" in cmd
+    assert "--model qwen/qwen3-coder-next" in cmd and "--role qwen-trial" in cmd
 
 
 def test_the_handoff_successor_keeps_the_role_its_window_and_its_label(state):
@@ -82,3 +105,23 @@ def test_a_workers_command_starts_in_a_directory_it_made_with_tmpdir_and_pytest_
     assert f"mkdir -p {own}/tmp" in cmd and f"[ ! -L {own} ] && [ -O {own} ]" in cmd, "the directory is made by the worker, is no link, and its owner is checked"
     assert f"cd {own} &&" in cmd and f"cd {wr} &&" not in cmd, "never the world-writable workroot itself"
     assert f"TMPDIR={own}/tmp" in cmd and f"--basetemp={own}/tmp/pytest" in cmd
+
+
+def test_a_fix_round_closes_its_own_steps_last_session_and_starts_instead_of_alerting(state, monkeypatch):
+    """2026-11-25 21:03-21:06, alerts 1933-1935: right after a red, app-bugs' fix round "in a new session" refused to start:
+    "a tmux window named app-bugs holds a live session (@26, 2.1.332)" -- the step's own last session. A window of another step
+    (one the loop did not send this step) still refuses."""
+    popens, tmux = [], []
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv[-1]) or object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: tmux.append(a) or "")
+    monkeypatch.setattr(queue, "worker_windows", lambda j, name, with_command=False: [("@26", "2.1.332")])
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    step = {"step": "nightly-green-1", "brief": str(state / "brief"), "issues": [], "rounds": 1}
+    queue.real_procs(state).start({"id": "app-bugs", "worktree": str(state / "wr" / "wt-app-bugs"), "seq": 3, "session_step": "nightly-green-1"}, dict(step))
+    assert ("kill-window", "-t", "@26") in tmux and len(popens) == 1
+    (row,) = [r for r in journal.read() if r.get("state") == "window-closed"]
+    assert "this step's own last session (@26, 2.1.332) was closed" in row["detail"]
+    with pytest.raises(RuntimeError, match="holds a live session"):
+        queue.real_procs(state).start({"id": "app-bugs", "worktree": str(state / "wr" / "wt-app-bugs"), "seq": 3, "session_step": "other-step"}, dict(step))

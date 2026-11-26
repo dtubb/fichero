@@ -73,7 +73,7 @@ def test_tag_flip_is_allowed_but_an_acceptance_rewrite_is_red(scratch, issues, f
         spec = fc.cwd / "specs" / "s.md"
         spec.write_text(spec.read_text().replace("[MISSING]", "[OK] (#1001)"))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "flip (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "flip (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
 
     fc._tell = tell_and_flip
     assert core.start([1001])["items"]["1001"] == "checked"
@@ -86,7 +86,7 @@ def test_start_takes_a_base_for_a_bootstrap_step(scratch, issues, fake_coder):
     git(repo, "checkout", "-qb", "runner-branch")
     (repo / "RUNNER").write_text("here\n")
     git(repo, "add", ".")
-    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
     git(repo, "checkout", "-q", "integration")
     out = core.start([1001], task="boot", base="runner-branch")
     wt = scratch["repo"] / ".worktrees" / "pipeline" / "boot"
@@ -229,7 +229,7 @@ def test_new_commit_voids_the_verdict(scratch, issues, fake_coder):
     wt = scratch["repo"] / ".worktrees" / "pipeline" / "issues-1001"
     (wt / "note.txt").write_text("more")
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "more (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "more (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
     out = core.verdict(1001, it["sha"], "READY", by="reviewer")
     assert out["state"] == "checked" and "has not passed a check" in out["note"]
     head = git(wt, "rev-parse", "HEAD")
@@ -242,7 +242,7 @@ def test_new_commit_voids_the_verdict(scratch, issues, fake_coder):
 def _break(wt, msg="break (Fixes #1001)"):
     (wt / "src" / "mod.py").write_text("def base():\n    return 0\n\n\ndef f1001():\n    return 2\n")
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", msg + "\n\nDirected-By: the maintainer")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", msg + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
 
 
 def test_a_red_check_demotes_checked_and_ready_does_not_bind(scratch, issues, fake_coder):
@@ -277,7 +277,7 @@ def test_retry_takes_no_flags_and_reuses_the_start_arguments(scratch, issues, fa
     git(repo, "checkout", "-qb", "runner-branch")
     (repo / "RUNNER").write_text("here\n")
     git(repo, "add", ".")
-    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
     git(repo, "checkout", "-q", "integration")
     f = tmp_path / "issue.json"
     f.write_text(json.dumps(dict(issues[1001])))
@@ -307,7 +307,7 @@ def test_a_retry_is_measured_from_the_items_first_start(scratch, issues, fake_co
         test = fc.cwd / "tests" / "test_1001.py"
         test.write_text(test.read_text().replace("from src.mod import f1001", "from src.mod import f1001  # tidy"))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "lint (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "lint (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
         fc.turns += 1
 
     fc._tell = lint_fix_on_retry
@@ -340,7 +340,7 @@ def test_rewriting_own_acceptance_in_the_spec_needs_maintainer(scratch, issues, 
         spec = fc.cwd / "specs" / "s.md"
         spec.write_text(spec.read_text().replace("Test: tests/test_1.py", "Test: none needed"))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
 
     fc._tell = tell_and_edit_spec
     assert core.start([1001])["items"]["1001"] == "needs-maintainer"
@@ -356,7 +356,7 @@ def _spec_edit_coder(fake_coder, old, new):
         spec = fc.cwd / "specs" / "s.md"
         spec.write_text(spec.read_text().replace(old, new))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
 
     fc._tell = tell_and_edit_spec
 
@@ -402,7 +402,7 @@ def test_a_commit_landing_mid_check_is_red(scratch, issues, fake_coder, monkeypa
         r = real(*a, **k)
         (wt / "late.txt").write_text("late")
         git(wt, "add", ".")
-        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "late (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "late (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
         return r
 
     monkeypatch.setattr(core.checks, "run_all", run_all_and_commit)
@@ -584,6 +584,32 @@ def test_brief_is_a_stable_prefix_then_the_issue_tail(scratch, issues):
     assert head(a) == head(b) and "1001" not in head(a) and "t1" not in head(a), "no ids or tasks before the tail"
 
 
+def test_the_brief_rule_is_generic_and_the_trailer_line_names_the_workers_own_model(scratch, issues):
+    """The prefix stays byte-stable; the exact Written-By line, from the worker's model through [models.display], follows the issue header."""
+    sonnet = {"provider": "anthropic", "model": "sonnet", "kind": "pi"}
+    qwen = {"provider": "openrouter", "model": "qwen/x", "kind": "pi"}
+    a, b = core.brief(issues[1001], "t", worker=sonnet), core.brief(issues[1001], "t", worker=qwen)
+    assert "Your trailer, exactly: `Written-By: Claude Sonnet 5.5 using pi using Fichero Builder`" in a
+    assert "Your trailer, exactly: `Written-By: openrouter/qwen/x using pi using Fichero Builder`" in b, "an unlisted model passes through"
+    assert a.split("# Issue #")[0] == b.split("# Issue #")[0] and "Sonnet" not in a.split("# Issue #")[0]
+
+
+def test_a_worker_started_on_a_full_anthropic_id_signs_with_its_display_name():
+    from pipeline import ROOT, config
+    for wid, name in (("claude-sonnet-5-5", "Claude Sonnet 5.5"), ("claude-haiku-5-5", "Claude Haiku 5.5"), ("claude-opus-5-5", "Claude Opus 5.5")):
+        w = {"provider": "anthropic", "model": wid}
+        assert config.written_by(w, str(ROOT), "Fichero Builder") == f"Written-By: {name} using pi using Fichero Builder"
+
+
+def test_the_writeup_commit_is_signed_by_the_worker_that_wrote_it(scratch, issues, fake_coder, monkeypatch):
+    approve_spec(scratch)
+    fc = fake_coder()
+    fc.reply = "ID: `demo.two`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_1002.py::test_f1002_v2"
+    core.start([1002], writeup=True)
+    log = git(scratch["repo"], "log", "--all", "--format=%B", "--grep=write-up of #1002")
+    assert "Written-By: openrouter/qwen/x using pi using Fichero Builder" in log and "Claude Sonnet" not in log, log
+
+
 def test_a_model_names_the_files_only_when_localisation_finds_nothing(scratch, issues, monkeypatch):
     calls = []
 
@@ -615,7 +641,7 @@ def test_approve_checks_records_the_files_and_sends_the_findings(scratch, issues
         real(window, text)
         (fc.cwd / "scripts" / "check_no_bad.py").write_text("print('ok, but changed')\n")
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard (Fixes #1001)" + "\n\nDirected-By: the maintainer")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard (Fixes #1001)" + "\n\nWritten-By: Claude Sonnet 5.5 using Claude Code using Fichero Builder")
 
     fc._tell = tell_and_touch_a_guard
     assert core.start([1001])["items"]["1001"] == "needs-maintainer"

@@ -220,3 +220,59 @@ class TestTheRoute:
         audit = db.get(ActionAudit, body["audit_id"])
         assert audit is not None and audit.action_name == "segment.update_many"
         assert len(body["versions"]) == 2
+
+
+class TestARegionTypeIsSeenAndSet:
+    """`source.editor.region-type-is-seen-and-set` (#7073): a person's chosen type goes to `kind_raw`, many at once."""
+
+    def test_kind_raw_on_many_is_one_audit_row_and_keeps_the_model_label_in_history(self, db):
+        rows = _page(db, lines=3)
+        for row in rows:
+            row.kind_raw = "Text"
+            db.save(row)
+
+        result = _update_many(db, rows, kind_raw="Section-header")
+
+        assert {db.get(Segment, r.id).kind_raw for r in rows} == {"Section-header"}
+        assert {db.get(Segment, r.id).kind for r in rows} == {"line"}, "the structural kind is left alone"
+        assert len(_segment_audits(db)) == 1
+        assert result.audit_id
+
+    def test_one_undo_puts_the_models_label_back_on_every_row(self, db):
+        rows = _page(db, lines=3)
+        for row in rows:
+            row.kind_raw = "Text"
+            db.save(row)
+        result = _update_many(db, rows, kind_raw="Title")
+
+        _undo(db, result.audit_id)
+
+        assert {db.get(Segment, r.id).kind_raw for r in rows} == {"Text"}
+
+    def test_the_type_list_function_answers_the_same(self, db):
+        from fichero_server.api.routes.document.segments import region_types
+
+        rows = _page(db, lines=1)
+        rows[0].kind_raw = "Marginal flourish"
+        db.save(rows[0])
+
+        types = {t.label: t for t in region_types(db, rows[0].document_id).types}
+
+        assert types["Footnote"].zone == "MarginTextZone" and not types["Footnote"].on_page
+        assert types["Marginal flourish"].zone is None and types["Marginal flourish"].on_page
+
+    def test_the_type_list_answers_the_known_labels_and_those_on_the_page_each_with_its_zone(self, db, client):
+        rows = _page(db, lines=2)
+        rows[0].kind_raw = "Text"
+        rows[1].kind_raw = "Marginal flourish"
+        for row in rows:
+            db.save(row)
+
+        response = client.get(f"/api/segments/document/{rows[0].document_id}/types")
+
+        assert response.status_code == 200, response.text
+        types = {t["label"]: t for t in response.json()["types"]}
+        assert types["Section-header"]["zone"] == "MainZone" and types["Section-header"]["subtype"] == "head"
+        assert types["Text"]["on_page"] is True and types["Title"]["on_page"] is False
+        assert types["Marginal flourish"] == {"label": "Marginal flourish", "zone": None, "subtype": None,
+                                              "on_page": True}

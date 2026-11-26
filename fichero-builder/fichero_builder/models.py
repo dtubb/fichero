@@ -26,8 +26,19 @@ def load(root) -> dict:
     return tomllib.loads(f.read_text()).get("models", {}) if f.is_file() else {}
 
 
-def for_role(cfg: dict, role: str) -> Model:
-    """The role's Model; a Question names what is missing (role, provider, or a provider nobody set up)."""
+def for_role(cfg: dict, role: str, spend=None) -> Model:
+    """The role's Model; a Question names what is missing (role, provider, or a provider nobody set up). With `spend` (a
+    watcher.Spend), a role on a provider that bills by use and has no weekly cap is a Question too
+    (local.spend.metered-provider-needs-a-cap)."""
+    m = _for_role(cfg, role)
+    if spend is not None:
+        from fichero_builder import watcher
+        if watcher.is_metered(spend, m.provider) and spend.week_usd.get(m.provider, 0) <= 0:
+            raise Question(f"harness.toml [models].{role} uses {m.provider!r}, which bills by use, and [spend.week_usd] gives it no weekly cap")
+    return m
+
+
+def _for_role(cfg: dict, role: str) -> Model:
     row = cfg.get(role)
     if not isinstance(row, dict) or not row.get("provider") or not row.get("model"):
         raise Question(f"harness.toml [models].{role} must name a provider and a model")

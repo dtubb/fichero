@@ -127,6 +127,7 @@ def test_build_release_has_dry_run_flag() -> None:
     assert "preflight-embedded-engine.sh" in text
 
 
+@pytest.mark.macos_only(reason="the guard reads the engine app's Info.plist with PlistBuddy")
 def test_embedded_engine_version_guard_rejects_stale_bundle(tmp_path: Path) -> None:
     expected = next(
         line.split('"')[1]

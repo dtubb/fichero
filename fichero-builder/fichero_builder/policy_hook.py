@@ -61,19 +61,20 @@ def check(event: dict[str, Any], cfg: dict[str, Any], *, worktree: Path, scratch
     return None
 
 
-_WRITTEN_BY = re.compile(r"^Written-By: \S.* using \S.* using Fichero Builder$")
+DEFAULT_PRODUCT = "Fichero Builder"  # [policy].product
 
 
 def commit_msg_problems(msg: str, cfg: dict[str, Any]) -> list[str]:
-    """Exactly one trailer, `Written-By: <MODEL> using <HARNESS> using Fichero Builder` (agent-profiles.trailer.one-line); no
+    """Exactly one trailer, `Written-By: <MODEL> using <HARNESS> using <[policy].product>` (agent-profiles.trailer.one-line); no
     `Co-Authored-By`, no `Directed-By`, no second `Written-By`. The same rule for every harness: each runs `git commit`."""
     lines = [ln.rstrip() for ln in msg.splitlines()]
-    shape = "Written-By: <MODEL> using <HARNESS> using Fichero Builder"
+    product = cfg.get("product", DEFAULT_PRODUCT)
+    shape = f"Written-By: <MODEL> using <HARNESS> using {product}"
     out = [f"the commit message carries {ln.split(':')[0]}; the one trailer is {shape}"
            for ln in lines if re.match(r"(?i)(co-authored-by|directed-by):", ln)]
     written = [ln for ln in lines if ln.lower().startswith("written-by:")]
     if len(written) != 1:
         out.append(f"the commit message needs exactly one Written-By trailer, `{shape}`; it has {len(written)}")
-    elif not _WRITTEN_BY.match(written[0]):
+    elif not re.match(rf"^Written-By: \S.* using \S.* using {re.escape(product)}$", written[0]):
         out.append(f"the Written-By trailer must read `{shape}`; got {written[0]!r}")
     return out

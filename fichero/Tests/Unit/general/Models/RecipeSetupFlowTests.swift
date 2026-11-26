@@ -108,8 +108,10 @@ struct RecipeSetupFlowTests {
                 "every step after Your project but Ready saves on Continue")
         #expect(!SetupStep.ready.savesDraft && !SetupStep.project.savesDraft)
         for _ in draftScreens { #expect(await store.save()) }
+        // Each save is followed by one read of the saved recipe's redo steps (GET, #6744); nothing else is called.
         let calls = SetupFlowURLProtocol.seen.map { "\($0.method) \($0.path)" }
-        #expect(calls == Array(repeating: "PUT /api/recipes/project", count: draftScreens.count))
+        let saveAndRead = ["PUT /api/recipes/project", "GET /api/recipes/project"]
+        #expect(calls == Array(Array(repeating: saveAndRead, count: draftScreens.count).joined()))
     }
 
     // MARK: source.onboard.offers-never-hides
@@ -228,7 +230,7 @@ struct RecipeSetupFlowTests {
         })
         store.ingestMode = .index
         #expect(await store.save())
-        let answers = try #require(SetupFlowURLProtocol.seen.last?.body["answers"] as? [String: Any])
+        let answers = try #require(SetupFlowURLProtocol.seen.last { $0.method == "PUT" }?.body["answers"] as? [String: Any])
         #expect(answers["ingest_mode"] as? String == "index")
 
         store.ingestMode = .link

@@ -3,11 +3,12 @@
 
     python scripts/perf_engine_run.py --baseline scripts/perf_baseline.json [--tests fichero-server/tests/perf] [--dir PATH ...]
 
-Runs pytest-benchmark's suite under pyinstrument (time profile) and `/usr/bin/time -l` (peak RSS), takes `du -sk` of the scratch
+Runs the perf suite under pyinstrument (time profile, optional) with pytest's junit report for per-test durations (pytest-benchmark's JSON is used when it has any) and `/usr/bin/time -l` (peak RSS), takes `du -sk` of the scratch
 library, cache, log and models dirs before and after, then hands the three tools' OUTPUT to `fichero_builder.perf_rung` and prints one
 `PERF-RESULT {json}` line (last). Exit 0 whatever the verdict: the rung decides what a red means (report-only until measured). No
 timer is written here; the tools measure. Never run on the manager's Mac: the rung ships it to `[check].build_remote`."""
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
@@ -22,6 +23,10 @@ from fichero_builder import perf_rung  # noqa: E402
 
 def sh(argv, **kw) -> str:
     return subprocess.run(argv, capture_output=True, text=True, **kw).stdout
+
+
+def have(module: str) -> bool:
+    return importlib.util.find_spec(module) is not None
 
 
 def thermal() -> str | None:
@@ -50,31 +55,42 @@ def main() -> int:
     dirs = [d for d in a.dir if os.path.isdir(d)]
     du = lambda: perf_rung.read_du(sh(["du", "-sk", *dirs])) if dirs else {}  # noqa: E731
     before = du()
-    pytest = [sys.executable, "-m", "pytest", a.tests, "-p", "pytest_benchmark", f"--benchmark-json={out / 'bench.json'}", "--benchmark-warmup=on",
-              "--benchmark-min-rounds=3", "-q"]
-    argv = ["/usr/bin/time", "-l", sys.executable, "-m", "pyinstrument", "-r", "json", "-o", str(out / "profile.json"), "-m", "pytest", *pytest[3:]]
+    junit = out / "junit.xml"
+    pytest = [sys.executable, "-m", "pytest", a.tests, f"--junitxml={junit}", "-q"]
+    if have("pytest_benchmark"):  # optional: the perf tests time themselves, so its JSON may hold nothing
+        pytest += ["-p", "pytest_benchmark", f"--benchmark-json={out / 'bench.json'}", "--benchmark-warmup=on", "--benchmark-min-rounds=3"]
+    profiled = have("pyinstrument")
+    argv = ["/usr/bin/time", "-l", *([sys.executable, "-m", "pyinstrument", "-r", "json", "-o", str(out / "profile.json"), "-m", "pytest", *pytest[3:]] if profiled else pytest)]
     r = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": "fichero-server/src"})
     after = du()
-    figs: dict = {"benchmarks": {}, "peak_rss_mb": None, "disk_kib": {}, "top": []}
-    notes = []
+    figs: dict = {"benchmarks": {}, "failed": [], "peak_rss_mb": None, "disk_kib": {}, "top": []}
+    notes = []  # a REFUSED note is a red (the run measured nothing); a "note:" line is only said
+    seen = []
     try:
-        figs["benchmarks"] = perf_rung.read_benchmarks((out / "bench.json").read_text())
-    except OSError:
-        notes.append("REFUSED: no pytest-benchmark JSON was written (pytest-benchmark missing or the run died)")
+        bench = (out / "bench.json").read_text() if (out / "bench.json").exists() else ""
+        figs["benchmarks"], figs["failed"], why = perf_rung.measured(r.returncode, junit.read_text() if junit.exists() else "", bench)
+        if why:
+            seen.append("note: " + why)
+    except (OSError, ValueError) as e:
+        notes.append(f"REFUSED: {e}")
     try:
         figs["peak_rss_mb"] = perf_rung.read_peak_rss_mb(r.stderr)
     except ValueError as e:
         notes.append(f"REFUSED: {e}")
-    try:
-        figs["top"] = perf_rung.top_self_frames((out / "profile.json").read_text())
-    except (OSError, ValueError, KeyError):
-        notes.append("REFUSED: no pyinstrument profile (pyinstrument missing)")
+    if profiled:
+        try:
+            figs["top"] = perf_rung.top_self_frames((out / "profile.json").read_text())
+        except (OSError, ValueError, KeyError):
+            seen.append("note: no pyinstrument profile was written (the run's own frames are not compared)")
+    else:
+        seen.append("note: pyinstrument is not installed on the runner: no profile (the run's own frames are not compared)")
     figs["disk_kib"] = perf_rung.disk_delta(before, after, json.loads(a.declared)) if dirs else {}
     figs["written_kib"] = float(sum(max(0, after[d] - before[d]) for d in before)) if dirs else None  # net growth of the watched dirs: what the workload added, declared output included
     model = sh(["sysctl", "-n", "hw.model"]).strip()
     verdict = perf_rung.judge(figs, baseline, model, thermal(), idle=os.getloadavg()[0] < 2.0, root=ROOT)
     if notes:
         verdict = {**verdict, "ok": False, "reds": [*notes, *verdict["reds"]]}
+    verdict["notes"] = seen
     verdict["figures"] = {"benchmarks": figs["benchmarks"], "peak_rss_mb": figs["peak_rss_mb"], "disk_kib": figs["disk_kib"], "written_kib": figs["written_kib"]}
     if verdict.get("recorded") and not notes:
         # a baseline with no figure for these keys: WRITE them (report-only; a first measurement is recorded, never a fail)

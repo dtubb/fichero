@@ -24,6 +24,7 @@ residue = "residue"
 maintainer = "dtubb"
 allowed_authors = ["dtubb"]
 agent_email = "noreply@anthropic.com"
+trailer_tool = "Pipeline Runner"  # the last words of a Written-By trailer: `<model> using <harness> using <this>`
 
 [[ladder]]
 name = "word-count"

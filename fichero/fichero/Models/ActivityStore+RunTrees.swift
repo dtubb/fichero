@@ -214,6 +214,7 @@ extension ActivityStore {
             log.debug("ActivityStore: recipe runs read failed \(error.localizedDescription, privacy: .public)")
             return
         }
+        await foldNewestRunFolderSteps(from: runs)
         let ended: Set<String> = ["done", "failed", "cancelled"]
         let live = runs.first(where: { !ended.contains($0.state) && !putAwayRunIds.contains($0.jobId) })
         // Only the newest ended run: an older one never takes the place of a summary the person closed.

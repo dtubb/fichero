@@ -209,13 +209,18 @@ twelve hours or costs more than its estimate.
   alone count its lines step done; a resumed recipe adopts the read still out under it (`job.out_under`, a paused one
   brought back first) and never sends it again. Not yet: the plan (batches, stages, places) stored on the row at start.
   *Test:* the same file.
-- `compute.recipe.stop-keeps-what-landed` — **[GAP]** (#5642) Stop cancels queued and running tasks and keeps
-  everything landed, landing results that arrive after it; Pause submits nothing new. *Test (to write):* the same file.
+- `compute.recipe.stop-keeps-what-landed` — **[PARTIAL]** (#5642) Stop cancels queued and running tasks and keeps
+  everything landed, landing results that arrive after it; Pause submits nothing new. *Test (to write):* the same file. Built: a Stop on a read at scale
+  (`remote_read/job.py` `run`) asks the far side once more and lands every shard it had finished before cancelling the
+  rest, so none is lost; shards landed earlier stay. Not built: a result that arrives after the cancel was sent is not
+  fetched, and the cloud-batch and local steps are not covered. Tests:
+  `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py`
+  (`test_a_stop_lands_the_shards_the_far_side_finished_and_cancels_only_the_rest`).
 - `compute.recipe.folder-shows-steps-done` — **[PARTIAL]** (#5642, PROPOSED) each folder shows which steps are done on it,
   current while tasks land. Built for local steps as `activity.run.folder-steps-done` (ui/activity-pane.md,
   its own test); owed here: a remote stage's landed tasks counted as they land.
 - `compute.recipe.task-compute-record-landed` — **[GAP]** (#5642, PROPOSED) each task's per-page compute record lands with
-  its results and feeds the run's slow-path lines. *Test (to write):* the same file.
+  its results and feeds the run's slow-path lines. *Test (to write):* the same file. Not built: needs a decision on the record's shape and the slow-path lines it feeds; no per-task record exists in `remote_read/runner.py` beyond each shard's seconds.
 - `compute.recipe.cloud-batch-above-threshold` — **[PARTIAL]** (#5940; built: `llm/provider_batch.py` `goes_as_batch`, `cut_to_cap`, one client per API shape over the provider's own SDK, each against a fake of that SDK: Anthropic inline, OpenAI by file, Gemini by file (its inline answers come back by position, not key), `tests/unit/llm/test_provider_batches.py`; the plan places a cloud read of 100 pages or more as `batch` (`start.place_runs`), `cloud_batch.run_step` queues one row, waits and replays the step from the answers, the capture runs below the run machinery (`remote_read/capture.py`, `tests/unit/remote_read/test_capture_run.py`), and a batch-only model passes the preflight inside a batch; the recipe runner's `_run_card` sends a `batch` step there, pinned end to end through the scheduler and the replay (`test_capture_run.py`); not yet: a real run on a provider) a step on a cloud model with at least the
   threshold of pages in a run nobody is waiting for goes as one provider batch per recipe batch (cut to the provider's
   byte cap; Gemini by file when images are in it); below the threshold, or for a press a person waits on, plain calls

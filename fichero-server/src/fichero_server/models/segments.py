@@ -186,9 +186,11 @@ class SegmentRead(BaseModel):
     #: Set on this segment, like the two above -- NOT the derived direction. A
     #: list row that carried `ltr` for every segment because the cascade derives
     #: it would look like somebody chose it for every one of them.
-    #: (`line_progression` is deliberately not here: no surface reads it yet,
-    #: and a field the app never asks for is a field nobody keeps correct.)
     direction: str | None = None
+    #: A region's lines-or-columns succession, as set on it (the Inspector's form reads and sets it).
+    line_progression: str | None = None
+    #: When the row last changed; None for a provisional segment, which has no row.
+    updated_at: datetime | None = None
     source_artifact_id: str | None = None
     #: Position inside the owning artifact's ``ocr_geometry.boxes`` -- only
     #: meaningful (and only ever set) for a provisional segment.
@@ -974,6 +976,8 @@ def segment_read_from_row(
         language=row.language,
         script=row.script,
         direction=row.direction,
+        line_progression=row.line_progression,
+        updated_at=row.updated_at,
         # The artifact this row's PASS was converted from, when the caller
         # knows it (#4924 review). A segment made from scratch has none and
         # still reads `None`; a converted one reports the same artifact the

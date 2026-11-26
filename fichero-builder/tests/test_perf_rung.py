@@ -250,3 +250,14 @@ def test_an_engine_and_swift_batch_runs_both_halves(tmp_path, monkeypatch):
     r = check_tool.perf(tmp_path, "a", [*_SWIFT, "fichero-server/src/x.py"], cfg)
     assert len(seen) == 2 and seen[0][0] != "/usr/bin/time" and seen[1][0] == "/usr/bin/time"
     assert "Swift perf: T/U" in r["stdout_tail"]
+
+
+def test_tail_keeps_a_long_final_perf_result_line_whole_so_the_rung_reads_it():
+    """#6600: a first run lists every figure; `tail()` cut the line to 300 characters, so PERF_LINE (needs the closing brace) found nothing."""
+    from fichero_builder import check_tool
+    names = [f"fichero-server/tests/perf/test_some_long_scenario_name_{i}.py::test_scenario_{i}" for i in range(25)]
+    verdict = {"ok": True, "reds": [], "recorded": {f"wall_ms|{n}|Mac16,10": {"median": 123.456} for n in names}}
+    line = "PERF-RESULT " + json.dumps(verdict, separators=(",", ":"))
+    assert len(line) > 300
+    m = check_tool.PERF_LINE.search(check_tool.tail("pytest exit 1\n" + line + "\n"))
+    assert m and json.loads(m.group(1)) == verdict

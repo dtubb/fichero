@@ -15,6 +15,13 @@ cards:
     size_gb: 0.006
     trainable: true          # fine-tuned on a project's corrected regions (prep.yolo.fine-tune-from-corrected-regions)
     note: A YOLO11 layout model trained on DocLayNet; finds text blocks, headings, tables, pictures, page headers and footers. Weak on handwritten pages until fine-tuned (measured 2026-10-10).
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/hantian/yolo-doclaynet
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      memory_gb: no measurement of its memory is recorded
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: kraken:builtin/blla@bundled
     pin: {kraken: blla, kraken_version: bundled}
     # Find regions too (#5668): its text blocks, Apache-2.0 and inside the app, so a new project's regions need no
@@ -29,6 +36,12 @@ cards:
     trainable: true          # ketos segtrain
     note: Kraken's built-in line and region finder (blla); ships inside the app.
     short_name: Kraken line finder (blla)
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://github.com/mittagessen/kraken
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: kraken:zenodo/10.5281/zenodo.13788177@unpinned
     pin: {zenodo: 10.5281/zenodo.13788177}
     jobs: [read-a-line, tie-text-to-lines]
@@ -41,6 +54,11 @@ cards:
     trainable: true
     period: [1500, 2100]     # 16th-21st century, per its card (#5516)
     note: McCATMuS, general Latin-script recognition, 16th-21st century.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://zenodo.org/records/13788177
+    unstated:
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: kraken:zenodo/10.5281/zenodo.12743230@unpinned
     pin: {zenodo: 10.5281/zenodo.12743230}
     jobs: [read-a-line, tie-text-to-lines]
@@ -53,6 +71,11 @@ cards:
     trainable: true
     period: [800, 1550]      # medieval manuscripts, per its card (#5516)
     note: CATMuS Medieval, medieval manuscripts (French, Latin, Spanish).
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://zenodo.org/records/12743230
+    unstated:
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: mlx:hf/wjbmattingly/comma-qwen-3.5-0.8b-full-33k@320c52d
     pin: {hf: wjbmattingly/comma-qwen-3.5-0.8b-full-33k, revision: 320c52dda3ba17c3a06aa1dc76ad44a36bf8a5ae}
     jobs: [read-a-page, read-a-line]
@@ -66,6 +89,9 @@ cards:
     cer_published: 0.124       # NFD, 243 held-out pages each a different hand, per its card (CATMuS, graphemic)
     period: [800, 1550]      # medieval Latin, per its card (#5516)
     note: COMMA Qwen 3.5 0.8B, medieval Latin manuscripts read the CATMuS way (graphemic).
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/wjbmattingly/comma-qwen-3.5-0.8b-full-33k
   - id: kraken:zenodo/10.5281/zenodo.21788410@unpinned
     pin: {zenodo: 10.5281/zenodo.21788410}
     jobs: [read-a-line, tie-text-to-lines]
@@ -78,6 +104,11 @@ cards:
     trainable: true
     cer_published: 0.0391    # aggregate over 44 languages, per its card
     note: PP-OCRv6 (medium), multilingual handwritten and printed recognition.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://zenodo.org/records/21788410
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
   - id: tesseract:tessdata/spa@unpinned
     pin: {tesseract: "5", traineddata: spa}
     jobs: [read-a-line]
@@ -90,6 +121,12 @@ cards:
     trainable: true
     runs_here: false         # Tesseract is not bundled yet (ai/local-runtimes.md)
     note: Tesseract's Spanish data; the fast local baseline for print.
+    runs_on: this-mac
+    cost: Free, on this Mac (not bundled yet)
+    source_url: https://github.com/tesseract-ocr/tessdata
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: apple:vision/find-lines@os
     pin: {builtin: apple-vision-lines}
     jobs: [find-lines]
@@ -101,6 +138,14 @@ cards:
     pinnable: false
     note: Apple's on-device text recognition used to find the lines of print only; it keeps no text.
     short_name: Apple Vision (lines)
+    runs_on: this-mac
+    cost: Free, built into macOS
+    source_url: https://developer.apple.com/documentation/vision/recognizing-text-in-images
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      size_gb: part of macOS, nothing to download
+      memory_gb: no measurement of its memory is recorded
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: apple:vision/recognize-text@os
     pin: {builtin: apple-vision}
     jobs: [read-a-line, read-a-page]   # reads the lines Kraken found, each its own picture (#6071)
@@ -113,6 +158,13 @@ cards:
     pinnable: false
     note: Apple's on-device text recognition; changes with macOS.
     short_name: Apple Vision
+    runs_on: this-mac
+    cost: Free, built into macOS
+    source_url: https://developer.apple.com/documentation/vision/recognizing-text-in-images
+    unstated:
+      size_gb: part of macOS, nothing to download
+      memory_gb: no measurement of its memory is recorded
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: spacy:pkg/es_core_news_sm@bundled
     pin: {spacy: es_core_news_sm, version: bundled}
     jobs: [find-names-tag-words]
@@ -122,6 +174,13 @@ cards:
     licence: GPL-3.0
     size_gb: 0.015
     note: spaCy's small Spanish pipeline; bundled.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://spacy.io/models/es#es_core_news_sm
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      memory_gb: no measurement of its memory is recorded
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: spacy:pkg/en_core_web_sm@bundled
     pin: {spacy: en_core_web_sm, version: bundled}
     jobs: [find-names-tag-words]
@@ -131,6 +190,13 @@ cards:
     licence: MIT
     size_gb: 0.013
     note: spaCy's small English pipeline; bundled.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://spacy.io/models/en#en_core_web_sm
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      memory_gb: no measurement of its memory is recorded
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: embed:hf/intfloat/multilingual-e5-large@unpinned
     pin: {hf: intfloat/multilingual-e5-large, revision: main}
     pin_verified: false
@@ -142,6 +208,12 @@ cards:
     size_gb: 2.2
     memory_gb: 2.5
     note: Multilingual embedder (about 100 languages); the engine's current default.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/intfloat/multilingual-e5-large
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: embed:hf/BAAI/bge-m3@unpinned
     pin: {hf: BAAI/bge-m3, revision: main}
     pin_verified: false
@@ -153,6 +225,12 @@ cards:
     size_gb: 2.27
     memory_gb: 2.5
     note: Multilingual embedder, long documents.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/BAAI/bge-m3
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: mlx:hf/mlx-community/Qwen2.5-VL-7B-Instruct-4bit@unpinned
     pin: {hf: mlx-community/Qwen2.5-VL-7B-Instruct-4bit, revision: main}
     pin_verified: false
@@ -165,6 +243,12 @@ cards:
     memory_gb: 24.0          # weights are 7 GB; NOT measured reading a page: 0.1 tok/s on a 16 GB Mac (2026-10-21), so 24 until measured (#5641)
     trainable: true          # LoRA
     note: Qwen2.5-VL 7B, 4-bit, for MLX on Apple silicon.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/mlx-community/Qwen2.5-VL-7B-Instruct-4bit
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      cer_published: none recorded, the catalogue keeps only what a card states
   - id: mlx:hf/mlx-community/Qwen2.5-VL-3B-Instruct-4bit@unpinned
     pin: {hf: mlx-community/Qwen2.5-VL-3B-Instruct-4bit, revision: main}
     pin_verified: false
@@ -179,3 +263,113 @@ cards:
     lines_per_request: 4     # a 3B model loses its place over more lines at once (stated, #5722)
     prefill_tokens: 12000    # ~160 tokens/s of prefill on a 16 GB M1 inside the 120 s first-token wait, with margin (#5648)
     note: Qwen2.5-VL 3B, 4-bit; its licence is research-only, so it needs a deliberate choice.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/mlx-community/Qwen2.5-VL-3B-Instruct-4bit
+    unstated:
+      period: none recorded, the catalogue keeps only what a card states
+      cer_published: none recorded, the catalogue keeps only what a card states
+  - id: kraken:zenodo/10.5281/zenodo.10592716@unpinned
+    pin: {zenodo: 10.5281/zenodo.10592716}
+    jobs: [read-a-line, tie-text-to-lines]
+    scripts: [Latn]
+    languages: [fr, ca, es, en, de, co, pt, it]
+    material: [print]
+    licence: CC-BY-4.0
+    size_gb: 0.023
+    period: [1500, 2100]
+    offered_only: true       # not measured here yet: offered to compare, never chosen by the rules by itself
+    note: CATMuS Print (large), French and other West European printed books from the 16th century to digital documents; keeps the long s and unresolved abbreviations.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://zenodo.org/records/10592716
+    unstated:
+      memory_gb: its card states no memory and Fichero has not measured it
+      cer_published: its card states no accuracy
+  - id: kraken:zenodo/10.5281/zenodo.10599911@unpinned
+    pin: {zenodo: 10.5281/zenodo.10599911}
+    jobs: [read-a-line, tie-text-to-lines]
+    scripts: [Latn]
+    languages: [frm]
+    material: [print]
+    licence: CC-BY-4.0
+    size_gb: 0.023
+    period: [1500, 1599]
+    offered_only: true       # not measured here yet: offered to compare, never chosen by the rules by itself
+    note: CATMuS Gothic Print 1.0.0, 16th-century printed Middle French in Gothic typefaces; fine-tuned from CATMuS Medieval on SETAF project data.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://zenodo.org/records/10599911
+    unstated:
+      memory_gb: its card states no memory and Fichero has not measured it
+      cer_published: its card states no accuracy
+  - id: kraken:zenodo/10.5281/zenodo.13862096@unpinned
+    pin: {zenodo: 10.5281/zenodo.13862096}
+    jobs: [read-a-line, tie-text-to-lines]
+    scripts: [Latn]
+    languages: [la, fro, osp, frm]
+    material: [handwriting]
+    licence: MIT
+    size_gb: 0.025
+    period: [1000, 1600]
+    offered_only: true       # not measured here yet: offered to compare, never chosen by the rules by itself
+    note: TRIDIS v2, documentary manuscripts (legal, administrative, memorial) in Textualis and Cursiva hands, Latin, Old French and Old Spanish, 11th-16th century.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://zenodo.org/records/13862096
+    unstated:
+      memory_gb: its card states no memory and Fichero has not measured it
+      cer_published: its card gives a range over four test sets (CER about 0.10-0.14; about 0.06-0.10 after fine-tuning on 10 pages), not one figure
+  - id: kraken:zenodo/10.5281/zenodo.17406773@unpinned
+    pin: {zenodo: 10.5281/zenodo.17406773}
+    jobs: [read-a-line, tie-text-to-lines]
+    scripts: [Syrc]
+    languages: [syr, syc]
+    material: [handwriting]
+    licence: CC-BY-4.0
+    size_gb: 0.016
+    period: [500, 2000]
+    offered_only: true       # not measured here yet: offered to compare, never chosen by the rules by itself
+    note: Sophro Mhiro, Syriac manuscripts, mostly Biblical, in Serto, Estrangela and Eastern hands, 6th-20th century (38 manuscripts).
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://zenodo.org/records/17406773
+    unstated:
+      memory_gb: its card states no memory and Fichero has not measured it
+      cer_published: its card gives 97.4 percent on its test data, with no CER and no test set described
+  - id: mlx:hf/mlx-community/Qwen3-VL-8B-Instruct-4bit@unpinned
+    pin: {hf: mlx-community/Qwen3-VL-8B-Instruct-4bit, revision: main}
+    pin_verified: false
+    jobs: [read-a-page, correct]
+    licence: Apache-2.0
+    size_gb: 5.76
+    offered_only: true       # not measured here yet: offered to compare, never chosen by the rules by itself
+    note: Qwen3-VL 8B Instruct, 4-bit, for MLX on Apple silicon; reads images and text (converted from Qwen/Qwen3-VL-8B-Instruct).
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/mlx-community/Qwen3-VL-8B-Instruct-4bit
+    unstated:
+      scripts: its card does not say what it was tested on
+      languages: its card does not say what it was tested on
+      material: its card does not say what it was tested on
+      period: its card states no period
+      memory_gb: its card states no memory and Fichero has not measured it
+      cer_published: its card states no accuracy
+  - id: mlx:hf/mlx-community/gemma-3-4b-it-4bit@unpinned
+    pin: {hf: mlx-community/gemma-3-4b-it-4bit, revision: main}
+    pin_verified: false
+    jobs: [read-a-page, correct]
+    licence: Gemma
+    size_gb: 3.4
+    offered_only: true       # not measured here yet: offered to compare, never chosen by the rules by itself
+    note: Gemma 3 4B instruction-tuned, 4-bit, for MLX on Apple silicon; reads images and text; its Gemma licence needs a deliberate choice.
+    runs_on: this-mac
+    cost: Free, on this Mac
+    source_url: https://huggingface.co/mlx-community/gemma-3-4b-it-4bit
+    unstated:
+      scripts: its card does not say what it was tested on
+      languages: its card does not say what it was tested on
+      material: its card does not say what it was tested on
+      period: its card states no period
+      memory_gb: its card states no memory and Fichero has not measured it
+      cer_published: its card states no accuracy

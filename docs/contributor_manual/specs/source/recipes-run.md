@@ -160,6 +160,10 @@ asserted from the rows, the models stubbed at the functions the steps really cal
   with Find Lines model-less it waits for Find Lines and does not run.
 - `recipes-run.steps.read-a-line` — **[OK]** (#6212; in one run with every other step, #6222: `fichero-server/tests/unit/recipes/test_a_run_through_every_step.py`) runs to done line by line (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`); with no model it is skipped
   saying so and Names, Statements, Documents, Translate, Catalogue and Search wait for it.
+  *Built:* (#7086) the card carries the reader the step chose (PP-OCRv6 is `kraken` + `kraken-zenodo-21788410`, set as the Kraken
+  node's `kraken_model`), a pin no workflow can run refuses Start naming it, and Activity says "Reading each line with PP-OCRv6
+  (medium)", not the reader's id (`fichero-server/tests/unit/recipes/test_run_uses_the_chosen_reader_7086.py`). *Not built:* a
+  vision-model step's Activity row still shows the model's repository name, not a display name.
 - `recipes-run.steps.translate-transliterate-normalise` — **[OK]** (#6212; in one run with every other step, #6222: `fichero-server/tests/unit/recipes/test_a_run_through_every_step.py`) runs to done, a page done when it holds
   the step's reading by its model (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`); with no model it is skipped saying so; with the reader model-less it waits.
 - `recipes-run.steps.find-names-tag-words` — **[OK]** (#6212; in one run with every other step, #6222: `fichero-server/tests/unit/recipes/test_a_run_through_every_step.py`) runs and its names are counted by kind on the summary
@@ -757,7 +761,7 @@ The behaviours this adds:
   list said Find Lines `running` while the run was paused.
   *Built:* `fichero-server/tests/unit/recipes/test_continue_adopts_the_paused_step_6807.py`, the last test.
 - `recipes-run.order.embed-waits-for-kraken-never-fails` — **[OK]** (#6186, #6808;
-  `fichero-server/tests/unit/jobs/test_embed_waits_for_kraken.py`) a page's embed that meets
+  `fichero-server/tests/unit/execution/test_embed_waits_for_kraken.py`) a page's embed that meets
   Kraken reading waits and runs afterwards; it never ends failed. Measured before the fix: 6 of 22 `make-a-vector`
   jobs, each queued by a fresh reading of a page, ended `failed` with the row words "Something went wrong in Fichero"; the log
   says "Kraken is reading a page; the search model waits for it to finish". `llm/kraken_runtime.py`
@@ -807,7 +811,12 @@ The behaviours this adds:
   (`fichero-server/tests/unit/recipes/test_run_one_step_on_a_folder_or_a_file_7036.py`; a step the recipe lacks is refused
   in words). *Built (app, compile owed):* "Run a Step Again on This Folder" and "Run a Step Again on the Selection" in the
   folder and file context menus send that Start (`RunRecipeOnFolderMenuItem`, `RunStepAgainOnSelectionMenu`). *Not built:*
-  a control in the recipe's own step row in Set Up.
+  a control in the recipe's own step row in Set Up. *Built (#7087, Swift uncompiled):* the menu is named Run Step ▸ and acts
+  on exactly what is selected, a folder meaning its pages: in the Items list the pages come from the pane's own rows as well
+  as the sidebar's loaded ones, and an outline row counts as its document; the sidebar's folder and page rows carry it
+  (`RecipeFolderScope.runStepTargets`, `knownDocuments`; `RedoScopeTests`). *Also not built:* each step's model and Choose
+  Model… in the menu; the menu in the Source, the Reader, the segment editor and the menu bar; a key to run the last step
+  again; Activity naming how many items a run covers.
 - `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[OK]** (#6744, #6170, → #6811) a Start on
   chosen pages (`documents`) answers with those pages' counts and the run's steps carry those pages' notes.
   Measured: a Start on 4 pages answered `pages: 10` and "runs again on all 10 pages"; while it read 3 pages its

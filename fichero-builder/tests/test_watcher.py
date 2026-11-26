@@ -175,3 +175,40 @@ def test_live_spend_skips_a_file_that_is_malformed_or_cannot_be_read(tmp_path):
     (d / "unreadable.json").mkdir()  # read_text raises OSError, as a vanished file does
     now = (d / "ok.json").stat().st_mtime + 10
     assert watcher.live_spend(d, "2026-11-21", "me", now) == 1.0
+
+
+# local.spend.metered-provider-needs-a-cap (Step 1.5): no metered provider without a weekly figure; the week's rows park
+
+METERED = '[spend]\nday_usd = 300\nprices = { sonnet = [3, 15] }\nmetered = ["openrouter"]\n[spend.week_usd]\nopenrouter = 25\n'
+
+
+def test_a_metered_provider_with_no_weekly_figure_refuses_the_rules_file(tmp_path):
+    with pytest.raises(ValueError, match="needs a weekly cap"):
+        watcher.load(_toml(tmp_path, '[spend]\nday_usd = 300\nmetered = ["openrouter"]\n'))
+    s = watcher.load(_toml(tmp_path, METERED))
+    assert s.metered == ("openrouter",) and s.week_usd == {"openrouter": 25.0}
+
+
+def test_openrouter_never_starts_without_a_figure_even_unlisted(tmp_path):
+    s = watcher.load(_toml(tmp_path, '[spend]\nday_usd = 300\n'))
+    assert any("no weekly cap" in r for r in watcher.refusals(s, "pi", "qwen/qwen3-coder-next", "openrouter"))
+    assert not watcher.refusals(watcher.load(_toml(tmp_path, METERED)), "pi", "qwen/qwen3-coder-next", "openrouter")
+
+
+def test_the_weeks_rows_of_the_provider_reach_the_figure_and_the_session_parks():
+    s = watcher.parse({"day_usd": 300, "metered": ["openrouter"], "week_usd": {"openrouter": 25}})
+    rows = [{"event": "cost", "provider": "openrouter", "usd": 20, "ts": "2026-11-23T10:00:00"},  # Monday, this week
+            {"event": "cost", "provider": "openrouter", "usd": 50, "ts": "2026-11-22T10:00:00"},  # Sunday, last week
+            {"event": "cost", "provider": "claude-code", "usd": 99, "ts": "2026-11-24T10:00:00"},  # a subscription: not counted
+            {"event": "cost", "usd": 99, "ts": "2026-11-24T10:00:00"}]  # no provider: not counted
+    week = watcher.spent_week(rows, "openrouter", "2026-11-25T09:00:00")
+    assert week == 20
+    assert not watcher.assess({**STATE, "cost_usd": 4.0}, s, "q", spent_today=0, silent_for_s=0, provider="openrouter", spent_week=week)
+    d = watcher.assess({**STATE, "cost_usd": 5.0}, s, "q", spent_today=0, silent_for_s=0, provider="openrouter", spent_week=week)
+    assert d == ["park: this week's openrouter spend 25.00 USD reached the cap 25.00"]
+
+
+def test_a_subscription_session_is_not_counted_against_a_week():
+    s = watcher.parse({"day_usd": 300, "metered": ["openrouter"], "week_usd": {"openrouter": 25}, "prices": {"sonnet": [3, 15]}})
+    assert not watcher.is_metered(s, "claude-code")
+    assert not watcher.assess({**STATE, "cost_usd": 50.0}, s, "sonnet", spent_today=0, silent_for_s=0, provider="claude-code", spent_week=999)

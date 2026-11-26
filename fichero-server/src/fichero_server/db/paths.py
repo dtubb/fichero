@@ -99,7 +99,14 @@ def is_global_library_package(package_path: Path | str) -> bool:
 
 
 def migrate_legacy_server_state(home: Path | None = None) -> int:
-    """Move legacy engine state trees into the canonical Fichero directory."""
+    """Move legacy engine state trees into the canonical Fichero directory.
+
+    Only for the default layout. An engine started with ``$FICHERO_BASE_PATH`` (a test run, a dev engine, the
+    acceptance harness) keeps its state there and leaves the home's Application Support alone: it neither makes
+    ``~/Library/Application Support/Fichero`` nor moves the home's legacy trees into its own root. On a machine
+    with no such folder (a Linux CI runner) every engine start in the suite made it (GitHub run 45676804358)."""
+    if home is None and os.environ.get(BASE_PATH_ENV, "").strip():
+        return 0
     base_home = home or Path.home()
     app_support = base_home / "Library" / "Application Support"
     target = server_state_dir(base_home)

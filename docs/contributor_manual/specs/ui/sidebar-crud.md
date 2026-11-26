@@ -203,6 +203,13 @@ Both issues are already on this milestone (#291); no new issues were needed.
   takes whether the tree was rebuilt recently (`SidebarView.rebuiltRecently`, stamped where the index is rebuilt).
   *Not built:* a look on screen. *Tests:* `Views/Sidebar/SidebarSelectionResilienceTests.swift`.
 
+- `sidebar.carry-over-never-keeps-an-ancestor` — **[PARTIAL]** (#7079, owner: selecting a page left its grandparent
+  Sources highlighted) the keep-within-a-second rule (#4297) that carries a dropped row over never carries over a row
+  that is an ancestor of a row in the proposal. A row the proposal itself holds stays, so a ⌘-click selection of a folder
+  plus some of its children is kept whole, as `delete.target-is-the-selection-exactly` needs. *Built:*
+  `sidebarResilientSelection` takes `isAncestor`, answered from the tree index. *Not built:* a look on screen.
+  *Tests:* `Views/Sidebar/SidebarSelectionResilienceTests.swift`.
+
 ### Bottom bar (owner 2026-11-13, Xcode's navigator as the reference)
 
 - `sidebar.bottom-bar.flush-in-sidebar-material` — **[PARTIAL]** (#6526) (owner 2026-11-13) the sidebar's bottom bar sits at

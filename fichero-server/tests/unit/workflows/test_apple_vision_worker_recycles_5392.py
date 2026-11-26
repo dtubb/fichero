@@ -15,7 +15,12 @@ import pytest
 from fichero_server.workflows.tools import apple_vision_worker as worker
 from fichero_server.workflows.tools import vision_base as vb
 
-DEADLINE = 0.6
+DEADLINE = 6.0  # a spawned child imports PyObjC before its first call (#7084)
+
+# ci.python-tiers: the Apple Vision worker runs only on macOS. On the Linux runner (GitHub run 45666948572) a page call
+# hung inside the gate while the memory reading shelled out (ctypes find_library -> ldconfig) under a fork; that reading
+# now returns None off macOS, and the per-test --timeout=300 bounds any hang that is left.
+pytestmark = pytest.mark.macos_only(reason="Apple Vision's worker process exists on macOS only")
 
 
 def read_page(path: str, language: str = "en") -> str:
@@ -32,6 +37,7 @@ def read_page(path: str, language: str = "en") -> str:
 @pytest.fixture(autouse=True)
 def _child_mode(monkeypatch):
     monkeypatch.delenv("FICHERO_APPLE_VISION_IN_PROCESS", raising=False)
+    monkeypatch.setenv("FICHERO_APPLE_VISION_START", "spawn")  # the child is exec'd, never forked (#7084)
     monkeypatch.setattr(vb, "_apple_vision_deadline", lambda: DEADLINE)
     worker.WORKER.close()
     worker.WORKER.starts = worker.WORKER.recycles = 0
@@ -43,11 +49,18 @@ def _read(path: str) -> str:
     return asyncio.run(vb._apple_vision_call(read_page, path, "en"))
 
 
+def test_a_fork_start_is_refused(monkeypatch):
+    monkeypatch.setenv("FICHERO_APPLE_VISION_START", "fork")
+    worker.WORKER.close()
+    with pytest.raises(RuntimeError, match="forked"):
+        _read("page")
+
+
 def test_a_call_that_never_returns_kills_the_child_and_fails_its_page_in_words():
     began = time.monotonic()
     with pytest.raises(vb.AppleVisionTimeout) as raised:
         _read("stuck1")
-    assert time.monotonic() - began < DEADLINE + 1.0
+    assert time.monotonic() - began < DEADLINE + 2.0
     assert worker.WORKER.recycles == 1
     assert vb._APPLE_VISION_GATE.stuck == 0, "the child was killed, so no call is left inside the recogniser"
     words = str(raised.value)
@@ -63,7 +76,8 @@ def test_the_next_call_gets_a_new_child_and_reads():
     assert worker.WORKER.starts == 2, "the same child while it works"
 
 
-def test_many_stuck_pages_never_close_the_gate():
+def test_many_stuck_pages_never_close_the_gate(monkeypatch):
+    monkeypatch.setattr(vb, "APPLE_VISION_STUCK_CEILING", 1)
     for n in range(vb.APPLE_VISION_STUCK_CEILING + 2):  # past the ceiling that used to refuse every read
         with pytest.raises(vb.AppleVisionTimeout):
             _read(f"stuck{n}")

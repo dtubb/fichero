@@ -50,10 +50,14 @@ extension ActivityPaneView {
         return libraries.first { $0.id == id }
     }
 
-    /// Changes whenever the open projects, their live executions or their `refreshToken` change (#5431).
+    /// Changes whenever the open projects, their live executions, their `refreshToken` or their run controls' `controlRevision`
+    /// change (#5431, #4402: a Stop that settles a row while the engine is gone sends no stream event).
     var refreshKey: String {
-        libraries.map { "\($0.id):\($0.workflowExecutionStore.executions.count):\($0.activityStore.refreshToken)" }
-            .joined(separator: "|")
+        libraries.map {
+            "\($0.id):\($0.workflowExecutionStore.executions.count):\($0.activityStore.refreshToken)"
+                + ":\($0.workflowExecutionStore.controlRevision)"
+        }
+        .joined(separator: "|")
     }
 
     func refreshAll() async {

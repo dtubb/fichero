@@ -6762,6 +6762,14 @@ def fichero_recipes_model_candidates(
     return _rt.call("GET", "/api/recipes/candidates", params={"cloud_allowed": cloud_allowed, "job": job, "languages": languages, "mac_memory_gb": mac_memory_gb, "material": material, "online": online, "period": period, "scripts": scripts, "step": step, "worth_only": worth_only})
 
 
+def fichero_recipes_add_candidate_by_address(
+    *,
+    address: Annotated[str, Field(description='a Hugging Face id (org/name) or address, a Zenodo record address or DOI, or provider:model.')],
+) -> Any:
+    'Add Candidate By Address\n\nAdd a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card filled in from its source,\nthe key the bookmark routes take. 422 for an address no model is named by, 404 for a model its source does not know, 403 while\nthis engine works offline (a Hub model is read over the network).\n\nRoute: POST /api/recipes/candidates/add (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/recipes/candidates/add", json=_rt.body({"address": address}))
+
+
 def fichero_recipes_remove_candidate_bookmark(
     *,
     key: Annotated[str, Field(description="the found card's key in the kept list (its repository)")],
@@ -6984,6 +6992,14 @@ def fichero_recipes_change_project_layers(
     return _rt.call("POST", "/api/recipes/project/layers", json=_rt.body({"languages": languages, "layers": layers, "remove": remove}))
 
 
+def fichero_recipes_reread_edited_segments(
+    *,
+    segment_ids: Annotated[list[Any], Field(description='the lines whose shape was just changed (after the person stops dragging)')],
+) -> Any:
+    'Reread Edited Segments\n\n`segment-actions.automatic-rerun-after-an-edit`: read each edited line again on its own, with the local model that\nread it; a line a paid cloud model read is reported as `stale` and never run.\n\nRoute: POST /api/recipes/project/reread-edited (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/recipes/project/reread-edited", json=_rt.body({"segment_ids": segment_ids}))
+
+
 def fichero_recipes_get_review_instructions(
 ) -> Any:
     "Get Review Instructions\n\nEach review pass's instructions, the default built from the project's setup and the project's edit if it has one\n(`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`.\n\nRoute: GET /api/recipes/project/review-instructions (toolset `recipes`; reads)."
@@ -7033,10 +7049,11 @@ def fichero_recipes_start_project(
     over_cap_once: Annotated[Optional[bool], Field(description="let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
     run_cap_usd: Annotated[Optional[float], Field(description="the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone.")] = None,
+    segments: Annotated[Optional[list[Any]], Field(description="run `steps` on these segments alone (regions, lines, words), as the segment context menu's Run Step does (`segment-actions.run-step-on-selection`, #6069); a step that works on pages is refused in words; never with `folder_id`, `documents` or `first_pages`.")] = None,
     steps: Annotated[Optional[list[Any]], Field(description="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe.")] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "allow_cloud_once": allow_cloud_once, "documents": documents, "first_pages": first_pages, "folder_id": folder_id, "over_cap_once": over_cap_once, "redo": redo, "run_cap_usd": run_cap_usd, "steps": steps}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "allow_cloud_once": allow_cloud_once, "documents": documents, "first_pages": first_pages, "folder_id": folder_id, "over_cap_once": over_cap_once, "redo": redo, "run_cap_usd": run_cap_usd, "segments": segments, "steps": steps}))
 
 
 def fichero_recipes_use_installed_instead(
@@ -8191,6 +8208,14 @@ def fichero_segments_text_layer(
     return _rt.call("POST", f"/api/segments/document/{doc_id}/text-layer")
 
 
+def fichero_segments_list_region_types(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "List Region Types\n\nThe region types the editor's Type menu and the Inspector's Type row offer for this page. Reads, writes nothing.\n\nRoute: GET /api/segments/document/{doc_id}/types (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/types")
+
+
 def fichero_segments_validate_document(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -8209,6 +8234,14 @@ def fichero_segments_get_document_text(
 ) -> Any:
     "Get Document Text\n\n`GET /api/segments/document/{document_id}/text` — the page's derived\ntext and the spans that point back at the readings it came from.\n\nWith `order`, the text follows that named order (`source.order.named-multiple`\nreaching the text, slice 10): a commentary order and an as-written order over\nthe same page give different texts, which is the whole point of naming them.\n\nRoute: GET /api/segments/document/{document_id}/text (toolset `segments`; reads)."
     return _rt.call("GET", f"/api/segments/document/{document_id}/text", params={"include_furniture": include_furniture, "kind": kind, "order": order, "pass_id": pass_id})
+
+
+def fichero_segments_inspect(
+    *,
+    segment_ids: Annotated[list[str], Field(description='The selection.')],
+) -> Any:
+    "Inspect Segments\n\n`GET /api/segments/inspect?segment_ids=...` -- the Inspector's form for a selection: the rows of its level, each with\nits state across the selection (set, inherited, mixed, none) and its choices (`source.editor.inspector-form-comes-from-the-engine`).\nAn id that is not found, is deleted, or is on a page the caller may not read is left out and counted in `withheld`.\n\nRoute: GET /api/segments/inspect (toolset `segments`; reads)."
+    return _rt.call("GET", "/api/segments/inspect", params={"segment_ids": segment_ids})
 
 
 def fichero_segments_propose_match(
@@ -10465,6 +10498,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_reading_orders_place_in", "reading-orders", "POST", "/api/reading-orders/{order_id}/place", fichero_reading_orders_place_in),
     GeneratedTool("fichero_recipes_assemble", "recipes", "POST", "/api/recipes/assemble", fichero_recipes_assemble),
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
+    GeneratedTool("fichero_recipes_add_candidate_by_address", "recipes", "POST", "/api/recipes/candidates/add", fichero_recipes_add_candidate_by_address),
     GeneratedTool("fichero_recipes_remove_candidate_bookmark", "recipes", "DELETE", "/api/recipes/candidates/bookmark", fichero_recipes_remove_candidate_bookmark),
     GeneratedTool("fichero_recipes_bookmark_candidate", "recipes", "POST", "/api/recipes/candidates/bookmark", fichero_recipes_bookmark_candidate),
     GeneratedTool("fichero_recipes_chain_risk", "recipes", "GET", "/api/recipes/chain-risk", fichero_recipes_chain_risk),
@@ -10491,6 +10525,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_use_bakeoff_choice", "recipes", "POST", "/api/recipes/project/bakeoffs/{bakeoff_id}/use", fichero_recipes_use_bakeoff_choice),
     GeneratedTool("fichero_recipes_change_cloud_cap", "recipes", "PUT", "/api/recipes/project/cloud-cap", fichero_recipes_change_cloud_cap),
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
+    GeneratedTool("fichero_recipes_reread_edited_segments", "recipes", "POST", "/api/recipes/project/reread-edited", fichero_recipes_reread_edited_segments),
     GeneratedTool("fichero_recipes_get_review_instructions", "recipes", "GET", "/api/recipes/project/review-instructions", fichero_recipes_get_review_instructions),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
     GeneratedTool("fichero_recipes_run_status", "recipes", "GET", "/api/recipes/project/runs/{job_id}", fichero_recipes_run_status),
@@ -10612,8 +10647,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),
     GeneratedTool("fichero_segments_text_layer", "segments", "POST", "/api/segments/document/{doc_id}/text-layer", fichero_segments_text_layer),
+    GeneratedTool("fichero_segments_list_region_types", "segments", "GET", "/api/segments/document/{doc_id}/types", fichero_segments_list_region_types),
     GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
+    GeneratedTool("fichero_segments_inspect", "segments", "GET", "/api/segments/inspect", fichero_segments_inspect),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),
     GeneratedTool("fichero_segments_accept_match", "segments", "POST", "/api/segments/matches/{match_id}/accept", fichero_segments_accept_match),
     GeneratedTool("fichero_segments_reject_match", "segments", "POST", "/api/segments/matches/{match_id}/reject", fichero_segments_reject_match),

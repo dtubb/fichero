@@ -29,7 +29,8 @@ extension ZoomableImagePreview {
         let old = boxes[draggedIndex].bbox
         runSegmentEdit(
             SegmentEdit.translate(segments, by: [bbox[0] - old[0], bbox[1] - old[1]]), documentId: documentId,
-            name: segments.count == 1 ? "Move Segment" : "Move Segments"
+            name: segments.count == 1 ? "Move Segment" : "Move Segments",
+            afterReread: reselectAfterMove(segments.map(\.id), documentId: documentId)
         )
         return true
     }
@@ -39,7 +40,10 @@ extension ZoomableImagePreview {
         guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else { return false }
         guard let segment = store.segments(documentId: documentId)
             .first(where: { $0.passId == passId && $0.boxIndex == index }) else { return true }
-        runSegmentEdit(SegmentEdit.move(segment, to: bbox), documentId: documentId, name: "Move Segment")
+        runSegmentEdit(
+            SegmentEdit.move(segment, to: bbox), documentId: documentId, name: "Move Segment",
+            afterReread: reselectAfterMove([segment.id], documentId: documentId)
+        )
         return true
     }
 
@@ -149,11 +153,19 @@ extension ZoomableImagePreview {
             kind: kind, points: points, passId: ocrGeometryPassId, artifactId: ocrGeometryArtifactId,
             passIsProvisional: onThePass.contains { $0.provisional }
         )
-        windowState?.lastDrawnKind = kind == .baseline ? "line" : "region"
+        // What a polygon or box makes: the kind picker's choice, else one level inside the selection (#7083).
+        let level: SegmentShapes.DrawnLevel = kind == .baseline ? .line : SegmentShapes.level(
+            chosen: windowState?.drawnLevel, selected: selectedSegments(documentId)
+        )
+        windowState?.lastDrawnKind = level.rawValue
         switch target {
         case .refused(let why):
             Self.logger.error("Draw \(kind.title, privacy: .public) not sent: \(why, privacy: .public)")
         case .addRegionToArtifact(let artifactId, let bbox):
+            guard level == .region else {
+                windowState?.segmentNotice = "The page's boxes are not saved as segments yet, so a \(level.rawValue) cannot be drawn on it"
+                return
+            }
             guard let artifactService else { return }
             Task {
                 do {
@@ -164,15 +176,19 @@ extension ZoomableImagePreview {
                 }
             }
         case .createOnPass(let passId):
-            // A line lands in the region that holds most of it; none, and it stays at page level (no guessing).
-            let region = kind == .baseline ? SegmentShapes.containingRegion(for: points, among: onThePass) : nil
+            // A line lands in the region that holds most of it, a word in its line; none, and it stays at page level
+            // (no guessing), and the page says so.
+            let parent = SegmentShapes.containingParent(for: points, level: level, among: onThePass)
             runSegmentEdit(
                 SegmentShapes.create(
-                    kind, points: points, documentId: documentId, passId: passId, onPass: onThePass.first,
-                    parentSegmentId: region?.id
+                    kind, level: level, points: points, documentId: documentId, passId: passId, onPass: onThePass.first,
+                    parentSegmentId: parent?.id
                 ),
-                documentId: documentId, name: "Draw \(kind.title)",
-                answered: { result in if selectingResult { selectNewSegment(result.resultId, documentId: documentId) } }
+                documentId: documentId, name: level == .region || kind == .baseline ? "Draw \(kind.title)" : "Draw \(level.title)",
+                answered: { result in
+                    selectNewSegment(result.resultId, documentId: documentId, openForText: selectingResult)
+                    if level == .line, parent == nil { windowState?.segmentNotice = SegmentShapes.noRegionNotice }
+                }
             )
         }
     }
@@ -223,28 +239,6 @@ extension ZoomableImagePreview {
             } catch {
                 Self.logger.error("Set Reading Order not sent: \(error.localizedDescription, privacy: .public)")
             }
-        }
-    }
-
-    /// PAINT a line (`segment-editor.paintbrush`): one `segment.create` with the brush's stroke, in the region holding most
-    /// of it; the engine makes the outline and the baseline. ⌘Z.
-    func drawPaintStroke(_ stroke: [[Double]], widthPixels: Double) {
-        if refusesEditOnMappedRendition() { return }
-        guard let store = segmentEditStore else { return }
-        let onThePass = documentId.map { id in store.segments(documentId: id).filter { $0.passId == ocrGeometryPassId } } ?? []
-        switch StrokeTarget.resolve(
-            documentId: documentId, passId: ocrGeometryPassId, onPass: onThePass,
-            region: SegmentShapes.containingRegion(for: stroke, among: onThePass)
-        ) {
-        case .failure(let refusal):
-            Self.logger.notice("Paintbrush stroke not sent: \(refusal.words, privacy: .public)")
-            windowState?.segmentNotice = refusal.words
-        case .success(let target):
-            runSegmentEdit(
-                PaintbrushStroke.create(stroke, widthPixels: widthPixels, on: target),
-                documentId: target.documentId, name: "Paint Line"
-            )
-            windowState?.lastDrawnKind = "line"
         }
     }
 

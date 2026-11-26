@@ -35,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, watcher, work
+from fichero_builder import brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, watcher, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -51,6 +51,35 @@ FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new com
 OWNER_PATH = re.compile(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)")  # what a jail user cannot read; brief_preflight refuses it
 BOUNDARY_HIT = re.compile(r"(?m)^\s*([0-9a-f]{7,40}) (\S.*?): pattern \d+$")
 REWRITE = "rewrite that commit; a later commit does not clear it (history is pushed)"
+
+
+TEST_PYTHON: list = [""]  # [check].python: the interpreter with pytest a worker runs its tests with (local.run.worker-knows-its-test-python)
+CFG: dict = {"batch_max": 4, "session": "lane", "session_max_context": 0.70, "session_max_steps": 5}  # [queue]: batching and session keeping
+PART_HEAD = re.compile(r"(?m)^## PART (\d+) \(((?:#\d+(?:, )?)+)\)$")  # a batch brief's part heading: the part number and its issues
+
+
+def load_cfg(root) -> None:
+    """`[queue]` of harness.toml into CFG. A bad value is a ValueError, never a default."""
+    f = Path(root) / "harness.toml"
+    q = tomllib.loads(f.read_text()).get("queue", {}) if f.is_file() else {}
+    if unknown := sorted(set(q) - {"workers", "batch_max", "session", "session_max_context", "session_max_steps"}):
+        raise ValueError(f"[queue] has no key {', '.join(unknown)}")
+    cfg = {"batch_max": int(q.get("batch_max", 4)), "session": str(q.get("session", "lane")),
+           "session_max_context": float(q.get("session_max_context", 0.70)), "session_max_steps": int(q.get("session_max_steps", 5))}
+    if cfg["session"] not in ("lane", "step"):
+        raise ValueError(f"[queue].session is {cfg['session']!r}: it is \"lane\" or \"step\"")
+    if cfg["batch_max"] < 1 or cfg["session_max_steps"] < 1 or not 0 < cfg["session_max_context"] <= 1:
+        raise ValueError(f"[queue] batch_max and session_max_steps are at least 1, session_max_context is in (0, 1]: {cfg}")
+    CFG.update(cfg)
+    TEST_PYTHON[0] = str((tomllib.loads(f.read_text()).get("check", {}) if f.is_file() else {}).get("python") or "")
+
+
+def parts_of(text: str) -> dict[int, tuple[list[int], str]]:
+    """A batch brief's parts: {number: (issues, text with its heading)}; empty for a brief that is not a batch."""
+    heads = list(PART_HEAD.finditer(text))
+    return {int(m.group(1)): ([int(n) for n in re.findall(r"#(\d+)", m.group(2))],
+                              text[m.start():heads[i + 1].start() if i + 1 < len(heads) else len(text)].rstrip("\n"))
+            for i, m in enumerate(heads)}
 
 
 STATES = ("queued", "sent", "said-done", "checking", "reviewing", "fixing", "blocked", "red", "done-not-landed", "landed", "parked")
@@ -101,7 +130,13 @@ def fix_text(step: str, kind: str, findings: str) -> str:
     findings = OWNER_PATH.sub("<a path outside the jail>", findings)
     if "REFUSED (boundary)" in findings:
         findings = BOUNDARY_HIT.sub(lambda m: f"{m.group(0)} -- commit {m.group(1)[:10]}, {m.group(2)}: {REWRITE}", findings)
-    return FIX.format(step=step, kind=kind, findings=findings)
+    return FIX.format(step=step, kind=kind, findings=findings) + test_python_line()
+
+
+def test_python_line() -> str:
+    """2026-11-25, builder-fixes reliab-1: a worker asked to run tests found no interpreter with pytest (no .venv, no uv) and said
+    WAITING. Every fix round and send-back names the one that has it, `[check].python`."""
+    return f"Run tests with `{TEST_PYTHON[0]} -m pytest <files> -q` (that interpreter has pytest).\n" if TEST_PYTHON[0] else ""
 
 
 def slug(name: str) -> str:
@@ -119,12 +154,45 @@ def load() -> list[dict]:
 def save(lanes: list[dict]) -> None:
     path().parent.mkdir(parents=True, exist_ok=True)
     tmp = path().with_suffix(".tmp")
-    tmp.write_text(json.dumps({"lanes": lanes}, indent=1))
+    tmp.write_text(json.dumps({"lanes": [{k: v for k, v in x.items() if k != "_base"} for x in lanes]}, indent=1))
     tmp.replace(path())
 
 
+def snapshot(lane: dict) -> None:
+    """What the file held for this lane when the tick took its copy (kept in the copy as `_base`, never written): `store` tells a change
+    made from outside since then from the tick's own."""
+    lane["_base"] = {"cursor": lane["cursor"], "order": [x["step"] for x in lane["steps"]],
+                     "steps": {x["step"]: json.dumps(x, sort_keys=True) for x in lane["steps"]}}
+
+
+def _merge_outside(lane: dict, fresh: dict) -> None:
+    """#6589 reliab-1: a `queue park`, `move` or `drop` made while the tick held its copy is kept: a step the tick left as it loaded
+    it takes the file's version, goes when the file dropped it, and the file's order and cursor stand when the tick did not move them."""
+    base = lane.get("_base")
+    if base is None:
+        return
+    theirs = {x["step"]: x for x in fresh["steps"]}
+    mine = []
+    for x in lane["steps"]:
+        was = base["steps"].get(x["step"])
+        if was is not None and json.dumps(x, sort_keys=True) == was:  # the tick did not touch it
+            if x["step"] not in theirs:
+                continue  # dropped from outside
+            x = theirs[x["step"]]
+        mine.append(x)
+    names = {x["step"] for x in mine}
+    mine += [x for x in fresh["steps"] if x["step"] not in names]  # a step added from outside
+    if [x["step"] for x in lane["steps"]] == base["order"]:  # the tick did not reorder: the file's order stands
+        rank = {x["step"]: i for i, x in enumerate(fresh["steps"])}
+        mine.sort(key=lambda x: rank.get(x["step"], len(rank)))
+    lane["steps"][:] = mine
+    if lane["cursor"] == base["cursor"]:
+        lane["cursor"] = fresh["cursor"]
+
+
 def store(lane: dict, expect: tuple | None = None) -> bool:
-    """This lane's row back in the file; a step added or a pause set while the chain ran is kept. `expect` = (step, head): the
+    """This lane's row back in the file; a step added or a pause set while the chain ran is kept, and so is a park, move or drop made from
+    outside since the tick took its copy (`_merge_outside`). `expect` = (step, head): the
     write happens only if the file's step still holds that head, checked UNDER the queue lock (a `builder done` at a newer head
     holds that lock through its git work and saves last: a check made before taking the lock would pass and then overwrite it)."""
     with journal.Lock("queue"):
@@ -137,9 +205,11 @@ def store(lane: dict, expect: tuple | None = None) -> bool:
             for k in ("pane", "hold", "maintainer"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
                 if k in fresh:
                     lane[k] = fresh[k]
+            _merge_outside(lane, fresh)
             have = {s["step"] for s in lane["steps"]}
             lane["steps"] += [s for s in fresh["steps"] if s["step"] not in have]
         save([lane if x["id"] == lane["id"] else x for x in lanes])
+        snapshot(lane)
         return True
 
 
@@ -149,8 +219,11 @@ def workers(root) -> int:
 
 
 def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None, kind: str = "worker",
-        hold: bool | None = None, pane: str = "", maintainer: bool | None = None, role: str = "", milestone: str = "") -> None:
-    """A step at the end of its lane (made when new); a step the lane has already keeps its state. `milestone` is the lane's place in the work tree."""
+        hold: bool | None = None, pane: str = "", maintainer: bool | None = None, role: str = "", milestone: str = "",
+        batch: bool = False, alone: bool = False) -> str:
+    """A step at the end of its lane (made when new); a step the lane has already keeps its state. `milestone` is the lane's place in the work tree.
+    `batch` (queue add): a brief naming one issue joins the lane's next queued step as a new part while that step has fewer than
+    [queue].batch_max issues; `alone` keeps it a step of its own. Returns the step it joined, or ''."""
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == lane_id), None)
@@ -171,11 +244,24 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
             lane["role"] = role  # the [models] role its worker and every handoff successor run on
         if any(s["step"] == step for s in lane["steps"]):
             save(lanes)
-            return
+            return ""
+        target = next((s for s in lane["steps"][lane["cursor"]:] if s["state"] == "queued"), None) if batch and not alone and len(issues) == 1 and lane["kind"] == "worker" else None
+        if target and len(target["issues"]) < CFG["batch_max"] and issues[0] not in target["issues"] and not target.get("resume_brief") and not target["rounds"] and not target["head"]:
+            f, new = Path(target["brief"]), Path(brief).read_text().rstrip("\n")
+            old = f.read_text().rstrip("\n")
+            if not parts_of(old):
+                old = f"## PART 1 ({', '.join('#' + str(n) for n in target['issues'])})\n\n{old}"
+            n = max(parts_of(old)) + 1
+            f.write_text(f"{old}\n\n## PART {n} (#{issues[0]})\n\n{new}\n")
+            target["issues"].append(issues[0])
+            save(lanes)
+            journal.append("queue", lane=lane_id, step=target["step"], state="part-added", detail=f"part {n} (#{issues[0]}) joined from {step}")
+            return target["step"]
         lane["steps"].append({"step": step, "brief": str(brief), "issues": list(issues), "waits": list(waits or []), "state": "queued",
                               "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
         save(lanes)
     journal.append("queue", lane=lane_id, step=step, state="queued", detail=f"after {', '.join(waits or []) or 'nothing'}")
+    return ""
 
 
 @dataclass
@@ -207,6 +293,7 @@ class Procs:
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
     cleanup_ref: str = ""  # origin/<land branch>: what a landing leaves behind is removed once its head is on it; "" = off (#6589 item 16)
     trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
+    fast_forward: Callable[[str, str, str], bool] = lambda path, old, new: False  # the tree's new head is origin's land tip and the old one its ancestor
     jail_root: str = ""
     blob: Callable[[dict, dict, str], str] = lambda lane, step, path: ""  # (lane, step, path) -> the blob sha of path at the checked head, '' if none
     workroot: str = ""  # [jail].workroot: a managed lane's tree is wt-<lane> here (run.loop-dispatch)
@@ -216,12 +303,22 @@ class Procs:
     ahead_of_origin: Callable[[dict], bool] = lambda lane: False  # lane -> its tree has commits past origin/<branch> (#6507: a retried batch's DONE)
     nightly: object = None  # nightly.Cfg from [nightly] (run.nightly-build); None = the project has none
     nightly_runners: object = None  # nightly.Runners; None = no nightly
+    nightly_spawn: Callable[[str, str], object] | None = None  # (sha, night) -> start the night detached (local.nightly.detached); None = a thread
+    watchdog: Callable[[list], list] | None = None  # lanes -> what the slow-work watchdog did (local.watchdog.slow-work); None = off
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
+    attach: Callable[[dict, dict, str], object | None] = lambda lane, step, window: None  # a new `builder run --attach` on a live window's session
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
+    head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
+    descends: Callable[[dict, str], bool] = lambda lane, sha: bool(sha)  # lane, sha -> the tree's HEAD is the sha or a commit on it
     live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
+    deps: Callable[[], int] | None = None  # `builder deps` once (local.deps.weekly); None = [deps] off
+    deps_cfg: object = None  # its deps.Cfg: the day and hour it runs
+    gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
+    gh_watch_s: float = 600.0  # how often it runs
+    model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
 
 
 QUIET = ("queued", "blocked", "landed", "parked")  # a step state in which the lane's own worker is not moving its tree
@@ -242,12 +339,52 @@ def _others(lane: dict, handles: dict, procs: Procs) -> list[str]:
 
 def tree_check(lane: dict, s: dict, handles: dict, procs: Procs) -> list[str]:
     """After a step's DONE: each tree snapped when it started that is still quiet must be unmoved (HEAD and `git status`).
-    The jail root is skipped when a landing refreshed it meanwhile."""
+    Excused (local.run.recorded-move-is-not-a-stray-write): the jail root when a landing refreshed it meanwhile, or when it is clean
+    and its new head is the land branch's tip on origin with the old head an ancestor (what a refresh does); any tree a `tree-moved`
+    row recorded since the snapshot, at exactly the state it has now."""
     snap, since = s.pop("trees", None) or {}, s.pop("trees_at", "")
-    if procs.jail_root in snap and any(r.get("event") == "landed" and r.get("step") == "jail-root" and r.get("ts", "") >= since for r in journal.read()):
+    rows = [r for r in journal.read() if r.get("ts", "") >= since]
+    if procs.jail_root in snap and any(r.get("event") == "landed" and r.get("step") == "jail-root" for r in rows):
         snap.pop(procs.jail_root)
     now = procs.trees([p for p in _others(lane, handles, procs) if p in snap and os.path.isdir(p)])  # a tree removed meanwhile did not move by a stray write
-    return [f"{p}: {snap[p]} -> {now[p]}" for p in now if now[p] != snap[p]]
+    recorded = {(r.get("path"), r.get("to")) for r in rows if r.get("event") == "tree-moved"}
+    moved = []
+    for p in now:
+        if now[p] == snap[p] or (p, now[p]) in recorded:
+            continue
+        old, new = snap[p].split(" ")[0], now[p].split(" ")[0]
+        if p == procs.jail_root and now[p].endswith(" clean") and procs.fast_forward(p, old, new):
+            continue
+        moved.append(f"{p}: {snap[p]} -> {now[p]}")
+    return moved
+
+
+def stray_alert(lane_id: str, step: str, moved: list[str]) -> str:
+    """One alert per move, not one per step that saw it: a move an open alert already names is a `stray-write-seen` row naming
+    this step and that alert. Returns the alert id."""
+    rows = journal.read()
+    answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+    what = "a tree outside the step's own moved: " + "; ".join(moved)
+    for r in reversed(rows):
+        if r.get("event") == "alert" and r.get("id") not in answered and r.get("moves") == sorted(moved):
+            journal.append("queue", lane=lane_id, step=step, state="stray-write-seen", detail=f"the same move as alert {r['id']}: {'; '.join(moved)}"[:300])
+            return r["id"]
+    n = sum(1 for r in rows if r.get("event") == "alert") + 1
+    aid = f"{lane_id.lstrip('-') or 'harness'}-{step}-{n}"
+    journal.append("alert", id=aid, lane=lane_id, step=step, what=what[:300], evidence=str(journal.STATE / "journal.jsonl"), actions=[], moves=sorted(moved))
+    return aid
+
+
+def record_move(path: str, why: str, state: Callable[[list], dict]) -> str:
+    """`builder queue moved --worktree P --text WHY`: the manager moved a tree by hand (a jail-root refresh after a pushed rules change);
+    one `tree-moved` row with its state now, which excuses that state in every step's tree check."""
+    if not why.strip():
+        return "moved needs --text: why the tree was moved"
+    now = state([path]).get(path, "")
+    if not now or now.startswith("unreadable"):
+        return f"{path} cannot be read"
+    journal.append("tree-moved", path=path, to=now, detail=why.strip()[:300])
+    return ""
 
 
 def _gh_quiet(gh: str, args: list[str], cwd=None) -> str:
@@ -283,6 +420,73 @@ def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
         elif r.stdout.strip().upper() != "CLOSED":
             out.append(f"#{n}")
     return out
+
+
+def end_session(lane: dict, s: dict, handles: dict, procs: Procs) -> None:
+    """A step landed and the cursor is past it. With a next step queued, the lane's live session is kept (the next brief is sent into
+    it) unless a reason ends it; one `session-kept` or `session-fresh` row says which. The first reason that holds is the row's detail."""
+    lane["session_steps"] = lane.get("session_steps", 0) + 1
+    if lane["cursor"] >= len(lane["steps"]):
+        if lane.get("fresh") and lane["id"] in handles:  # a managed lane's worker ends with its batch, so a step added later starts a fresh one
+            procs.stop(lane)
+            del handles[lane["id"]]
+            lane["feed"] = ""
+        return  # no next step: the lane's session ends with the lane
+    h, ctx, win = handles.get(lane["id"]), s.get("context") or 0, s.get("window") or 0
+    pct = f"{ctx * 100 / win:.0f}%" if ctx and win else ""
+    want, have = procs.model_of(lane), s.get("model") or ""
+    if lane.get("fresh"):
+        why = "a managed lane starts a fresh worker for each batch"
+    elif CFG["session"] == "step":
+        why = "[queue].session = step"
+    elif h is None or not procs.alive(h):
+        why = "the session is gone"
+    elif want and have and want not in have and have not in want:
+        why = f"the lane's model changed: the session runs {have}, the lane now runs {want}"
+    elif ctx and win and ctx / win > CFG["session_max_context"]:
+        why = f"context {pct} is over {CFG['session_max_context'] * 100:.0f}%"
+    elif lane["session_steps"] >= CFG["session_max_steps"]:
+        why = f"{lane['session_steps']} steps landed in this session (session_max_steps = {CFG['session_max_steps']})"
+    else:
+        journal.append("queue", lane=lane["id"], step=s["step"], state="session-kept",
+                       detail=f"step {lane['session_steps']} of at most {CFG['session_max_steps']} in this session; context {pct or 'unknown'}")
+        return
+    if h is not None:
+        procs.stop(lane)
+        del handles[lane["id"]]
+    lane["feed"], lane["session_steps"] = "", 0
+    journal.append("queue", lane=lane["id"], step=s["step"], state="session-fresh", detail=why)
+
+
+def claim(lane: dict, s: dict) -> bool:
+    """The step goes `sent` in the queue file under the queue lock, with the issues the file holds (a part `add` joined before this
+    point is in them and in the brief). False when the file no longer has the step queued."""
+    with journal.Lock("queue"):
+        lanes = load()
+        fresh = next((x for x in lanes if x["id"] == lane["id"]), None)
+        f = next((x for x in fresh["steps"] if x["step"] == s["step"]), None) if fresh else None
+        if f is None or f["state"] != "queued":
+            return False
+        f["state"], s["state"], s["issues"] = "sent", "sent", f["issues"]
+        save(lanes)
+    return True
+
+
+ACTIVE = ("sent", "said-done", "done", "checking", "reviewing", "fixing", "done-not-landed")  # a step state in which a worker or a check is at work
+
+
+def _working(handles: dict) -> int:
+    """#6589 reliab-1: the lanes with a live session whose cursor step is in flight, queued for it (its next message goes to that session),
+    or blocked/red (the window stays open); a window idle at a prompt (its steps landed, or its cursor step parked) holds no slot of [loop].lanes."""
+    lanes = {x["id"]: x for x in load()}
+    return sum(1 for k in handles if (x := lanes.get(k)) and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ACTIVE + ("queued", "blocked", "red"))
+
+
+def _close_idle(lane: dict, s: dict | None, handles: dict, procs: Procs, why: str) -> None:
+    procs.stop(lane)
+    del handles[lane["id"]]
+    lane["feed"] = ""
+    journal.append("queue", lane=lane["id"], step=s["step"] if s else "-", state="idle-window-closed", detail=f"the lane's tmux window was idle: {why}")
 
 
 def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out, chains: dict | None = None) -> bool:
@@ -351,11 +555,23 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return False
     if lane["cursor"] >= len(lane["steps"]):
         if h is not None:
-            procs.stop(lane)
-            del handles[lane["id"]]
+            _close_idle(lane, None, handles, procs, "its lane has no step left")
         return False
     s = lane["steps"][lane["cursor"]]
+    while lane["cursor"] < len(lane["steps"]) - 1 and s["state"] in ("parked", "landed") and any(x["state"] == "queued" for x in lane["steps"][lane["cursor"] + 1:]):
+        # #6589 reliab-1: the cursor sat on a parked step (or one already landed) with a queued step behind it, and the lane idled for hours
+        if s["state"] == "landed":
+            lane["cursor"] += 1
+        else:
+            lane["steps"].remove(s)  # to the end of the lane, still parked: `unpark` and `retry` find it there
+            lane["steps"].append(s)
+        journal.append("queue", lane=lane["id"], step=s["step"], state="cursor-advanced", detail=f"the cursor stood on a {s['state']} step with a queued one behind it")
+        store(lane)
+        s = lane["steps"][lane["cursor"]]
     if s["state"] == "parked":
+        if h is not None:  # a parked step holds no slot: its idle window is closed
+            _close_idle(lane, s, handles, procs, "its step is parked")
+            h = None
         return False  # the lane's last step, parked: an answer `retry` or `builder done` takes it again
     if s["state"] == "blocked":  # #6466 (run.loop-blocked-watchdog): never forever
         if not s.get("blocked_at"):
@@ -394,20 +610,45 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True  # its check or review is running in its own thread
     if h is not None and not procs.alive(h):
         del handles[lane["id"]]
-        h, lane["feed"], end = None, "", procs.end_of(lane)
-        if end == "parked":
-            PARKED.append(lane["id"])
-            return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
-        if s["state"] == "sent":
-            s["restarts"] += 1
-            if s["restarts"] > RESTARTS:
-                return block(s, f"the worker ended {end!r} {s['restarts']} times on this step")
-            move(s, "queued", f"the worker ended {end!r}: a new session next tick")
+        live = lane.get("feed") and procs.end_of(lane) not in ("parked", "lane-done")
+        if (live and s["state"] == "sent"
+                and (hh := attach_live(lane, s, procs, "the session's watcher ended while the session lives"))):
+            handles[lane["id"]] = hh
             return True
+        # past its DONE the session idles at its prompt and needs no watcher (2026-11-25, seg-inspector swift-green-2: a new watcher
+        # every tick, each ended at once, and the `return` above starved the READY chain's collection below for 37 min). The feed stays,
+        # so a fix round reaches the same session; the step goes on to collect its chain.
+        if live and s["state"] in ATTACHABLE and procs.live_windows(lane):
+            h = None
+        else:
+            h, lane["feed"], end = None, "", procs.end_of(lane)
+            if end == "parked":
+                PARKED.append(lane["id"])
+                return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
+            if s["state"] == "sent":
+                s["restarts"] += 1
+                if s["restarts"] > RESTARTS:
+                    return block(s, f"the worker ended {end!r} {s['restarts']} times on this step")
+                move(s, "queued", f"the worker ended {end!r}: a new session next tick")
+                return True
     if h is None and (s["state"] == "sent" or (s["state"] == "queued" and lane["feed"])):  # no handle: this loop restarted; the old session may be up
-        if (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
+        mismatch = "" if s["state"] != "sent" else (f"the session was sent step {lane.get('session_step') or '-'}, the queue is at {s['step']}" if lane.get("session_step") != s["step"]
+                    else f"the tree's HEAD does not descend from the head the session was sent at ({(lane.get('session_head') or '-')[:9]})"
+                    if not procs.descends(lane, lane.get("session_head", "")) else "")  # a queued step's kept session holds no step
+        if mismatch:  # never adopt a session of another step or of a tree that moved under it
+            journal.append("queue", lane=lane["id"], step=s["step"], state="adopt-refused", detail=mismatch)
+        elif (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
             handles[lane["id"]] = adopted
             journal.append("queue", lane=lane["id"], step=s["step"], state="adopted", detail="a restarted loop took over the lane's live tmux window")
+            return True
+        if not mismatch and s["state"] == "sent" and (hh := attach_live(lane, s, procs, "a restarted loop found the session with no watcher")):
+            handles[lane["id"]] = hh
+            return True
+        if s["state"] == "queued" and lane["feed"] and procs.live_windows(lane):  # a kept session with no step out: closed, the step sent afresh
+            procs.stop(lane)
+            lane["feed"] = ""
+            journal.append("queue", lane=lane["id"], step=s["step"], state="window-closed", detail="a kept session with no step in flight and no watcher: closed; the step starts afresh")
+            store(lane)
             return True
         if wins := procs.live_windows(lane):  # #6850: a live session this loop cannot watch is told, never ended or started beside
             if s.get("live_window_alert") != wins:
@@ -435,17 +676,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s.pop("held", None)
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
-            bp = Path(s.get("resume_brief") or s["brief"])
-            # alert 544: a brief written for the owner's session, made the worker's. SECURITY: only the owner's hand-written brief may
-            # inline from [jail].inline_paths; a resume brief carries findings (the worker's own words) and inlines nothing
-            fixed, notes = brief_tool.for_worker(bp.read_text(), lane["id"], allow=() if s.get("resume_brief") else procs.inline_paths)
-            if notes:
-                bp.write_text(fixed)  # in place, so a fix round appends to the same text
-                journal.append("queue", lane=lane["id"], step=s["step"], state="brief-inlined", detail="; ".join(notes)[:300])
-            if bad := brief_preflight(fixed, lane["id"], procs.jail_gh):  # #6495: before a session is spent
-                return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
             if h is None:
-                if len(handles) >= workers_n:
+                if _working(handles) >= workers_n:
                     return True
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0]:
                     why = f"{free:.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts"
@@ -456,15 +688,41 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                         journal.append("queue", lane=lane["id"], step=s["step"], state="disk-hold", detail=why)
                     return False
                 s.pop("disk_held", None)
+            if not claim(lane, s):  # sent in the file, under the queue lock, BEFORE the brief is read: `queue add` joins only a queued step
+                return True
+            bp = Path(s.get("resume_brief") or s["brief"])
+            # alert 544: a brief written for the owner's session, made the worker's. SECURITY: only the owner's hand-written brief may
+            # inline from [jail].inline_paths; a resume brief carries findings (the worker's own words) and inlines nothing
+            fixed, notes = brief_tool.for_worker(bp.read_text(), lane["id"], allow=() if s.get("resume_brief") else procs.inline_paths)
+            if notes:
+                bp.write_text(fixed)  # in place, so a fix round appends to the same text
+                journal.append("queue", lane=lane["id"], step=s["step"], state="brief-inlined", detail="; ".join(notes)[:300])
+            if bad := brief_preflight(fixed, lane["id"], procs.jail_gh):  # #6495: before a session is spent
+                return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
+            if h is None:
                 lane["seq"] += 1
                 handles[lane["id"]] = procs.start(lane, s)
+                lane["session_pid"] = getattr(handles[lane["id"]], "pid", 0)  # #6589: a restarted loop adopts a session whose window was renamed by this pid
+                s["session"], lane["session_steps"] = "fresh", 0
             else:
                 if why := procs.rebase(lane):
-                    return block(s, why)
+                    if work.REBASE_CONFLICT not in why:
+                        return block(s, why)
+                    # run.rebase-conflict-fix-round: the live session gets the step with the conflict to resolve first, not a block
+                    head_line, text = why.split(work.REBASE_CONFLICT, 1)
+                    lane["seq"] += 1
+                    procs.send(lane, Path(s.get("resume_brief") or s["brief"]).read_text().rstrip("\n") + "\n\n" + fix_text(s["step"], "rebase", text))
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="conflict-told", detail=head_line[:300])
+                    lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)
+                    move(s, "sent", f"message {lane['seq']}, with a conflict to resolve first: {head_line}")
+                    return True
                 lane["seq"] += 1
+                if not s["rounds"] and not s.get("resume_brief"):
+                    s["session"] = "kept"
                 procs.send(lane, Path(s.get("resume_brief") or s["brief"]).read_text())  # a send-back or a fix round writes it (review 2026-11-02: the finding never reached a live session)
         except (RuntimeError, OSError, ValueError, KeyError) as e:  # a refusal is a row, never a traceback
             return block(s, f"the step could not start: {e}")
+        lane["session_step"], lane["session_head"] = s["step"], procs.head_of(lane)  # what an adopting loop checks (items: step and head must match)
         move(s, "sent", f"message {lane['seq']}")
         return True
     if s["state"] == "sent":
@@ -476,9 +734,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             return block(s, f"WAITING: {row['waiting']}", ("send-back", "retry", "park"))
         if not row.get("moved") and not procs.ahead_of_origin(lane):  # #6507: a retried batch's commits predate this session; the tree past origin counts
             return block(s, "the worker said DONE with no commit on this step")
+        s["context"], s["window"], s["model"], s["left"] = row.get("context") or 0, row.get("window") or 0, row.get("model") or "", row.get("left") or []
+        if bad := [x["part"] for x in s["left"] if x["part"] not in parts_of(Path(s["brief"]).read_text())]:  # before any check or push
+            s["left"] = []
+            return block(s, f"the worker left part(s) {bad} that the brief does not have (its parts: {sorted(parts_of(Path(s['brief']).read_text()))}); "
+                            "send it back to name the parts it did not do, or retry")
         move(s, "done", "")
         if moved := tree_check(lane, s, handles, procs):  # an alert to read; the step goes on: the stray write was not in its tree
-            alert(lane["id"], s["step"], "a tree outside the step's own moved: " + "; ".join(moved), str(journal.STATE / "journal.jsonl"), [])
+            stray_alert(lane["id"], s["step"], moved)
     if s["state"] == "done" and (lane["paused"] or next((x.get("paused") for x in load() if x["id"] == lane["id"]), False)):
         lane["paused"] = True  # manager 2026-11-02: a paused lane is never checked; its DONE head waits for `queue resume`
         return False
@@ -506,8 +769,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                                    detail=f"new code on disk: the chain waits for the loop's re-exec (at most {DRAIN_MAX_S // 60} min; a live worker session holds it off)")
                     store(lane, expect=(s["step"], s.get("head", "")))
                 return True
-            # ponytail: past the cap the chain runs on this process's code, as every chain did before the drain existed; the re-exec comes after it
-            journal.append("queue", lane=lane["id"], step=s["step"], state="drain-expired", detail=f"waited {DRAIN_MAX_S // 60} min for a re-exec a live session holds off: the chain runs on the loop's current code")
+            # past the cap: one row per lane and head, and still no chain starts, so the first tick with none running re-execs (#6589)
+            if lane.get("drain_expired_head") != s.get("head"):
+                lane["drain_expired_head"] = s.get("head")
+                journal.append("queue", lane=lane["id"], step=s["step"], state="drain-expired", detail=f"waited {DRAIN_MAX_S // 60} min for a re-exec: no chain starts before it, which comes at the first tick with no chain running")
+                store(lane, expect=(s["step"], s.get("head", "")))
+            return True
         if (hold := journal.manual_hold()) and touches_build(lane, s, getattr(procs, "root", None)):
             # owner 2026-11-06: a held Xcode build rung sat on the only chain worker for an hour; a batch that would build waits HERE,
             # holding no worker, one `held` row per head, and starts by itself once the person's hold ends
@@ -561,9 +828,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             err = procs.tell(lane, f"LANDED {r['head'][:9]}: rebase onto origin/integration at your next step boundary.")
             journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or "LANDED")
             procs.after_land(lane, s, r["head"])
+        left_parts = {}
+        if s.get("left"):  # the worker's "PART x left: why" lines: the parts it did not do are the lane's next step, the rest landed
+            have = parts_of(Path(s["brief"]).read_text())
+            left_parts = {x["part"]: x["why"] for x in s["left"]}
+            gone = {n for p in left_parts for n in have[p][0]}
+            s["issues"] = [n for n in s["issues"] if n not in gone]
         left = [] if procs.reconcile else procs.still_open(lane, s)  # the reconcile (below) is off the loop; without one the plain open check
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
-        fresh_stop()
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
         if s.get("part2"):  # a split step: its rest is the next step of this lane, so the lane is not landed until it is
             brief = Path(s["brief"]).with_name(f"brief-{lane['id']}-{s['step']}-part2.txt")
@@ -571,6 +843,18 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             lane["steps"].insert(lane["cursor"], {"step": f"{s['step']}-part2", "brief": str(brief), "issues": [], "waits": [], "state": "queued",
                                                   "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
             journal.append("queue", lane=lane["id"], step=f"{s['step']}-part2", state="queued", detail=f"the rest of {s['step']}, on the pushed branch {s['part2']}")
+        if left_parts:
+            name = f"{s['step']}-left"
+            while any(x["step"] == name for x in lane["steps"]):
+                name += "-2"
+            brief = Path(s["brief"]).with_name(f"{slug(lane['id'])}-{slug(name)}.txt")
+            have = parts_of(Path(s["brief"]).read_text())
+            brief.write_text("\n\n".join(have[p][1] for p in sorted(left_parts)) + "\n")  # the owner's own part text only: the worker's reasons are never in a brief the inliner reads
+            lane["steps"].insert(lane["cursor"], {"step": name, "brief": str(brief), "issues": sorted({n for p in left_parts for n in have[p][0]}), "waits": [],
+                                                  "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
+            journal.append("queue", lane=lane["id"], step=name, state="queued",
+                           detail=f"part(s) {sorted(left_parts)} left by {s['step']}: " + "; ".join(f"{p}: {w}" for p, w in left_parts.items())[:250])
+        end_session(lane, s, handles, procs)
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
             # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
@@ -595,7 +879,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             move(s, "done", "pinned diff matches [loop.approved_pinned]: the check runs again as the maintainer")
             return True
     if (r.get("kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and s.get("approved_diff")
-            and patch_id(r.get("evidence", "")) == s["approved_diff"]):  # the diff the manager approved, at another head: approved by itself
+            and (patch_id(r.get("evidence", "")) == s["approved_diff"] or same_refused_diffs(r, s))):  # the diff the manager approved, at another head: approved by itself
         for k in r.get("approvals") or ["maintainer"]:
             s[k] = True
         s["approved_head"] = s.get("head", "")
@@ -618,6 +902,25 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""), red=True)
+    if r.get("kind") == "conflict" and s.get("conflict_rounds", 0) < 1 and lane.get("kind") != "external":
+        # run.rebase-conflict-fix-round (2026-11-25: 4 steps blocked on "conflict left to a person"): the loop's rebase stopped on a conflict;
+        # the lane's worker gets ONE fix round naming the files and the commits that touched them. A second conflict is an alert.
+        s["conflict_rounds"] = s.get("conflict_rounds", 0) + 1
+        text = fix_text(s["step"], "rebase", r.get("findings") or r["why"])
+        move(s, "red", r["why"])
+        live = handles.get(lane["id"])
+        if live is not None and procs.alive(live):
+            lane["seq"] += 1
+            procs.send(lane, text)
+            move(s, "sent", f"conflict fix round: {r['why']}")
+            return True
+        fix = journal.STATE / f"fix-{lane['id']}-{s['step']}-conflict.txt"  # no session: a new one on the brief plus the conflict
+        fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + text)
+        s["resume_brief"], lane["feed"] = str(fix), ""
+        move(s, "queued", f"conflict fix round, in a new session: {r['why']}")
+        return True
+    if r.get("kind") != "conflict":
+        s.pop("conflict_rounds", None)  # the rebase went through: a later conflict is a new one
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
         move(s, "red", r["why"])  # the failed check is its own state with its rung; the fix brief below moves the step on
@@ -664,6 +967,42 @@ def _park(lane: dict, s: dict, why: str) -> None:
     journal.append("queue", lane=lane["id"], step=s["step"], state="parked", detail=why[-300:])
 
 
+def repeated_brief(lane_id: str, step: str, text: str) -> str:
+    """local.queue.add-refuses-a-repeated-brief: the step of the lane (landed or not, not `step` itself) whose kept brief has this
+    text, '' when none; whitespace at the ends does not count."""
+    want = text.strip()
+    lane = next((x for x in load() if x["id"] == lane_id), None)
+    for s in (lane or {}).get("steps", []):
+        try:
+            if s["step"] != step and Path(s.get("brief", "")).read_text().strip() == want:
+                return s["step"]
+        except OSError:
+            continue
+    return ""
+
+
+def continuation(lane_id: str, step: str, left: str) -> str:
+    """What a continuation of `step` is told beyond the repeated brief: each step the lane landed since `step` was first sent (its
+    landed head: sha, subject and files), then what is left."""
+    rows = journal.read()
+    start = next((r["ts"] for r in rows if r.get("event") == "queue" and r.get("lane") == lane_id and r.get("step") == step and r.get("state") == "sent"), "")
+    lane = next((x for x in load() if x["id"] == lane_id), {})
+    lines = [f"## Continues {step}", "", "Landed since it began:"]
+    for r in rows:
+        if r.get("event") != "queue" or r.get("lane") != lane_id or r.get("state") != "landed" or (start and r.get("ts", "") < start):
+            continue
+        sha = (re.match(r"landed ([0-9a-f]{7,40})", r.get("detail", "")) or [None, ""])[1]
+        if not sha:
+            continue
+        g = ["git", "-c", "safe.directory=*", "-C", lane.get("worktree", ".")]
+        subj = subprocess.run(g + ["log", "-1", "--format=%h %s", sha], capture_output=True, text=True).stdout.strip() or sha
+        files = subprocess.run(g + ["show", "--name-only", "--format=", sha], capture_output=True, text=True).stdout.split()
+        lines.append(f"- {r.get('step')}: {subj}" + (f" ({', '.join(files[:20])})" if files else ""))
+    if len(lines) == 3:
+        lines.append("- nothing yet")
+    return "\n".join(lines + ["", "Left:", left.strip()])
+
+
 def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: str = "") -> str:
     """`builder queue move|park|unpark` (#6467): among the steps from the cursor on, `move` puts a queued or parked step at
     index `to` of the lane's steps (clamped: below the cursor = the cursor's place, past the end = last); `park` sends a queued or blocked one to the end as parked;
@@ -677,8 +1016,11 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: st
             return f"no lane {lane_id!r}" if lane is None else f"no step {step!r} in {lane_id}"
         i, cur = lane["steps"].index(s), lane["cursor"]
         if i < cur or s["state"] not in {"move": ("queued", "parked"), "park": ("queued", "blocked"), "unpark": ("parked",),
-                                         "drop": ("parked",)}[action]:
+                                         "drop": ("parked", "queued")}[action]:
             return f"{lane_id} {step} is {s['state']}: a step that landed or is in flight is left as it is"
+        if action == "drop" and s["state"] == "queued" and (started := [k for k in ("rounds", "head", "restarts", "resume_brief", "pinned") if s.get(k)]):
+            # local.queue.drop-takes-a-queued-step: only a step that never started; one with a round, a head or a session is in flight
+            return f"{lane_id} {step} is queued but has started ({', '.join(started)}): park it first"
         if action == "move":
             lane["steps"].remove(s)
             at = min(max(cur, to if to is not None else cur), len(lane["steps"]))
@@ -686,7 +1028,7 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: st
             journal.append("queue", lane=lane_id, step=step, state="moved", detail=f"to index {at} (the cursor is at {cur})")
         elif action == "park":
             _park(lane, s, "parked from the console")
-        elif action == "drop":  # #6589: a parked step that is superseded leaves the lane; its record is this journal row
+        elif action == "drop":  # #6589: a parked step that is superseded, or a queued one that never started, leaves the lane; its record is this row
             if not why.strip():
                 return "drop needs --text: why the step is no longer wanted"
             lane["steps"].remove(s)
@@ -861,6 +1203,62 @@ def done(lane_id: str, sha: str = "") -> str:
     return why
 
 
+def landed(lane_id: str, step: str, sha: str) -> str:
+    """`builder queue landed --lane --step --sha`: a landing made by hand (throughput review 2026-11-24, item 7). The lane's cursor step
+    is marked landed at `sha`, the cursor moves on and the step's open alerts are answered. '' or why it is refused."""
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha or ""):
+        why = f"{sha!r} is not a commit sha"
+    else:
+        with journal.Lock("queue"):
+            lanes = load()
+            lane = next((x for x in lanes if x["id"] == lane_id), None)
+            if lane is None:
+                why = f"no lane {lane_id!r}"
+            elif lane["cursor"] >= len(lane["steps"]) or lane["steps"][lane["cursor"]]["step"] != step:
+                why = f"{step!r} is not {lane_id}'s cursor step"
+            elif lane["steps"][lane["cursor"]]["state"] in IN_LADDER:
+                why = f"{lane_id} {step} is in the ladder ({lane['steps'][lane['cursor']]['state']}): let it finish, or stop the lane"
+            else:
+                why = ""
+                s = lane["steps"][lane["cursor"]]
+                s.update(state="landed", head=sha, why=f"landed by hand at {sha[:9]}", entered_at=_now())
+                s.pop("settling", None)
+                lane["cursor"] += 1
+                lane["feed"] = ""
+                save(lanes)
+    journal.append("queue", lane=lane_id, step=step if not why else "-", state="landed" if not why else "landed-refused", detail=why or f"landed by hand at {sha[:9]}")
+    if not why:
+        close_alerts(lane_id, step, f"landed by hand at {sha[:9]}")
+    return why
+
+
+MECHANICAL = re.compile(r"holds a live session|a live session runs in tmux window|said DONE with no commit")  # the two alerts the manager answered `retry` to, unread
+
+
+RETRY_SCANNED = [-1]  # the journal size at the loop's last scan for mechanical alerts
+
+
+def auto_retry_mechanical() -> list[str]:
+    """Throughput review 2026-11-24, item 7 (54 plain `retry` answers): an open alert that says "live session" or "DONE with no commit"
+    is answered `retry` once per lane and step by the loop itself, with an `auto-retry` row. The second one is a person's."""
+    rows = journal.read()
+    answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+    tried = {(r.get("lane"), r.get("step")) for r in rows if r.get("event") == "auto-retry"}
+    out = []
+    for a in rows:
+        if a.get("event") != "alert" or not a.get("id") or a["id"] in answered or not MECHANICAL.search(a.get("what", "")) or "retry" not in a.get("actions", []):
+            continue
+        key = (a.get("lane"), a.get("step"))
+        if key in tried:
+            continue
+        tried.add(key)
+        journal.append("auto-retry", lane=a.get("lane", ""), step=a.get("step", ""), id=a["id"], detail=a["what"][:200])
+        code, _ = answer(a["id"], "retry")
+        if code == 0:
+            out.append(a["id"])
+    return out
+
+
 def close_alerts(lane_id: str, step: str, why: str) -> list[str]:
     """Manager defect 2026-11-02: an alert about a superseded head stayed open on the console. Every open alert of this lane and
     step is answered `superseded` (never park: that would act on the live step), so a new head or a passed step clears them."""
@@ -893,6 +1291,62 @@ def patch_id(diff_path: str) -> str:
         return ""
     r = subprocess.run(["git", "patch-id", "--stable"], input=text, capture_output=True)
     return r.stdout.decode().split(" ")[0] if r.returncode == 0 and r.stdout else hashlib.sha256(text).hexdigest()
+
+
+def file_patch_ids(diff_path: str) -> dict:
+    """{path: patch-id of that file's own section} of a diff file; {} when unreadable (local.approve.keyed-by-content, #6589)."""
+    try:
+        text = Path(diff_path).read_text(errors="replace")
+    except OSError:
+        return {}
+    out = {}
+    for sec in re.split(r"(?m)^(?=diff --git )", text):
+        if m := re.match(r"diff --git a/(\S+) b/", sec):
+            r = subprocess.run(["git", "patch-id", "--stable"], input=sec.encode(), capture_output=True)
+            out[m.group(1)] = (r.stdout.decode().split(" ")[0] if r.returncode == 0 and r.stdout else "") or hashlib.sha256(sec.encode()).hexdigest()
+    return out
+
+
+def same_refused_diffs(r: dict, s: dict) -> bool:
+    """local.approve.keyed-by-content (#6589): every file the new refusal names has, in the new diff, the patch-id it had in the diff the
+    manager approved; files the refusal does not name (other tests, a rebase's base) never matter. No named file: no match."""
+    named, had = refused_files(r.get("findings", "")), s.get("approved_diff_files") or {}
+    if not named or not had:
+        return False
+    now = file_patch_ids(r.get("evidence", ""))
+    return all(f in had and now.get(f) == had[f] for f in named)
+
+
+def refused_files(findings: str) -> list[str]:
+    """The files a pinned-checks refusal names: `<path>: <reason>` lines and the weakened tests' `(a, b)` list."""
+    named = re.findall(r"(?m)^([\w./-]+\.[\w]+): ", findings or "")
+    for group in re.findall(r"weakens existing tests \(([^)]*)\)", findings or ""):
+        named += [x.strip() for x in group.split(",") if x.strip()]
+    return list(dict.fromkeys(named))
+
+
+def named_files(said: str, ladder: str, ext: str) -> list[str]:
+    """The files an approve names (2026-11-25, app-bugs nightly-green-1, alerts 1863/1869): the ladder's own red rows first, since an
+    alert's one-line text is cut to 300 characters and named only ".html" or a path's tail ("chero-server/tests/..."). A name that is
+    the tail of a longer name found is a cut-off copy of it and is dropped."""
+    return whole_names(list(dict.fromkeys(re.findall(r"[\w/][\w./-]*" + ext + r"\b", ladder + "\n" + said))))
+
+
+def whole_names(names) -> list[str]:
+    """The names that are not the cut-off tail of another name in the list."""
+    return [f for f in names if not any(o != f and o.endswith(f) for o in names)]
+
+
+def evidence_text(path: str, cap: int = 20000) -> str:
+    """What a red alert's ladder file says (its red rungs' output): the file names an alert's one-line `what` leaves out (#6589: a
+    red-on-base approve named no test file, so it bound to nothing and was asked again after each of 13 rebases)."""
+    try:
+        doc = json.loads(Path(path).read_text()) if str(path).endswith(".json") else {}
+    except (OSError, ValueError):
+        return ""
+    keys = ("reason", "stdout_tail", "stderr_tail")
+    rows = [r for r in doc.get("rungs") or [] if isinstance(r, dict) and not r.get("ok")]
+    return "\n".join(str(r.get(k, "")) for r in rows for k in keys if r.get(k))[:cap]
 
 
 def _alert_kind(r: dict) -> tuple:
@@ -990,18 +1444,24 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged first, never a newer step head (review)
                 h, repo_ = (at.group(1) if at else s.get("head", "")), s.get("land_tree") or lane["worktree"]
                 kind = "approve_weakened" if s.get("approve_kind") == "weakened-tests" or "approve_weakened" in (s.get("approvals") or ()) else "approve_red"
-                for f in re.findall(r"[\w./-]+\.py", said):
-                    if h and (fp := test_fingerprint(repo_, h, f)):
+                for f in named_files(said, evidence_text(a.get("evidence", "")), r"\.py"):
+                    if h and (fp := test_fingerprint(repo_, h, f)) and (fp.get("head") or fp.get("base")):  # a path in neither tree binds nothing
                         s.setdefault("approved_test_blobs", {})[f] = {**fp, "kind": kind}
+                bound = s.get("approved_test_blobs") or {}  # stale entries go: a cut-off name or one bound to no blob never matches again
+                keep = set(whole_names([f for f, fp in bound.items() if not isinstance(fp, dict) or fp.get("base") or fp.get("head")]))
+                for f in [f for f in bound if f not in keep]:
+                    del bound[f]
+                    s["approved_tests"] = [t for t in s.get("approved_tests") or () if t != f]
             if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
                 s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
+                s["approved_diff_files"] = file_patch_ids(a.get("evidence", ""))  # and per file: a rebase that changed only other files still holds
             if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
                 # one head's approvals ACCUMULATE (manager 2026-11-03: sharing bb3 was asked about the same test three times,
                 # each approve replacing the last one's files); a new head starts empty
                 had = set(s.get("approved_tests") or ()) if s.get("approved_head") == s.get("head", "") else set()
                 s["approved_head"] = s.get("head", "")
-                s["approved_tests"] = sorted(had | set(re.findall(r"[\w./-]+\.(?:py|json)", said)))
+                s["approved_tests"] = sorted(whole_names(had | set(named_files(said, evidence_text(a.get("evidence", "")), r"\.(?:py|json)"))))
             if action == "approve":
                 _set_approval(s, s.get("approve_kind"), s.get("approvals"))
                 at_ = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged: the approve is remembered for it
@@ -1012,7 +1472,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                         kinds.append(s["approve_kind"])
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
-                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")))
+                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")) + test_python_line())
                 s["resume_brief"] = str(fix)
             lane["paused"] = False
             save(lanes)
@@ -1077,6 +1537,11 @@ def restart_loop(root, tick_s: float = 30.0) -> int:
     return p.pid
 
 
+def agent_label(name: str, root) -> str:
+    """The launchd label of one of the builder's agents: [harness].label_prefix (default local.builder) and the agent's name."""
+    return f"{client.label_prefix(root)}.{name}"
+
+
 def launch_agents(root, out, *, branch: str | None = None, state=None, tick_s: float = 30.0, port: int = 8766) -> list[Path]:
     """The owner's four LaunchAgents (dev-workflows.run.loop, run.loop-launchd): `builder loop` and the console (`builder status`)
     kept alive and started at login, `builder heartbeat` every three ticks, and `builder release` at 03:00 (run.release-stages). All run as the owner from the checkout's package;
@@ -1095,7 +1560,7 @@ def launch_agents(root, out, *, branch: str | None = None, state=None, tick_s: f
     out.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, (args, when) in jobs.items():
-        label = f"local.builder.{name}"
+        label = agent_label(name, root)
         f = out / f"{label}.plist"
         f.write_bytes(plistlib.dumps({"Label": label, "ProgramArguments": [sys.executable, "-m", "fichero_builder", *args],
                                       "WorkingDirectory": str(logs), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", ""), "PYTHONUNBUFFERED": "1",
@@ -1202,6 +1667,31 @@ def feed(procs: Procs, lanes_n: int, out=print) -> bool:
 
 
 VERIFY_PENDING = "verify-pending"  # a product landing's head, waiting for every lane to go idle
+
+
+def verify_landed(repo, branch: str, pkg, run=subprocess.run) -> tuple[int, str]:
+    """`builder verify-all` over a clean detached worktree of the land branch's tip, removed after; never the loop's own checkout,
+    whose local harness.toml and files judged a green landing red (2026-11-25 21:37, alert 1950: four guards and a test red there,
+    green on a clean tree of 7ab1780)."""
+    why = ""
+    try:
+        tip = land_tool.resolve_branch(repo, branch)
+    except RuntimeError as e:
+        tip, why = "", str(e)[-200:]
+    if not tip:
+        return 1, f"NOT VERIFIED: no tip of {branch} in {repo}: {why}"
+    tree = tempfile.mkdtemp(prefix="verify-landed-")
+    git = [land_tool.GIT, "-c", "safe.directory=*", "-C", str(repo)]
+    try:
+        r = subprocess.run([*git, "worktree", "add", "--detach", "-q", tree, tip], capture_output=True, text=True)
+        if r.returncode:
+            return 1, f"NOT VERIFIED {tip[:9]}: its clean tree could not be made: {(r.stderr or r.stdout).strip()[-300:]}"
+        r = run([sys.executable, "-m", "fichero_builder", "verify-all", "--root", tree, "--state", str(journal.STATE)],
+                cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
+        return r.returncode, (r.stdout + r.stderr)[-2000:]
+    finally:
+        subprocess.run([*git, "worktree", "remove", "--force", tree], capture_output=True)
+        shutil.rmtree(tree, ignore_errors=True)
 
 
 def verify_when_idle(procs: Procs, chains: dict | None) -> None:
@@ -1348,9 +1838,141 @@ def uv_prune_when_due(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+DEPS_LAST = "deps.last"  # the date `builder deps` last ran from the loop
+
+
+def deps_when_due(procs: Procs, chains: dict | None) -> None:
+    """local.deps.weekly: on [deps].day at or after [deps].hour, once a day, `builder deps` in a BUILDS thread (a re-exec waits)."""
+    from fichero_builder import deps
+
+    if procs.deps is None or any(t.name == "deps" and t.is_alive() for t in BUILDS):
+        return
+    marker = journal.STATE / DEPS_LAST
+    try:
+        last = marker.read_text().strip()
+    except OSError:
+        last = ""
+    now = procs.now().timestamp()
+    if not deps.due(procs.deps_cfg, now, last):
+        return
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(time.strftime("%Y-%m-%d", time.localtime(now)) + "\n")
+
+    def run_it():
+        try:
+            procs.deps()
+        except Exception:  # noqa: BLE001 - a failed pass is a row, never the loop's death
+            journal.append("deps", state="error", detail=traceback.format_exc()[-1000:])
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="deps", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
+GH_WATCH_LAST = "gh-watch.last"  # when `builder github-watch` last ran from the loop (epoch seconds)
+
+
+def gh_watch_when_due(procs: Procs, chains: dict | None) -> None:
+    """local.github.watch: every [github_watch].every_s, one pass in a BUILDS thread (a re-exec waits for it)."""
+    if procs.gh_watch is None or any(t.name == "gh-watch" and t.is_alive() for t in BUILDS):
+        return
+    marker = journal.STATE / GH_WATCH_LAST
+    try:
+        if time.time() - float(marker.read_text()) < procs.gh_watch_s:
+            return
+    except (OSError, ValueError):
+        pass
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(f"{time.time()}\n")
+
+    def run_it():
+        try:
+            procs.gh_watch()
+        except Exception:  # noqa: BLE001 - a failed pass is a row, never the loop's death
+            journal.append("gh-watch", state="error", detail=traceback.format_exc()[-1000:])
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="gh-watch", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
+def gh_watch_job(root):
+    """The loop's `builder github-watch` with the owner's gh and texter; (None, 600) when [github_watch].enabled is not true."""
+    from fichero_builder import gh_watch
+
+    cfg = gh_watch.load(root)
+    return ((lambda: gh_watch.main_run(root, out=lambda s: None)) if cfg.enabled else None), float(cfg.every_s)
+
+
+def deps_cfg(root):
+    from fichero_builder import deps
+
+    return deps.load(root)
+
+
+def deps_job(root) -> Callable[[], int] | None:
+    """The loop's weekly `builder deps` with the owner's gh, from the owner's checkout; None when [deps].enabled is not true."""
+    from fichero_builder import deps
+
+    return (lambda: deps.main_run(root, out=lambda s: None)) if deps.load(root).enabled else None
+
+
+def real_watchdog(root, stop: Callable[[dict], None], tell: Callable[[dict, str], str]) -> Callable[[list], list]:
+    """The watchdog with the real world: a pane's last output is tmux's `window_activity` on the workers' server (an external lane's
+    registered pane is told through `tell`), a rung's timeout is its [check] figure, the second strike stops the session and answers
+    the watchdog's own alert with retry (local.watchdog.slow-work)."""
+    from fichero_builder import watchdog
+
+    cfg = check_tool.load(root)
+    # the rungs whose figure is a whole-rung budget the ladder enforces; guard_timeout_s is per guard and perf's timeout_s is not
+    # passed to its run, so those are unknown: watchdog.RUNG_S (and no rung is given less, for its lock wait)
+    limits = {"build": cfg.build_timeout_s, "security": float(cfg.security.get("timeout_s", 0) or 0)}
+    started = time.time()  # rung-starts older than this died with an earlier loop
+
+    def last_output(lane):
+        j = jail.load(root)
+        if j is None or not j.user:
+            return None
+        acts = [int(x) for x in tmux_as_worker(j, "display-message", "-p", "-t", f"={lane['id']}", "#{window_activity}").split() if x.isdigit()]
+        return float(max(acts)) if acts else None
+
+    def nudge(lane, text):
+        if lane.get("pane"):
+            return tell(lane, text)
+        j = jail.load(root)
+        wins = worker_windows(j, lane["id"]) if j is not None and j.user else []
+        if not wins:
+            return "no window"
+        tmux_as_worker(j, "send-keys", "-t", wins[0], "-l", text)
+        tmux_as_worker(j, "send-keys", "-t", wins[0], "Enter")
+        return ""
+
+    def stop_retry(lane_id, step, aid):
+        lane = next((x for x in load() if x["id"] == lane_id), None)
+        if lane is None:
+            return "the lane is gone"
+        stop(lane)
+        rc, said = answer(aid, "retry") if aid else (1, "no alert to answer")
+        return "" if rc == 0 else said
+
+    def run(lanes):
+        return watchdog.check(lanes, journal.read(), time.time(), last_output=last_output, rung_timeout=lambda r: limits.get(r, 0.0), only=ONLY[0], loop_start=started,
+                              nudge=nudge, stop_retry=stop_retry, cancel=lambda head: check_tool.cancel_file(head).write_text("watchdog"),
+                              alert=lambda lane, step, why: alert(lane, step, why, str(journal.STATE / "journal.jsonl"), ["retry", "park", "dismiss"]))
+    return run
+
+
 def nightly_when_due(procs: Procs, chains: dict | None) -> None:
-    """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts (its own thread)."""
-    nightly.when_due(procs.nightly, procs.nightly_runners, procs.now(), lambda why: alert("-", "nightly", why, str(journal.STATE), ["retry"]), chains, BUILDS)
+    """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts: its own
+    process when `procs.nightly_spawn` is set (local.nightly.detached; a running one is adopted by pid each tick), else its own thread."""
+    say = lambda why: alert("-", "nightly", why, str(journal.STATE), ["retry"])  # noqa: E731
+    if procs.nightly_spawn is not None:
+        nightly.adopt(journal.STATE, say)
+    nightly.when_due(procs.nightly, procs.nightly_runners, procs.now(), say, chains, BUILDS, spawn=procs.nightly_spawn)
 
 
 ONLY: list = [()]  # [loop].only: the lanes the loop ticks; () = every lane in the queue (tests); the verb sets it (manager 2026-11-04)
@@ -1394,6 +2016,11 @@ CLEAN_KEPT: dict = {}  # (lane, path) -> the reason last written, so a kept tree
 
 def _cg(cwd, *a) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(cwd), *a], capture_output=True, text=True)
+
+
+def tree_descends(tree, sha) -> bool:
+    """The tree's HEAD is `sha` or a commit after it. `safe.directory=*` as on every other read of a lane tree: the jail's worker owns it."""
+    return bool(sha) and subprocess.run(["git", "-c", "safe.directory=*", "-C", str(tree), "merge-base", "--is-ancestor", sha, "HEAD"], capture_output=True).returncode == 0
 
 
 def _cleanup_row(lane: dict, step: str, path: str, state: str, detail: str) -> None:
@@ -1456,6 +2083,38 @@ def clean_up(lane: dict, ref: str, on_removed: Callable[[str], None] = lambda tr
         _cleanup_row(lane, "", wt, "removed" if r.returncode == 0 else "kept", f"branch {branch} " + ("removed" if r.returncode == 0 else f"kept: {r.stderr.strip()[-200:]}"))
 
 
+IDLE_S = 600  # reliab-1: queued work and nothing running, unexplained, this long is one alert
+IDLE: dict = {"since": 0.0, "alerted": set()}
+
+
+def idle_alert(chains: dict | None) -> None:
+    """#6589 reliab-1: queued steps, no step in flight, no hold that explains it (paused lane, disk floor, night hold, drain, a heavy-lock
+    hold) for IDLE_S: one `idle-queue` alert naming each queued lane and why it does not start; a (lane, reason) is said once until the
+    idleness ends."""
+    lanes = load()
+    running = any(x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ACTIVE for x in lanes) or any(
+        not f.done() for k, f in (chains or {}).items() if k != "pool")
+    causes = {}
+    for x in lanes:
+        if not _ours(x) or x.get("kind") == "external" or x["cursor"] >= len(x["steps"]) or x["steps"][x["cursor"]]["state"] != "queued":
+            continue
+        st = x["steps"][x["cursor"]]
+        if x["paused"] or x["id"] in DISK_HELD or st.get("held") or DRAIN[0] or journal.manual_hold():
+            continue  # a hold the journal or the console already shows
+        undone = [w for w in st.get("waits", []) if not any(y["step"] == w and y["state"] == "landed" for z in lanes for y in z["steps"])]
+        causes[x["id"]] = f"step {st['step']} waits for {', '.join(undone)}, which has not landed" if undone else f"step {st['step']} is queued and nothing starts it"
+    if running or not causes:
+        IDLE["since"], IDLE["alerted"] = 0.0, set()
+        return
+    IDLE["since"] = IDLE["since"] or time.time()
+    new = {(k, v) for k, v in causes.items()} - IDLE["alerted"]
+    if time.time() - IDLE["since"] >= IDLE_S and new:
+        IDLE["alerted"] |= new
+        why = f"queued work and nothing running for {IDLE_S // 60} min: " + "; ".join(f"{k}: {v}" for k, v in sorted(new))
+        journal.append("loop", state="idle-queue", detail=why[:500])
+        alert("-", "idle-queue", why, str(journal.STATE / "journal.jsonl"), [])
+
+
 def park_alert() -> None:
     """#6851: a cap parks every running worker in the same tick; the alert is one row listing the lanes. Only `kill-window` ever
     stops a worker here, so a park leaves the tmux server and the other sessions alone."""
@@ -1497,6 +2156,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         try:
             if manage(lane, procs):
                 lane = next(x for x in load() if x["id"] == lane["id"])
+            snapshot(lane)  # #6589 reliab-1: what a `store` of this copy tells an outside change from
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
             if procs.cleanup_ref:
                 with journal.Lock("queue"):  # a concurrent `builder done` resets land-<lane>; re-read the lane inside the lock, so HEAD is checked against the current queue
@@ -1506,12 +2166,21 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
+    idle_alert(chains)
     park_alert()
     disk_floor_alerts(procs)
     daily_when_due(procs, chains)
     nightly_when_due(procs, chains)
+    if procs.watchdog is not None:  # local.watchdog.slow-work: slow steps, silent sessions, hung rungs, acted on once per cause
+        try:
+            for line in procs.watchdog(load()):
+                out(f"watchdog: {line}")
+        except Exception:  # noqa: BLE001 - the watchdog never stops the tick
+            journal.append("loop", state="watchdog-error", detail=traceback.format_exc()[-1500:])
     reconcile_when_due(procs, chains)
     uv_prune_when_due(procs, chains)
+    deps_when_due(procs, chains)
+    gh_watch_when_due(procs, chains)
     if not busy:
         verify_when_idle(procs, chains)
         if getattr(procs, "root", ""):  # housekeeping at a quiet tick: the ladders' old scratch dirs (run.scratch-sweep)
@@ -1554,6 +2223,10 @@ def reload_rules(root) -> None:
     except (OSError, tomllib.TOMLDecodeError):
         return
     apply_loop_cfg(cfg)
+    try:
+        load_cfg(root)
+    except (ValueError, tomllib.TOMLDecodeError) as e:  # the running loop keeps the last good [queue] and says so
+        journal.append("loop", state="queue-cfg-refused", detail=str(e)[:300])
 
 
 def publish_rules(root, feed) -> None:
@@ -1597,10 +2270,14 @@ def apply_loop_cfg(cfg: dict) -> None:
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
 
 
-def restart_due(mark: tuple, root, chains, builds=()) -> bool:
+def restart_due(mark: tuple, root, chains, builds=(), followed: bool = False) -> bool:
     """#6589: re-exec between ticks only when the package's code changed (a landing under fichero-builder/); a live worker session no
-    longer holds it off, because the restarted loop adopts it. A running chain or dev build still does (its thread would be lost)."""
-    return code_mark(root) != mark and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in builds)
+    longer holds it off, because the restarted loop adopts it. A running chain or dev build still does (its thread would be lost).
+    After a follow (`followed`) only a dev build holds it: the chains' steps go again from queue.json, and the old process meanwhile
+    read the landed rules with older code (2026-11-25 21:2x-21:39, alerts 1938-1948: every check refused "unknown rules" while
+    nine busy lanes kept the quiet tick from coming)."""
+    chain_runs = not followed and any(not f.done() for k, f in (chains or {}).items() if k != "pool")
+    return code_mark(root) != mark and not chain_runs and not any(t.is_alive() for t in builds)
 
 
 def reexec() -> None:  # the tests replace this
@@ -1641,18 +2318,29 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             if x.get("kind") == "external" and not x.get("hold") and cur in ("queued", "landed") and (sha := procs.intake(x)):
                 why = done(x["id"], sha)
                 out(f"{x['id']}: intake at {sha[:9]}" + (f" refused: {why}" if why else ""))
+        seen = journal.path().stat().st_size if journal.path().exists() else 0
+        if seen != RETRY_SCANNED[0]:  # the journal is read only when it has grown since the last scan
+            RETRY_SCANNED[0] = seen
+            for aid in auto_retry_mechanical():  # the two mechanical alerts, once each (throughput review 2026-11-24, item 7)
+                out(f"{aid}: retried by the loop")
         took = feed(procs, lanes_n, out) if feed_milestones else False  # the verb: only when [loop].feed_milestones (manager 2026-11-04)
         busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took
         if heartbeat:  # dev-workflows.run.loop: a watchdog reads the gap between these
             journal.append("loop", state="tick", lanes=[f"{x['id']} {x['cursor']}/{len(x['steps'])}" for x in load()], busy=busy)
         if once or not (busy or forever):
             return 0
+        if heartbeat and root and time.time() - FOLLOWED_AT[0] >= FOLLOW_S:  # a landing (or a hand push) of builder code: the loop follows it
+            FOLLOWED_AT[0] = time.time()
+            try:
+                FOLLOWED[0] = FOLLOWED[0] or follow_landed(root, out).startswith("followed")
+            except Exception:  # noqa: BLE001 - following is housekeeping, never the loop's death
+                journal.append("loop", state="follow-error", detail=traceback.format_exc()[-1000:])
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
         # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
         DRAIN[0] = heartbeat and code_mark(root) != mark  # serial chains never left a gap: stop starting them until it re-execs
         if not DRAIN[0]:
             DRAIN_SINCE[0] = 0.0
-        if heartbeat and restart_due(mark, root, chains, BUILDS):
+        if heartbeat and restart_due(mark, root, chains, BUILDS, followed=FOLLOWED[0]):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
             mark = code_mark(root)  # a test's reexec returns
@@ -1660,7 +2348,65 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
 
 
 
-RULES_NEWER = re.compile(r"unknown keys|rules file refused")
+FOLLOW_S = 120  # how often the loop compares its own checkout with the land branch's tip
+FOLLOWED_AT = [0.0]
+FOLLOWED = [False]  # this process followed the landed code: it re-execs at once, never waiting for a quiet tick
+
+
+def follow_landed(root, out=print) -> str:
+    """local.loop.follows-landed-code (2026-11-25 16:42, alerts 1902-1909: a landing added `[check].swift_tests`; the loop's older
+    checkout refused every check for 80 minutes until a person updated it). When the land branch's tip changed the builder
+    package or harness.toml since the loop's own checkout HEAD: with `[loop].follow_landed = true` the checkout goes to that tip,
+    its own harness.toml kept as it was, and the loop re-execs onto it at once, only a dev build holding it (one `loop` row `followed`);
+    a checkout with other local changes, or follow_landed off while the tip's rules refuse this code, is ONE alert per tip.
+    '' or what it did."""
+    from fichero_builder import check_tool
+
+    def git(*a):
+        return subprocess.run(["git", "-c", "safe.directory=*", "-C", str(root), *a], capture_output=True, text=True)
+    try:
+        rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+        repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
+    except (OSError, ValueError, KeyError):
+        return ""
+    tip, head = land_tool.resolve_branch(repo, branch), git("rev-parse", "HEAD").stdout.strip()
+    if not tip or not head or tip == head or (journal.STATE / "follow.tip").is_file() and (journal.STATE / "follow.tip").read_text().strip() == tip:
+        return ""
+    paths = [client.package_dir(root), "harness.toml"]
+    changed = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "diff", "--name-only", head, tip, "--", *paths],
+                             capture_output=True, text=True)
+    behind = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "merge-base", "--is-ancestor", head, tip], capture_output=True).returncode == 0
+    if not behind or changed.returncode or not changed.stdout.strip():
+        return ""  # nothing of the builder's moved (or the loop's HEAD is not in the engine repo: a person's own checkout)
+    (journal.STATE / "follow.tip").write_text(tip + "\n")  # one action per tip, whatever it was
+
+    def say(why: str) -> str:
+        alert("-", "loop-code", f"the loop runs older code than the landed rules at {tip[:9]}: {why}", str(root), ["retry"])
+        return why
+    if not rules.get("loop", {}).get("follow_landed"):
+        shown = subprocess.run(["git", "-C", repo, "show", f"{tip}:harness.toml"], capture_output=True, text=True)
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "harness.toml").write_text(shown.stdout)
+            try:
+                check_tool.load(d)
+            except ValueError as e:
+                return say(f"{e}; set [loop].follow_landed = true, or update the loop's checkout to {tip[:9]} by hand ({root})")
+        return ""
+    dirty = [ln[3:] for ln in git("status", "--porcelain", "--untracked-files=no").stdout.splitlines() if ln[3:] != "harness.toml"]
+    if dirty:
+        return say(f"its checkout has local changes ({', '.join(dirty[:5])}): it was not updated; update {root} by hand")
+    keep = (Path(root) / "harness.toml").read_text()
+    r = git("fetch", "-q", repo, tip)
+    r = r if r.returncode else git("checkout", "-q", "-f", "--detach", tip)
+    (Path(root) / "harness.toml").write_text(keep)  # the loop's own rules stay as they were, whatever the checkout did
+    if r.returncode:
+        return say(f"the update to {tip[:9]} failed: {(r.stderr or r.stdout).strip()[-200:]}")
+    journal.append("loop", state="followed", detail=f"the loop's checkout went from {head[:9]} to the landed {tip[:9]} ({len(changed.stdout.split())} builder file(s)); it re-execs now, a running dev build first")
+    out(f"loop: followed the landed code to {tip[:9]}")
+    return f"followed {tip[:9]}"
+
+
+RULES_NEWER = re.compile(r"unknown keys|unknown rules|rules file refused")  # "unknown rules": [check].auto (alerts 1938-1948)
 
 
 def retry_rules_blocked(out=print) -> list[str]:
@@ -1683,6 +2429,19 @@ def retry_rules_blocked(out=print) -> list[str]:
     for d in done_:
         out(f"{d}: retried (rules newer than the old code)")
     return done_
+
+def worker_kind(mdl: dict, role: str) -> tuple[str, tuple]:
+    """A lane's worker kind and its `builder run` arguments, from its [models] role (agent-profiles, the Qwen3-Coder-Next trial):
+    `claude-code` (or no role) is an interactive Claude Code session; any other provider is a Pi session on that provider, priced by
+    the owner-owned Pi agent dir `[models].pi_agent_dir` (its models.json; the worker's own could set its own prices). The caps,
+    [spend.week_usd] among them, are `builder run`'s own. RuntimeError when a Pi role has no agent dir: the step does not start."""
+    provider = models.for_role(mdl, role).provider if role else "claude-code"
+    if provider == "claude-code":
+        return "claude", ()
+    if not (agent_dir := str(mdl.get("pi_agent_dir") or "")):
+        raise RuntimeError(f"[models].{role} runs on {provider!r} (a Pi session) and harness.toml [models].pi_agent_dir names no agent dir")
+    return "pi", ("--provider", provider, "--agent-dir", agent_dir)
+
 
 def table() -> list[list[str]]:
     return [[x["id"], s["step"], s["state"], ", ".join(f"#{n}" for n in s["issues"]), s["head"][:9] or "-", s["why"].strip().replace("\n", " ")[:200]]
@@ -1882,7 +2641,11 @@ def content_approvals(step: dict | None, repo: str, base_ref: str = BASE_REF) ->
         out["approve_red"] = tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True
     if _approved(step, "approve_weakened"):
         out["approve_weakened"] = True
-    bound, head = step.get("approved_test_blobs") or {}, step.get("head", "")
+    bound = step.get("approved_test_blobs") or {}
+    # a worker lane's step has no head until a chain is green (2026-11-25: app-bugs nightly-green-1 was approved at f8dd07262 and asked
+    # again at the SAME head, the binding never read): the tree's HEAD is the head the ladder will judge
+    head = step.get("head", "") or (subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "HEAD"],
+                                                   capture_output=True, text=True).stdout.strip() if bound else "")
     if not bound or not head:
         return out
     held: dict = {}
@@ -1940,14 +2703,71 @@ def live_windows(j, lane: dict) -> list:
     return [wid for wid, cmd in worker_windows(j, lane["id"], with_command=True) if cmd and cmd.lstrip("-") not in SHELLS]
 
 
+def pid_alive(pid) -> bool:
+    """Is a process with this id running (any user's: a permission error means it exists)? The seam the tests replace."""
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+    except PermissionError:
+        return True
+    except (ProcessLookupError, ValueError, OverflowError):
+        return False
+    return True
+
+
+ATTACHABLE = ("sent", "said-done", "done", "checking", "reviewing", "fixing", "red")  # a step whose session may outlive its watcher
+
+
+def attach_live(lane: dict, s: dict, procs, why: str):
+    """local.run.sessions-survive-watchers (2026-11-25: five "this loop cannot watch it" alerts; seg-tools and builder-fixes sat at the
+    prompt after `DONE <sha>` with no watcher, and the loop never read it): a live window named for the lane gets a new `builder run
+    --attach` on the same feed, which reads a DONE already on screen. A handle, or None when there is no live window or no attach."""
+    wins = procs.live_windows(lane)
+    if not wins:
+        return None
+    hh = procs.attach(lane, s, wins[0])
+    if hh is not None:
+        journal.append("queue", lane=lane["id"], step=s["step"], state="attached", detail=f"{why}: a new watcher on window {wins[0]}")
+    return hh
+
+
+def said_done(lane_id: str, step: str, sha: str, head_of: Callable[[dict], str]) -> str:
+    """`builder queue said-done --lane --step --sha` (manager 2026-11-25): a managed lane's worker said `DONE <sha>` and no watcher
+    recorded it. The cursor step, sent, whose tree's HEAD is that sha, goes to `done` as the watcher's row would put it. '' or why not."""
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha or ""):
+        why = f"{sha!r} is not a commit sha"
+    else:
+        with journal.Lock("queue"):
+            lanes = load()
+            lane = next((x for x in lanes if x["id"] == lane_id), None)
+            s = lane["steps"][lane["cursor"]] if lane and lane["cursor"] < len(lane["steps"]) else None
+            if lane is None:
+                why = f"no lane {lane_id!r}"
+            elif s is None or s["step"] != step:
+                why = f"{step!r} is not {lane_id}'s cursor step"
+            elif s["state"] != "sent":
+                why = f"{lane_id} {step} is {s['state']}, not sent"
+            elif not (head := head_of(lane)) or not head.startswith(sha):
+                why = f"{lane_id}'s tree is at {head[:9] or 'an unreadable head'}, not {sha[:9]}"
+            else:
+                why = ""
+                s.update(state="done", why=f"DONE {sha[:9]} recorded by hand", entered_at=_now())
+                save(lanes)
+    journal.append("queue", lane=lane_id, step=step, state="done" if not why else "said-done-refused", detail=why or f"DONE {sha[:9]} recorded by hand")
+    return why
+
+
 def adopt_session(j, lane: dict):
-    """#6589: a handle on the lane's live session, or None: its `builder run` still watches its feed and a window named for the lane
-    runs something other than an idle shell. The seams are `run_alive` and `tmux_as_worker`."""
+    """#6589: a handle on the lane's live session, or None. Its `builder run` must still watch the lane's feed (an unwatched session
+    reports no DONE and reads no message: that is the #6850 alert, never an adoption), and the session is alive when a window named
+    for the lane runs more than an idle shell, or the process id recorded at start is running. Seams: `run_alive`, `tmux_as_worker`, `pid_alive`."""
     if j is None or not j.user or not lane.get("feed") or not run_alive(j, lane["feed"]):
         return None
-    if not any(cmd and cmd.lstrip("-") not in SHELLS for _, cmd in worker_windows(j, lane["id"], with_command=True)):
+    pid = lane.get("session_pid")
+    if not live_windows(j, lane) and not pid_alive(pid):
         return None
-    return Adopted(lambda: run_alive(j, lane["feed"]) and bool(worker_windows(j, lane["id"])))
+    return Adopted(lambda: run_alive(j, lane["feed"]) and (bool(live_windows(j, lane)) or pid_alive(pid)))
 
 
 class Adopted:
@@ -1966,6 +2786,7 @@ def real_procs(root) -> Procs:
     repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
     ncfg = nightly.load(rules)
     mdl = models.load(root)
+    load_cfg(root)
     builder, reviewer = models.for_role(mdl, "builder").model, models.for_role(mdl, "reviewer").model
     reviewer_fast = models.for_role(mdl, "reviewer_fast").model if "reviewer_fast" in mdl else reviewer
     opus_paths = tuple(mdl.get("reviewer_paths") or work.OPUS_PATHS)
@@ -1985,14 +2806,22 @@ def real_procs(root) -> Procs:
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
     def start(lane, step):
-        a, q = ns(lane, step), shlex.quote
+        kind = worker_kind(mdl, lane.get("role", ""))  # a role on a Pi provider (openrouter) runs Pi under the same caps; refused before any tree is made
+        a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
+        step["pinned"] = a.pinned  # local.pin.prune-keeps-live-pins: a landing's prune keeps the copy this session runs from
         a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
         j = work._jail(a)
         for wid, cmd in worker_windows(j, lane["id"], with_command=True):  # #6496: a second session of one name is unreachable by name
             if cmd.lstrip("-") in SHELLS or not cmd:  # alert 540: an idle window (a shell, no session) is closed here, never a person's `queue stop`
                 tmux_as_worker(j, "kill-window", "-t", wid)
                 journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed", detail=f"an idle tmux window named {lane['id']} ({wid}, {cmd or 'no command'}) was closed before the start")
+            elif lane.get("session_step") == step["step"]:
+                # 2026-11-25 21:03-21:06 (alerts 1933-1935): a red step's fix round "in a new session" met the step's OWN last session,
+                # still open after its DONE. It is this step's session, which the loop sent: closed for the fresh one, never an alert
+                tmux_as_worker(j, "kill-window", "-t", wid)
+                journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed",
+                               detail=f"this step's own last session ({wid}, {cmd}) was closed: its fix round starts in a fresh one")
             else:
                 raise RuntimeError(f"a tmux window named {lane['id']} holds a live session ({wid}, {cmd}): `builder queue stop {lane['id']}` ends it, then retry")
         if lane.get("fresh") and not Path(a.worktree).exists() and step.get("head"):  # a retried batch: its head (in the engine repo) travels as a bundle
@@ -2018,15 +2847,37 @@ def real_procs(root) -> Procs:
         publish_rules(root, feed)  # #6851: the run's caps, from the live rules, re-read by it every tick
         codemap.provide_all(root)
         role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
+        a.kind, pi = kind
         cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
-                           *(("--role", role) if role else ()))
+                           *(("--role", role) if role else ()), *pi)
+        return spawn(j, lane, cmd)
+
+    def spawn(j, lane, cmd):
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         # #6869: the worker starts in a directory it made (the workroot is world-writable), and its TMPDIR and pytest's basetemp are inside it
-        own = q(str(Path(j.workroot) / f"work-{lane['id']}"))
+        own = shlex.quote(str(Path(j.workroot) / f"work-{lane['id']}"))
         env = f"export TMPDIR={own}/tmp PYTEST_ADDOPTS=--basetemp={own}/tmp/pytest"
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"mkdir -p {own}/tmp && [ -d {own} ] && [ ! -L {own} ] && [ -O {own} ] && cd {own} && {env} && {cmd}"],
                                 stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+
+    def attach(lane, step, window):
+        """local.run.sessions-survive-watchers: a `builder run --attach <pane>` on the lane's existing feed; None when it cannot."""
+        j = jail.load(root)
+        feed = Path(lane.get("feed") or "")
+        if j is None or not j.user or not lane.get("feed") or not (feed / "brief.txt").is_file():
+            return None
+        pane = tmux_as_worker(j, "display-message", "-p", "-t", window, "#{pane_id}").strip()
+        if not pane.startswith("%"):
+            return None
+        a = ns(lane, step)
+        a.pinned = step.get("pinned") or work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
+        a.root, a.brief = a.pinned, str(feed / "brief.txt")
+        role = lane.get("role", "")
+        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
+                           "--attach", pane, "--base", lane.get("session_head") or "", *(("--role", role) if role else ()),
+                           *(() if step["state"] == "sent" else ("--idle",)))
+        return spawn(j, lane, cmd)
 
     def send(lane, text):
         p = Path(lane["feed"]) / f"msg-{lane['seq']}.txt"
@@ -2071,9 +2922,7 @@ def real_procs(root) -> Procs:
         return r.returncode != 0 or any(f.startswith(prefixes) for f in r.stdout.split())  # unknown = build
 
     def verify_all():
-        r = subprocess.run([sys.executable, "-m", "fichero_builder", "verify-all", "--root", str(root), "--state", str(journal.STATE)],
-                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
-        return r.returncode, (r.stdout + r.stderr)[-2000:]
+        return verify_landed(repo, branch, pkg)
 
     def daily_builds():
         r = subprocess.run([sys.executable, "-m", "fichero_builder", "daily-builds", "--root", str(root), "--state", str(journal.STATE)],
@@ -2150,12 +2999,17 @@ def real_procs(root) -> Procs:
         rc, out = as_worker(f'rm -rf "$HOME"/.code-index/{base} "$HOME"/.code-index/{base}.db')
         journal.append("cleanup", lane="-", step="", path=tree, state="index-dropped" if rc == 0 else "index-kept", detail=out.strip()[-200:] or f"index of {tree} dropped")
 
-    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
-                 drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
-                 ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
+    def model_of(lane):
+        return models.for_role(mdl, lane["role"]).model if lane.get("role") else builder
+
+    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
+                 drop_index=drop_index, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
+                 ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
+                 head_of=lambda lane: lane_head(lane["worktree"]),
+                 descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
+                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, fast_forward=lambda p, old, new: refreshed(p, old, new, branch), tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))
@@ -2304,6 +3158,13 @@ def refresh_live(root, branch: str, git=None) -> str:
     journal.append("loop", state="live-tree", detail=f"{root} at origin/{branch} {head[:9]}{carried}")
     return f"moved to {head[:9]}{carried}"
 
+def refreshed(path: str, old: str, new: str, branch: str) -> bool:
+    """`new` is origin/<branch>'s tip in `path` and `old` is its ancestor: a refresh, not a stray write."""
+    g = [land_tool.GIT, "-c", "safe.directory=*", "-C", path]
+    tip = subprocess.run(g + ["rev-parse", f"refs/remotes/origin/{branch}"], capture_output=True, text=True).stdout.strip()
+    return bool(tip and new and tip.startswith(new) and subprocess.run(g + ["merge-base", "--is-ancestor", old, new], capture_output=True).returncode == 0)
+
+
 def trees(paths: list) -> dict:
     """{path: "HEAD sha1-of-status"} read as the owner (the jail's trees are the worker's: safe.directory); unreadable is its own word."""
     out = {}
@@ -2337,7 +3198,7 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
         if not issues:
             continue
         spec_path = root / triage.SPECS / spec
-        planned = milestone.plan(issues, milestone.build_order(spec_path), milestone.spec_slug(spec_path))
+        planned = milestone.plan(issues, milestone.build_order(spec_path, root=root), milestone.spec_slug(spec_path))
         for q in planned["questions"]:
             journal.append("queue", lane=lane, step="-", state="question", detail=q[-300:])
         if planned["questions"]:  # the owner places them: ONE alert for the milestone listing every question (not 25)
@@ -2349,7 +3210,7 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
             continue
         written = milestone.write_briefs(planned, out=journal.STATE / f"briefs-{lane}", repo_dir=str(root), base="", lane=lane,
                                          rules=rules.get("brief", {}).get("rules", ""), fetch=lambda n: brief_tool.fetch_issue(n, gh=gh),
-                                         cluster=brief_tool.cluster, spec_path=str(spec_path), binary=codemap.owner_binary(root))
+                                         cluster=brief_tool.cluster_for(root), spec_path=str(spec_path), binary=codemap.owner_binary(root))
         worktree = str(Path(rules["jail"]["workroot"]) / f"wt-{lane}")
         return lane, worktree, [{"step": c["step"], "brief": str(b), "issues": [i["number"] for i in c["issues"]], "waits": c["waits"]}
                                 for c, b in zip(planned["clusters"], written)]
@@ -2373,9 +3234,20 @@ def main(a) -> int:
             return 1
         kept = journal.STATE / "manager" / "briefs"  # a lane never depends on a loose file (#6589 item 21)
         dest = kept / f"{slug(a.lane)}-{slug(a.step)}.txt"
+        continues, left = getattr(a, "continues", "") or "", getattr(a, "left", "") or ""
+        if continues and not left.strip():
+            print("REFUSED: --continues needs --left: what is left of the step it continues")
+            return 1
+        if (twin := repeated_brief(a.lane, a.step, src.read_text())) and twin != continues:
+            print(f"REFUSED: {a.lane} {twin} already has this brief; a continuation is `--continues {twin} --left TEXT`")
+            journal.append("queue", lane=a.lane, step=a.step, state="add-refused", detail=f"the same brief as {twin}")
+            return 1
         if src.resolve() != dest.resolve():
             kept.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dest)
+        if continues:
+            with dest.open("a") as f:
+                f.write("\n" + continuation(a.lane, continues, left) + "\n")
         milestone = ""
         if a.issues:  # the lane joins the work tree under its issues' milestone (builder-console.ordered-work.one-source)
             from fichero_builder import work_store, work_tree
@@ -2384,8 +3256,18 @@ def main(a) -> int:
             except (ValueError, work_store.StoreError) as e:
                 print(f"REFUSED: {e}")
                 return 1
-        add(a.lane, a.worktree, a.step, str(dest), a.issues, role=a.role, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
-            pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None, milestone=milestone)
+        try:
+            load_cfg(a.root)
+        except (ValueError, tomllib.TOMLDecodeError) as e:
+            print(f"REFUSED: {e}")
+            return 1
+        joined = add(a.lane, a.worktree, a.step, str(dest), a.issues, role=a.role, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
+                     pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None, milestone=milestone,
+                     batch=True, alone=getattr(a, "alone", False))
+        if joined:
+            dest.unlink(missing_ok=True)
+            print(f"joined {a.lane} {joined} as part {len(parts_of(Path(next(s for x in load() if x['id'] == a.lane for s in x['steps'] if s['step'] == joined)['brief']).read_text()))}")
+            return 0
         print(f"queued {a.lane} {a.step}")
         return 0
     if a.action == "tell":  # dev-workflows.run.loop-tell: a finding into the lane's live session, as its next message
@@ -2404,6 +3286,18 @@ def main(a) -> int:
             p.chmod(0o644)
             save(lanes)
         journal.append("queue", lane=a.lane, step="-", state="told", detail=text[:300])
+        return 0
+    if a.action == "said-done":  # local.run.sessions-survive-watchers: a managed lane's missed DONE, recorded by hand
+        if why := said_done(a.lane or "", a.step or "", getattr(a, "sha", "") or "",
+                            lambda lane: subprocess.run(["git", "-c", "safe.directory=*", "-C", lane["worktree"], "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()):
+            print(f"REFUSED: {why}")
+            return 1
+        print(f"{a.lane} {a.step}: done; the loop checks it")
+        return 0
+    if a.action == "landed":  # a landing made by hand: the cursor step is landed at --sha
+        if why := landed(a.lane or "", a.step or "", getattr(a, "sha", "") or ""):
+            print(f"REFUSED: {why}")
+            return 1
         return 0
     if a.action == "stop":  # pause = no new step is fed; stop = the session ends (the loop closes it after the grace)
         with journal.Lock("queue"):
@@ -2424,6 +3318,10 @@ def main(a) -> int:
         journal.append("queue", lane=a.lane, step="-", state="stop", detail=f"grace {a.grace:g} s" + ("; the worker was told" if told else "; no live session"))
         print(f"stopping {a.lane}: the session closes within {a.grace:g} s; `builder queue resume --lane {a.lane}` starts a fresh one")
         return 0
+    if a.action == "moved":  # local.run.recorded-move-is-not-a-stray-write: a hand move of a tree, recorded
+        why = record_move(os.path.abspath(a.worktree or ""), a.text or "", trees)
+        print(f"REFUSED: {why}" if why else f"recorded the move of {a.worktree}")
+        return 1 if why else 0
     if a.action in ("move", "park", "unpark", "drop"):  # #6467 (run.loop-plan): the console's Plan clicks, under the queue lock
         why = reorder(a.lane, a.step, a.action, a.to, a.text or "")
         print(f"REFUSED: {why}" if why else f"{a.lane} {a.step}: {a.action}")
@@ -2479,7 +3377,7 @@ def lane_from_issues(root, lane_id: str, issues: list[int], gh: str = "gh") -> t
     except (RuntimeError, OSError, ValueError) as e:
         return 1, f"gh could not read the issues: {e}"
     base = land_tool.resolve_branch(str(root), branch) or f"origin/{branch}"
-    text = brief_tool.cluster(got, repo=str(root), branch=branch, base=base, rules=rules.get("brief", {}).get("rules", ""))
+    text = brief_tool.cluster_for(root)(got, repo=str(root), branch=branch, base=base, rules=rules.get("brief", {}).get("rules", ""))
     out = journal.STATE / f"briefs-{lane_id}"
     out.mkdir(parents=True, exist_ok=True)
     step = "issues-" + "-".join(str(n) for n in issues[:4])

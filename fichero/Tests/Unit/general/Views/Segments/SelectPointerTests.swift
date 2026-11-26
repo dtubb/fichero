@@ -67,7 +67,8 @@ final class SelectPointerTests: XCTestCase {
     }
 
     func testADragThatStartsOnABoxSelectsEveryBoxItTouches() async throws {
-        let selection = try await play(drag(from: (0.2, 0.15), to: (0.2, 0.45)))
+        // Not exactly vertical: a band with no width is no box (`BoundingBoxGeometry.normalizedBox`), so it would be a click.
+        let selection = try await play(drag(from: (0.2, 0.15), to: (0.25, 0.45)))
         XCTAssertEqual(Set(selection.indices), [0, 1], "the band started on line a and reached line b")
     }
 

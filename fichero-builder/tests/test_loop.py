@@ -2,6 +2,7 @@
 review -> landed --push -> the next step; a red goes back to the worker; every tick a heartbeat row. Processes are fakes."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -853,7 +854,7 @@ def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(st
         assert len([r for r in journal.read() if r.get("state") == "drain-held"]) == 1, "one row per head, not per tick"
         queue.DRAIN_SINCE[0] = time.time() - queue.DRAIN_MAX_S - 1  # a live worker session held the re-exec off past the cap
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
-        assert "ext" in chains, "past the cap the chain runs on the loop's current code"
+        assert set(chains) == {"pool"}, "past the cap no chain starts either: the re-exec comes first"
         assert [r["state"] for r in journal.read() if r.get("state") in ("drain-held", "drain-expired")] == ["drain-held", "drain-expired"]
     finally:
         queue.DRAIN[0] = False
@@ -1910,3 +1911,246 @@ def test_the_same_head_going_on_by_itself_after_an_approve_runs_the_recheck_with
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "auto-approve"]
     assert seen[1] == (True, ("t/test_x.py",)), "the re-check of the same head runs with the approval for the named file"
+
+
+def test_a_red_on_base_approve_binds_the_test_the_ladder_file_names_when_the_alert_line_names_none(state, tmp_path):
+    """#6589 (app-bugs bug-7084, 13 rounds): the alert's one line was the end of the base run's output and named no test file, so the
+    approve bound to no file and was asked again after every rebase. The red rung's text in the ladder file names it: that is bound."""
+    wt, g = _ext_repo(tmp_path, commits=1)
+    (wt / "tests").mkdir()
+    (wt / "tests" / "test_x.py").write_text("def test_x():\n    assert True\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a test that passes on base")
+    head_a = g(wt, "rev-parse", "HEAD")
+    ladder = tmp_path / "ladder-ext.json"
+    ladder.write_text(json.dumps({"ok": False, "failed": "red-on-base", "rungs": [
+        {"name": "pinned-checks", "ok": True, "stderr_tail": "tests/other_ok.py"},
+        {"name": "red-on-base", "ok": False, "stderr_tail": "NOT RED ON BASE: tests/test_x.py passes at abc123456, so it proves nothing\n.html | 11 pass"}]}))
+    queue.add("ext", str(wt), "batch-1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "ext", head_a, "--state", str(state / "s")]) == 0
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "red-on-base", "approvals": ["approve_red"], "evidence": str(ladder),
+                                     "why": f"red-on-base at {head_a[:9]}: .html | ===== KNOWN BROKEN ===== | 11 pass"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    s = queue.load()[0]["steps"][0]
+    assert list(s["approved_test_blobs"]) == ["tests/test_x.py"], "the green rung's text binds nothing"
+    (wt / "other").write_text("o")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a rebase brought more")
+    assert queue.content_approvals({**s, "head": g(wt, "rev-parse", "HEAD")}, str(wt))["approve_red"] == ("tests/test_x.py",)
+
+
+def test_a_pinned_approve_holds_when_only_files_the_refusal_does_not_name_changed(state, tmp_path):
+    """#6589: the pinned diff an approve binds to carries every test file of the batch too, so a rebase or a new test changed its
+    patch-id and the same pinned file was asked about again. Each file the refusal names, with its own diff, is what is compared."""
+    lane(state)
+    diff, later, changed = tmp_path / "pinned-m1.diff", tmp_path / "pinned-m1-later.diff", tmp_path / "pinned-m1-changed.diff"
+    pinned = "diff --git a/scripts/x.py b/scripts/x.py\nindex 1111111..2222222 100644\n--- a/scripts/x.py\n+++ b/scripts/x.py\n@@ -1 +1 @@\n-a\n+b\n"
+    test = "diff --git a/tests/test_y.py b/tests/test_y.py\nindex 4444444..{0} 100644\n--- a/tests/test_y.py\n+++ b/tests/test_y.py\n@@ -1 +1 @@\n-x\n+{1}\n"
+    diff.write_text(pinned + test.format("5555555", "y"))
+    later.write_text(pinned.replace("@@ -1 +1 @@", "@@ -3 +3 @@") + test.format("6666666", "z"))
+    changed.write_text(pinned.replace("+b", "+c") + test.format("5555555", "y"))
+    why = "pinned-checks at abc1234ef: scripts/x.py: a pinned check file was changed"
+    refusal = {"ok": False, "kind": "needs-maintainer", "why": why, "findings": "scripts/x.py: a pinned check file was changed\nneeds-maintainer", "approvals": ["maintainer"]}
+    fake = Fake(chains={"1.1": [{**refusal, "evidence": str(diff)}, {**refusal, "evidence": str(later), "head": "h1.1b"}],
+                        "1.2": [{**refusal, "evidence": str(changed)}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    assert set(next(s for s in queue.load()[0]["steps"] if s["step"] == "1.1")["approved_diff_files"]) == {"scripts/x.py", "tests/test_y.py"}
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "landed", "another test file changed and the pinned file's own diff did not: approved by itself"
+    assert len(_alerts()) == 2 and _alerts()[-1]["step"] == "1.2", "the pinned file's own diff changed: the manager's call"
+
+
+def test_refused_files_reads_every_named_path():
+    t = "scripts/x.py: a pinned check file was changed\nfichero/a.json: a pinned check file was deleted\nthe diff deletes or weakens existing tests (tests/a.py, tests/b.py)\nneeds-maintainer"
+    assert queue.refused_files(t) == ["scripts/x.py", "fichero/a.json", "tests/a.py", "tests/b.py"]
+
+
+def _jail_root_moves(state, tmp_path, to, fast_forward=lambda p, old, new: False, record=False):
+    JR = _dirs(tmp_path)[0]
+    lane(state)
+    world = {JR: "r1 clean"}
+    fake = Fake()
+    fake.procs.jail_root, fake.procs.trees, fake.procs.fast_forward = JR, lambda paths: {p: world[p] for p in paths}, fast_forward
+    base_start = fake.procs.start
+
+    def start(lane_, step):
+        if step["step"] == "1.1":
+            world[JR] = to
+            if record:
+                assert queue.record_move(JR, "refreshed by hand after a pushed rules change", fake.procs.trees) == ""
+        return base_start(lane_, step)
+    fake.procs.start = start
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    return _alerts()
+
+
+def test_a_jail_root_fast_forwarded_to_origins_tip_and_clean_raises_nothing(state, tmp_path):
+    """local.run.recorded-move-is-not-a-stray-write (Step 2.13): on 2026-11-21 one clean hand refresh raised seven alerts."""
+    seen = []
+    assert _jail_root_moves(state, tmp_path, "r2 clean", fast_forward=lambda p, old, new: seen.append((p, old, new)) or True) == []
+    assert seen == [(str(tmp_path / "jail-root"), "r1", "r2")]
+
+
+def test_a_dirty_or_off_origin_jail_root_still_alerts(state, tmp_path):
+    assert len(_jail_root_moves(state, tmp_path, "r2 dirty 1234", fast_forward=lambda p, old, new: True)) == 1, "dirty: never a refresh"
+
+
+def test_a_tree_moved_row_excuses_its_tree_at_the_state_it_recorded(state, tmp_path):
+    JR = str(tmp_path / "jail-root")
+    assert _jail_root_moves(state, tmp_path, "r2 dirty 1234", record=True) == []
+    assert [r["to"] for r in journal.read() if r["event"] == "tree-moved"] == ["r2 dirty 1234"]
+    assert queue.record_move(JR, "", lambda paths: {JR: "r2 clean"}) == "moved needs --text: why the tree was moved"
+
+
+def test_a_move_that_still_alerts_is_one_alert_for_every_step_that_saw_it(state):
+    JR = "/w/jail-root"
+    moved = [f"{JR}: r1 clean -> r9 dirty 1"]
+    ids = {queue.stray_alert("m1", s, moved) for s in ("1.1", "1.2", "2.1")}
+    assert len(ids) == 1 and len(_alerts()) == 1
+    assert [r["step"] for r in journal.read() if r.get("state") == "stray-write-seen"] == ["1.2", "2.1"]
+    queue.stray_alert("m1", "3.1", [f"{JR}: r9 dirty 1 -> r10 clean"])
+    assert len(_alerts()) == 2, "another move is another alert"
+
+
+CONFLICT = {"ok": False, "kind": "conflict", "why": "rebase onto origin/integration stopped on a conflict in .github/workflows/tests.yml",
+            "findings": "Conflicting files:\n- .github/workflows/tests.yml\nCommits on origin/integration since your branch's base that touched them:\n"
+                        "- ea876c50e ci: lane and integration pushes run the tests\nRebase onto origin/integration yourself ... keeping BOTH sides"}
+
+
+def test_a_rebase_conflict_is_one_fix_round_for_the_lanes_worker_then_an_alert(state):
+    """run.rebase-conflict-fix-round: 2026-11-25 builder-batch ci-actions-1 blocked twice, seg-tools hands-5161 and seg-finish seg-4
+    once each, on "conflict left to a person". The worker gets the files and the commits that touched them; a second conflict alerts."""
+    lane(state)
+    fake = Fake(chains={"1.1": [dict(CONFLICT), dict(CONFLICT)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    told = [t for t in fake.sent if "Conflicting files" in t]
+    assert len(told) == 1 and "ea876c50e ci: lane and integration pushes run the tests" in told[0] and "BOTH sides" in told[0]
+    assert "DONE" in told[0], "the fix brief ends on the DONE line"
+    (a,) = _alerts()
+    assert a["step"] == "1.1" and "conflict" in a["what"], "the worker's round also ended in a conflict: now the manager's call"
+
+
+def test_a_conflict_with_no_live_session_starts_one_for_the_round(state):
+    lane(state)
+    fake = Fake(chains={"1.1": [dict(CONFLICT)]})
+    started, base_chain, base_start = [], fake.procs.chain, fake.procs.start
+
+    def chain(lane_, step, stage):
+        if step["step"] == "1.1" and fake.chains.get("1.1"):
+            fake.alive_now = False
+        return base_chain(lane_, step, stage)
+
+    def start(lane_, step):
+        started.append(step.get("resume_brief") or step["brief"])
+        return base_start(lane_, step)
+    fake.procs.chain, fake.procs.start = chain, start
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    fix = open(started[1]).read()
+    assert "brief 1.1" in fix and "Conflicting files" in fix and "ea876c50e" in fix
+    assert steps()["1.1"]["state"] == "landed" and _alerts() == [], "the round resolved it: no alert"
+
+
+def test_a_conflict_the_round_resolved_resets_so_a_later_one_gets_its_own_round(state):
+    lane(state)
+    fake = Fake(chains={"1.1": [dict(CONFLICT), {"ok": False, "kind": "red", "why": "pytest red", "findings": "t1 failed"}, dict(CONFLICT)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert len([t for t in fake.sent if "Conflicting files" in t]) == 2 and _alerts() == []
+
+
+def test_a_conflict_when_the_next_step_is_sent_goes_to_the_live_session_not_a_block(state):
+    """procs.rebase before a step is sent into a kept session: the step goes with the conflict to resolve first."""
+    from fichero_builder import work
+    lane(state)
+    fake = Fake(rebase="rebase onto origin/integration stopped on a conflict in f" + work.REBASE_CONFLICT + "Conflicting files:\n- f")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert any(t.startswith("brief 1.2") and "Conflicting files" in t for t in fake.sent), fake.sent
+    assert _alerts() == [] and [r for r in journal.read() if r.get("state") == "conflict-told"]
+
+
+APP_BUGS_TEST = "fichero-server/tests/unit/execution/test_a_failed_jobs_reason_is_its_kinds_words_6597.py"
+APP_BUGS_WHAT = ("red-on-base at {h}: .html | ====================== KNOWN BROKEN, SPECIFIED, NOT FIXED ====================== | 9 tests "
+                 "describe behaviour the code does not have yet. | Open: #4395, #4420, #5113, #5134, #5794 | Listed in tests/known_specification_failures.txt "
+                 "— this is debt, not a pass. | 1 pas")
+
+
+def test_a_worker_lanes_red_on_base_approve_holds_at_the_same_head_from_the_ladders_file_names(state, tmp_path):
+    """2026-11-25, app-bugs nightly-green-1: approved at 11:37:32 (alert -1863, red-on-base at f8dd07262, the test passes on base), asked
+    AGAIN at 12:33 (alert -1869) at the SAME head. The alert's text named only ".html"; the test file was in the ladder alone; and a
+    worker lane's step has no head, so the content binding was never read. The approve now names the ladder's files and binds on the
+    tree's HEAD."""
+    wt, g = _ext_repo(tmp_path, commits=0)
+    (wt / APP_BUGS_TEST).parent.mkdir(parents=True)
+    (wt / APP_BUGS_TEST).write_text("def test_words():\n    assert True\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a test that passes on base")
+    head = g(wt, "rev-parse", "HEAD")
+    queue.add("app-bugs", str(wt), "nightly-green-1", str(state / "b1.1"), [])
+    ladder = state / "ladder-app-bugs.json"
+    ladder.write_text(json.dumps({"ok": False, "rungs": [{"name": "red-on-base", "ok": False, "reason": "NOT RED ON BASE",
+                                                         "stdout_tail": f"{APP_BUGS_TEST} passes on base\n1 passed, 77 warnings in 1.01s"}]}))
+    red = {"ok": False, "kind": "red-on-base", "approvals": ["approve_red"], "evidence": str(ladder), "why": APP_BUGS_WHAT.format(h=head[:9])}
+    fake = Fake(chains={"nightly-green-1": [dict(red)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(journal.STATE)]) == 0
+    s = next(x for x in queue.load() if x["id"] == "app-bugs")["steps"][0]
+    assert s["head"] == "" and APP_BUGS_TEST in s["approved_tests"], "the ladder's file, at its full path"
+    assert s["approved_test_blobs"][APP_BUGS_TEST]["head"] == g(wt, "rev-parse", f"{head}:{APP_BUGS_TEST}")
+    assert APP_BUGS_TEST in queue.content_approvals(s, str(wt), "origin/integration")["approve_red"]
+    s2 = {**s, "approve_red": False}  # the head's own flag spent (the 11:52 re-check): the content binding alone still holds
+    assert queue.content_approvals(s2, str(wt), "origin/integration")["approve_red"] == (APP_BUGS_TEST,)
+
+
+def test_named_files_drop_a_cut_off_copy_of_a_longer_name():
+    said = "weakens existing tests (...chero-server/tests/unit/jobs/test_a.py"
+    ladder = "fichero-server/tests/unit/jobs/test_a.py: 2 asserts fewer"
+    assert queue.named_files(said, ladder, r"\.py") == ["fichero-server/tests/unit/jobs/test_a.py"]
+
+
+PINS_TEST = "fichero-server/tests/unit/execution/test_activity_engine_pins.py"
+PINS_LINE = (f"NOT RED ON BASE: {PINS_TEST} passes at a40008b70, so it proves nothing (base ran on imac, tree "
+             "/Users/Shared/fichero-worker/check-base-tree-2_g_nx_g: s.html | ====================== KNOWN BROKEN, SPECIFIED, NOT FIXED "
+             "====================== | 9 tests describe behaviour the code does not have yet. | Open: #4395, #4420, #5113, #5134, #5794 | "
+             "Listed in tests/known_specification_failures.txt — this is debt, not a pass. | 5 passed, 77 warnings in 0.70s)\nneeds-approval")
+
+
+def test_an_approve_reads_the_not_red_on_base_line_and_drops_stale_entries(state, tmp_path):
+    """2026-11-25, app-bugs nightly-green-1 at 1b42f9abc (alerts 1888, 1891): the red-on-base rung's stderr_tail named the file; the
+    step still held a cut-off "chero-server/..." name bound to no blob. The approve binds the line's file and drops both stale entries."""
+    wt, g = _ext_repo(tmp_path, commits=0)
+    (wt / PINS_TEST).parent.mkdir(parents=True)
+    (wt / PINS_TEST).write_text("def test_pins():\n    assert True\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a test that passes on base")
+    head = g(wt, "rev-parse", "HEAD")
+    queue.add("app-bugs", str(wt), "nightly-green-1", str(state / "b1.1"), [])
+    stale = "chero-server/tests/unit/jobs/test_a_failed_jobs_reason_is_its_kinds_words_6597.py"
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(approved_head="", approved_tests=[stale], approved_test_blobs={stale: {"base": "", "head": "", "kind": "approve_weakened"}})
+    queue.save(lanes)
+    ladder = state / "ladder-app-bugs.json"
+    ladder.write_text(json.dumps({"ok": False, "rungs": [{"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False,
+                                                         "seconds": 0, "stdout_tail": "", "stderr_tail": PINS_LINE}]}))
+    red = {"ok": False, "kind": "red-on-base", "approvals": ["approve_red"], "evidence": str(ladder), "why": APP_BUGS_WHAT.format(h=head[:9])}
+    queue.run(Fake(chains={"nightly-green-1": [dict(red)]}).procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(journal.STATE)]) == 0
+    s = next(x for x in queue.load() if x["id"] == "app-bugs")["steps"][0]
+    assert PINS_TEST in s["approved_tests"] and stale not in s["approved_tests"]
+    assert set(s["approved_test_blobs"]) == {PINS_TEST}, "the cut-off name bound to no blob is gone"
+    assert PINS_TEST in queue.content_approvals({**s, "approve_red": False}, str(wt), "origin/integration")["approve_red"]
+
+
+def test_a_fix_round_and_a_send_back_name_the_interpreter_that_has_pytest(state, monkeypatch):
+    """local.run.worker-knows-its-test-python: 2026-11-25 13:55, builder-fixes reliab-1 said WAITING: no interpreter in its worktree had
+    pytest (no .venv, no uv). [check].python has it; every fix round and send-back says so."""
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\npython = "/Users/Shared/w/venv/bin/python"\n[land]\nbranch = "integration"\n')
+    monkeypatch.setattr(queue, "TEST_PYTHON", [""])
+    queue.load_cfg(state)
+    assert "Run tests with `/Users/Shared/w/venv/bin/python -m pytest <files> -q`" in queue.fix_text("1.1", "red", "t1 failed")
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "t1 failed"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert any("/Users/Shared/w/venv/bin/python -m pytest" in t for t in fake.sent)
+    monkeypatch.setattr(queue, "TEST_PYTHON", [""])
+    assert "Run tests with" not in queue.fix_text("1.1", "red", "x"), "no [check].python: nothing is said"

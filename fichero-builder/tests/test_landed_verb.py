@@ -139,8 +139,34 @@ def test_a_second_landing_replaces_the_previous_pinned_branch_and_worktree(world
     assert cli.main(["landed", second, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),
                      "--state", str(world.tmp / "s"), "--push"]) == 0
     branches = _g(world.engine, "branch", "--list", "pinned-*", "--format=%(refname:short)").split()
-    assert branches == [f"pinned-{second[:7]}"]
-    assert not (world.pinned_dir / f"pinned-{first[:7]}").exists() and (world.pinned_dir / f"pinned-{second[:7]}").is_dir()
+    # local.pin.prune-keeps-live-pins (#6589): the newest three pins stay, so the previous one is kept beside the new one
+    assert sorted(branches) == sorted([f"pinned-{first[:7]}", f"pinned-{second[:7]}"])
+    assert (world.pinned_dir / f"pinned-{first[:7]}").is_dir() and (world.pinned_dir / f"pinned-{second[:7]}").is_dir()
+
+
+def test_a_pin_prune_keeps_the_newest_three_and_every_pin_a_live_or_queued_step_names(world, monkeypatch):
+    """#6589: a landing's prune deleted pinned-<sha> dirs live worker sessions still imported from."""
+    shas = []
+    for i in range(6):
+        (world.seed / f"p{i}").write_text(str(i))
+        _g(world.seed, "add", f"p{i}"), _g(world.seed, "commit", "-qm", f"p{i}", f"--date=2026-11-0{i + 1}T00:00:00")
+        env = {**os.environ, "GIT_COMMITTER_DATE": f"2026-11-0{i + 1}T00:00:00"}
+        subprocess.run(["git", "-C", str(world.seed), "commit", "--amend", "-q", "--no-edit"], env=env, check=True)
+        shas.append(_g(world.seed, "rev-parse", "HEAD"))
+    _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-p")
+    world.pinned_dir.mkdir(exist_ok=True)
+    for s in shas[:-1]:
+        landed.pin(world.engine, s, world.pinned_dir, keep_others=True)  # five older pins, all kept for now
+    brief = world.tmp / "brief.txt"
+    brief.write_text(f"You are a worker. Branch b (base {shas[1]}). No push.\n")
+    lanes = [{"id": "l", "cursor": 0, "steps": [{"step": "s1", "state": "sent", "pinned": str(world.pinned_dir / f"pinned-{shas[0][:7]}"), "brief": ""},
+                                                 {"step": "s2", "state": "queued", "brief": str(brief)},
+                                                 {"step": "s3", "state": "landed", "pinned": str(world.pinned_dir / f"pinned-{shas[2][:7]}"), "brief": ""}]}]
+    assert landed.pins_in_use(lanes) == {f"pinned-{shas[0][:7]}", f"pinned-{shas[1][:7]}"}
+    landed.pin(world.engine, shas[5], world.pinned_dir, keep=landed.pins_in_use(lanes))
+    left = set(_g(world.engine, "branch", "--list", "pinned-*", "--format=%(refname:short)").split())
+    assert left == {f"pinned-{s[:7]}" for s in (shas[0], shas[1], shas[3], shas[4], shas[5])}  # in use: 0, 1; newest three: 3, 4, 5; 2 goes
+    assert not (world.pinned_dir / f"pinned-{shas[2][:7]}").exists() and (world.pinned_dir / f"pinned-{shas[0][:7]}").is_dir()
 
 
 def test_scratch_worktrees_of_the_work_rows_for_that_sha_are_removed_as_the_worker(world):

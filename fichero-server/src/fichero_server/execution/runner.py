@@ -1095,6 +1095,10 @@ class AlreadyReading(Exception):
         self.thread_id = thread_id
 
 
+#: `started_by` values of runs nobody is waiting for; their worker thread drops to background QoS (#4740).
+UNATTENDED_STARTERS = ("schedule", "trigger")
+
+
 async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRequest, thread_id: str,
                     *, parent_job: str | None = None, started_by: str | None = None) -> threading.Event:
     """Start a run: the one way every run starts, by hand or as a batch's item (#5374,
@@ -1154,6 +1158,10 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
 
     def _run_workflow_thread() -> None:
         try:
+            if started_by in UNATTENDED_STARTERS:  # nobody waits: yield the CPU to the foreground app (#4740)
+                from fichero_server.core.background_compute import set_background_qos  # noqa: PLC0415
+
+                set_background_qos()
             asyncio.run(
                 _run_workflow_in_background(
                     thread_id=thread_id,

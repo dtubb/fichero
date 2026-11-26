@@ -33,7 +33,11 @@ struct ActivityOpenedRunTests {
         let body = String(view[log.lowerBound..<end.lowerBound])
         #expect(!body.contains("List(lines)"))
         #expect(!body.contains("ScrollViewReader"))
-        #expect(body.contains("LazyVStack"))
+        // The lines are drawn by `ActivityLogLinesView` (`activity.log.like-xcode`): a LazyVStack, inside the Inspector's one scroll.
+        #expect(body.contains("ActivityLogLinesView(lines: lines"))
+        let lines = try source("Views/Activity/Detail/ActivityLogLinesView.swift")
+        #expect(lines.contains("LazyVStack"))
+        #expect(!lines.contains("List(lines)"))
     }
 
     @Test("the subtitle says when the run started: the time for today, the day for another day, nothing when not known")

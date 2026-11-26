@@ -60,7 +60,9 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         for path in try Self.appSwiftFiles()
         where path != owner && path.hasPrefix("App/Menus/") {
             let source = try Self.appSource(path)
-            if source.contains("keyboardShortcut(\"a\"") || source.contains("keyboardShortcut(\"A\"") {
+            // Plain ⌘A only: ⌘⇧A (Select Same Kind, segment-editor spec) is a different chord.
+            if source.contains("keyboardShortcut(\"a\", modifiers: .command)")
+                || source.contains("keyboardShortcut(\"A\", modifiers: .command)") {
                 offenders.append(path)
             }
         }

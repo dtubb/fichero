@@ -46,6 +46,14 @@ struct SegmentSimplifyTests {
         #expect(SegmentEdit.simplifyNotice(removed: 0) == "Simplify removed no points")
     }
 
+    @Test("the menu's tolerance grows with the page image, with 2 px as the floor (#7069)")
+    func menuToleranceScalesWithTheImage() {
+        #expect(SegmentEdit.menuSimplifyTolerance(imageWidth: 0) == 2)
+        #expect(SegmentEdit.menuSimplifyTolerance(imageWidth: 800) == 2)
+        #expect(SegmentEdit.menuSimplifyTolerance(imageWidth: 6000) == 6)
+        #expect(SegmentEdit.menuSimplifyTolerance(imageWidth: 6000) > SegmentEdit.menuSimplifyTolerance(imageWidth: 3000))
+    }
+
     @Test("nothing selected, or a segment not saved yet, sends nothing")
     func refusals() {
         #expect(SegmentEdit.simplify([]) == .failure(.tooFew))

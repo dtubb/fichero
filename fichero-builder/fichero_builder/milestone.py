@@ -11,12 +11,12 @@ import re
 import subprocess
 from pathlib import Path
 
-from fichero_builder import codemap
+from fichero_builder import client, codemap
 
 STEP_IN_TITLE = r"\b{slug} Step (\d+\.\d+)\b"   # `<spec slug> Step 1.3: ...`, the shape `builder steps` files
 STEP_IN_BODY = re.compile(r"^Step:?\s+(\d+\.\d+)\b", re.M)  # a bare line counts only inside the spec's own milestone
 MILESTONE_LINE = re.compile(r"^>\s*Milestone:\s*(\S+)", re.M)
-GUARD = Path(__file__).resolve().parents[2] / "scripts" / "check_spec_build_order_shape.py"
+GUARD = client.scripts_dir() / "check_spec_build_order_shape.py"
 
 
 def spec_slug(spec_path) -> str:
@@ -27,10 +27,17 @@ def spec_slug(spec_path) -> str:
     return m.group(1)
 
 
-def build_order(spec_path, guard=GUARD) -> list[dict]:
-    """The spec's steps in build order: [{number, title, depends_on, behaviours}], via the guard's parser."""
+def guard_for(root=None) -> Path:
+    """The build-order guard in root's [harness].scripts_dir when that folder has one (builder.client.scripts-from-the-root), else GUARD."""
+    own = client.script(root, GUARD.name, GUARD)
+    return own if own.is_file() else GUARD
+
+
+def build_order(spec_path, guard=None, root=None) -> list[dict]:
+    """The spec's steps in build order: [{number, title, depends_on, behaviours}], via the guard's parser (root's own, see guard_for)."""
     import sys
 
+    guard = guard or guard_for(root)
     spec = importlib.util.spec_from_file_location("build_order_guard", guard)
     mod = importlib.util.module_from_spec(spec)
     sys.path.insert(0, str(Path(guard).parent))  # the guard imports helpers beside it

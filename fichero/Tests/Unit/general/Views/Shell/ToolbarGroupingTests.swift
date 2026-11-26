@@ -200,8 +200,8 @@ struct ToolbarGroupingTests {
         for id in ["ContentToolbarID.modelChip", "ContentToolbarID.workflowSuggest", "ContentToolbarID.engineStatus"] {
             #expect(source.contains("ToolbarItem(id: \(id), placement: Self.islandNeighbourPlacement)"))
         }
-        // Server + activity share the engineStatus item (2026-08-30).
-        #expect(!source.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
+        // Activity is its own item at the far right, not a principal neighbour (#7090).
+        #expect(source.contains("ToolbarItem(id: ContentToolbarID.activityStatus, placement: .automatic)"))
     }
 
     /// The breadcrumb is the one that keeps it: `.principal` is the window's

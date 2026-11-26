@@ -62,7 +62,8 @@ extension ActionLibraryService {
                 resultListCounts: ActionInvokeResult.listCounts(json.result.value),
                 resultListStrings: ActionInvokeResult.listStrings(json.result.value),
                 resultIdPairs: ActionInvokeResult.idPairs(json.result.value),
-                resultIntegers: ActionInvokeResult.integers(json.result.value)
+                resultIntegers: ActionInvokeResult.integers(json.result.value),
+                resultStrings: ActionInvokeResult.strings(json.result.value)
             )
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
             return result
@@ -246,6 +247,9 @@ struct ActionInvokeResult: Decodable {
     /// Each top-level whole number in the answer, by key (`removed`).
     var resultIntegers: [String: Int] = [:]
 
+    /// Each top-level string in the answer, by key (`region_id` from `segment.group_lines`).
+    var resultStrings: [String: String] = [:]
+
     /// The answer's top-level lists of string pairs; empty for anything that is not an object.
     static func idPairs(_ value: Any?) -> [String: [[String]]] {
         guard let object = value as? [String: (any Sendable)?] else { return [:] }
@@ -272,6 +276,12 @@ struct ActionInvokeResult: Decodable {
             if strings.count == list.count { lists[key] = strings }
         }
         return lists
+    }
+
+    /// The answer's top-level strings by key; empty for anything that is not an object.
+    static func strings(_ value: Any?) -> [String: String] {
+        guard let object = value as? [String: (any Sendable)?] else { return [:] }
+        return object.compactMapValues { $0 as? String }
     }
 
     /// The answer's top-level whole numbers by key (`removed` from Simplify); empty for anything that is not an object.

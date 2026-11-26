@@ -1,10 +1,15 @@
 name: Tests
 
-# Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.test-workflow). REPORT-ONLY at first: every job is
-# continue-on-error, so a red run is read (by people and by `builder check`, ci.builder-reads-actions) but blocks nothing.
+# Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.test-workflow, ci.python-tiers, ci.swift-on-actions).
+# REPORT-ONLY: every job is continue-on-error, so a red run is read (by people and by `builder check`, ci.builder-reads-actions)
+# but blocks nothing. One job per tier (the unit tier one per shard), so a red names its tier. A push to a lane-* branch
+# runs the Python tiers only: the Macs own Swift for lane checks; the Swift job runs on pull requests, integration pushes
+# and by hand.
 on:
   pull_request:
     branches: ['integration']
+  push:
+    branches: ['lane-*', 'integration']
   workflow_dispatch:
 
 permissions:
@@ -12,13 +17,69 @@ permissions:
 
 concurrency:
   group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/integration' }}  # integration: a running pass finishes (the engine takes ~25 min, pushes come faster); only the newest waiting run is kept
 
 jobs:
+  # The Python tiers run on Linux (ci.python-tiers): Apple-only dependencies carry a darwin marker, so the same uv.lock
+  # syncs here, and a test that needs macOS itself is marked macos_only, skipped here with its reason and run by
+  # engine-macos. The engine unit tier is split into eight jobs by test file, weighed by test count
+  # (scripts/ci_shard_tests.py). Python is the engine's own 3.12 (the repo's .python-version): a runner's default
+  # (3.14 on Linux, 3.15 on macOS) is not what ships, and onnxruntime has no 3.15 wheel.
+  # Each pytest run: --timeout=300 per test (pytest-timeout, in the dev extra) with the gates' thread method, so a hang
+  # ends the run with every thread's stack instead of the job's limit; -rfE names each failure in the summary.
   engine:
-    name: Engine unit suite and spec guards
-    runs-on: macos-15
-    timeout-minutes: 60
+    name: engine (${{ matrix.shard }}/8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: fichero-server/uv.lock
+          python-version: '3.12'
+      - name: Install the engine
+        working-directory: fichero-server
+        run: uv sync --frozen --all-extras
+      - name: Install the bundle's own requires
+        # What scripts/setup_venv.sh step 2 adds on the Macs: the briefcase `requires` (spaCy's two language models,
+        # among them), pinned by uv.lock. Kraken is not installed here; its tests skip without it.
+        working-directory: fichero-server
+        run: |
+          uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
+            --format requirements-txt -o "$RUNNER_TEMP/lock-constraints.txt" > /dev/null
+          uv run --frozen --no-sync python -c 'import tomllib; print("\n".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["briefcase"]["app"]["fichero_server"]["requires"]))' > "$RUNNER_TEMP/bundle-requires.txt"
+          uv pip install -c "$RUNNER_TEMP/lock-constraints.txt" -r "$RUNNER_TEMP/bundle-requires.txt"
+      - name: Spec guards
+        if: matrix.shard == 1
+        run: |
+          # from the repo root: the guards scan docs/ and scripts/ relative to it
+          status=0
+          for g in scripts/check_spec_*.py; do
+            echo "== $g"
+            uv run --project fichero-server --frozen python "$g" || status=1
+          done
+          exit $status
+      - name: Unit tests
+        if: ${{ !cancelled() }}
+        working-directory: fichero-server
+        run: |
+          paths="$(python3 ../scripts/ci_shard_tests.py tests/unit ${{ matrix.shard }} 8)"
+          echo "shard ${{ matrix.shard }}/8: $(echo $paths | wc -w) files"
+          uv run --frozen pytest $paths -q -rfE -p no:cacheprovider -m 'not macos_only' --timeout=300 --timeout-method=thread
+
+  # The macos_only tests run on the Macs whatever this job says. When the engine cannot be installed on the hosted macOS
+  # runner (no wheel for it, GitHub run 45666948572), the job says NOT RUN with the reason and is not red: a NOT RUN is
+  # not a green either. Kept so it runs again by itself once it can install.
+  engine-macos:
+    name: engine-macos (macos_only tests)
+    runs-on: macos-26
+    timeout-minutes: 45
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -26,32 +87,116 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: fichero-server/uv.lock
+          python-version: '3.12'
       - name: Install the engine
-        working-directory: fichero-server
-        run: uv sync --frozen
-      - name: Spec guards
+        id: install
         working-directory: fichero-server
         run: |
-          status=0
-          for g in ../scripts/check_spec_*.py; do
-            echo "== $g"
-            uv run --frozen python "$g" || status=1
-          done
-          exit $status
-      - name: Unit tests
+          if ! uv sync --frozen --all-extras 2> sync.err; then
+            cat sync.err
+            why="$(grep -m1 -E '^error' sync.err | tr -d '\r' | cut -c1-300)"
+            echo "::notice title=engine-macos NOT RUN::the engine did not install on this hosted macOS runner (${why:-uv sync failed}); the macos_only tests did not run here, which is not a green"
+            echo "NOT RUN: ${why:-uv sync failed}"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cat sync.err
+          echo "available=true" >> "$GITHUB_OUTPUT"
+      - name: macOS-only tests
+        if: steps.install.outputs.available == 'true'
         working-directory: fichero-server
-        run: uv run --frozen pytest tests/unit -q -p no:cacheprovider
+        run: uv run --frozen pytest tests/unit tests/contracts -q -rfE -p no:cacheprovider -m macos_only --timeout=300 --timeout-method=thread
 
-  swift:
-    name: Swift build and unit tests
-    runs-on: macos-15
-    timeout-minutes: 90
+  contracts:
+    name: Engine contract tier
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
-      - name: Build and test (scheme Dev Local, macOS)
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: fichero-server/uv.lock
+          python-version: '3.12'
+      - name: Install the engine
+        working-directory: fichero-server
+        run: uv sync --frozen --all-extras
+      - name: Install the bundle's own requires
+        # What scripts/setup_venv.sh step 2 adds on the Macs: the briefcase `requires` (spaCy's two language models,
+        # among them), pinned by uv.lock. Kraken is not installed here; its tests skip without it.
+        working-directory: fichero-server
+        run: |
+          uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
+            --format requirements-txt -o "$RUNNER_TEMP/lock-constraints.txt" > /dev/null
+          uv run --frozen --no-sync python -c 'import tomllib; print("\n".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["briefcase"]["app"]["fichero_server"]["requires"]))' > "$RUNNER_TEMP/bundle-requires.txt"
+          uv pip install -c "$RUNNER_TEMP/lock-constraints.txt" -r "$RUNNER_TEMP/bundle-requires.txt"
+      - name: Contract tests
+        working-directory: fichero-server
+        run: uv run --frozen pytest tests/contracts -q -rfE -p no:cacheprovider -m 'not macos_only' --timeout=300 --timeout-method=thread
+
+  builder:
+    name: Builder's own suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: fichero-builder/pyproject.toml
+      - name: Builder tests
+        working-directory: fichero-builder
+        env:
+          PYTHONPATH: .
+        run: uv run --no-project --python 3.12 --with pytest python -m pytest tests -q -p no:cacheprovider
+
+  swift:
+    name: Swift build and unit tests
+    if: github.event_name != 'push' || github.ref == 'refs/heads/integration'
+    runs-on: macos-26
+    timeout-minutes: 90
+    continue-on-error: true
+    env:
+      XCODE_MAJOR: '27'  # the project's LastUpgradeCheck and deployment targets are 27: an older Xcode cannot build it
+      DERIVED: ${{ github.workspace }}/.ci/DerivedData
+      PACKAGES: ${{ github.workspace }}/.ci/SourcePackages
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        id: xcode
+        run: |
+          app="$(ls -d /Applications/Xcode_${XCODE_MAJOR}*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$app" ]; then
+            have="$(ls -d /Applications/Xcode*.app 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
+            echo "::notice title=Swift NOT RUN::this hosted runner has no Xcode ${XCODE_MAJOR} (it has: ${have:-none}); the Swift build and tests did not run, which is not a green"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sudo xcode-select -s "$app/Contents/Developer"
+          xcodebuild -version
+          echo "available=true" >> "$GITHUB_OUTPUT"
+      - name: DerivedData and SwiftPM cache
+        if: steps.xcode.outputs.available == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            .ci/DerivedData
+            .ci/SourcePackages
+          key: swift-${{ runner.os }}-xcode${{ env.XCODE_MAJOR }}-${{ hashFiles('fichero/fichero.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: swift-${{ runner.os }}-xcode${{ env.XCODE_MAJOR }}-
+      - name: Build (scheme Dev Local, macOS)
+        if: steps.xcode.outputs.available == 'true'
         run: |
           set -o pipefail
-          xcodebuild test -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" \
-            -destination 'platform=macOS' -skipPackagePluginValidation -skipMacroValidation \
-            CODE_SIGNING_ALLOWED=NO | tail -n 200
+          xcodebuild build-for-testing -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" -testPlan fichero \
+            -destination 'platform=macOS' -derivedDataPath "$DERIVED" -clonedSourcePackagesDirPath "$PACKAGES" \
+            -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO | tail -n 200
+      - name: Swift unit tests
+        if: steps.xcode.outputs.available == 'true'
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" -testPlan fichero \
+            -only-testing:FicheroTests -destination 'platform=macOS' -derivedDataPath "$DERIVED" \
+            -clonedSourcePackagesDirPath "$PACKAGES" CODE_SIGNING_ALLOWED=NO | tail -n 200

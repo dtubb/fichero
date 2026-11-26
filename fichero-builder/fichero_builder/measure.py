@@ -146,12 +146,22 @@ print(json.dumps(seen))
 '''
 
 
-def sync(root, machine: str, python: str = "/Users/Shared/fichero-worker/venv/bin/python") -> tuple[int, str]:
+JAIL_PYTHON = "/Users/Shared/fichero-worker/venv/bin/python"
+
+
+def default_python(root) -> str:
+    """[check].python of root's harness.toml, else the jail's venv interpreter."""
+    f = Path(root) / "harness.toml"
+    return (tomllib.loads(f.read_text()) if f.is_file() else {}).get("check", {}).get("python") or JAIL_PYTHON
+
+
+def sync(root, machine: str, python: str = "") -> tuple[int, str]:
     """`builder machines sync <name>` (manager 2026-11-02): the test plugins and their dependencies, at the exact versions the
     jail's venv has, installed into the machine's `<dir>/venv`, so a remote check collects what a local one does. Disk floor
     first; one `machines` row."""
     doc = tomllib.loads((Path(root) / "harness.toml").read_text())
     m = doc.get("machines", {}).get(machine)
+    python = python or default_python(root)
 
     def row(rc: int, out: str) -> tuple[int, str]:
         journal.append("machines", machine=machine, step="sync", rc=rc, detail=out[-800:])

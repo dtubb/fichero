@@ -8,6 +8,8 @@ credit.
 
 from __future__ import annotations
 
+import pytest
+
 import importlib.util
 import json
 import site
@@ -44,6 +46,7 @@ def test_every_swift_package_the_repo_pins_has_its_licence_recorded():
             assert c["licence_text"] and c["licence_text"].startswith("https://")
 
 
+@pytest.mark.macos_only(reason='a Linux environment carries the CUDA wheels torch pulls there, which the Mac app never ships')
 def test_every_package_in_the_engines_own_environment_is_credited():
     """The engine's environment the tests run in, as the bundle is: every package has a licence."""
     ack = _script()

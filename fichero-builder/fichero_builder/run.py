@@ -15,10 +15,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import journal, models, session, watcher
+from fichero_builder import client, journal, models, session, watcher
 
 HERE = Path(__file__).resolve().parent
-START = HERE.parents[1] / "scripts" / "harness_start.py"
+START = client.scripts_dir() / "harness_start.py"
 
 
 def slug(worktree) -> str:
@@ -50,7 +50,7 @@ class Procs:
 
 
 def _start(root, worktree, brief, name, model, tmux_session) -> str:
-    r = subprocess.run([sys.executable, str(START), "--root", str(root), "--worktree", str(worktree), "--brief", str(brief),
+    r = subprocess.run([sys.executable, str(client.script(root, "harness_start.py", START)), "--root", str(root), "--worktree", str(worktree), "--brief", str(brief),
                         "--name", name, "--model", model, "--session", tmux_session], capture_output=True, text=True)
     if r.returncode:
         raise RuntimeError(r.stderr.strip() or "harness_start failed")
@@ -118,6 +118,7 @@ def real_procs(home, worktree) -> Procs:
 WAITING = re.compile(r"^WAITING:[ \t]*(\S.*)$", re.M)  # #6855: a worker's end line when it needs an answer, not more work
 DONE = re.compile(r"^DONE ([0-9a-f]{7,40})\b", re.M)  # the brief's end line: DONE <short sha of the branch head>
 HANDOFF_READY = "HANDOFF READY"
+PART_LEFT = re.compile(r"(?m)^PART (\d+) left:[ \t]*(\S.*)$")  # a batch's end lines for parts the worker did not finish: PART 2 left: why
 REDELIVER_S, REDELIVERIES = 60.0, 3  # a message with no turn started after this long is delivered again, up to this many times
 
 
@@ -183,6 +184,19 @@ def _live(name: str, usd: float | None) -> Path:
     return f
 
 
+def _spent_week(provider: str) -> float:
+    """This ISO week's journal cost rows of `provider` (local.spend.metered-provider-needs-a-cap)."""
+    return watcher.spent_week(journal.read(), provider, time.strftime("%Y-%m-%dT%H:%M:%S"))
+
+
+def provider_of(root, rules, role: str, default: str) -> str:
+    """The provider a run bills to: its [models] role's when it has one, else `default` (claude-code for a Claude session)."""
+    if not role:
+        return default
+    mdl = json.loads(Path(rules).read_text())["models"] if rules else models.load(root)
+    return models.for_role(mdl, role).provider
+
+
 def _spent_today(name: str) -> float:
     """Today's journal cost rows plus every other live session's running cost (#6871)."""
     today = time.strftime("%Y-%m-%d")  # the journal stamps rows with the wall clock
@@ -191,7 +205,7 @@ def _spent_today(name: str) -> float:
 
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
         tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0, role: str = "",
-        rules=None) -> str:
+        rules=None, provider: str = "", attach: str = "", outstanding: bool = True, base_sha: str = "") -> str:
     """Start, then watch until the worker is done (idle, its last text ends with the brief's `DONE <sha>` line, and the
     worktree's HEAD is that sha and has moved from the start: a worker's words alone never end a run),
     parked (a cap or a provider refusal) or gone. Returns the end as a word.
@@ -202,10 +216,14 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     `step` row (task, seq, sha, moved) for the owner, then the worker idles until `msg-<seq+1>.txt` appears and is typed into
     the same pane, or `stop` appears (end "lane-done").
     `rules` (the queue's `<feed>/rules.json`): the caps are read from it at every tick, never from `root`; an unreadable read keeps
-    the last figures and says so once."""
+    the last figures and says so once.
+    `attach` (local.run.sessions-survive-watchers): watch a live session in that pane instead of starting one (its watcher died; the
+    session did not). `outstanding`: its step is still out, so a DONE line already on screen is read at the first idle tick;
+    `base_sha`: the head the step was sent at, so its commits count as moved."""
     spend = rules_of(root, rules, role)
+    provider = provider_of(root, rules, role, provider or ("claude-code" if kind == "claude" else ""))
     label = {"role": role} if role else {}  # the journal rows of a role's worker say which role
-    bad = watcher.refusals(spend, kind, model)
+    bad = watcher.refusals(spend, kind, model, provider)
     if bad:
         for b in bad:
             out("builder run refuses: " + b)
@@ -214,12 +232,16 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         journal.append("watch", task=name, what=f"park: today's spend {spent:.2f} USD reached the cap {spend.day_usd:.2f} before the start")
         out(f"{name}: parked before the start, today's spend {spent:.2f} of {spend.day_usd:.2f} USD")
         return "parked"
+    if watcher.is_metered(spend, provider) and (wk := _spent_week(provider)) >= spend.week_usd.get(provider, 0):
+        journal.append("watch", task=name, what=f"park: this week's {provider} spend {wk:.2f} USD reached the cap {spend.week_usd[provider]:.2f} before the start")
+        out(f"{name}: parked before the start, this week's {provider} spend {wk:.2f} of {spend.week_usd[provider]:.2f} USD")
+        return "parked"
     handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
     register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend))
     gen = 1
-    base = procs.head()
-    pane = procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
-    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label)
+    base = base_sha or procs.head()
+    pane = attach or procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
+    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label, **({"attached": True} if attach else {}))
     started = last_change = procs.now()
     seen = None
     told: set[str] = set()
@@ -227,14 +249,15 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     base0, first_commit = base, None
     rules_bad = False  # the last read of the rules failed (one alert per spell)
     unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
-    outstanding, sent_turn = True, -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
+    outstanding, sent_turn = (outstanding if attach else True), -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
     # #6589 2026-11-20: a DONE counts only if printed after THIS message was delivered: a prompt arrived since it was sent (the session
     # file's `prompts`; a state without the count falls back to the turn count) and the last text is not the one on screen when it went out
     sent = {"prompts": -1, "text": "", "at": started, "words": "", "again": 0}
 
     def step_done(sha: str, moved: bool, **more) -> None:
         nonlocal outstanding, base, unsaid, nudged
-        journal.append("step", task=name, seq=seq, sha=sha, moved=moved, **more)
+        journal.append("step", task=name, seq=seq, sha=sha, moved=moved, context=state.get("context", 0), window=spend.window, model=model,
+                       **({"left": [{"part": int(n), "why": w[:300]} for n, w in PART_LEFT.findall(state.get("last_text", ""))]} if PART_LEFT.search(state.get("last_text", "")) else {}), **more)
         out(f"{name}: step {seq} {'done at ' + sha[:9] if moved else 'ended with no commit'}")
         outstanding, base, unsaid, nudged = False, sha, 0, False
     while True:
@@ -263,7 +286,8 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             _live(name, watcher.cost_of(state, spend, model))
         except OSError as e:  # the other runs miss this run's figure for a tick; the watch goes on
             journal.append("watch", task=name, what=f"alert: live spend not written: {e}"[:300])
-        decisions = watcher.assess(state, spend, model, spent_today=_spent_today(name), silent_for_s=now - last_change)
+        decisions = watcher.assess(state, spend, model, spent_today=_spent_today(name), silent_for_s=now - last_change, provider=provider,
+                                   spent_week=_spent_week(provider) if watcher.is_metered(spend, provider) else 0.0)
         for d in decisions:
             kind_of = d.split(":")[0]  # one row per kind of decision, not one per tick
             if kind_of not in told:
@@ -334,7 +358,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
                 journal.append("watch", task=name, what=f"park: {gen} generations, the cap")
                 break
             procs.stop(pane)
-            journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
+            journal.append("cost", task=name, model=model, provider=provider, usd=round(watcher.cost_of(state, spend, model), 4),
                            tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(now - started), end="handoff",
                            generation=gen, **label, **reading_of(first_commit))
             _live(name, 0.0)  # the cost row now holds it; the successor starts from nothing
@@ -349,7 +373,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             sent = {"prompts": -1, "text": "", "at": procs.now(), "words": "", "again": 0}
             base0, first_commit = procs.head(), None
             continue
-    journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
+    journal.append("cost", task=name, model=model, provider=provider, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,
                    generation=gen, **label, **reading_of(first_commit))
     _live(name, None)

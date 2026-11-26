@@ -92,7 +92,7 @@ model's verdict never overrules it. Imported transcriptions (PAGE, ALTO, TEI) ar
   not matter: a model's transcription corrected by hand is a person's reading; no figure waits on a paid expert. The
   blind-hands benchmark reads this mark (`hands.truth.reference-is-a-persons-or-says-so`, `source/read-any-hand.md`).
   *Test (to write):* marking a
-  reading makes the line count for the person set; a model's write never sets the flag.
+  reading makes the line count for the person set; a model's write never sets the flag. Not built: needs the reading-grain data model (`source.reading.ground-truth-is-a-reading`); the flag exists only on a pass (`SegmentPass.ground_truth`).
 - `truth.mark.on-a-region` — **[GAP]** (#5525) a region or table segment is marked ground truth the same way; the YOLO set
   (`training/yolo_set.py` `persons_regions`) reads the mark beside provenance `human`.
 - `truth.mark.on-a-page` — **[PARTIAL]** (#4947; built: `segment.pass_ground_truth`, the route and the undo; not built:
@@ -107,9 +107,9 @@ model's verdict never overrules it. Imported transcriptions (PAGE, ALTO, TEI) ar
   mechanism) every project has a Ground Truth group with Lines, Regions, Pages, Names and Statements smart folders, each
   badged with its count, each a saved search with the `ground_truth` filter the engine seeds; opening one lists the marked
   things in the kind's own view. *Test (to write):* a seeded project with three marked lines shows Lines (3); marking a
-  fourth updates the count through the change stream.
+  fourth updates the count through the change stream. Not built: needs the sidebar smart-folder mechanism (`search.smart-folders-as-sidebar-folders`, #4114); no engine search filter `ground_truth` exists.
 - `truth.sidebar.count-is-the-offers-count` — **[GAP]** (#5440) the Lines folder's count equals the number the Train
-  offer names and the bake-off's "N corrected lines on M pages" (`recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`).
+  offer names and the bake-off's "N corrected lines on M pages" (`recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`). Not built: needs the Lines smart folder in the sidebar; the offer's count is `bakeoff.ground_truth`.
 - `truth.feeds.training-and-the-bake-off` — **[PARTIAL]** (#4947, #5894; built: the person set for Kraken, the bake-off's
   reference, the evaluation's held-out pages; not built: the bake-off's reads as training lines
   (`compute.tune.bakeoff-reads-become-training-lines` [GAP]), names and statements sets) every training set's person
@@ -117,7 +117,7 @@ model's verdict never overrules it. Imported transcriptions (PAGE, ALTO, TEI) ar
   trained on. *Test:* `fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py`,
   `fichero-server/tests/unit/training/test_bakeoff_dataset_5894.py`.
 - `truth.export.carries-provenance` — **[GAP]** (#4946, #4947; `source/formats-and-training.md` `source.train.ground-truth`
-  owns the format) an exported training set or PAGE XML says which lines are ground truth and by whom.
+  owns the format) an exported training set or PAGE XML says which lines are ground truth and by whom. Not built: needs the export format decision in `source/formats-and-training.md`.
 
 ## Build order
 

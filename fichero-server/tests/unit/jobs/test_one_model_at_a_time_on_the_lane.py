@@ -72,6 +72,7 @@ def test_vision_work_during_a_kraken_run_unloads_nothing_and_does_not_wait_for_t
 
 
 def test_an_embed_during_a_kraken_run_waits_for_it_and_unloads_nothing(db, lane):
+    """An embed queued while a Kraken job runs does not start until that job ends, and no model is swapped out (#6862)."""
     jobs.enqueue(db, KRAKEN, "k-hold")
     assert _wait_for(lambda: "k-hold" in lane.ran)
     jobs.enqueue(db, EMBED, "e1")

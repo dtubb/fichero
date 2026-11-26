@@ -1,0 +1,27 @@
+# The builder as an installable package: standard library only. `builder` is `python -m fichero_builder`.
+# The live loop still runs from this folder with PYTHONPATH=. and is unaffected by this file.
+# pi/, agents/ and prompts/ are read relative to this folder (pi_rpc, profiles, review), so the install is editable: `pip install -e fichero-builder`.
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fichero-builder"
+version = "0.1.0"
+description = "The Fichero builder: queue, checks, review and landing."
+readme = "README.md"
+requires-python = ">=3.11"  # queue.py imports tomllib
+dependencies = []
+
+[project.scripts]
+builder = "fichero_builder.__main__:main"
+
+[tool.setuptools]
+packages = ["fichero_builder"]
+
+[tool.setuptools.package-data]
+fichero_builder = ["console.html", "scripts/harness_brief.py", "scripts/harness_check.py", "scripts/harness_handoff_hook.py", "scripts/harness_land.py", "scripts/harness_policy_hook.py", "scripts/harness_review.py", "scripts/harness_setup.sh", "scripts/harness_start.py", "scripts/lane_ready_check.sh", "nosudo.sh"]
+
+[tool.pytest.ini_options]
+markers = ["slow: builds a venv and installs the package; run with -m slow"]
+addopts = "-m 'not slow'"

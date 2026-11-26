@@ -160,7 +160,7 @@ def machine() -> dict[str, object]:
     """Chip, RAM, macOS and free memory at the start."""
     def sysctl(name: str) -> str | None:
         try:
-            return subprocess.run(["sysctl", "-n", name], capture_output=True, text=True, timeout=10).stdout.strip() or None
+            return subprocess.run(["/usr/sbin/sysctl", "-n", name], capture_output=True, text=True, timeout=10).stdout.strip() or None
         except (OSError, subprocess.SubprocessError):
             return None
 

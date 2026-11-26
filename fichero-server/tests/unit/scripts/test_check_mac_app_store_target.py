@@ -304,6 +304,8 @@ import sys  # noqa: E402
 
 import pytest  # noqa: E402
 
+pytestmark = pytest.mark.macos_only(reason="plutil reads the Xcode project; PlistBuddy and codesign are macOS tools")
+
 _SCRIPT = CHECK_MAS
 _SPEC = importlib.util.spec_from_file_location("check_mac_app_store_target", _SCRIPT)
 assert _SPEC and _SPEC.loader

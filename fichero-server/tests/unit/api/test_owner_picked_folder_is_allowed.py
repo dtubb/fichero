@@ -148,6 +148,7 @@ def test_a_path_with_dotdot_is_refused_and_cannot_escape_a_granted_folder(picked
     "/", "/System", "/etc", "/Volumes", "HOME", "HOME/Library/Keychains", "HOME/.ssh",
     "HOME/Library/Mobile Documents",
 ])
+@pytest.mark.macos_only(reason="/System and /Volumes are macOS's own folders")
 def test_a_system_folder_is_refused_even_for_the_owner(picked, client, system):
     """WHY: picking a folder allows everything under it; `/`, the OS's folders, HOME itself,
     ~/Library and HOME's hidden folders hold credentials and settings, never material."""
