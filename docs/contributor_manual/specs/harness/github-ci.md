@@ -124,7 +124,15 @@ it. Spec-change: owner 2026-11-20.
   runs Python: no engine tests, no guards, no engine (Briefcase) build. Python stays on GitHub Actions and the Macs.
   Built (2026-11-25): `fichero/ci_scripts/ci_post_clone.sh` (beside the project, where Xcode Cloud looks): it refuses a
   scheme that embeds the engine (`*Embedded*`, `App Store`) with its name, trusts the packages' plugins and macros, and starts
-  no Python interpreter. Acceptance: every `ci_scripts/ci_*.sh` starts no Python and is executable. Test:
+  no Python interpreter. `fichero/ci_scripts/ci_pre_xcodebuild.sh`: for the test build only (`build-for-testing`,
+  `test-without-building`) it deletes `keychain-access-groups` from `fichero/fichero/Fichero.entitlements` in Xcode Cloud's
+  checkout. The unit tests run inside Fichero.app (TEST_HOST), and that restricted entitlement is honoured only with a
+  provisioning profile listing the Mac; Xcode Cloud's test Mac is in none, and build 4's `Test - macOS` ended "Failed to
+  install or launch the test runner" (RunningBoard error 5). The app already falls back when the keychain group is missing
+  (`OwnerKeyStore.needsLocalFallback(-34018)`), and the host never starts an engine under XCTest (`isRunningXCTests`).
+  Not proved until an Xcode Cloud run reads green: the error-5 cause is inferred, not read from a log. Acceptance: every
+  `ci_scripts/ci_*.sh` starts no Python and is executable; the pre-xcodebuild script touches only that key, only for the
+  test build. Test:
   `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_xcode_cloud_scripts_never_start_python`.
 
   The workflows (what runs on which trigger):

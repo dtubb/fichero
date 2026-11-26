@@ -85,7 +85,14 @@ def test_the_swift_job_selects_its_xcode_says_not_run_without_it_caches_by_packa
 def test_xcode_cloud_scripts_never_start_python():
     """ci.xcode-cloud-swift-only: every ci_scripts/ file Xcode Cloud runs skips the engine and starts no Python interpreter."""
     scripts = sorted((ROOT / "fichero" / "ci_scripts").glob("ci_*.sh"))
-    assert [p.name for p in scripts] == ["ci_post_clone.sh"]
+    assert [p.name for p in scripts] == ["ci_post_clone.sh", "ci_pre_xcodebuild.sh"]
+    pre = (ROOT / "fichero" / "ci_scripts" / "ci_pre_xcodebuild.sh").read_text()
+    # the test host is signed without the one restricted key, for the test build only, and only on Xcode Cloud
+    assert "build-for-testing|test-without-building)" in pre and "Delete :keychain-access-groups" in pre
+    assert "fichero/fichero/Fichero.entitlements" in pre and "/usr/libexec/PlistBuddy" in pre
+    import plistlib
+    committed = plistlib.loads((ROOT / "fichero" / "fichero" / "Fichero.entitlements").read_bytes())
+    assert "keychain-access-groups" in committed, "the committed file keeps it: only Xcode Cloud's test build drops it"
     for p in scripts:
         code = "\n".join(ln for ln in p.read_text().splitlines() if not ln.lstrip().startswith("#"))
         assert not any(w in code for w in ("python", "pip ", "uv ", "briefcase", "pytest")), p
