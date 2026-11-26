@@ -234,10 +234,19 @@ class FolderAccessManager {
     /// is caught → nil → no grant, which is the correct fallback for paths the
     /// engine can already reach (same-sandbox temp it inherits from the app).
     private func mintBookmark(for url: URL) -> Data? {
+        try? mintBookmarkOrThrow(for: url)
+    }
+
+    /// `mintBookmark` with the refusal kept: a sandboxed Mac refuses a scoped bookmark for a folder whose
+    /// scope was not started or was granted read-only, and the person is told which folder and why (#7076).
+    private func mintBookmarkOrThrow(for url: URL) throws -> Data {
         let transient = isTransientPath(url)
         do {
             // Start accessing to create bookmark
-            _ = url.startAccessingSecurityScopedResource()
+            let started = url.startAccessingSecurityScopedResource()
+            if !started {
+                logger.warning("No security scope to start for \(url.path, privacy: .public); minting anyway")
+            }
 
             let bookmarkData = try url.bookmarkData(
                 options: .withSecurityScope,
@@ -262,8 +271,12 @@ class FolderAccessManager {
             // Don't stop accessing - we need it throughout the app session
             return bookmarkData
         } catch {
-            logger.error("Failed to mint bookmark for \(url.path): \(error.localizedDescription)")
-            return nil
+            let detail = (error as NSError)
+            logger.error("""
+                Failed to mint bookmark for \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public) \
+                (\(detail.domain, privacy: .public) \(detail.code))
+                """)
+            throw error
         }
     }
 
@@ -384,16 +397,16 @@ class FolderAccessManager {
         // so the engine can read a `fichero-drop-UUID` folder for the one ingest
         // in flight (#4068). Returns nil when minting isn't possible — the
         // engine either inherits same-sandbox access or the grant is a no-op.
-        guard let bookmarkData = mintBookmark(for: url) else {
+        let bookmarkData: Data
+        do {
+            bookmarkData = try mintBookmarkOrThrow(for: url)
+        } catch {
             // LOUD, not silent (2026-08-26: 92 link-imports 403'd and a
             // folder-of-folders was refused with "outside every allowed
             // root" — a mint that quietly no-ops leaves the engine blind and
-            // the user with an unexplained 403).
-            logger.error("""
-                Could not mint a security-scoped bookmark for \(url.path) — \
-                the engine will refuse this path unless it falls under a \
-                static allowed root
-                """)
+            // the user with an unexplained 403). A sandboxed Mac stops here with the reason (#7076).
+            logger.error("Could not mint a security-scoped bookmark for \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            if SandboxEnvironment.isSandboxed, !isTransientPath(url) { throw error }
             return
         }
         try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
