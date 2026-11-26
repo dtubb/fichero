@@ -41,7 +41,7 @@ red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fic
 spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 # speed batch 1 (manager 2026-11-03): rule classes the ladder decides by itself, each an `auto` journal row the manager audits
-auto = ["red-on-base-tests-only", "red-on-base-trim-only", "red-on-base-timeout-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes",
+auto = ["red-on-base-tests-only", "red-on-base-pure-move", "red-on-base-trim-only", "red-on-base-timeout-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes",
         "allowlist-entries-only-removed"]
 routes_file = "fichero-server/tests/contracts/openapi.json"  # the engine's routes at head (guard-data-added-routes)
 # manager 2026-11-04: a rebase whose ONLY conflict is the generated contract identity takes upstream's and re-bakes it with the
