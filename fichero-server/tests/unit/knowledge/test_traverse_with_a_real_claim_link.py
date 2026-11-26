@@ -39,7 +39,7 @@ def _seed(db: Database) -> tuple[KnowledgeEntity, KnowledgeClaim, KnowledgeClaim
     return entity, said, denied, agreed
 
 
-def test_traverse_walks_a_real_claim_link(tmp_path):
+def test_traverse_walks_a_real_claim_link(tmp_path, hashed_text_embedder):
     db = Database(path=tmp_path / "lib" / "fichero.duckdb")
     try:
         entity, said, denied, agreed = _seed(db)
@@ -64,7 +64,7 @@ def test_traverse_walks_a_real_claim_link(tmp_path):
         db.close()
 
 
-def test_contradiction_subgraph_reads_a_real_claim_link(tmp_path):
+def test_contradiction_subgraph_reads_a_real_claim_link(tmp_path, hashed_text_embedder):
     db = Database(path=tmp_path / "lib" / "fichero.duckdb")
     try:
         _entity, said, denied, agreed = _seed(db)
