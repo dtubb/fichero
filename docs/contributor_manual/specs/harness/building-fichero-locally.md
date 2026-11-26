@@ -2512,7 +2512,7 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
 
 - `builder-console.step.one-state` [PARTIAL] (#6643) (lane-qwen shows `done`, `paused`, and `blocked 4 h: retried once` at once;
   `done` means both "lane finished" and "worker said DONE, check pending") — a step is in exactly one of: `queued`, `sent`,
-  `said-done` (DONE received, check not run), `checking`, `reviewing`, `fixing` (round n of 2), `blocked`
+  `said-done` (DONE received, check not run), `checking`, `reviewing`, `train` (green on the cheap rungs, waiting for a merge train: `local.train.cheap-rungs-then-wait`), `fixing` (round n of 2), `blocked`
   (question, with the question), `red` (check failed, with the rung), `done-not-landed` (green and READY, not on the
   integration branch), `landed`, `parked` (`queue.STATES`). `paused` and `held` are **lane** flags shown beside the state
   ("said-done · lane paused since 11-08"), never a state; a lane is `finished` only when every step is final. `why` is the

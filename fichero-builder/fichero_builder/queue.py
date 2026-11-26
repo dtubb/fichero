@@ -85,7 +85,7 @@ def parts_of(text: str) -> dict[int, tuple[list[int], str]]:
             for i, m in enumerate(heads)}
 
 
-STATES = ("queued", "sent", "said-done", "checking", "reviewing", "fixing", "blocked", "red", "done-not-landed", "landed", "parked", "closed-out")
+STATES = ("queued", "sent", "said-done", "checking", "reviewing", "train", "fixing", "blocked", "red", "done-not-landed", "landed", "parked", "closed-out")
 
 
 def state_view(lane: dict, s: dict, now: float | None = None, on_origin: bool = True) -> dict:
