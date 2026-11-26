@@ -616,6 +616,13 @@ os.environ.pop("FICHERO_MODEL_STORE_ROOT", None)
 # RUNNING app's container `.api-key` from a security test (found by the guard below, #5530). Set,
 # not setdefault: a dev shell's own token dir is exactly what a test must not write.
 os.environ["FICHERO_TOKEN_DIR"] = str(_pathlib.Path(os.environ["FICHERO_BASE_PATH"]) / "tokens")
+# The repo's sample files are imported in place by many tests. On the Macs the checkout is under ~/code, an import root;
+# on a Linux runner (/home/runner/work, GitHub run 45685569900) or a Mac whose checkout is on another disk it is not, and
+# every such import was refused. The corpus is named as one more configured root, beside any the shell already set.
+_SAMPLE_ROOT = str(_pathlib.Path(__file__).resolve().parents[2] / "test-fixtures")
+os.environ["FICHERO_LIBRARY_ALLOWED_ROOTS"] = os.pathsep.join(
+    p for p in (os.environ.get("FICHERO_LIBRARY_ALLOWED_ROOTS", "").strip(), _SAMPLE_ROOT) if p
+)
 # ...and a test that still reaches the maintainer's real Fichero state fails, named, before
 # it touches anything. The one read allowed is the pinned embedding model (see the helper).
 from tests._real_state_guard import (  # noqa: E402
