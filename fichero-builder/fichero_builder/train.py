@@ -113,7 +113,7 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
         else:
             lo = mid + 1
     culprit = keep[lo - 1]
-    res.back[culprit["key"]] = {"kind": "red", "why": f"the merge train {tid} is red at {rung_name} with this step in it", "findings": f"{rung_name} on the train candidate:\n{tails[lo]}"}
+    res.back[culprit["key"]] = {"kind": "red", "why": f"the merge train {tid} is red at {rung_name} with this step in it", "findings": f"The merge train {tid} is red at {rung_name} with this step in it.\n{rung_name} on the train candidate:\n{tails[lo]}"}
     rest = [s for i, s in enumerate(keep) if i != lo - 1]
     if not rest:
         return res

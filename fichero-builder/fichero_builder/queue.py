@@ -35,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
-from fichero_builder import stale, brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, watcher, work
+from fichero_builder import stale, brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, train, watcher, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -47,6 +47,7 @@ STALE_H: list = [dict(stale.HOURS)]  # [loop].stale_hours.<state> over the defau
 SENT_H: list = [3.0]  # [loop].sent_hours: a sent step this old with no row of its own is one alert (retry, park)
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
+TRAIN: list = [train.Cfg()]  # [train]: the merge train (local.train.*); re-read at every tick
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
 FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new commit(s), under the same rules.\n\n{findings}\n\n"
        "When it is committed, end your turn with the exact line DONE <short sha of the branch head>.\n")
@@ -329,6 +330,7 @@ class Procs:
     gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
     gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
+    train_run: Callable[[list, str], train.Result] | None = None  # ([{key, head}] in queue order, train id) -> the merge train's result; None = no train, each step lands by itself
 
 
 QUIET = ("queued", "blocked", "landed", "parked")  # a step state in which the lane's own worker is not moving its tree
@@ -620,6 +622,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     fut = (chains or {}).get(lane["id"])
     if fut is not None and not fut.done():
         return True  # its check or review is running in its own thread
+    back = s.pop("train_back", None) if s["state"] == "train" else None  # the train's verdict on this step: sent back (a red, a conflict)
+    if s["state"] == "train" and back is None:
+        return True  # waits for a train (train_when_due)
+    if s["state"] == "done" and s.get("train_cleared") and train_waits(lane, s):
+        return True  # the train's steps land in the order they entered it
     if h is not None and not procs.alive(h):
         del handles[lane["id"]]
         live = lane.get("feed") and procs.end_of(lane) not in ("parked", "lane-done")
@@ -774,6 +781,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             s["left"] = []
             return block(s, f"the worker left part(s) {bad} that the brief does not have (its parts: {sorted(parts_of(Path(s['brief']).read_text()))}); "
                             "send it back to name the parts it did not do, or retry")
+        s.pop("train_cleared", None)  # new work: an earlier train's clearance does not cover it
         move(s, "done", "")
         if moved := tree_check(lane, s, handles, procs):  # an alert to read; the step goes on: the stray write was not in its tree
             stray_alert(lane["id"], s["step"], moved)
@@ -792,7 +800,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         except Exception as e:  # noqa: BLE001 - one lane's bug is that lane's error, never the loop's death (2026-11-03: an AttributeError killed it on every ladder)
             journal.append("loop", state="lane-error", lane=lane["id"], step=s["step"], detail=traceback.format_exc()[-1500:])
             return {"ok": False, "kind": "error", "why": f"{type(e).__name__}: {e}"}
-    if chains is None:
+    if back is not None:
+        r = back
+    elif chains is None:
         r = chain()
     elif fut is None:
         if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
@@ -855,6 +865,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             rc, part2_commits = procs.push_part2(lane, s["part2"])
             if rc:
                 return block(s, f"the split branch {s['part2']} was not pushed: {part2_commits}")
+        if train_on(procs) and not s.get("train_cleared"):  # green on the cheap rungs: the expensive ones run once, for every waiting step (local.train.*)
+            s.pop("train_id", None)
+            s["train_since"] = _now()
+            move(s, "train", f"green on the cheap rungs at {r['head'][:9]}; waits for a merge train")
+            return True
         s["product"] = bool(procs.touches_product(lane, r["head"]))  # BEFORE landing: origin/integration is still the base; kept by the landing's one store
         rc, output = procs.landed(lane, r["head"], push)
         if rc:
@@ -891,7 +906,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                            detail=f"part(s) {sorted(left_parts)} left by {s['step']}: " + "; ".join(f"{p}: {w}" for p, w in left_parts.items())[:250])
         end_session(lane, s, handles, procs)
         moved_on(lane, s["step"])
-        move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
+        train_id = s.pop("train_cleared", "")  # the id of the train that cleared it
+        move(s, "landed", f"landed {r['head'][:9]}" + (f" (train {train_id})" if train_id else "") + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
             # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
             (journal.STATE / VERIFY_PENDING).write_text(r["head"])
@@ -1232,6 +1248,8 @@ def done(lane_id: str, sha: str = "") -> str:
             if not why:
                 s.pop("settling", None)
                 s.pop("retry_of", None)  # #6506: a fresh done is green-first again
+                for k in ("train_cleared", "train_id", "train_back", "train_since"):  # a new head is not the one a train judged
+                    s.pop(k, None)
                 s.update(state="done", head=sha, why=f"DONE {sha} (external)", rounds=0, restarts=0, **({"land_tree": path} if path else {}))
                 save(lanes)
     journal.append("queue", lane=lane_id, step=s["step"] if not why else "-", state="done" if not why else "done-refused", detail=why or sha)
@@ -2188,6 +2206,93 @@ def disk_floor_alerts(procs: Procs) -> None:
             alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
 
 
+def train_on(procs: Procs) -> bool:
+    return procs.train_run is not None and TRAIN[0].enabled
+
+
+def train_waits(lane: dict, s: dict) -> bool:
+    """A step the train cleared waits while an earlier step of the same train is still on its way to landing."""
+    return any(x["id"] != lane["id"] and x["cursor"] < len(x["steps"]) and (o := x["steps"][x["cursor"]]).get("train_cleared") == s["train_cleared"]
+               and o.get("train_pos", 0) < s.get("train_pos", 0) and o["state"] in ("done", "checking", "reviewing") for x in load())
+
+
+TRAIN_THREAD: list = [None]  # the one train in flight
+
+
+def _waiting_for_train() -> list[tuple[dict, dict]]:
+    """[(lane, step)] of every lane's current step in state `train`, oldest first (the train's queue order)."""
+    got = [(x, x["steps"][x["cursor"]]) for x in filter(_ours, load()) if x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] == "train"
+           and "train_back" not in x["steps"][x["cursor"]]]
+    return sorted(got, key=lambda p: p[1].get("train_since", 0))
+
+
+def train_when_due(procs: Procs, chains: dict | None) -> None:
+    """local.train.start: when `[train].min_steps` steps wait, or the oldest has waited `[train].max_wait_min`, one train runs over them
+    (a thread; inline when `chains` is None). One at a time; a step's cheap rungs never wait for it."""
+    if not train_on(procs) or (TRAIN_THREAD[0] is not None and TRAIN_THREAD[0].is_alive()):
+        return
+    with journal.Lock("queue"):
+        lanes = load()
+        for x in lanes:  # a train a restart cut short: its steps wait again
+            for st in x["steps"]:
+                if st["state"] == "train" and "train_back" not in st and st.pop("train_id", None):
+                    journal.append("queue", lane=x["id"], step=st["step"], state="train-requeued", detail="the train that held it did not finish: it waits for the next one")
+        save(lanes)
+    waiting = _waiting_for_train()
+    if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]):
+        return
+    tid = "train-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(_now()))
+    spec = [{"key": f"{x['id']}/{s['step']}", "head": s["head"]} for x, s in waiting]
+    with journal.Lock("queue"):
+        lanes = load()
+        for i, (x, s) in enumerate(waiting):
+            st = next(y for z in lanes if z["id"] == x["id"] for y in z["steps"] if y["step"] == s["step"])
+            st["train_id"], st["train_pos"] = tid, i
+        save(lanes)
+
+    def run_it():
+        t0 = _now()
+        try:
+            res = procs.train_run(spec, tid)
+        except Exception as e:  # noqa: BLE001 - a train that cannot run is a row and an alert; its steps wait again
+            journal.append("train", id=tid, steps=[x["key"] for x in spec], result="error", detail=f"{type(e).__name__}: {e}"[:500])
+            alert("-", "train", f"the merge train {tid} could not run: {type(e).__name__}: {e}"[:300], str(journal.path()), [])
+            res = train.Result(id=tid, steps=[x["key"] for x in spec], again=[x["key"] for x in spec], result="error")
+        else:
+            journal.append("train", id=tid, steps=res.steps, candidate=res.candidate, rungs=res.rungs, result=res.result, landed=res.landed,
+                           back=res.back, again=res.again, bisect=res.bisect, extra_runs=res.extra_runs, seconds=round(_now() - t0, 1))
+        apply_train(res, spec)
+    if chains is None:
+        run_it()
+    else:
+        TRAIN_THREAD[0] = threading.Thread(target=run_it, name="merge-train", daemon=True)
+        TRAIN_THREAD[0].start()
+
+
+def apply_train(res: train.Result, spec: list) -> None:
+    """The train's verdict onto its steps, under the queue lock: a cleared step goes back to `done` (its chain then rebases and lands it,
+    in train order), a sent-back one gets its failure as `train_back` (the next tick sends it to the lane), an unjudged one waits again.
+    A step whose head moved while the train ran (a newer `builder done`) is left alone."""
+    heads = {x["key"]: x["head"] for x in spec}
+    with journal.Lock("queue"):
+        lanes = load()
+        for lane in lanes:
+            for st in lane["steps"]:
+                key = f"{lane['id']}/{st['step']}"
+                if key not in heads or st["state"] != "train" or st.get("train_id") != res.id or st.get("head") != heads[key]:
+                    continue
+                if key in res.landed:
+                    st.update(state="done", why=f"cleared by {res.id}: lands next", entered_at=_now(), train_cleared=res.id)
+                elif key in res.back:
+                    st["train_back"] = {"ok": False, **res.back[key]}
+                else:
+                    st.pop("train_id", None)
+                    continue
+                journal.append("queue", lane=lane["id"], step=st["step"], state="train-cleared" if key in res.landed else "train-sent-back",
+                               detail=f"{res.id}: " + ("green; lands in train order" if key in res.landed else res.back[key]["why"][:200]))
+        save(lanes)
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
     DISK_HELD.clear()
@@ -2212,6 +2317,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
     idle_alert(chains)
     park_alert()
     disk_floor_alerts(procs)
+    train_when_due(procs, chains)
     daily_when_due(procs, chains)
     nightly_when_due(procs, chains)
     if procs.watchdog is not None:  # local.watchdog.slow-work: slow steps, silent sessions, hung rungs, acted on once per cause
@@ -2266,6 +2372,10 @@ def reload_rules(root) -> None:
     except (OSError, tomllib.TOMLDecodeError):
         return
     apply_loop_cfg(cfg)
+    try:
+        TRAIN[0] = train.load(tomllib.loads(f.read_text()))
+    except (ValueError, tomllib.TOMLDecodeError) as e:  # the running loop keeps the last good [train] and says so
+        journal.append("loop", state="train-cfg-refused", detail=str(e)[:300])
     try:
         load_cfg(root)
     except (ValueError, tomllib.TOMLDecodeError) as e:  # the running loop keeps the last good [queue] and says so
@@ -2844,6 +2954,7 @@ def real_procs(root) -> Procs:
     ncfg = nightly.load(rules)
     mdl = models.load(root)
     load_cfg(root)
+    TRAIN[0] = train.load(rules)  # a bad [train] refuses the start
     builder, reviewer = models.for_role(mdl, "builder").model, models.for_role(mdl, "reviewer").model
     reviewer_fast = models.for_role(mdl, "reviewer_fast").model if "reviewer_fast" in mdl else reviewer
     opus_paths = tuple(mdl.get("reviewer_paths") or work.OPUS_PATHS)
@@ -2860,7 +2971,8 @@ def real_procs(root) -> Procs:
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
                                      guard_data=guard_data_for(step, tree), retry=bool(step and step.get("retry_rungs")),
                                      reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
-                                     last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
+                                     last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1],
+                                     train=TRAIN[0].enabled)  # a merge train runs the build and ui rungs once for many steps
 
     def start(lane, step):
         kind = worker_kind(mdl, lane.get("role", ""))  # a role on a Pi provider (openrouter) runs Pi under the same caps; refused before any tree is made
@@ -3059,13 +3171,18 @@ def real_procs(root) -> Procs:
     def model_of(lane):
         return models.for_role(mdl, lane["role"]).model if lane.get("role") else builder
 
+    def train_run(spec, tid):
+        pinned = work.ensure_pinned(str(root), "", land_tool.resolve_branch(repo, branch))
+        merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid)
+        return train.run_train(spec, merge=merge, rung=rung, rungs_for=rungs_for, tid=tid)
+
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane), attach=attach,
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane), session_live=lambda lane: session_live(jail.load(root), lane),
-                 landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
+                 landed=landed, train_run=train_run, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, fast_forward=lambda p, old, new: refreshed(p, old, new, branch), tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
