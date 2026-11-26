@@ -100,7 +100,8 @@ final class SelectPointerTests: XCTestCase {
         let corners = [(0.55, 0.65), (0.95, 0.65), (0.95, 0.85), (0.55, 0.85)]
         var steps = [event(.pressed, 0.55, 0.65, option: option, control: control)]
         for corner in corners.dropFirst() { steps.append(event(.dragged, corner.0, corner.1, option: option, control: control)) }
-        steps.append(event(.released, 0.55, 0.85, option: option, control: control))
+        // Released away from the press on both axes: a box with no width is no box.
+        steps.append(event(.released, 0.95, 0.85, option: option, control: control))
         return steps
     }
 
