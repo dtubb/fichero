@@ -1415,19 +1415,17 @@ Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
   against the base: the same check's newest completed run at the train's base sha, started once (the base pushed to
   `train/<train id>-base`, deleted with the train's branch) when there is none; a case red there too is the base's, and the candidate is red only for cases green on its base. Those cases
   go to `local.train.red-goes-to-its-step`, which finds the step on the local runners. Tests: `fichero-builder/tests/test_ci_train.py::test_an_infrastructure_failure_is_rerun_once_and_a_second_one_is_not_run_never_red`, `fichero-builder/tests/test_ci_train.py::test_a_case_green_on_the_rerun_is_green_with_a_flaky_row`, `fichero-builder/tests/test_ci_train.py::test_a_case_red_twice_and_red_on_the_base_run_sends_no_step_back`, `fichero-builder/tests/test_ci_train.py::test_a_case_red_twice_and_green_on_the_base_goes_to_the_step_search`. Serves: reliable.
-- `local.ci.nightly-gate-on-the-frozen-sha` [GAP] (#6589) — with `[ci].nightly = true` (default false) the nightly, at
+- `local.ci.nightly-gate-on-the-frozen-sha` [OK] (#6589; built 2026-11-26; off by default; the local verify still runs whole beside it, so `[ci].local_guards` narrows nothing yet; a red is judged against the last published night's sha) — with `[ci].nightly = true` (default false) the nightly, at
   its freeze, pushes the frozen sha as `nightly/<date>` and starts the tests workflow on it by dispatch with every
   tier on, and the Xcode Cloud full test plan; a cron schedule is not used, because it cannot know the frozen sha. The
   `verify` stage waits for the check runs and judges them as `local.ci.red-is-retried-once-and-judged-against-base`
   says; its report lists each check with its minutes. The DMG, notarising and the smoke stay on the local machine. The
   guards that need the whole checkout history or a local tool stay in the local verify, named in `[ci].local_guards`.
-  Nothing is published on a red or missing check. Test (owed): `test_nightly.py`
-  `test_the_nightly_dispatches_ci_on_the_frozen_sha_and_verify_waits_for_its_checks`,
-  `test_a_red_or_missing_nightly_check_publishes_nothing`. Serves: reliable.
-- `local.ci.testflight-from-xcode-cloud` [OK] (#6589; built 2026-11-26; off by default; the wait reads the Xcode Cloud workflow's GitHub check run at the frozen sha, not the store (ASC)'s processing state: the the store (ASC) poller release-all.sh calls is not in the repository) — with `[ci].testflight = "xcode-cloud"` (default `local`) the
+  Nothing is published on a red or missing check. Tests: `fichero-builder/tests/test_nightly.py::test_the_nightly_dispatches_ci_on_the_frozen_sha_and_verify_waits_for_its_checks`, `fichero-builder/tests/test_nightly.py::test_a_red_or_missing_nightly_check_publishes_nothing`. Serves: reliable.
+- `local.ci.testflight-from-xcode-cloud` [OK] (#6589; built 2026-11-26; off by default; the wait reads the Xcode Cloud workflow's GitHub check run at the frozen sha, not the store's (ASC) processing state: the ASC poller release-all.sh calls is not in the repository) — with `[ci].testflight = "xcode-cloud"` (default `local`) the
   release run's `ios` stage makes no archive on the local machine (the archive ran it out of memory): it pushes the
   tag or release branch that matches `[ci].testflight_refs`, which starts the Xcode Cloud workflow that archives and
-  uploads to TestFlight, then polls the build through the the store (ASC) API until it is processed, failed or
+  uploads to TestFlight, then polls the build through the store's (ASC) API until it is processed, failed or
   `[ci].testflight_wait_min` (default 60) has passed. A failed or late build fails the stage with the build's error and
   the other stages go on as they do today; the owner is texted either way, as for any release part. Tests: `fichero-builder/tests/test_release_run.py::test_the_ios_stage_pushes_the_ref_and_waits_for_the_xcode_cloud_build_with_no_local_archive`, `fichero-builder/tests/test_release_run.py::test_a_failed_or_late_xcode_cloud_build_fails_the_ios_stage_with_its_error`. Serves: reliable.
 - `local.ci.caps-and-fallback` [OK] (#6589; built 2026-11-26; [ci] is off by default) — `[ci].actions_minutes_month` and `[ci].xcode_cloud_hours_month` are

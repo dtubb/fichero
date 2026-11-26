@@ -249,8 +249,8 @@ def wait(h: Hosted, sha: str, names: tuple, cfg: Cfg, clock=time.time, sleep=tim
     while True:
         got, every = {}, h.checks(sha)
         for c in every:
-            if c["name"] in names and c["id"] > (newer or {}).get(c["name"], -1) and (c["name"] not in got or c["id"] > got[c["name"]]["id"]):
-                got[c["name"]] = c
+            if (n := _req(c["name"], names)) and c["id"] > (newer or {}).get(n, -1) and (n not in got or c["id"] > got[n]["id"]):
+                got[n] = c
         if got and all(n in got and got[n]["status"] == "completed" for n in names):
             return got, ""
         if not every and clock() - t0 >= cfg.start_min * 60:  # no run of any job started: CI is not there
@@ -345,14 +345,19 @@ def judge(h: Hosted, sha: str, base: str, cfg: Cfg, alert: Callable[[str], None]
 def _base_checks(h: Hosted, base: str, names: tuple, cfg: Cfg, push_base, clock, sleep) -> dict:
     have = {}
     for c in h.checks(base):
-        if c["name"] in names and c["status"] == "completed" and (c["name"] not in have or c["id"] > have[c["name"]]["id"]):
-            have[c["name"]] = c
+        if (n := _req(c["name"], names)) and c["status"] == "completed" and (n not in have or c["id"] > have[n]["id"]):
+            have[n] = c
     if len(have) == len(names) or push_base is None:
         return have
     if push_base():  # the push failed: what there is
         return have
     got, end = wait(h, base, names, cfg, clock, sleep)
     return {**got, **have} if not end else have
+
+
+def _req(name: str, names: tuple) -> str:
+    """The required name a check run counts for: its own, or an Xcode Cloud workflow's (its check runs are `<workflow> | <action>`)."""
+    return name if name in names else next((n for n in names if name.startswith(n + " | ")), "")
 
 
 def _row(c: dict) -> dict:
@@ -464,3 +469,29 @@ def testflight(cfg: Cfg, h: Hosted, sha: str, version: str, clock=time.time, sle
         if clock() - t0 >= cfg.testflight_wait_min * 60:
             return 1, f"no finished Xcode Cloud TestFlight build within [ci].testflight_wait_min = {cfg.testflight_wait_min:g} min: {why}"
         sleep(poll_s)
+
+
+# --- the nightly (local.ci.nightly-gate-on-the-frozen-sha) -----------------------------------------------------------------------
+
+def nightly_part(cfg: Cfg, h: Hosted, sha: str, night: str, alert: Callable[[str], None], clock=time.time, sleep=time.sleep) -> tuple[int, str]:
+    """At the freeze: the frozen sha pushed as `nightly/<night>` and the tests workflow started on it by dispatch (every tier: a
+    dispatch is no train push), and the Xcode Cloud full plan where its workflow starts on nightly branches; then its checks judged as
+    a train's are, against the last published night's sha. (rc, report: each check and its minutes). A fallback is rc 0: the local
+    verify, which runs beside this, judges the night and the report says CI did not run. A red or missing check is rc 1."""
+    b = f"nightly/{night}"
+    if err := h.push(sha, b):
+        return 0, f"CI did not run: {b} was not pushed ({err}); the local verify judged the night"
+    try:
+        h.dispatch(b)
+    except Down as e:
+        return 0, f"CI did not run: the workflow was not started ({e}); the local verify judged the night"
+    base = next((r.get("sha", "") for r in reversed(journal.read()) if r.get("event") == "nightly" and r.get("state") == "published"), "")
+    v = judge(h, sha, base, cfg, alert, where="nightly", push_base=None, clock=clock, sleep=sleep)
+    lines = "; ".join(f"{c['name']} {c['conclusion']} {c['minutes']:g} min" for c in v.checks)
+    if v.fallback:
+        return 0, f"CI did not run: {v.fallback}; the local verify judged the night"
+    if v.timeout:
+        return 1, f"hosted CI did not finish within [ci].wait_min = {cfg.wait_min:g} min at {sha[:9]}: {lines or 'no check reported'}"
+    if not v.ok:
+        return 1, f"hosted CI is red at {sha[:9]} on {', '.join(v.cases)[:300]} ({lines})"
+    return 0, f"hosted CI green at {sha[:9]}: {lines}"

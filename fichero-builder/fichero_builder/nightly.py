@@ -132,6 +132,7 @@ class Runners:
     test_list: Callable[[str], str]       # sha -> what to try, one text
     cleanup: Callable[[str], tuple] | None = None  # after a green publish: the local DMGs, archives and staging of that and older releases are deleted
     sizes: Callable[[], str] | None = None         # the build folders' sizes, one line each, for the report
+    ci: Callable[[str, str], tuple] | None = None  # (sha, night) -> hosted CI on the frozen sha (local.ci.nightly-gate-on-the-frozen-sha); None = off
 
 
 def run_night(cfg: Cfg, r: Runners, sha: str, night: str, alert: Callable[[str], None]) -> bool:
@@ -147,11 +148,12 @@ def run_night(cfg: Cfg, r: Runners, sha: str, night: str, alert: Callable[[str],
         except (RuntimeError, OSError, ValueError) as e:  # a runner that cannot run is red with its reason
             results[name] = (1, f"{type(e).__name__}: {e}")
         row(f"{name}-{'green' if results[name][0] == 0 else 'red'}", results[name][1])
-    ts = [threading.Thread(target=part, args=(n, f)) for n, f in (("check", r.check), ("dmg", r.dmg))]
+    first = (("check", r.check), ("dmg", r.dmg)) + ((("ci", lambda s: r.ci(s, night)),) if r.ci else ())  # hosted CI beside the local verify
+    ts = [threading.Thread(target=part, args=(n, f)) for n, f in first]
     [t.start() for t in ts]
     [t.join() for t in ts]
     if any(rc for rc, _ in results.values()):
-        bad = [n for n in ("check", "dmg") if results[n][0]]
+        bad = [n for n in ("check", "dmg", "ci") if n in results and results[n][0]]
         alert(f"the nightly of {sha[:9]} is red at {' and '.join(bad)}: {(results[bad[0]][1].strip().splitlines() or [''])[-1]}")
         return False
     part("smoke", r.smoke)
@@ -166,7 +168,7 @@ def run_night(cfg: Cfg, r: Runners, sha: str, night: str, alert: Callable[[str],
         part("cleanup", r.cleanup)
     row("published")  # the release is out: a text that cannot go never makes the night read as unfinished
     try:
-        r.text(r.test_list(sha) + (f"\nBuild folders:\n{r.sizes()}" if r.sizes else ""))
+        r.text(r.test_list(sha) + (f"\nBuild folders:\n{r.sizes()}" if r.sizes else "") + (f"\n{results['ci'][1]}" if "ci" in results else ""))
     except Exception as e:  # noqa: BLE001 - one alert, so a person sends it
         row("text-red", f"{type(e).__name__}: {e}")
         alert(f"the nightly of {sha[:9]} is published but the owner's text failed: {e}")
@@ -316,7 +318,16 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
         if out.returncode:
             raise RuntimeError(f"no origin/{branch}: {out.stderr.strip()}")
         return out.stdout.strip()
-    return Runners(head=head, check=check, dmg=dmg, smoke=smoke, publish=publish, text=texter or text_owner, test_list=test_list, cleanup=cleanup, sizes=sizes)
+    import tomllib
+    from fichero_builder import ci
+    try:
+        cic = ci.load(tomllib.loads((Path(root) / "harness.toml").read_text()))
+    except (OSError, ValueError):
+        cic = ci.Cfg()
+    hosted = ci.Hosted(cic, str(root)) if cic.nightly else None
+    ci_part = (lambda sha, night: ci.nightly_part(cic, hosted, sha, night, lambda m: (texter or text_owner)(m))) if hosted else None
+    return Runners(head=head, check=check, dmg=dmg, smoke=smoke, publish=publish, text=texter or text_owner, test_list=test_list, cleanup=cleanup, sizes=sizes,
+                   ci=ci_part)
 
 
 def project_venv(root) -> str:
