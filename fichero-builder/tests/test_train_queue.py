@@ -143,3 +143,12 @@ def test_the_console_shows_a_train_as_one_row_with_its_steps_and_the_waiting_one
     first = st["trains"][0]
     assert first["steps"] == ["l1/1", "l2/2", "l3/3", "l4/4"] and first["result"] == "red" and first["landed"] == ["l1/1", "l2/2", "l4/4"] and first["back"] == ["l3/3"]
     assert st["waiting_for_train"] == ["l1/1"]
+
+
+def test_a_tick_with_no_dead_train_does_not_rewrite_the_lanes_file(world, monkeypatch):
+    t = Trained(*world, ["1", "2"])
+    saves = []
+    real = queue.save
+    monkeypatch.setattr(queue, "save", lambda lanes: (saves.append(1), real(lanes))[1])
+    queue.train_when_due(t.fake.procs, None)  # two queued steps, nothing waiting, nothing to put back
+    assert saves == []

@@ -2232,12 +2232,14 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
     if not train_on(procs) or (TRAIN_THREAD[0] is not None and TRAIN_THREAD[0].is_alive()):
         return
     with journal.Lock("queue"):
-        lanes = load()
+        lanes, requeued = load(), False
         for x in lanes:  # a train a restart cut short: its steps wait again
             for st in x["steps"]:
                 if st["state"] == "train" and "train_back" not in st and st.pop("train_id", None):
+                    requeued = True
                     journal.append("queue", lane=x["id"], step=st["step"], state="train-requeued", detail="the train that held it did not finish: it waits for the next one")
-        save(lanes)
+        if requeued:
+            save(lanes)
     waiting = _waiting_for_train()
     if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]):
         return
@@ -3174,7 +3176,10 @@ def real_procs(root) -> Procs:
     def train_run(spec, tid):
         pinned = work.ensure_pinned(str(root), "", land_tool.resolve_branch(repo, branch))
         merge, rung, rungs_for = train.real_runners(repo, branch, pinned, tid)
-        return train.run_train(spec, merge=merge, rung=rung, rungs_for=rungs_for, tid=tid)
+        try:
+            return train.run_train(spec, merge=merge, rung=rung, rungs_for=rungs_for, tid=tid)
+        finally:  # the candidate refs are only kept while the train runs: a ref pins its commits against gc
+            train.drop_refs(repo, tid)
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
