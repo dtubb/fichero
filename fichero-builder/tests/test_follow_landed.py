@@ -2,8 +2,11 @@
 (alerts 1902-1909): a landing added the key, the loop re-pinned the new rules, and its own checkout still ran the older code."""
 from __future__ import annotations
 
+import re
 import subprocess
+import tomllib
 import types
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -124,3 +127,16 @@ def test_verify_after_a_landing_runs_in_a_clean_tree_of_the_land_tip_never_the_l
     assert "verify-landed-" not in g(eng, "worktree", "list")
     rc, out = queue.verify_landed(eng, "no-such-branch", live, run=run)
     assert rc == 1 and out.startswith("NOT VERIFIED")
+
+
+def test_the_committed_rules_file_loads_and_every_auto_rule_the_code_reads_is_registered():
+    """2026-11-25 21:40-21:58: 7f54c6a read "red-on-base-pure-move" in cfg.auto and 7ab1780 listed it in harness.toml, but nothing
+    registered it in AUTO_RULES, so the parser refused [check].auto and every check stopped (registered by hand in 30f9d63)."""
+    root = Path(__file__).resolve().parents[2]
+    c = tomllib.loads((root / "harness.toml").read_text()).get("check", {})
+    assert not set(c.get("auto", ())) - set(check_tool.AUTO_RULES), "every [check].auto name is a registered rule"
+    assert not set(c) - {f.name for f in fields(check_tool.Config)} - {"test_env"}, "every [check] key is a Config field"
+    check_tool.load(root)  # and the parser itself accepts the committed file
+    src = "\n".join(p.read_text() for p in (root / "fichero-builder" / "fichero_builder").glob("*.py"))
+    read = set(re.findall(r'"([a-z0-9-]+)" (?:not )?in [a-z_.]*auto\b', src))
+    assert read and not read - set(check_tool.AUTO_RULES), f"rules the code reads that the parser refuses: {sorted(read - set(check_tool.AUTO_RULES))}"
