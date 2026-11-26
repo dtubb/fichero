@@ -226,6 +226,12 @@ def test_regen_without_a_python_is_refused_in_the_rules(tmp_path):
 
 # local.autofix.loop-applies-the-printed-fix / local.autofix.classes (#6589)
 KNOWN_RED = "FAIL: scripts/check_endpoint_coverage_matrix.py\n  2 KNOWN_GAPS entries are now clean; remove them:\n      GET /a\n      GET /c\n"
+REAL_KNOWN_RED = (
+    "FAIL: scripts/check_endpoint_coverage_matrix.py\n"
+    "Endpoint coverage matrix guardrail:\n  scanned 664 operation(s)\n  current gaps: 3; known baseline: 3\n"
+    "\n  2 KNOWN_GAPS entries are now clean; remove them:\n      GET /a\n      GET /c\n"
+    "  operations no spec names: 4; baseline: 5\n"
+    "\n  1 route(s) no spec names (add a behaviour line naming the path or operation id, with its app plan):\n      GET /z\n")
 RATCHET_RED = "FAIL: scripts/check_ratchet.py\nFAIL: down to 3 (baseline 5): lower it with --update-baseline.\n"
 SPEC_RED = "FAIL: scripts/check_spec_acceptance.py\nFAIL: spec.md: acceptance changed: add a `Spec-change:` trailer\n"
 RULING = "Spec-change: the acceptance line was reworded, ruled by the manager 2026-11-24"
@@ -246,6 +252,15 @@ def lane_repo(tmp_path, monkeypatch):
     (w / "other.txt").write_text("keep\n")
     _g(w, "init", "-q", "-b", "integration"), _g(w, "add", "."), _g(w, "commit", "-qm", "mine (#1)\n\nWritten-By: claude-opus-5-5")
     return type("A", (), {"worktree": str(w), "name": "n1", "pinned": str(pin)})(), w, pin
+
+
+def test_the_guards_real_output_with_lines_after_the_key_block_drops_only_the_stale_keys(lane_repo):
+    a, w, _ = lane_repo
+    assert autofix.stale_keys(REAL_KNOWN_RED, whole=True) == ["GET /a", "GET /c"]
+    before = _g(w, "rev-parse", "HEAD")
+    res = work.autofix(a, "1.1", REAL_KNOWN_RED, "")
+    assert [r["class"] for r in res["rows"]] == ["known-gaps-now-clean"] and _g(w, "rev-parse", "HEAD") != before
+    assert (w / "scripts" / "check_endpoint_coverage_matrix_known_gaps.json").read_text() == '{\n  "GET /b": "y"\n}\n'
 
 
 def test_a_known_gaps_red_is_one_commit_with_the_lane_trailers_one_autofix_row_and_only_the_named_entries_gone(lane_repo):

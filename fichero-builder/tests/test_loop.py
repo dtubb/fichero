@@ -2383,6 +2383,18 @@ def test_a_red_with_a_class_fix_is_checked_again_with_no_message_to_the_worker_a
     assert any("autofix known-gaps-now-clean" in r.get("detail", "") for r in journal.read() if r["event"] == "queue")
 
 
+def test_a_red_whose_fix_needs_a_question_is_a_block_alert_and_no_fix_brief_goes_to_the_worker(state):
+    """local.autofix.classes: a class that asks (`ask: True`) skips the fix brief; the step blocks with an alert."""
+    lane(state)
+    red = {"ok": False, "kind": "red", "why": "ladder red", "findings": "FAIL: scripts/x.py"}
+    fake = Fake(chains={"1.1": [dict(red)]})
+    fake.procs.autofix, fake.procs.head_of = (lambda *a: {"rows": [], "ask": True}), (lambda lane_: "h0")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked" and steps()["1.1"]["rounds"] == 0
+    assert not [m for m in fake.sent if m.startswith("fix")]
+    assert [r for r in journal.read() if r["event"] == "alert"], "the manager is asked"
+
+
 def test_an_external_lane_is_never_autofixed(state):
     queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
     asked = []

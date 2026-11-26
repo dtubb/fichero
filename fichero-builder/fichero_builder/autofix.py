@@ -84,13 +84,19 @@ STALE_HEAD = re.compile(r"(drop from the set|now clean; remove them|remove from)
 
 def stale_keys(output: str, whole: bool = False) -> list[str]:
     """The entries a guard calls stale: the indented lines under its 'drop from the set:' (or 'now clean; remove them:') line."""
-    keys, on = [], False
+    keys, on, indent = [], False, None
     for ln in output.splitlines():
         if STALE_HEAD.search(ln):
-            on = True
+            on, indent = True, None
             continue
         if on:
             if not ln.strip() or not ln[:1].isspace() or ln.strip().startswith(("✗", "Fix")):
+                on = False
+                continue
+            width = len(ln) - len(ln.lstrip())
+            if whole and indent is None:
+                indent = width
+            if whole and width < indent:  # the guard's next, less indented line ("operations no spec names: ...") is not a key
                 on = False
                 continue
             keys.append((ln.strip() if whole else ln.split()[0]).strip("'\""))  # whole: a key with spaces ("GET /a")
