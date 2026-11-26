@@ -35,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, watcher, work
+from fichero_builder import stale, brief_tool, check_tool, client, codemap, jail, journal, land_tool, models, nightly, watcher, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -43,6 +43,7 @@ APPROVED_PINNED: list = [{}]  # [loop.approved_pinned] {path: blob sha}: a maint
 DISK_FLOOR_GB: list = [0.0]  # [loop].disk_floor_gb: under this many free GB no new lane starts; 0 = off
 PARKED: list = []  # the lanes whose worker a cap or a provider refusal parked in this tick: one alert for them all
 DISK_HELD: list = []  # the lanes the floor held in this tick; `tick` turns them into one alert, and one more when the floor clears
+STALE_H: list = [dict(stale.HOURS)]  # [loop].stale_hours.<state> over the defaults (builder-console.stale.acted-on)
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
@@ -82,7 +83,7 @@ def parts_of(text: str) -> dict[int, tuple[list[int], str]]:
             for i, m in enumerate(heads)}
 
 
-STATES = ("queued", "sent", "said-done", "checking", "reviewing", "fixing", "blocked", "red", "done-not-landed", "landed", "parked")
+STATES = ("queued", "sent", "said-done", "checking", "reviewing", "fixing", "blocked", "red", "done-not-landed", "landed", "parked", "closed-out")
 
 
 def state_view(lane: dict, s: dict, now: float | None = None, on_origin: bool = True) -> dict:
@@ -122,6 +123,13 @@ def split_text(lane_id: str, step: str, findings: str) -> str:
     """The split brief for a step red only on the file bound ('' for any other red): core on the lane branch, the rest on <lane>-part2."""
     m = FILE_BOUND.search(findings)
     return SPLIT.format(step=step, files=m.group(1), bound=m.group(2), part2=f"{lane_id}-part2") if m else ""
+
+
+def moved_on(lane: dict, left: str) -> None:
+    """builder-console.step.moves-on: one `moves-on` row when a lane's cursor passes a final step: the step left and the step taken
+    ('-' when the lane has none left; the feed then takes the next milestone's first step and says so)."""
+    nxt = lane["steps"][lane["cursor"]]["step"] if lane["cursor"] < len(lane["steps"]) else "-"
+    journal.append("moves-on", lane=lane["id"], left=left, taken=nxt)
 
 
 def fix_text(step: str, kind: str, findings: str) -> str:
@@ -855,6 +863,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             journal.append("queue", lane=lane["id"], step=name, state="queued",
                            detail=f"part(s) {sorted(left_parts)} left by {s['step']}: " + "; ".join(f"{p}: {w}" for p, w in left_parts.items())[:250])
         end_session(lane, s, handles, procs)
+        moved_on(lane, s["step"])
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
             # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
@@ -869,6 +878,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         close_alerts(lane["id"], s["step"], "already on origin")
         fresh_stop()
         lane["cursor"] += 1
+        moved_on(lane, s["step"])
         move(s, "landed", f"already on origin: {r['why']}")
         return True
     if r.get("kind") == "needs-maintainer" and lane.get("maintainer") and APPROVED_PINNED[0] and r.get("approvals", ["maintainer"]) == ["maintainer"]:
@@ -1661,6 +1671,9 @@ def feed(procs: Procs, lanes_n: int, out=print) -> bool:
             _SKIPPED.add(lane_id)
             journal.append("queue", lane=lane_id, step="-", state="question", detail="the milestone's open issues brief only steps this lane already ran")
             continue
+        done_lanes = [x for x in lanes if x["steps"] and x["cursor"] >= len(x["steps"]) and x["id"] != lane_id]
+        left = max(done_lanes, key=lambda x: x["steps"][-1].get("entered_at", 0.0)) if done_lanes else None
+        journal.append("moves-on", lane=lane_id, left=f"{left['id']} {left['steps'][-1]['step']}" if left else "-", taken=steps[0]["step"])
         journal.append("queue", lane=lane_id, step="-", state="milestone", detail=f"taken: {len(steps)} steps")
         out(f"{lane_id}: taken from the build order, {len(steps)} steps")
         took = True
@@ -2156,6 +2169,8 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         try:
             if manage(lane, procs):
                 lane = next(x for x in load() if x["id"] == lane["id"])
+            if stale.act(lane, q=sys.modules[__name__], chains=chains, hours=STALE_H[0], now=_now(), gh="gh"):
+                lane = next(x for x in load() if x["id"] == lane["id"])
             snapshot(lane)  # #6589 reliab-1: what a `store` of this copy tells an outside change from
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
             if procs.cleanup_ref:
@@ -2195,7 +2210,7 @@ DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
-PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "approved_pinned", "disk_floor_gb")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
+PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "approved_pinned", "disk_floor_gb", "stale_hours")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
 
 
 def code_mark(root="") -> tuple:
@@ -2267,6 +2282,7 @@ def apply_loop_cfg(cfg: dict) -> None:
     DISPATCH[0] = tuple(cfg.get("dispatch", ()))
     BLOCKED_H[0] = float(cfg.get("blocked_hours", BLOCKED_H[0]))
     DISK_FLOOR_GB[0] = float(cfg.get("disk_floor_gb", DISK_FLOOR_GB[0]))
+    STALE_H[0] = {**stale.HOURS, **{str(k): float(v) for k, v in dict(cfg.get("stale_hours", {})).items()}}
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
 
 
