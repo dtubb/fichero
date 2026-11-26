@@ -1141,20 +1141,20 @@ most ran once per step. The owner (2026-11-25): be strategic, so that more thing
 rungs, waits, and lands with others after one train. Tests: `fichero-builder/tests/test_train.py`,
 `fichero-builder/tests/test_train_queue.py`. Serves: reliable, fast.
 
-- `local.train.cheap-rungs-then-wait` [OK] (#6589) — with `[train].enabled` (default true) a step green on the cheap rungs (its ladder
+- `local.train.cheap-rungs-then-wait` [OK] (#6589; test `fichero-builder/tests/test_train.py::test_the_ladder_skips_the_rungs_the_train_runs_once`; `fichero-builder/tests/test_train_queue.py::test_a_loop_without_train_wiring_lands_as_before`) — with `[train].enabled` (default true) a step green on the cheap rungs (its ladder
   skips the build and ui rungs; the unit rung may run the whole suite) moves to queue state `train` instead of landing.
-- `local.train.start` [OK] (#6589) — a train starts when `[train].min_steps` (default 4) steps wait, or the oldest has waited
+- `local.train.start` [OK] (#6589; test `fichero-builder/tests/test_train.py::test_the_cfg_and_when_a_train_is_due`; `fichero-builder/tests/test_train_queue.py::test_max_wait_triggers_a_train_of_two`) — a train starts when `[train].min_steps` (default 4) steps wait, or the oldest has waited
   `[train].max_wait_min` (default 45). Only one train runs at a time.
-- `local.train.one-candidate-run` [OK] (#6589) — a train merges every waiting step's head onto the land branch in queue order into a
+- `local.train.one-candidate-run` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`; `fichero-builder/tests/test_train_queue.py::test_a_merge_conflict_drops_one_step_and_the_train_goes_on`) — a train merges every waiting step's head onto the land branch in queue order into a
   throwaway candidate and runs the build, the Swift tests, the UI pass and the unit tier on it once. A step that does not merge
   cleanly is sent back with the conflict and the rest go on. A green candidate lands every step in it.
-- `local.train.bisect-with-budget` [OK] (#6589) — a red candidate is bisected: the first red rung is re-run over prefixes of the train until
+- `local.train.bisect-with-budget` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_a_red_train_of_four_lands_three_and_sends_the_culprit_back`; `fichero-builder/tests/test_train.py::test_the_extra_runs_never_pass_ceil_log2_n_plus_one`) — a red candidate is bisected: the first red rung is re-run over prefixes of the train until
   one step is the culprit, then once over the rest. The extra runs never exceed ceil(log2(n)) + 1; a second culprit is left for
   the next train. The culprit goes back to its lane with the failing rung's output.
-- `local.train.off-keeps-per-step` [OK] (#6589) — with `[train].enabled = false` a step runs the whole ladder alone and lands as before.
-- `local.train.journal-row` [OK] (#6589) — every train writes one journal row: its id, its steps, the candidate, the result, the steps
+- `local.train.off-keeps-per-step` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_a_train_that_is_off_lands_each_step_by_itself`) — with `[train].enabled = false` a step runs the whole ladder alone and lands as before.
+- `local.train.journal-row` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`) — every train writes one journal row: its id, its steps, the candidate, the result, the steps
   landed and the steps sent back.
-- `local.train.console-row` [OK] (#6589) — `builder console` status lists the last trains (id, steps, candidate, result, landed, sent back)
+- `local.train.console-row` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_the_console_shows_a_train_as_one_row_with_its_steps_and_the_waiting_ones`) — `builder console` status lists the last trains (id, steps, candidate, result, landed, sent back)
   and the steps waiting for the next one.
 
 ### From `dev-workflows.md` — Behaviours
