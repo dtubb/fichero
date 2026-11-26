@@ -268,3 +268,13 @@ def test_the_slot_count_reads_the_pinned_check_and_probes_a_host_with_two_gate_d
     n = queue.count_slots(live, probe=lambda name: seen.append(name) or {k: v for k, v in _fit(name).items() if k != "at"})
     assert seen == ["imac:~/g1", "air:~/g"], "one probe a host"
     assert n == 3 and set(queue.RUNNERS) == {"imac:~/g1", "imac:~/g2", "air:~/g"}, "the pinned [check]: on, parallel 4; each dir counts"
+
+
+def test_an_unreadable_rules_file_keeps_the_last_slot_count_with_one_row_and_never_raises(tmp_path, monkeypatch):
+    from fichero_builder import queue, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(queue, "SLOT_WHY", [None])
+    monkeypatch.setattr(work, "SLOTS", [3])
+    (tmp_path / "harness.toml").write_text("[check\nbroken")
+    assert queue.count_slots(tmp_path) == 3 and queue.count_slots(tmp_path) == 3 and work.SLOTS[0] == 3
+    assert len([r for r in journal.read() if r.get("state") == "slots-cfg-refused"]) == 1

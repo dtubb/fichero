@@ -2693,7 +2693,13 @@ def count_slots(root, tick_s: float = 30.0, probe=None, now=None) -> int:
     Off: work.SLOTS stays 0 and the ladders use `[check].parallel`, as before. [check] is the pinned copy's, as the ladders read it;
     a host with two gate dirs is probed once, its row standing for each dir."""
     from fichero_builder import check_tool
-    cfg = check_tool.load(check_tool.pinned_root(root))
+    try:
+        cfg = check_tool.load(check_tool.pinned_root(root))
+    except (OSError, ValueError, TypeError, tomllib.TOMLDecodeError) as e:  # the running loop keeps the last count and says so, once
+        if SLOT_WHY[0] != ("refused", str(e)[:200]):
+            SLOT_WHY[0] = ("refused", str(e)[:200])
+            journal.append("slots", state="slots-cfg-refused", slots=work.SLOTS[0], detail=f"[check] does not read: {e}"[:300])
+        return work.SLOTS[0]
     if not cfg.slots_from_runners:
         work.SLOTS[0] = 0
         return 0
