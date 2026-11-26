@@ -390,12 +390,17 @@ def green_before_approve(ladder: str, since: str, head: str, pinned) -> dict:
     return green
 
 
+SECURITY_INPUTS = ("osv-scanner.toml", ".gitleaks.toml", "scripts/bandit_baseline.json", "scripts/gitleaks_baseline.json",
+                   "scripts/security_scan_run.py", "scripts/install_security_tools.sh")
+
+
 def fix_reuse(repo: str, ladder: str, since: str, head: str, pinned) -> dict:
     """local.check.fix-round-reuses-verdicts: the green rungs of this lane's last ladder that a fix commit cannot change, for a head that
     descends from the one that ladder judged, on the same base and the same pinned copy; each row carries `reused` (the judged head).
     A rung is kept only when no path the new commits change is one of its inputs: red-on-base (the changed tests, `[check].red_paths`,
-    `conftest.py`), guards (every guard has declared inputs, none touched, no guard script touched), build (`[check].build_paths`).
-    A red rung, the instant rungs and the rest always run. {} = run the whole ladder."""
+    `conftest.py`), guards (every guard has declared inputs, none touched, no guard script touched), build (`[check].build_paths`),
+    contract-current (`[check].contract_paths` and its guards), since-guards (each guard's prefixes and script), security (its scanned
+    dirs, its config, baselines and scan scripts). A red rung, the instant rungs and the rest always run. {} = run the whole ladder."""
     try:
         prev = json.loads(Path(ladder).read_text())
     except (OSError, ValueError):
@@ -416,6 +421,11 @@ def fix_reuse(repo: str, ladder: str, since: str, head: str, pinned) -> dict:
         and bool(cfg.red_paths),
         "guards": bool(guards) and len(check_tool.untouched_guards(guards, tree, cfg, fix)) == len(guards),
         "build": bool(cfg.build_paths) and not any(f.startswith(tuple(cfg.build_paths)) for f in fix),
+        "contract-current": bool(cfg.contract_paths) and not any(f.startswith(tuple(cfg.contract_paths)) or f in cfg.contract_guards for f in fix),
+        "since-guards": bool(cfg.since_guards) and not any(
+            f in cfg.since_guards or f.startswith(tuple(p for v in cfg.since_guards.values() for p in ([v] if isinstance(v, str) else v))) for f in fix),
+        "security": bool(cfg.security) and not any(
+            f.startswith(tuple(cfg.security.get("dirs") or ("",))) or f in SECURITY_INPUTS for f in fix),
     }
     return {row["name"]: {**row, "reused": old} for row in prev.get("rungs") or []
             if row.get("ok") and not row.get("skipped") and keep.get(row.get("name"), False)}

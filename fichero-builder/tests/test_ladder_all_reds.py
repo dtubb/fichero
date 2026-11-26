@@ -290,3 +290,25 @@ def test_with_the_train_on_red_on_base_runs_only_the_changed_tests_and_lists_the
 def test_with_the_train_off_the_head_run_still_includes_the_whole_dirs(monkeypatch):
     r, seen = _rob(monkeypatch, False)
     assert seen["also"] == ("pkg/tests",) and "owed" not in r
+
+
+def test_security_contract_current_and_the_since_guards_keep_their_green_when_the_fix_touches_none_of_their_inputs(tmp_path):
+    import json as _json
+    from fichero_builder import work
+    r, g, base, h1, pin, ladder = _fix_world(tmp_path)
+    (pin / "harness.toml").write_text('[check]\nreuse_fix_verdicts = true\ncontract_paths = ["api/"]\ncontract_guards = ["scripts/check_contract.py"]\n'
+                                      '[check.since_guards]\n"scripts/check_lint.py" = "app/"\n[check.security]\ndirs = ["srv/"]\n')
+    three = ("security", "contract-current", "since-guards")
+    ladder.write_text(_json.dumps({"ok": False, "rungs": [{"name": n, "ok": True} for n in three] + [{"name": "unit", "ok": False}],
+                                   "head": h1, "since": base, "pinned": str(pin)}))
+
+    def after(path):
+        (r / path).parent.mkdir(parents=True, exist_ok=True)
+        (r / path).write_text("fix\n")
+        g("add", "."), g("commit", "-qm", "fix")
+        return sorted(work.fix_reuse(str(r), str(ladder), base, g("rev-parse", "HEAD"), pin))
+    assert after("notes.txt") == sorted(three)
+    assert "contract-current" not in after("api/routes.py")
+    assert "since-guards" not in after("app/V.swift")
+    assert "security" not in after("srv/x.py")
+    assert "security" not in after(".gitleaks.toml"), "the scanner's own config is an input"
