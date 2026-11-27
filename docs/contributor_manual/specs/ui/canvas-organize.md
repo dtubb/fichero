@@ -1,6 +1,6 @@
 # Canvas Organize — arranging an archive on the canvas — Design Spec (#4192)
 
-> Milestone: canvas-organize
+> Milestone: canvas-organize (GitHub #370)
 > Manual: TBD — a section of "Organising a project": what can be put on a board; grouping, ordering
 > and connecting by hand; sets that hold related things without moving them; what the app proposes
 > from the paper itself (outlines, overlaps, torn edges, holes and stains) and how to accept or
@@ -8,7 +8,8 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT — awaiting approval before tests/code.**
-> Direction given 2026-11-26 (paraphrased throughout). This file is the ORGANIZING slice of the
+> Direction given 2026-11-26 (paraphrased throughout); the twelve questions of the first drafts were answered the
+> same day and are folded in ("Decided", at the end). This file is the ORGANIZING slice of the
 > canvas. `library-view-modes.md` §I stays the owner of the board itself (cards, places, camera,
 > zoom, drag, Group and Ungroup, Arrange By); `../source/finding-documents.md` stays the owner of
 > Find the Documents (boundaries, kinds, cases). Neither is restated here. This file adds the
@@ -30,8 +31,9 @@ The canvas becomes the place an archive is organized by eye and hand, the way th
 is the place a page's layout is corrected: one selection, a handful of tools, a modifier for the
 next most common thing, no dialog on the way. A researcher groups, orders and connects by
 dragging; a model can propose the same groups, orders and connections, drawn apart from the
-researcher's own, each with its evidence, and nothing a model proposes takes effect until a person
-accepts it. Part of that evidence is the paper: the outline of a sheet, one sheet lying on another
+researcher's own, each with its evidence, and nothing a model proposes takes effect until a person accepts it, with one exception: a
+second photograph of the same side, found with high confidence, is accepted by the run, listed
+and undoable. Part of that evidence is the paper: the outline of a sheet, one sheet lying on another
 in a photograph, torn edges that fit, and holes or stains that pass through several sheets.
 
 Three rules hold everything below:
@@ -42,7 +44,8 @@ Three rules hold everything below:
 2. **A relation is one typed link.** Every line on a board is the engine's `TypedLink` with a key
    from the library's one vocabulary. The app keeps no word list of its own.
 3. **A proposal is a hypothesis with evidence.** It is drawn as a proposal, names its method and
-   score, shows what it saw, and is accepted or rejected by a person. Rejections are remembered.
+   score, shows what it saw, and is accepted or rejected by a person. Rejections are remembered. Only a
+kind a person has switched on is accepted by a run; duplicates are switched on from the start.
 
 The surface lives in `Views/Library/ViewModes/Canvas/**` (the board), a new
 `Views/Library/ViewModes/Canvas/Organize/**` (toolbar, tools, proposal layer), the engine's
@@ -233,7 +236,8 @@ Every relation is a `TypedLink`. Eight keys are new; the rest are already in the
 | Came after | `follows` | A follows B | exists |
 | Is part of a known text | `attests` | A attests work W, lines x to y | **new** (section F); the other end is a URI |
 
-**An item order** is a named order over documents and pages with the same properties as a reading
+**An item order** is a named order over documents and pages, held in the reading-order records
+themselves (an entry points at a segment or at an item), with the same properties as a reading
 order over segments: a name, a kind (`physical`, `chronological`, `as-read`, project terms), an
 author, a certainty, fractional positions so a move writes one row, soft delete. It belongs to a
 set, a group or a folder. The filed order is the order named *As Filed*; it is read from the
@@ -327,15 +331,22 @@ review, so there is one list of things waiting for an answer.
 - **Answer.** Accept writes the link, set, order or group as a person's decision that records the
   proposal it came from. Reject records the pair so it is not offered again. Adjust (move a card,
   change the type, redo the fit) is an accept of what was adjusted. Each is one undoable action.
-- **Never silent.** A run accepts nothing. There is no threshold above which these are accepted
-  until a recognizer has been scored on a box a person organized (the rule Find the Documents
-  already follows for boundaries).
+- **Never silent.** A run accepts one kind by itself: a high-confidence duplicate (the same side
+  photographed twice). It is still listed with its evidence, marked as accepted automatically, and
+  undone like any answer. Every other kind waits for a person until its recognizer has been scored
+  on a box an editor organized and a person switches that kind on (the rule Find the Documents
+  follows for boundaries).
+- **Distilled.** Every step that proposes keeps what it was asked and what was answered. A paid
+  model's answers and the editor's accepts, rejects and corrections train a small local model for
+  that step, which is offered in place of the paid call once it scores as well against the
+  editor's answers (`../compute/distillation.md`, the rule every recipe step follows).
 
 ## The physical recognizers
 
 Each reads marks on the image, stores them as segments in a machine pass so they can be seen and
-corrected in the segment editor like any other segment, then compares marks between sheets. All
-run in the engine, locally, with OpenCV; none needs a paid model.
+corrected in the segment editor like any other segment, then compares marks between sheets. All run in the engine, locally, with OpenCV; none needs a paid model. The cheap half (finding the
+outline and the marks on one image) runs with image preparation; comparing one sheet with another
+runs only when Propose is chosen or a recipe's Organise stage asks for it.
 
 | Recognizer | Needs | Finds | Proposes | Shows as evidence |
 |---|---|---|---|---|
@@ -422,206 +433,250 @@ file, then function.
   gains `joins`, `verso_of`, `encloses`, `copy_of`, `draft_of`, `stacked_on`, `belongs_in` and
   `member_of`, each with its label and inverse label, seeded on open like the others; `joins` is
   symmetric. No existing key changes. Test:
-  `py::test_the_eight_types_are_seeded_once`.
+  `test_archival_link_types.py::test_the_eight_types_are_seeded_once`.
 - `canvas-organize.link.document-ends` — **[GAP]** (→ #4639; engine) `typed_link.create` takes a
   page, file, group, folder or canvas item as either end, refuses an id that is none of those, and
   refuses a type that does not fit its ends (a `joins` between a folder and a page). One audited,
   undoable action. Test:
-  `py::test_a_letter_answers_a_letter`.
+  `test_links_between_documents.py::test_a_letter_answers_a_letter`.
 - `canvas-organize.link.evidence` — **[GAP]** (→ #4639; engine) a link and a proposal carry evidence
   rows (who or what, method and version, score, short reason, the segment it points at on each
   end); a link made by hand has one row naming a person; evidence is returned with the link. Test:
-  `py::test_a_hand_made_link_says_a_person_made_it`.
+  `test_link_evidence.py::test_a_hand_made_link_says_a_person_made_it`.
 - `canvas-organize.set.record` — **[GAP]** (→ #4192; engine) a set is a `CanvasItem` of kind `set`
   with a label and a set kind (series, correspondence, case, file, bundle, free, project terms);
   its members are `member_of` links; a thing can be in several sets; adding to a set changes no
   parent and no sort order. Test:
-  `py::test_a_set_holds_items_from_two_folders_and_moves_none`.
-- `canvas-organize.order.items` — **[GAP]** (→ #5548; engine) a named order over pages and documents
-  belongs to a set, group or folder; positions are fractions, so placing one item writes one row;
+  `test_sets.py::test_a_set_holds_items_from_two_folders_and_moves_none`.
+- `canvas-organize.order.items` — **[GAP]** (→ #5548; engine) a named order over pages and documents is a reading order whose entries point at items (the
+  reading-order records widened, one renumbering rule, no second pair of tables); it belongs to a
+  set, group or folder; positions are fractions, so placing one item writes one row;
   it carries a kind, an author and a certainty; several orders can hold the same items. Test:
-  `py::test_moving_one_item_writes_one_row`.
+  `test_item_orders.py::test_moving_one_item_writes_one_row`.
 - `canvas-organize.order.filed-is-kept` — **[GAP]** (→ #5548; engine) no link, set, order, join or
   accepted proposal changes an item's folder or its filed position; *As Filed* is answered from the
   library's sort order and is never stored as an order. Test:
-  `py::test_organizing_changes_no_parent_and_no_sort_order`.
+  `test_filed_order_is_kept.py::test_organizing_changes_no_parent_and_no_sort_order`.
 - `canvas-organize.link.listed-for-a-scope` — **[GAP]** (→ #4639; engine) one route answers every
   link, set and order whose ends are in a folder scope, with a segment's links rolled up to its
   page and counted, in one bounded, paged call. Test:
-  `py::test_segment_links_roll_up_to_their_pages`.
+  `test_links_for_a_scope.py::test_segment_links_roll_up_to_their_pages`.
 
 ### B. The board
 
 - `canvas-organize.toolbar` — **[GAP]** (→ #4192; app) the canvas pane's head shows the tools
   (Select, Hand, Connect, Order, Set, Join, Note), Arrange By, Show, Order, Propose and the proposal
   counter; each tool has a key, a held key springs back, and Esc returns to Select. Test:
-  `swift::everyToolHasAKeyAndEscReturnsToSelect`.
+  `CanvasOrganizeToolbarTests.swift::everyToolHasAKeyAndEscReturnsToSelect`.
 - `canvas-organize.link.one-vocabulary-in-the-app` — **[GAP]** (→ #4192; app) the app reads link
   types and labels from the engine's types route; the Swift `LinkType` list is replaced by a table
   from the engine's key to a line style, and an unknown key draws in the plain style with its
   label. Test:
-  `swift::everyEngineKeyHasAStyleAndUnknownKeysStillDraw`.
+  `CanvasLinkStyleTests.swift::everyEngineKeyHasAStyleAndUnknownKeysStillDraw`.
 - `canvas-organize.links.existing-ones-show` — **[GAP]** (→ #4192; app) every link that already
   exists between two things on a board is drawn, a segment's links as one line between the two
   page cards with a count; Show chooses which families are drawn, per board, remembered. Test:
-  `swift::aSegmentLinkDrawsBetweenItsPages`.
+  `CanvasLinksDrawnTests.swift::aSegmentLinkDrawsBetweenItsPages`.
 - `canvas-organize.tool.connect` — **[GAP]** (→ #4192; app) a Connect drag from one card to another
   opens a menu of the types that fit the two ends, the likeliest first; choosing one writes the
   link and draws it with its label; ⌥ repeats the last type; an ⌥-drop with the Select tool does
   the same (`library.canvas.a-drop-links-only-with-option`). Test:
-  `swift::aDragBetweenTwoLettersOffersRepliesToFirst`.
+  `CanvasConnectToolTests.swift::aDragBetweenTwoLettersOffersRepliesToFirst`.
 - `canvas-organize.link.select-edit-remove` — **[GAP]** (→ #4192; app) a click on a line selects it;
   the Inspector shows its type, direction, author, certainty, note and evidence and can change the
   type, reverse it or set the certainty; Delete removes it; each is undone by one ⌘Z. Test:
-  `swift::reversingALinkIsOneUndoableAction`.
+  `CanvasLinkEditTests.swift::reversingALinkIsOneUndoableAction`.
 - `canvas-organize.tool.set` — **[GAP]** (→ #4192; app) a Set drag makes a set of the cards inside
   it; New Set from Selection does the same for cards anywhere; a card dragged into a region joins
   it and out leaves it; the region is drawn behind its members with its label and count and follows
   them when they move. Test:
-  `swift::draggingACardOutLeavesTheSet`.
+  `CanvasSetToolTests.swift::draggingACardOutLeavesTheSet`.
 - `canvas-organize.set.opens-as-a-board` — **[GAP]** (→ #4192; app) a set is listed in the sidebar
   under the folder it was made in and opens as its own board holding its members wherever they are
   filed, each card naming its folder; a member's own Inspector lists its sets. Test:
-  `swift::aSetBoardShowsMembersFromTwoFolders`.
+  `CanvasSetBoardTests.swift::aSetBoardShowsMembersFromTwoFolders`.
 - `canvas-organize.tool.order` — **[GAP]** (→ #5548; app) with the Order tool, clicking cards in turn
   numbers them in the current order; dragging a numbered card between two others moves it with one
   write; the order draws as numbers and a path; the Order menu switches between As Filed and each
   named order and makes a new one. Test:
-  `swift::clickingThreeCardsNumbersThemInTurn`.
+  `CanvasOrderToolTests.swift::clickingThreeCardsNumbersThemInTurn`.
 - `canvas-organize.arrange.by-order-and-set` — **[GAP]** (→ #5550; app) Arrange By gains *By Order*
   (a row or grid in the current order) and *By Set* (each set's members together), saved and undone
   as every arrangement is (`library.canvas.arrange-is-an-action`). Test:
-  `swift::byOrderLaysCardsOutInTheCurrentOrder`.
+  `CanvasArrangeByOrderTests.swift::byOrderLaysCardsOutInTheCurrentOrder`.
 - `canvas-organize.tool.join` — **[GAP]** (→ #5550; app + engine) a card dragged to another's edge
   with the Join tool snaps where their outlines fit, or is placed by hand with ⌥; the result is a
   `joins` link holding the placement; joined pieces draw as one sheet, move together, and Unjoin
   parts them. Test:
-  `swift::joinedPiecesMoveAsOneAndUnjoinPartsThem`.
+  `CanvasJoinToolTests.swift::joinedPiecesMoveAsOneAndUnjoinPartsThem`.
 - `canvas-organize.sheet.reads-as-one` — **[GAP]** (→ #5550; engine + app) a joined sheet shows in the
-  Source view as one image composed from its pieces at their placement, and the Reader reads lines
-  that cross the join as one line; a recto and its verso are one sheet with two sides. Test:
-  `py::test_a_line_across_the_tear_is_one_line`.
+  Source view as one stitched picture composed from its pieces at their placement, for display
+  only: both images are kept with their own segments and readings, and the Reader stitches the two
+  readings so a line that crosses the join reads as one line; reading the stitched sheet afresh is
+  offered and never starts by itself; a recto and its verso are one sheet with two sides. Test:
+  `test_a_joined_sheet_reads_as_one.py::test_a_line_across_the_tear_is_one_line`.
 - `canvas-organize.bundle.pile` — **[GAP]** (→ #5548; app) a set of kind bundle draws as a fanned
   pile in its stacking order, opens to a row and closes again; dragging within the row reorders
   the stack as one action. Test:
-  `swift::aBundleDrawsInStackingOrder`.
+  `CanvasBundlePileTests.swift::aBundleDrawsInStackingOrder`.
 - `canvas-organize.misfiled.belongs-in` — **[GAP]** (→ #4639; app + engine) a ⌃-drop of a card onto a
   group, set or folder, or Belongs In…, writes `belongs_in` and moves nothing; the card carries a
   badge where it is filed and is listed, marked as filed elsewhere, where it belongs. Test:
-  `py::test_a_misfiled_sheet_is_listed_where_it_belongs_and_stays_where_filed`.
+  `test_belongs_in.py::test_a_misfiled_sheet_is_listed_where_it_belongs_and_stays_where_filed`.
 - `canvas-organize.inspector.relations` — **[GAP]** (→ #4639; app) the Inspector of a page, document
   or set has a Relations section: its links by family in both directions with the other end's
   picture and name, its sets, and its place in each order; a click goes to the other end. The same
   section is the whole surface on iPhone. Test:
-  `swift::aLetterListsItsReplyAndItsEnclosure`.
+  `RelationsSectionTests.swift::aLetterListsItsReplyAndItsEnclosure`.
 - `canvas-organize.undo-and-touch` — **[GAP]** (→ #4192; app) every gesture above is one audited
   engine action undone by one ⌘Z; on iPad the Pencil draws with the current tool, a finger pans and
   moves, and a long press on a card starts a connect. Test:
-  `swift::eachToolGestureIsOneUndoStep`.
+  `CanvasOrganizeUndoTests.swift::eachToolGestureIsOneUndoStep`.
+
+- `canvas-organize.space.shows-and-does-not-edit` — **[GAP]** (→ #4192; app) the 3D space draws links,
+  sets and proposals from the same records in the same styles and answers a proposal with Accept
+  and Reject; the tools (Connect, Order, Set, Join) are on the 2D board only. Test:
+  `CanvasSpaceRelationsTests.swift::theSpaceDrawsLinksAndOffersNoTools`.
 
 ### C. Proposals
 
 - `canvas-organize.propose.one-store` — **[GAP]** (→ #5550; engine) proposed links, sets, orders,
   joins and layouts are stored with Find the Documents' proposals as hypotheses with their
   evidence, method, version and score; none is a link, set or order until accepted. Test:
-  `py::test_a_proposed_link_is_not_a_link`.
+  `test_proposals_are_hypotheses.py::test_a_proposed_link_is_not_a_link`.
 - `canvas-organize.propose.run` — **[GAP]** (→ #5550; engine + app) Propose runs the chosen kinds on
   the selection or the board's scope as an Activity job that can be cancelled and resumed; it is
-  local by default, and a paid model is offered with its estimate and starts only when chosen. Test:
-  `py::test_a_run_writes_proposals_and_accepts_nothing`.
+  local by default; a paid vision model for the pairs the local step is unsure of is an offered
+  step with its estimate and starts only when chosen; sheet-to-sheet matching starts only from
+  Propose or a recipe's Organise stage. Test:
+  `test_propose_job.py::test_a_run_accepts_only_the_kinds_switched_on`.
 - `canvas-organize.propose.drawn-apart` — **[GAP]** (→ #5550; app) proposals draw in one proposal
   style with a confidence mark, apart from accepted links and sets; no card moves; a proposed
   layout draws as ghost cards with Apply Layout. This is the layer `finddocs.canvas.drawn` draws
   on. Test:
-  `swift::aProposalNeverMovesACard`.
+  `CanvasProposalLayerTests.swift::aProposalNeverMovesACard`.
 - `canvas-organize.propose.evidence-strip` — **[GAP]** (→ #5550; app) selecting a proposal shows its
   evidence under the board: the compared parts side by side from the engine's own crops, the
   method, version and score, and the reason in a sentence; a proposal without evidence is not
   listed. Test:
-  `swift::aTornEdgeProposalShowsBothEdges`.
+  `CanvasEvidenceStripTests.swift::aTornEdgeProposalShowsBothEdges`.
 - `canvas-organize.propose.accept-reject` — **[GAP]** (→ #5550; engine + app) Accept (↩) writes the
   link, set, order or join as a person's, citing the proposal; Reject (⌫) records the pair so it is
   not proposed again; Accept All in Selection answers many as one undoable step; an adjusted
   proposal is accepted as adjusted. Test:
-  `py::test_a_rejected_pair_is_not_proposed_again`.
+  `test_accept_and_reject.py::test_a_rejected_pair_is_not_proposed_again`.
 - `canvas-organize.propose.step-through` — **[GAP]** (→ #5550; app) the proposal counter shows how
   many wait on this board; Next and Previous move the selection and the camera to each in order
   of confidence; the folder's Items list counts them with Find the Documents' own. Test:
-  `swift::nextGoesToTheMostConfidentUnanswered`.
+  `CanvasProposalStepTests.swift::nextGoesToTheMostConfidentUnanswered`.
 - `canvas-organize.propose.from-the-text` — **[GAP]** (→ #5550; engine) from readings and the cues
   Find the Documents already computes: `answers` (a reply phrase naming an earlier letter's date or
   number), `encloses` (an enclosure phrase and a document that fits it), `copy_of` and `draft_of`
   (near-identical text; typed signature marks against a signed original; density of corrections),
   `continues` (a sentence running over the break), and sets of correspondents. Test:
-  `py::test_a_reply_phrase_proposes_answers_with_the_phrase_as_evidence`.
+  `test_relations_from_the_text.py::test_a_reply_phrase_proposes_answers_with_the_phrase_as_evidence`.
 - `canvas-organize.propose.corrections-teach` — **[GAP]** (→ #5550; engine) each accept, reject and
-  adjustment is kept as a labelled example with its evidence, in the form
-  `finddocs.corrections-teach` keeps its own. Test:
-  `py::test_an_accept_is_a_positive_example`.
+  adjustment is kept as a labelled example with its evidence and who gave it, in the form
+  `finddocs.corrections-teach` keeps its own; only a named editor's answer is ground truth
+  (`canvas-organize.crowd.answers-are-ground-truth`). Test:
+  `test_answers_are_examples.py::test_an_accept_is_a_positive_example`.
+
+- `canvas-organize.propose.duplicates-accept-themselves` — **[GAP]** (→ #5550; engine + app) a run
+  accepts a `duplicate_of` proposal at or above the project's duplicate threshold (a setting with a
+  shipped default) and no other kind; the accepted duplicate stays in the proposal list marked
+  "accepted automatically", keeps its evidence, has one evidence row saying the run accepted it,
+  and is undone like any answer, after which it waits for a person and is not accepted again. Test:
+  `test_duplicates_accept_themselves.py::test_an_automatic_duplicate_is_listed_marked_and_undoable`.
+- `canvas-organize.propose.kinds-switched-on-per-kind` — **[GAP]** (→ #5550; engine + app) every kind
+  but duplicates waits for a person until its recognizer has a score against an editor's answers;
+  the score suggests a level and a person switches that kind on at it, per project; switching it
+  off stops further automatic accepts and undoes none. Test:
+  `test_kinds_switched_on.py::test_an_unscored_kind_cannot_be_switched_on`.
+- `canvas-organize.distil.training-data-kept` — **[GAP]** (→ #5550; engine) every recognizer and
+  proposal step keeps, per answer, what it was asked (the crops, marks and readings compared, by
+  reference), what answered (the method or model and its version), the answer with its reasons,
+  and the editor's accept, reject or correction of it; a paid model's answers are kept as teacher
+  examples and the editor's as ground truth; nothing is kept from a holder's images beyond what
+  its rights allow. Test: `test_distil_training_data.py::test_a_paid_answer_and_the_editors_correction_are_one_example`.
+- `canvas-organize.distil.local-model-offered` — **[GAP]** (→ #5550; engine + app) each step that can
+  call a paid model distils a small local model from its kept examples (the loop of
+  `../compute/distillation.md`); the local model is offered in place of the paid call when, on
+  editor-answered examples held out from training, it scores at least as well as the paid model;
+  a person switches it in, per step and project, and the paid model is then asked only where the
+  local one is unsure. Test:
+  `test_distil_local_model.py::test_a_local_model_is_offered_only_when_it_matches_the_paid_one_on_held_out_answers`.
+- `canvas-organize.distil.reported` — **[GAP]** (→ #5550; engine + app) each step reports which model
+  answered each proposal, the examples kept (teacher, editor), the local and paid scores against
+  the editor's answers with the date measured, and the paid calls and cost the local model
+  replaced; shown in the run's details in Activity and on the model's card in the Models window.
+  Test: `test_distil_report.py::test_a_run_says_which_model_answered_and_what_it_replaced`.
 
 ### D. The physical recognizers
 
 - `canvas-organize.physical.marks-are-segments` — **[GAP]** (→ #5548; engine) sheet outlines, torn
   edges, holes and stains are segments of their own kinds in a machine pass, in the page's
-  coordinates, seen and corrected in the segment editor; a corrected mark reruns only the
-  comparisons it was part of. Test:
-  `py::test_a_hole_is_a_segment_of_kind_hole`.
+  coordinates, seen and corrected in the segment editor; they are found with image preparation, one image at a
+  time, and no sheet is compared with another then; a corrected mark reruns only the comparisons
+  it was part of. Test:
+  `test_marks_are_segments.py::test_a_hole_is_a_segment_of_kind_hole`.
 - `canvas-organize.physical.sheet-outline` — **[GAP]** (→ #5548; engine) every image gets its sheet
   outline from the page finder, rectified, with a descriptor; two images whose outlines agree are
   proposed as `duplicate_of`, and two that agree mirrored as `verso_of`, each with the overlay and
   the residual as evidence. Test:
-  `py::test_a_mirrored_outline_proposes_verso_of`.
+  `test_sheet_outline.py::test_a_mirrored_outline_proposes_verso_of`.
 - `canvas-organize.physical.overlap` — **[GAP]** (→ #5548; engine) a frame with more than one sheet
   is reported with each outline, which sheet lies on top and the hidden area; it proposes one page
   per sheet, `stacked_on` between them, and the finding that the covered sheet needs another
   photograph. Test:
-  `py::test_the_whole_outline_is_the_upper_sheet`.
+  `test_overlap.py::test_the_whole_outline_is_the_upper_sheet`.
 - `canvas-organize.physical.torn-edge` — **[GAP]** (→ #5548; engine) irregular stretches of two
   outlines that fit are proposed as `joins` with the placement, after the cheap filter; the
   evidence is the two edges together, the gap along the fit and the lines of writing that cross.
   A straight edge is never matched as a tear. Test:
-  `py::test_two_halves_of_a_torn_page_are_proposed_with_their_placement`.
+  `test_torn_edge.py::test_two_halves_of_a_torn_page_are_proposed_with_their_placement`.
 - `canvas-organize.physical.holes-and-stains` — **[GAP]** (→ #5548; engine) marks at the same place
   on several sheets propose a bundle; a mark that shrinks or fades through them proposes the
   `stacked_on` order; regular punches alone propose the bundle without an order; the proposal says
   that this is how the sheets lay when the damage happened. Test:
-  `py::test_a_shrinking_stain_orders_four_sheets`.
+  `test_holes_and_stains.py::test_a_shrinking_stain_orders_four_sheets`.
 - `canvas-organize.physical.scale-is-stated` — **[GAP]** (→ #5548; engine) each physical proposal says
   whether true size was known (a ruler or colour card in frame) or only relative shape, and a
   relative-only match scores lower. Test:
-  `py::test_a_match_without_a_ruler_says_relative`.
+  `test_scale.py::test_a_match_without_a_ruler_says_relative`.
 - `canvas-organize.physical.bounded` — **[GAP]** (→ #5548; engine) a run compares in detail only the
   candidates the descriptor index returns, reports progress, resumes after a restart, and holds a
   stated memory ceiling on a folder of two thousand images. Test:
-  `py::test_two_thousand_images_stay_under_the_ceiling`.
+  `test_physical_recognizers_bounded.py::test_two_thousand_images_stay_under_the_ceiling`.
 - `canvas-organize.physical.scored` — **[GAP]** (→ #5548; engine) each recognizer is scored on a
   known-answer set (public pages torn and stacked synthetically; a public torn-page set) and its
   proposals carry the precision measured at their score; a recognizer with no score is not offered
   in the Propose menu. Test:
-  `py::test_torn_edge_precision_on_the_synthetic_set`.
+  `test_known_answer.py::test_torn_edge_precision_on_the_synthetic_set`.
 
 ### E. Out of the board
 
 - `canvas-organize.reader.follows-an-order` — **[GAP]** (→ #5548; app + engine) the Reader's next and
   previous follow the order chosen for the set, group or folder being read, and say which order
   that is; a `continues` link stitches the text of its two ends with a page anchor between. Test:
-  `py::test_next_follows_the_chosen_order`.
+  `test_reading_in_an_order.py::test_next_follows_the_chosen_order`.
 - `canvas-organize.export` — **[GAP]** (→ #4639; engine) an order exports as an IIIF Range and a set
   as a Collection; replies and enclosures as TEI `correspContext`; copies, drafts, sequence and
   membership as Records in Contexts relations; the catalogue sheet gains a Relations column; every
   export says who made each relation and how sure. Test:
-  `py::test_an_order_exports_as_a_range`.
+  `test_relations_export.py::test_an_order_exports_as_a_range`.
 - `canvas-organize.mcp-cli` — **[GAP]** (→ #4639; engine) links between documents, sets, item orders,
   proposals, accept and reject, and each recognizer are MCP tools and CLI commands generated from
   the same routes, with the same result as the board. Test:
-  `py::test_organize_tools_match_their_routes`.
+  `test_mcp_generated.py::test_organize_tools_match_their_routes`.
 
 ### F. At the scale of a dump of fragments
 
 - `canvas-organize.scale.descriptor-index` — **[GAP]** (→ #5548; engine) every fragment's descriptors
   (outline, edge, fibres, hand, read letters) are computed once, versioned by method, and held in an
-  index that returns the nearest candidates to one fragment in bounded time on five hundred
-  thousand fragments; adding fragments extends the index without rebuilding it. Test:
+  index that returns the nearest candidates to one fragment in bounded time; a library of one
+  hundred thousand items is indexed and matched on a Mac, and five hundred thousand are indexed on
+  a cluster through the existing runner, the app opening slices of that index; adding fragments
+  extends the index without rebuilding it. Test:
   `test_descriptor_index.py::test_nearest_candidates_are_bounded_at_half_a_million`.
 - `canvas-organize.scale.triage` — **[GAP]** (→ #5550; engine + app) a triage pass gives each fragment
   facets: written or blank, size, script and language, which face shows which fibre direction,
@@ -665,8 +720,9 @@ file, then function.
   are proposed as candidates for a join, ranked above candidates with no text in common. Test:
   `test_text_identification.py::test_two_fragments_of_one_work_are_ordered_by_their_lines`.
 - `canvas-organize.text.corpora-are-installed` — **[GAP]** (→ #5550; engine + app) a known-text corpus
-  is installed per project with its name, licence and version; none under a licence that forbids
-  it is bundled; identification runs locally and never sends a reading to a service unless a
+  is installed per project with its name, licence and version; none is bundled; open corpora are
+  offered as downloads once their licence is checked, and a licensed corpus a project already
+  holds is added from disk and used locally only; identification runs locally and never sends a reading to a service unless a
   person chooses one; each proposal names the corpus and version it matched. Test:
   `test_text_corpora.py::test_a_proposal_names_its_corpus_and_version`.
 - `canvas-organize.cross.join-names-both-holders` — **[GAP]** (→ #4639; engine + app) a fragment held
@@ -676,11 +732,12 @@ file, then function.
   that references both holders' image services and copies no image. Test:
   `test_cross_holder_join.py::test_the_join_record_and_its_manifest_name_both_holders`.
 - `canvas-organize.crowd.answers-are-ground-truth` — **[GAP]** (→ #5550; engine + app) every accept,
-  reject and correction is kept with who gave it; a relation counts as ground truth when the
-  project's rule is met (a number of people agreeing, or a named editor); disagreement is listed
-  and never averaged; imported crowd transcriptions keep their agreement as certainty; a recognizer
-  retrained on ground truth reports its score before and after, on fragments held out by find
-  context. Test: `test_crowd_ground_truth.py::test_two_agreeing_answers_make_ground_truth_and_a_split_is_listed`.
+  reject and correction is kept with who gave it; only the answer of a named editor of the project
+  is ground truth; answers from a crowd or from other team members are kept, counted and shown
+  beside a proposal as a hint, and never train a model alone; disagreement is listed and never
+  averaged; imported crowd transcriptions keep their agreement as certainty; a recognizer retrained
+  on ground truth reports its score before and after, on fragments held out by find context. Test:
+  `test_crowd_ground_truth.py::test_only_an_editors_answer_is_ground_truth_and_crowd_answers_are_shown`.
 
 ## Data model and which operations are engine calls
 
@@ -691,21 +748,25 @@ nothing else. New actions: `set.create`, `set.rename`, `set.delete`, `set.add`, 
 `organize.propose`, `organize.accept`, `organize.reject`; `physical.find_marks`. Existing actions
 reused unchanged: `typed_link.create`, `typed_link.delete`, `typed_link.restore`, `canvas.arrange`,
 the group and ungroup routes, the canvas layout and canvas item routes, the segment actions for
-marks. New records: the evidence row; the item order and its entries (or the reading-order records
-widened, open question 2). `CanvasItemKind` gains `set`. Nothing is added to `SpatialConnection`,
+marks. New records: the evidence row. Widened: the reading-order records, whose entries may point at an
+item, so an item order needs no tables of its own. `CanvasItemKind` gains `set`. Nothing is added to `SpatialConnection`,
 `LibraryItemLink` or the Swift `LinkType`; the first two keep reading until their own convergence
 slice, the third is removed by `canvas-organize.link.one-vocabulary-in-the-app`.
 
 ## Build order
 
+Order among milestones (decided 2026-11-26): `canvas-organize` follows the segment editor's steps and
+`library-view-modes`; Stage 1 below is engine-only, touches no shared view and starts now. The line in
+`../build-order.md` is the owner's to place.
+
 ### Stage 1 — Engine: links between documents, sets, orders
 #### Step 1.1 — The eight link types and document ends (#TBD)
 - Behaviours: `canvas-organize.link.archival-types`, `canvas-organize.link.document-ends`, `canvas-organize.link.evidence`
-- Tests: py, py, py
+- Tests: test_archival_link_types.py, test_links_between_documents.py, test_link_evidence.py
 - Size: M
 #### Step 1.2 — Sets, item orders and the filed order (#TBD)
 - Behaviours: `canvas-organize.set.record`, `canvas-organize.order.items`, `canvas-organize.order.filed-is-kept`, `canvas-organize.link.listed-for-a-scope`
-- Tests: py, py, py, py
+- Tests: test_sets.py, test_item_orders.py, test_filed_order_is_kept.py, test_links_for_a_scope.py
 - Size: M
 
 ### Stage 2 — The board: see and make relations by hand
@@ -720,17 +781,17 @@ slice, the third is removed by `canvas-organize.link.one-vocabulary-in-the-app`.
 - Size: M
 #### Step 2.3 — Sets and their boards (#TBD)
 - Behaviours: `canvas-organize.tool.set`, `canvas-organize.set.opens-as-a-board`, `canvas-organize.misfiled.belongs-in`
-- Tests: CanvasSetToolTests.swift, CanvasSetBoardTests.swift, py
+- Tests: CanvasSetToolTests.swift, CanvasSetBoardTests.swift, test_belongs_in.py
 - Size: M
 #### Step 2.4 — Orders on the board (#TBD)
 - Behaviours: `canvas-organize.tool.order`, `canvas-organize.arrange.by-order-and-set`, `canvas-organize.bundle.pile`, `canvas-organize.reader.follows-an-order`
-- Tests: CanvasOrderToolTests.swift, CanvasArrangeByOrderTests.swift, CanvasBundlePileTests.swift, py
+- Tests: CanvasOrderToolTests.swift, CanvasArrangeByOrderTests.swift, CanvasBundlePileTests.swift, test_reading_in_an_order.py
 - Size: M
 
 ### Stage 3 — Proposals
 #### Step 3.1 — One store, the job, accept and reject (#TBD)
 - Behaviours: `canvas-organize.propose.one-store`, `canvas-organize.propose.run`, `canvas-organize.propose.accept-reject`, `canvas-organize.propose.corrections-teach`
-- Tests: py, py, py, py
+- Tests: test_proposals_are_hypotheses.py, test_propose_job.py, test_accept_and_reject.py, test_answers_are_examples.py
 - Depends on: 1.2
 - Size: M
 #### Step 3.2 — The proposal layer, the evidence strip, stepping through (#TBD)
@@ -738,36 +799,46 @@ slice, the third is removed by `canvas-organize.link.one-vocabulary-in-the-app`.
 - Tests: CanvasProposalLayerTests.swift, CanvasEvidenceStripTests.swift, CanvasProposalStepTests.swift
 - Depends on: 3.1, 2.1
 - Size: M
-#### Step 3.3 — Relations proposed from the text (#TBD)
+#### Step 3.3 — Duplicates accepted by the run; kinds switched on (#TBD)
+- Behaviours: `canvas-organize.propose.duplicates-accept-themselves`, `canvas-organize.propose.kinds-switched-on-per-kind`
+- Tests: test_duplicates_accept_themselves.py, test_kinds_switched_on.py
+- Depends on: 3.1
+- Size: S
+#### Step 3.4 — Every step distilled (#TBD)
+- Behaviours: `canvas-organize.distil.training-data-kept`, `canvas-organize.distil.local-model-offered`, `canvas-organize.distil.reported`
+- Tests: test_distil_training_data.py, test_distil_local_model.py, test_distil_report.py
+- Depends on: 3.1
+- Size: M
+#### Step 3.5 — Relations proposed from the text (#TBD)
 - Behaviours: `canvas-organize.propose.from-the-text`
-- Tests: py
+- Tests: test_relations_from_the_text.py
 - Depends on: 3.1
 - Size: M
 
 ### Stage 4 — The physical recognizers
 #### Step 4.1 — Marks as segments, the sheet outline, scale, the known-answer sets (#TBD)
 - Behaviours: `canvas-organize.physical.marks-are-segments`, `canvas-organize.physical.sheet-outline`, `canvas-organize.physical.scale-is-stated`, `canvas-organize.physical.scored`
-- Tests: py, py, py, py
+- Tests: test_marks_are_segments.py, test_sheet_outline.py, test_scale.py, test_known_answer.py
 - Depends on: 3.1
 - Size: M
 #### Step 4.2 — Overlap and torn edges (#TBD)
 - Behaviours: `canvas-organize.physical.overlap`, `canvas-organize.physical.torn-edge`
-- Tests: py, py
+- Tests: test_overlap.py, test_torn_edge.py
 - Size: M
 #### Step 4.3 — Holes and stains; bounded runs (#TBD)
 - Behaviours: `canvas-organize.physical.holes-and-stains`, `canvas-organize.physical.bounded`
-- Tests: py, py
+- Tests: test_holes_and_stains.py, test_physical_recognizers_bounded.py
 - Size: M
 #### Step 4.4 — Join by hand and a sheet that reads as one (#TBD)
-- Behaviours: `canvas-organize.tool.join`, `canvas-organize.sheet.reads-as-one`
-- Tests: CanvasJoinToolTests.swift, py
+- Behaviours: `canvas-organize.tool.join`, `canvas-organize.sheet.reads-as-one`, `canvas-organize.space.shows-and-does-not-edit`
+- Tests: CanvasJoinToolTests.swift, test_a_joined_sheet_reads_as_one.py, CanvasSpaceRelationsTests.swift
 - Depends on: 4.2, 2.1
 - Size: M
 
 ### Stage 5 — Out of the board
 #### Step 5.1 — Export, MCP and the command line (#TBD)
 - Behaviours: `canvas-organize.export`, `canvas-organize.mcp-cli`
-- Tests: py, py
+- Tests: test_relations_export.py, test_mcp_generated.py
 - Depends on: 1.2, 3.1
 - Size: M
 
@@ -802,15 +873,15 @@ slice, the third is removed by `canvas-organize.link.one-vocabulary-in-the-app`.
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | drop table, link styles, order numbering, set membership, proposal layer | `swift` |
+| Pure rule (Swift) | y | drop table, link styles, order numbering, set membership, proposal layer | `Canvas*Tests.swift` |
 | Availability (Swift) | y | every tool and command reachable from the toolbar, menu and context menu | `CanvasOrganizeToolbarTests.swift` |
 | Backend (pytest) | y | links, sets, orders, proposals, recognizers on known-answer images | `tests/unit/organize/`, `tests/unit/physical/` in the engine |
-| MCP | y | tools map to routes | `py` |
-| CLI | y | commands wire the same routes | `py` |
-| Click-around (XCUITest, Mac) | y | the acceptance walk in "What the person sees" | `swift` |
+| MCP | y | tools map to routes | `test_mcp_generated.py` |
+| CLI | y | commands wire the same routes | `test_cli_generated.py` |
+| Click-around (XCUITest, Mac) | y | the acceptance walk in "What the person sees" | `CanvasOrganizeUITests.swift` |
 | iPhone (iOS) | y | the Relations section, accept and reject | `fichero/Tests/UI/ios` |
 | iPad | y | Pencil connect, finger move | `fichero/Tests/UI/ipad` |
-| Load (#4634) | y | recognizers on two thousand images; a board with five hundred links holds frame rate | `py` |
+| Load (#4634) | y | recognizers on two thousand images; a board with five hundred links holds frame rate | `test_physical_recognizers_bounded.py` |
 
 ## Documentation matrix
 
@@ -851,50 +922,46 @@ a sentence: "Letter of 4 March replies to Letter of 20 February, made by a perso
 | `canvas-organize.proposal.accept` | Accept | Keep this suggestion (Return) | `canvas.organize.proposal.accept` | [MISSING] |
 | `canvas-organize.proposal.reject` | Reject | Dismiss this suggestion; it is not offered again (Delete) | `canvas.organize.proposal.reject` | [MISSING] |
 
+## Decided (owner, 2026-11-26)
+
+The twelve questions of the first drafts, all answered, and one rule added. Each is folded into
+the sections and behaviours above.
+
+1. **A correspondence or a series is a set.** Members stay where they are filed and a thing can be
+   in several. Folders stay for real refiling.
+2. **One order record.** The reading-order records are widened to take items; there is no second
+   pair of tables (`canvas-organize.order.items`).
+3. **Joined halves keep both images.** A stitched picture is shown, for display only; reading the
+   stitched sheet again is offered, never automatic (`canvas-organize.sheet.reads-as-one`).
+4. **Nine link kinds, as written:** `joins`, `verso_of`, `encloses`, `copy_of`, `draft_of`,
+   `stacked_on`, `belongs_in`, `member_of`, `attests`.
+5. **When the recognizers run.** Outlines and marks with image preparation; sheet-to-sheet matching
+   only on Propose or a recipe's Organise stage.
+6. **Duplicates are accepted automatically, now.** A high-confidence duplicate is accepted by the
+   run, still listed with its evidence, undoable, with one row saying it was automatic. Every other
+   kind waits for a person until it is scored and switched on, per kind
+   (`canvas-organize.propose.duplicates-accept-themselves`,
+   `canvas-organize.propose.kinds-switched-on-per-kind`).
+7. **A paid vision model for hard pairs** is an offered step with its estimate, never the default.
+8. **The 3D space shows** links, sets and proposals; the tools stay on the 2D board
+   (`canvas-organize.space.shows-and-does-not-edit`).
+9. **Milestone `canvas-organize`** (GitHub #370), after the segment editor and `library-view-modes`;
+   the engine's Stage 1 starts now.
+10. **Size.** One hundred thousand items are promised in a library on a Mac; five hundred thousand
+    are indexed on a cluster, with the app opening slices.
+11. **Corpora.** None is bundled; open ones are offered as downloads; a licensed corpus is local
+    only.
+12. **Ground truth is a named editor's answer, and nothing else.** Crowd and team answers are kept
+    with who gave them and shown, and never train a model alone
+    (`canvas-organize.crowd.answers-are-ground-truth`).
+13. **Every recognizer and proposal step is distilled** (added by the owner). Paid-model answers and
+    the editor's accepts, rejects and corrections are training data for small local models that
+    take the paid call's place over time, as a recipe step distils its model
+    (`canvas-organize.distil.training-data-kept`, `canvas-organize.distil.local-model-offered`,
+    `canvas-organize.distil.reported`).
+
 ## Open questions for the owner
 
-1. **Set or folder?** Is a correspondence a new *set* (members stay where they are filed, a thing
-   can be in several) or a folder the letters are moved into? *Recommended: a set.* It keeps the
-   filed order, allows one letter in two series, and needs one new item kind and one link type; a
-   folder remains for when the researcher does want to refile.
-2. **One order record or two?** Should an order over pages and documents widen the existing
-   reading-order records (entries may point at an item) or be its own pair of tables?
-   *Recommended: widen the existing records*, so "next and previous in a named order" is one idea
-   with one renumbering rule, and the Reader asks one question.
-3. **Do joined halves become one page?** After a join, is the reunited sheet composed into one
-   image that is segmented and read again, or do the two images keep their own readings, stitched?
-   *Recommended: keep both images and stitch*, composing one picture for display only; no reading
-   is thrown away and Unjoin is free. Re-reading the composed sheet is offered, never automatic.
-4. **Eight new link kinds: the right eight?** `joins`, `verso_of`, `encloses`, `copy_of`,
-   `draft_of`, `stacked_on`, `belongs_in`, `member_of`, with replies on the existing `answers` and
-   duplicates on `duplicate_of`. *Recommended: yes, and no more in this spec*; a project can add
-   its own terms, and each added built-in is a label to translate and a style to draw.
-5. **Where do the physical recognizers run?** With every import, or only when asked?
-   *Recommended: outlines and marks with image preparation (cheap, and the page finder already
-   runs); matching between sheets only when Propose is chosen or a recipe's Organise stage asks
-   for it*, since matching is the costly part and its proposals want a person's attention.
-6. **Any automatic acceptance?** Should a near-certain proposal (the same side photographed
-   twice) ever be accepted by the run? *Recommended: no, until each recognizer is scored on a box
-   a person organized; then the same rule as Find the Documents' boundaries, per kind, switched on
-   by a person.* Duplicates would be the first candidate.
-7. **A paid vision model for the hard pairs?** Should the teacher model be asked to judge
-   uncertain joins and stacks from the two crops? *Recommended: yes, as an offered step with its
-   estimate, never by default*; the geometry stays local, and the model's reasons join the
-   evidence.
-8. **Does the 3D space get the tools?** *Recommended: it draws links, sets and proposals from the
-   same records, and the tools stay on the 2D board in this spec*; drawing a region or fitting a
-   torn edge in depth is a separate design.
-9. **One milestone or the existing one?** This spec names a new `canvas-organize` milestone.
-   *Recommended: new*, ordered in `build-order.md` after `library-view-modes` and the segment
-   editor's steps, with Stage 1 (engine) free to start beside them since it touches no shared view.
-10. **How large is one library meant to be?** The fragment case is five hundred thousand items.
-   *Recommended: test and promise one hundred thousand in a library on a Mac; treat half a million
-   as an index built on a cluster through the existing runner, with the app opening slices of it.*
-   The board, the table and the jobs are designed for the larger number either way.
-11. **Which known-text corpora are offered?** *Recommended: bundle none; offer open ones as
-   downloads (the documentary texts published at papyri.info, open Greek and Latin literary
-   collections), and let a project add a licensed corpus it already holds, used locally only.*
-   Each corpus's licence is checked before it is listed.
-12. **What makes a crowd's answer ground truth?** *Recommended: two people agreeing or one named
-   editor, set per project, with every single answer kept.* Training uses ground truth only;
-   proposals may show lone answers as a hint with their count.
+None open. Two details are left to the step that builds them and are recorded there, not asked
+again: the shipped default of the duplicate threshold (Step 3.3), and which open corpora pass the
+licence check (Step 6.4).
