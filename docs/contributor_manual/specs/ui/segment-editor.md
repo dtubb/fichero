@@ -603,8 +603,8 @@ See section 7.2 below for what exists. The design:
   drawn). *Built 2026-11-21:* the full-page read's writer: `recognize_to_geometry` keeps each line's positions on
   its box (trimmed with the text), and converting the result into a pass puts them on the line's reading when there
   is one per character (`fichero-server/tests/unit/llm/test_full_page_read_keeps_char_positions.py`).
-  *Left, now `segment-editor.char-positions-in-the-app`:* the app's `Reading` model. *Tests:* `fichero-server/tests/unit/llm/test_kraken_char_positions.py`.
-- `segment-editor.char-positions-in-the-app` — **[GAP]** (→ #5154; app; split from `segment-editor.char-positions-kept`,
+  *Left:* `segment-editor.char-positions-on-the-reading-model`. *Tests:* `fichero-server/tests/unit/llm/test_kraken_char_positions.py`.
+- `segment-editor.char-positions-on-the-reading-model` — **[GAP]** (→ #5154; app; split from `segment-editor.char-positions-kept`,
   manager 2026-11-27 retag) what that line left: the app's `Reading` model. Not built: no Swift file names `char_positions`.
 - `segment-editor.cut-words-from-positions` — **[PARTIAL]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
   a page, derives word segments from the counting reading: each space in the text is a gap
@@ -661,7 +661,7 @@ See section 7.2 below for what exists. The design:
   *Built 2026-11-21:* the engine for a cut a person adds: `segment.split` with a `cut_path` across a word marks both
   pieces `cut_source: person` with confidence 1 and the reading they were cut from
   (`test_segment_move_cut.py::test_a_cut_added_inside_a_word_splits_its_stretch_of_the_reading_at_the_nearest_character`).
-  *Left to `segment-editor.cut-marks-editable` (its "click that adds a cut"):* the app's click that sends it.
+  *Left to `segment-editor.cut-marks-editable`:* its "click that adds a cut", which sends this.
   *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`,
   `fichero-server/tests/unit/api/test_segment_move_cut.py`.
 - `segment-editor.cut-marks-editable` — **[PARTIAL]** (→ #5212; app + engine) in the word layer each cut is a short mark
