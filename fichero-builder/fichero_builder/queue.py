@@ -3529,6 +3529,9 @@ def _refusal(tail: str) -> str:
     return hits[-1].strip()[:300] if hits else ""
 
 
+START_MARK = "--- start "  # spawn's dated line in run-<lane>.log at each start
+
+
 def session_output(j, lane: dict, n: int = 20) -> str:
     """The lane's pane (captured as the worker, while its window is there) and the last lines of `<workroot>/run-<lane>.log` (where a
     start that fails writes), saved as `session-<lane>-<seq>.log` in the state dir; the last `n` lines of both are returned."""
@@ -3538,6 +3541,10 @@ def session_output(j, lane: dict, n: int = 20) -> str:
             parts.append(f"--- pane {wid} ---\n{pane}")
     try:
         lines = (Path(j.workroot) / f"run-{lane['id']}.log").read_text(errors="replace").splitlines()
+        # 2026-11-27: the log holds every run of the lane all day, undated; an 11:37 "cap 300.00" park read as a 17:26 one, and an
+        # old `refuses` line could block a new start. Only this start's lines, from its dated mark, count
+        starts = [i for i, ln in enumerate(lines) if ln.startswith(START_MARK)]
+        lines = lines[starts[-1]:] if starts else lines
         noise = ("shell-init:", "job-working-directory:", "chdir:")  # the sudo'd shell starts in the owner's unreadable cwd
         parts.append("--- run log ---\n" + "\n".join([ln for ln in lines if not ln.startswith(noise)][-60:]))
     except OSError:
@@ -3751,6 +3758,8 @@ def real_procs(root) -> Procs:
 
     def spawn(j, lane, cmd):
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
+        log.write(f"{START_MARK}{time.strftime('%Y-%m-%d %H:%M:%S')} {lane['id']} message {lane.get('seq', 0)} ---\n".encode())  # session_output reads from here
+        log.flush()
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         # #6869: the worker starts in a directory it made (the workroot is world-writable), and its TMPDIR and pytest's basetemp are inside it
         own = shlex.quote(str(Path(j.workroot) / f"work-{lane['id']}"))

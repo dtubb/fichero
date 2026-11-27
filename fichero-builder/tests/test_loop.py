@@ -2500,3 +2500,19 @@ def test_a_missing_price_is_one_alert_per_key_at_the_start_and_when_lanes_meet_i
     assert len(alerts) == 1 and "claude-fable-5-2 = [<in>, <out>]" in __import__("json").dumps(alerts[0])
     queue.price_alert("claude-fable-5-2")
     assert len([r for r in journal.read() if r.get("event") == "alert"]) == 1, "the same key: no second alert"
+
+
+def test_the_session_output_reads_only_this_starts_lines_so_an_old_park_or_refusal_never_counts(state, tmp_path, monkeypatch):
+    """2026-11-27: run-app-bugs.log held every run of the day, undated; its 11:37 "reached the cap 300.00" park sat in the 17:26 session
+    log and read as a 300 cap that no longer existed. spawn dates each start; session_output reads from the last mark."""
+    import types
+    j = types.SimpleNamespace(workroot=str(tmp_path))
+    old = ("app-bugs: park: today's spend 300.47 USD reached the cap 300.00\n"
+           "builder run refuses: harness.toml [spend].prices has no price for 'claude-fable-5-2[1m]': unknown price, no start\n")
+    (tmp_path / "run-m1.log").write_text(f"{queue.START_MARK}2026-11-27 11:30:00 m1 message 3 ---\n{old}"
+                                         f"{queue.START_MARK}2026-11-27 17:26:00 m1 message 4 ---\nm1: step 4 sent\n")
+    monkeypatch.setattr(queue, "worker_windows", lambda j, name: [])
+    tail = queue.session_output(j, {"id": "m1", "seq": 4})
+    assert "17:26:00" in tail and "300.47" not in tail and queue._refusal(tail) == ""
+    (tmp_path / "run-m1.log").write_text(old)  # a log from before the marks: read whole, as before
+    assert "300.47" in queue.session_output(j, {"id": "m1", "seq": 5})
