@@ -26,7 +26,7 @@ from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.llm.local_model_facts import GIB
 from fichero_server.llm.refusal import CloudRefusal
-from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows, write_check
+from fichero_server.api.main import editor_or_owner_only, get_library_database, get_library_database_for_write, readable_rows, write_check
 # Imported, never redefined: one schema component for every route's refusal sentence (#5094).
 from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
 from fichero_server.db import Database
@@ -1614,7 +1614,7 @@ class BookmarkRequest(BaseModel):
     key: str = Field(description="the found card's key in the kept list (its repository)")
 
 
-@router.post("/candidates/bookmark")
+@router.post("/candidates/bookmark", dependencies=[Depends(editor_or_owner_only)])
 async def bookmark_candidate(request: BookmarkRequest) -> dict[str, str]:
     """Keep a found card without downloading it (`models.bookmark.kept-not-added`, #5460): a later search that does not
     find it leaves it. Refused (404) for a card no search found."""
@@ -1649,7 +1649,7 @@ async def _fetch_hub_card(repo: str) -> Optional[str]:
     return await discovery._fetch_card_text(repo)
 
 
-@router.post("/candidates/add")
+@router.post("/candidates/add", dependencies=[Depends(editor_or_owner_only)])
 async def add_candidate_by_address(request: AddByAddressRequest) -> dict[str, str]:
     """Add a model by its id or address (`models.manage.add-by-id-or-url`, #6588): one bookmarked card filled in from its source,
     the key the bookmark routes take. 422 for an address no model is named by, 404 for a model its source does not know, 403 while

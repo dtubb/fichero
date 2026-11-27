@@ -330,8 +330,6 @@ NO_CALLER_CLEARED: dict[str, tuple[str, str]] = {
     "POST /api/auth/key-challenge": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
     "POST /api/auth/sign-in-by-key": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
     "POST /api/pair/sign-in": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
-    "POST /api/recipes/candidates/add": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
-    "POST /api/recipes/candidates/bookmark": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
     "POST /api/auth/local-clients/register": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
     "POST /api/auth/local-clients/request": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
     "POST /api/auth/local-clients/requests/{request_id}/decision": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
