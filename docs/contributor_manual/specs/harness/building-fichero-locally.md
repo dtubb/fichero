@@ -3082,6 +3082,54 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   same file diff and the same audit row shape; an unknown verb is refused on both; the Edits tab lists the rows newest
   first. Test (to write): fichero-builder/tests/test_edit_both_ways (new).
 
+#### H. The owner's review of the console (owner 2026-11-27, after using it)
+
+- `builder-console.alerts.badge-and-page` [GAP] (#6589; owner 2026-11-27: alerts took over the top of every page, 68 of them up to
+  11 days old) — no page opens with the alert cards. The toolbar carries one count badge (the open alerts under a day old, and
+  beside it the count of those that are the owner's); the cards live on an Alerts page. `GET /api/alerts` groups the open alerts
+  by kind (the text before the first `;`, its numbers masked: the Dismiss rule without lane and step), newest group first; an open
+  alert older than `ALERT_FRESH_HOURS` (24) folds into one collapsed `older` list, grouped the same way, and is not in the badge.
+  An alert is the owner's when the answers it offers include `ask-owner` and none of `retry`, `approve`, `send-back` (a review's
+  owner question), and the alerts the manager answered `ask-owner` in the last `RESOLVED_DAYS` days are listed as asked of the
+  owner; both are marked apart from the manager's. Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.actions.beside-what-they-act-on` [GAP] (#6589; owner 2026-11-27: the console actions sat at the bottom of every
+  page) — an action's button and its last result sit in the row of what it acts on: a lane row of `/api/status` carries
+  `last_action` (verb, state, ok, exit, when, the last line of its output), the newest `console` row whose args name that lane.
+  The whole-harness actions (Build, the loop's start and stop) stay in the toolbar. The `console` rows and the last events are
+  one Log page; no other page ends with them. Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.milestones.issue-links` [GAP] (#6589; owner 2026-11-27: clicking Milestones, then an issue, changed nothing) —
+  every issue of a milestone, and every issue number of a milestone's step, is a link to that issue on the project's host:
+  `/api/milestones` gives each issue its `url` and the document its `repo` (from the `origin` remote; no link when there is none).
+  Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.lock.holder-named` [GAP] (#6589; owner 2026-11-27: "held by ?" in the ladder-lock waiting line) — a `lock`
+  `waiting` row for the ladder names what holds each busy slot, from the slots' lock files (`<pid> <what>`), never `?`; the
+  console's waiting line fills an older row's `?` the same way. Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.progress.page` [GAP] (#6589; owner 2026-11-27) — a Progress page of charts over the last `PROGRESS_DAYS` (30)
+  days, drawn as inline SVG (no chart library, nothing fetched): landings per day; trains per day by result; issues closed per
+  day; rounds per landing (the `red` rows of a step before its `landed` row); and each priority spec's `[OK]` count over time,
+  read from the git history of the spec files on the land branch (the last commit of each day that touched the file). The
+  priority specs are `[console.progress_specs]` of `harness.toml` (name = path). `GET /api/progress` returns the series. Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.control.lanes-and-steps` [GAP] (#6589; owner 2026-11-27) — from the console, each through a CLI verb and one
+  `console` row: pause, resume or start a lane; move a lane up or down the queue's lane order (`builder queue move --lane L --to N`
+  with no `--step`: one `queue` row `lane-moved`); move a lane's queued step (`queue move --lane L --step S --to N`). A Now page
+  (`GET /api/now`) shows what is running, in order: the lanes in queue order, each step with its state and its age (since
+  `entered_at`); the last trains with their steps; and every ladder slot, free or held, with what holds it (the slot's lock file
+  and its `.files` name). Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.manager.thread` [GAP] (#6589; owner 2026-11-27) — a message box on the console: `POST /api/message {text}` (the
+  token and loopback-Host rule of every POST) appends `{ts, text}` to `manager/inbox.jsonl` under the state dir and writes one
+  `owner-message` row (who, the text's length; never the text); an empty text is refused. `GET /api/thread` returns the owner's
+  messages and the manager's replies (`manager/outbox.jsonl`, `{ts, text}` lines) as one thread by time. The manager's wait
+  script wakes on the `owner-message` row. Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.review.stays` [GAP] (#6589; owner 2026-11-27: the Review page stays as it is) — the Review tab, `GET /review`,
+  `GET /api/review` and `POST /api/review` are as the Review page paragraph of `dev-workflows.run.loop-status` says, beside the
+  pages above. Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+- `builder-console.mcp.same-reads-and-controls` [GAP] (#6589; owner 2026-11-27: any Claude session can drive the builder) —
+  `builder mcp` is the builder's one MCP server (stdio, JSON-RPC, standard library only). Its tools are the console's reads and
+  controls, from the console's own functions: `status`, `lanes`, `alerts`, `now`, `review_list`, `thread` (reads); `lane_pause`,
+  `lane_resume`, `alert_answer`, `review_verdict`, `message_manager` (controls). A control runs the same verb as the page's
+  button and writes the same `console` row, with who `mcp`; an unknown tool or a missing argument is an error result, never a
+  crash. Test (to write): a new file beside `fichero-builder/tests/test_status_page.py`.
+
 
 ### From `performance-sweep.md` — Sources — what is measured, with what, where
 
