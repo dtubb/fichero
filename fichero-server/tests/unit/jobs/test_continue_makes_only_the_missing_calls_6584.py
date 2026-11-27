@@ -80,3 +80,29 @@ def test_a_run_that_failed_after_six_of_ten_pages_retried_makes_exactly_four_cal
     assert _wait_for(lambda: _status(client, again) == "completed"), _status(client, again)
     assert cloud.calls == 14, f"the retry read {cloud.calls - 10} pages; only the 4 not done may be read"
     assert client.get(f"/api/activity/jobs/{again}").json()["done"] == 4
+    from fichero_server.models import Document
+
+    assert all(db.get(Document, d.id).page_content for d in ten_pages), "the ten pages hold ten results"
+
+
+def _start(client, workflow, docs):
+    """A run as the app starts one: the stored results are looked at (`_execute` passes `skip_cache`)."""
+    r = client.post("/api/workflow-execution/execute", json={
+        "workflow_id": workflow.id, "inputs": {"selected_doc_ids": [d.id for d in docs]}})
+    assert r.status_code == 202, r.text
+    return r.json()["thread_id"]
+
+
+def test_a_second_run_over_the_same_pages_with_the_same_model_makes_no_calls(client, db, workflow, ten_pages, cloud,
+                                                                             no_embedding_model):
+    cloud.recovered.set()
+    first = _start(client, workflow, ten_pages)
+    assert _wait_for(lambda: _status(client, first) == "completed"), _status(client, first)
+    assert cloud.calls == 10, "the first run called the model once per page"
+
+    second = _start(client, workflow, ten_pages)
+
+    assert _wait_for(lambda: _status(client, second) == "completed"), _status(client, second)
+    assert cloud.calls == 10, f"the second run called the model {cloud.calls - 10} times; every page had a result for the same key"
+    account = client.get(f"/api/activity/jobs/{second}").json()
+    assert account["done"] == 10 and account["failed"] == 0, account
