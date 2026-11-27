@@ -46,7 +46,7 @@ def fake_gh(tmp_path, monkeypatch, head, runs, steps=None, fail=False, shards=12
 
 
 def cfg(**kw):
-    return check_tool.Config(actions=("unit",), actions_timeout_s=0.2, **kw)
+    return check_tool.Config(actions=("unit",), always_tests=("tests/smoke.py",), actions_timeout_s=0.2, **kw)
 
 
 GREEN = {"Unit tests": "success"}
@@ -233,3 +233,12 @@ def test_an_unreadable_pinned_harness_toml_blocks_the_push(repo, tmp_path, monke
     ran = []
     check_tool.from_actions("unit", repo, head, cfg(), _local(ran), tmp_path / "nowhere", head, CLEAN)
     assert ran == [1] and not _origin_has(tmp_path, head)
+
+
+def test_a_unit_rung_the_local_run_skips_is_not_turned_on_by_actions(repo, tmp_path, monkeypatch):
+    head = _git(repo, "rev-parse", "HEAD")
+    fake_gh(tmp_path, monkeypatch, head, [RUN], GREEN)
+    ran = []
+    c = check_tool.Config(actions=("unit",), actions_timeout_s=0.2)
+    check_tool.from_actions("unit", repo, head, c, _local(ran), _pin(repo), head, CLEAN)
+    assert ran == [1] and not _origin_has(tmp_path, head), "no always_tests: local() answers and nothing is pushed"

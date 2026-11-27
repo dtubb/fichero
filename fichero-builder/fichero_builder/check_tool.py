@@ -2509,7 +2509,7 @@ def from_actions(rung: str, root, head: str, cfg: Config, local, pinned, since: 
     """A rung in [check].actions takes its result from the GitHub Actions run of the batch head (actions.fetch): green or red from the run,
     or `local()` with one journal row saying why when there is no usable run. Not listed: `local()` and no push. The head is pushed only
     when `push_blocker` is empty (boundary clear, `scan` = the security row shows gitleaks ran clean)."""
-    if rung not in cfg.actions:
+    if rung not in cfg.actions or (rung == "unit" and not cfg.always_tests):  # a rung the local run skips is not turned on by Actions
         return local()
     if why := push_blocker(root, pinned, since, head, scan):
         journal.append("check", state="actions-local", rung=rung, head=head, reason="not pushed: " + why)
