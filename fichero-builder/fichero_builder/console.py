@@ -64,6 +64,35 @@ def _resolved(rows: list[dict], today: str) -> list[dict]:
            for r in rows if r.get("event") == "alert" and r.get("id") in how and str(r.get("ts", ""))[:10] >= cut]
     return list(reversed(out))[:100]
 
+ALERT_FRESH_HOURS = 24  # an open alert older than this folds into the Alerts page's `older` list and leaves the badge
+MANAGER_ANSWERS = ("retry", "approve", "send-back")  # an alert that offers ask-owner and none of these is the owner's
+
+
+def _secs(ts) -> float:
+    return time.mktime(time.strptime(str(ts)[:19].replace(" ", "T"), "%Y-%m-%dT%H:%M:%S"))
+
+
+def alerts_view(rows: list[dict], now: float | None = None) -> dict:
+    """builder-console.alerts.badge-and-page: the open alerts under ALERT_FRESH_HOURS grouped by kind (the text before the first `;`,
+    numbers masked), newest group first; the older ones grouped the same way apart; the badge's counts; each alert `owner` when it
+    offers ask-owner and no manager answer; and what the manager answered ask-owner in the last RESOLVED_DAYS days."""
+    from fichero_builder.queue import _alert_kind
+    now = now or time.time()
+    st = status(rows, [], today=time.strftime("%Y-%m-%d", time.localtime(now)))
+    open_ = [{**a, "owner": "ask-owner" in (a["actions"] or []) and not set(a["actions"]) & set(MANAGER_ANSWERS)} for a in st["open_alerts"]]
+    fresh = [a for a in open_ if now - _secs(a["ts"]) <= ALERT_FRESH_HOURS * 3600]
+    older = [a for a in open_ if now - _secs(a["ts"]) > ALERT_FRESH_HOURS * 3600]
+
+    def groups(alerts: list[dict]) -> list[dict]:
+        by: dict = {}
+        for a in alerts:
+            by.setdefault(_alert_kind(a)[2], []).append(a)
+        return sorted(({"kind": k, "n": len(v), "newest": v[-1]["ts"], "owner": any(x["owner"] for x in v), "alerts": v[::-1]} for k, v in by.items()),
+                      key=lambda g: g["newest"], reverse=True)
+    return {"count": len(fresh), "owner_count": sum(a["owner"] for a in fresh), "older_count": len(older), "groups": groups(fresh), "older": groups(older),
+            "asked_owner": [a for a in st["resolved_alerts"] if a["answer"] == "ask-owner"], "resolved": st["resolved_alerts"]}
+
+
 def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dict:
     """dev-workflows.run.loop-status: what `builder status` and `/status.json` show, from journal rows and the queue only."""
     today = today or time.strftime("%Y-%m-%d")
@@ -356,6 +385,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console" and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-20:]  # #6504: the person's actions, not the timer's
     st["loop_lanes"] = LOOP_LANES
+    st["alerts"] = {k: v for k, v in alerts_view(rows, now).items() if k in ("count", "owner_count")}  # the toolbar's badge
     st["lane_usage"] = lane_usage(lanes, rows=rows)
     usage = {u["lane"]: u for u in st["lane_usage"]}
     # #6503: one spend number. External lanes (Max sessions) write no cost row: their transcripts say. Managed lanes' transcripts are
@@ -1001,6 +1031,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, json.loads(_cache().read_text()))
             except (OSError, ValueError):
                 return _json(self, 200, {"ts": None, "milestones": []})
+        if path == "/api/alerts":
+            return _json(self, 200, alerts_view(rows_of(ROOT)))
         if path == "/api/activity":
             return _json(self, 200, activity(journal.read()))
         if path == "/api/hotspots":  # the Hotspots panel reads latest.json (perf-sweep.output.table)
