@@ -2764,6 +2764,21 @@ class Database(DatabaseEmbeddingMixin):
                     out[name] = entity_id
         return out
 
+    def entity_ids_by_canonical_name(self, names: Sequence[str]) -> dict[str, list[str]]:
+        """Canonical name -> every entity id holding exactly that name, in row order; a name no entity holds is absent."""
+        wanted = sorted({n for n in names if n})
+        out: dict[str, list[str]] = {}
+        with self._lock:
+            for start in range(0, len(wanted), 500):
+                chunk = wanted[start : start + 500]
+                marks = ", ".join("?" for _ in chunk)
+                for name, entity_id in self.conn.execute(
+                    f"SELECT canonical_name, id FROM knowledgeentitys WHERE canonical_name IN ({marks}) ORDER BY rowid",
+                    chunk,
+                ).fetchall():
+                    out.setdefault(name, []).append(entity_id)
+        return out
+
     def entity_mention_counts(self, entity_ids: Sequence[str], *, outside_documents: Sequence[str] = ()) -> dict[str, int]:
         """Statements per name from `kg_mentions` for these names, leaving out statements whose source page is in `outside_documents`."""
         self._ensure_kg_mentions()

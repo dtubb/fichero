@@ -888,19 +888,13 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
     cursor = 0
     said_a_date = False
     said_undated = False
-    known_places: dict[str, str | None] = {}
+    places: list[dict] = []
     for group in aggregate_claims(claims):
         group_claims = [by_id[cid] for cid in group.claim_ids]
         text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
         if not text:
             continue
-        for clause in clauses:
-            place = clause["place"]
-            if place:
-                if place["label"] not in known_places:
-                    found = db.query(KnowledgeEntity, canonical_name=place["label"])
-                    known_places[place["label"]] = found[0].id if len(found) == 1 else None
-                place["entity_id"] = known_places[place["label"]]
+        places.extend(c["place"] for c in clauses if c["place"])
         dated = any(c["date"] for c in clauses)
         undated_words = ((_TABLES.get(group.language or "") or {}).get("dates") or {}).get("undated")
         if said_a_date and not said_undated and not dated and undated_words:
@@ -934,4 +928,10 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
             }
         )
         cursor = end
+    if places:
+        # one lookup for every place of the entry; a name held by exactly one entity links to it
+        known = db.entity_ids_by_canonical_name([p["label"] for p in places])
+        for place in places:
+            found = known.get(place["label"], [])
+            place["entity_id"] = found[0] if len(found) == 1 else None
     return sentences, mentions

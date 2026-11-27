@@ -24,6 +24,7 @@ class _Db:
         self.claims = claims
         self.known = {e.canonical_name: e for e in known}
         self.entity = KnowledgeEntity(id=PAGE, canonical_name="Inés Valcárcel")
+        self.lookups: list[list[str]] = []
 
     def get(self, model, key):
         return self.entity
@@ -32,9 +33,12 @@ class _Db:
         return list(self.claims)
 
     def query(self, model, **kw):
-        if model is KnowledgeEntity and "canonical_name" in kw:
-            return [self.known[kw["canonical_name"]]] if kw["canonical_name"] in self.known else []
+        assert model is not KnowledgeEntity, "a place name is looked up through entity_ids_by_canonical_name"
         return []
+
+    def entity_ids_by_canonical_name(self, names):
+        self.lookups.append(sorted(names))
+        return {n: [self.known[n].id] for n in names if n in self.known}
 
 
 def _claim(cid, verb, obj, lang="en", **kw) -> KnowledgeClaim:
@@ -118,3 +122,41 @@ def test_the_route_model_takes_a_clause_place_as_the_engine_gives_it():
     sentence = _read([_claim("c1", "vendió", "un caballo", "es", claim_location="Quito")], known=[quito])[0]
     place = ReadableSentence(**sentence).clauses[0].place
     assert (place.text, place.label, place.entity_id) == ("en Quito", "Quito", "ent-quito")
+
+
+def test_every_place_of_an_entry_is_looked_up_in_one_call():
+    db = _Db([
+        _claim("c1", "sold", "a horse", claim_location="Quito"),
+        _claim("c2", "bought", "an ox", claim_location="Lima"),
+        _claim("c3", "witnessed", "a will", claim_location="Cali"),
+    ], known=[KnowledgeEntity(id="ent-lima", canonical_name="Lima")])
+    sentences = render_entry_with_mentions(db, PAGE)[0]
+    assert db.lookups == [["Cali", "Lima", "Quito"]]
+    assert [s["clauses"][0]["place"]["entity_id"] for s in sentences] == [None, "ent-lima", None]
+
+
+def test_the_database_returns_every_entity_of_a_canonical_name(db):
+    db.save_many([
+        KnowledgeEntity(id="ent-quito", canonical_name="Quito"),
+        KnowledgeEntity(id="ent-lima-1", canonical_name="Lima"),
+        KnowledgeEntity(id="ent-lima-2", canonical_name="Lima"),
+        KnowledgeEntity(id="ent-cali", canonical_name="Cali", aliases=["Santiago"]),
+    ], new=True)
+    found = db.entity_ids_by_canonical_name(["Quito", "Lima", "Santiago", "quito"])
+    assert found == {"Quito": ["ent-quito"], "Lima": ["ent-lima-1", "ent-lima-2"]}
+
+
+def test_a_real_entry_links_one_known_place_and_not_a_shared_name(db):
+    db.save_many([
+        KnowledgeEntity(id=PAGE, canonical_name="Inés Valcárcel"),
+        KnowledgeEntity(id="ent-quito", canonical_name="Quito"),
+        KnowledgeEntity(id="ent-lima-1", canonical_name="Lima"),
+        KnowledgeEntity(id="ent-lima-2", canonical_name="Lima"),
+    ], new=True)
+    db.save_many([
+        _claim("c1", "sold", "a horse", claim_location="Quito"),
+        _claim("c2", "bought", "an ox", claim_location="Lima"),
+    ], new=True)
+    sentences = render_entry_with_mentions(db, PAGE)[0]
+    assert {s["clauses"][0]["place"]["label"]: s["clauses"][0]["place"]["entity_id"] for s in sentences} == {
+        "Quito": "ent-quito", "Lima": None}
