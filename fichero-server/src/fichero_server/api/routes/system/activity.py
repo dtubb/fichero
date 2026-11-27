@@ -2267,6 +2267,7 @@ class StoppedAtQuitItem(BaseModel):
     name: str
     subject: Optional[str] = None
     started_at: Optional[datetime] = None
+    folder: Optional[str] = Field(default=None, description="a held synced folder read: the folder's name, never its path")
 
 
 class StoppedAtQuitResponse(BaseModel):
@@ -2282,9 +2283,17 @@ async def list_stopped_at_quit(db: Database = Depends(get_library_database)) -> 
     `POST /api/activity/stopped-at-quit/continue`."""
     from fichero_server.execution import jobs as job_queue
     from fichero_server.execution.runner import QUIT_PAUSED_ERROR
+    from fichero_server import sync_folder
     from fichero_server.workflows.run_account import held_at_open
 
-    items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(job_queue.stopped_at_quit, db)]
+    def held_rows() -> list[dict[str, Any]]:
+        rows = job_queue.stopped_at_quit(db)
+        for row in rows:
+            if row["kind"] == sync_folder.READ_KIND and row["subject"]:
+                row["folder"] = sync_folder.folder_name(db, row["subject"])
+        return rows
+
+    items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(held_rows)]
     store = get_activity_tracker(str(db.path)).store
     listed = {i.id for i in items}
     for run in await store.list_workflow_runs(statuses=["paused"], limit=500):

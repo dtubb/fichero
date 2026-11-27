@@ -153,6 +153,12 @@ def _folder(db: Any, folder_id: str) -> dict[str, Any] | None:
     return next((f for f in _folders(db) if f["id"] == folder_id), None)
 
 
+def folder_name(db: Any, folder_id: str) -> str | None:
+    """The tied folder's name (the last part of its path), or None when no tied folder has this id."""
+    folder = _folder(db, folder_id)
+    return Path(folder["path"]).name if folder else None
+
+
 def _exported(db: Any, doc_id: str, fmt: str) -> str | None:
     """The checksum of what the exporter gives for this page and format now (None: nothing)."""
     from fichero_server.formats import FormatCannotWrite

@@ -56,3 +56,13 @@ def test_a_rescan_while_the_app_runs_still_reads_the_folder_at_once(held, tmp_pa
 
     [(_, state, _reason)] = _read_rows(held)
     assert state == "waiting"
+
+
+def test_the_alerts_item_names_the_folder_by_its_name_never_its_path(held, tmp_path, client):
+    _tie_intake_folder(held, tmp_path)
+
+    sync_folder.rescan(held, hold=True)
+
+    [item] = client.get("/api/activity/stopped-at-quit").json()["items"]
+    assert item["folder"] == "inbox"
+    assert str(tmp_path) not in json.dumps(item)

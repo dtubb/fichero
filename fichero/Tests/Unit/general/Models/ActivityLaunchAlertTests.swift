@@ -13,6 +13,8 @@ import Testing
 /// request is recorded, so a test sees whether a Continue went out.
 private final class StoppedAtQuitMockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var seen: [(method: String, path: String)] = []
+    /// One test's own items for the list route (the JSON objects, comma-joined); nil: the two rows below.
+    nonisolated(unsafe) static var items: String?
     override static func canInit(with request: URLRequest) -> Bool { true }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -20,9 +22,9 @@ private final class StoppedAtQuitMockURLProtocol: URLProtocol {
         Self.seen.append((request.httpMethod ?? "", path))
         let (status, json): (Int, String) = switch path {
         case "/api/activity/stopped-at-quit":
-            (200, #"{"items":[{"id":"r1","kind":"run-a-recipe","name":"Run the recipe: Letters","subject":null,"#
+            (200, #"{"items":["# + (Self.items ?? #"{"id":"r1","kind":"run-a-recipe","name":"Run the recipe: Letters","subject":null,"#
                 + #""started_at":null},{"id":"t1","kind":"thumbnail","name":"Make thumbnails","subject":null,"#
-                + #""started_at":null}],"count":2}"#)
+                + #""started_at":null}"#) + #"],"count":2}"#)
         case "/api/activity/stopped-at-quit/continue":
             (200, #"{"continued_ids":["r1","t1"],"count":2}"#)
         case "/api/actions/invoke":
@@ -78,6 +80,28 @@ struct ActivityLaunchAlertTests {
         #expect(!message.contains("Make thumbnails"), "no row per thumbnail")
         let alone = StoppedAtQuitAlert.message(items: [("Embed for search", "embed"), ("Make thumbnails", "thumbnail")])
         #expect(alone.hasPrefix("Background work: 1 embed, 1 thumbnail\n"), "no \"and\" with no run before it")
+    }
+
+    @Test("a held folder read is named by its folder, one line per folder; one with no name keeps the plain line")
+    func newMaterialNamesItsFolder() {
+        let reads = [("Read a synced folder", "read-from-folder"), ("Read a synced folder", "read-from-folder")]
+        let named = StoppedAtQuitAlert.message(items: reads, folders: ["inbox", "scans"])
+        #expect(named.hasPrefix("New files in inbox\nNew files in scans\n"))
+        #expect(!named.contains("synced folder"))
+        let one = StoppedAtQuitAlert.message(items: reads, folders: ["inbox"])
+        #expect(one.hasPrefix("New files in inbox\nNew files in a synced folder\n"))
+    }
+
+    @Test("the alert reads the folder's name from the engine's item")
+    func theFolderComesFromTheEngine() async {
+        let library = project()
+        StoppedAtQuitMockURLProtocol.items = #"{"id":"f1","kind":"read-from-folder","name":"Read a synced folder","#
+            + #""subject":"f-inbox","started_at":null,"folder":"inbox"}"#
+        defer { StoppedAtQuitMockURLProtocol.items = nil }
+        let alert = StoppedAtQuitAlert()
+        await alert.check(libraries: [library])
+        #expect(alert.items.map(\.folder) == ["inbox"])
+        #expect(alert.message.hasPrefix("New files in inbox\n"))
     }
 
     @Test("with nothing stopped the alert never shows")

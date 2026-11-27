@@ -104969,6 +104969,12 @@
             "format": "date-time",
             "nullable": true,
             "title": "Started At"
+          },
+          "folder": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder",
+            "description": "a held synced folder read: the folder's name, never its path"
           }
         },
         "type": "object",
