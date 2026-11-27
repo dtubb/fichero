@@ -362,6 +362,71 @@ def suites_of(failing: list[str], target: str) -> list[str] | None:
     return sorted(out)
 
 
+BASE_REDS = "base-reds.json"  # {case: {"first_seen": t, "line": last failure line, "base": sha}}; "_alerted": [cases alerted on]
+BASE_RED_ALERT_S = 2 * 3600
+REPO = [""]  # the engine repo, set by real_runners: where a base red's test file is looked up
+
+
+def _suite_name(case: str) -> str:
+    c = case.removesuffix("()")
+    if c.startswith("-["):
+        return re.sub(r"^-\[(?:\w+\.)?(\w+) .*$", r"\1", c)
+    parts = re.split(r"[/.]", c)
+    return parts[-2] if len(parts) >= 2 else c
+
+
+def _failure_line(case: str, out: str) -> str:
+    test = case.removesuffix("()").replace("/", ".").split(".")[-1]
+    lines = [ln.strip() for ln in out.splitlines() if test in ln]
+    hits = [ln for ln in lines if re.search(r"error:|XCTAssert|Issue recorded|Expectation failed", ln)] or [ln for ln in lines if "fail" in ln.lower()]
+    return hits[-1][:300] if hits else ""  # the assertion's own line first, `Test Case ... failed` only when there is none
+
+
+def _test_file(suite: str) -> str:
+    if not REPO[0]:
+        return ""
+    r = subprocess.run(["git", "-C", REPO[0], "grep", "-l", "-w", "-E", rf"(class|struct|extension) +{suite}", "HEAD", "--", "*.swift"],
+                       capture_output=True, text=True)
+    return r.stdout.splitlines()[0].removeprefix("HEAD:") if r.returncode == 0 and r.stdout else ""
+
+
+def base_reds_seen(known: list[str], only, out: str, base: str, now: float | None = None) -> None:
+    """local.train.base-reds-named: the land branch's own failing Swift cases, kept with their first-seen time in base-reds.json. A case
+    passes on a base whose run covered its suite (`only` names it, or ran everything) and was not failing: it leaves the file. One
+    alert, with a ready fix brief (base-reds-brief.md), for the cases red on the base for more than BASE_RED_ALERT_S not alerted yet."""
+    import json
+
+    from fichero_builder import journal
+    now = time.time() if now is None else now
+    f = journal.STATE / BASE_REDS
+    try:
+        d = json.loads(f.read_text())
+    except (OSError, ValueError):
+        d = {}
+    alerted = set(d.pop("_alerted", []))
+    ran = {s.split("/")[-1] for s in only} if only else None
+    for c in list(d):
+        if c not in known and (ran is None or _suite_name(c) in ran):
+            del d[c]
+            alerted.discard(c)
+    for c in known:
+        d.setdefault(c, {"first_seen": now, "line": _failure_line(c, out), "base": base})
+        if not d[c].get("line"):
+            d[c]["line"] = _failure_line(c, out)
+    due = sorted(c for c, v in d.items() if now - v["first_seen"] > BASE_RED_ALERT_S and c not in alerted)
+    if due:
+        brief = journal.STATE / "base-reds-brief.md"
+        rows = [f"- `{c}` in `{_test_file(_suite_name(c)) or '(file not found)'}`: {d[c].get('line') or '(no failure line read)'}" for c in sorted(d)]
+        brief.write_text(f"Fix the Swift tests that fail on the land branch itself (base {base[:9]}); every train has had to leave them out.\n"
+                         f"Make each pass, or fix the code it tests; never skip or delete a test.\n\n" + "\n".join(rows) + "\n")
+        from fichero_builder import queue
+        queue.alert("-", "base-reds", f"{len(d)} Swift case(s) red on the land branch for over {BASE_RED_ALERT_S // 3600} h: {', '.join(sorted(d))}"[:500],
+                    str(brief), ["retry"])
+        alerted |= set(due)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps({**d, "_alerted": sorted(alerted & set(d))}, indent=1))
+
+
 FLAKY = "flaky.json"  # {case: {"passes": trains in a row it did not fail, "failed_at": time it last failed}}
 FLAKY_CLEAR = 3
 
@@ -463,10 +528,14 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
         known = [] if b.get("ok") else b["failing"]
         journal.STATE.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps({"failing": known}))
+    if label == "swift-tests":
+        base_reds_seen(known, only, out, base)
+    on_base = sorted(set(failing) & set(known))
     known = sorted(set(known) | flaky)
     new = sorted(set(failing) - set(known))
     if not new:
-        journal.append("train", state="base-reds", base=base, detail=f"{len(failing)} failing case(s), every one failing on the base too")
+        journal.append("train", state="base-reds", base=base, cases=on_base,
+                       detail=f"{len(failing)} failing case(s), every one failing on the base too: {', '.join(on_base)}"[:600])
         return True, f"{label}: green against the base {base[:9]}: its {len(failing)} failing case(s) fail on the base too (known reds)"
     head = (f"RED: {len(new)} case(s) fail on the candidate and pass on the base {base[:9]} ({len(set(failing) & set(known))} known base reds left out)\n"
             f"failing: {', '.join(new)}\n")
@@ -581,6 +650,7 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
     `touches_swift(head)` for the Swift search; a swift-tests run is cut at `deadline`."""
     from fichero_builder import check_tool, jail, journal, land_tool
     cfg = check_tool.load(pinned)
+    REPO[0] = str(repo)
     base = base or land_tool.resolve_branch(repo, branch)  # a second train's base is the first one's candidate
     n = [0]
 

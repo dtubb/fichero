@@ -579,3 +579,40 @@ def test_new_cases_red_alone_green_but_red_again_on_the_candidate_stay_unresolve
     r = train.run_train([{"key": "l/a", "head": "a"}, {"key": "l/b", "head": "b"}], merge=lambda hs: ("+".join(hs), {}), rung=rung,
                         rungs_for=lambda hs: ["swift-tests"], tid="t2", touches_swift=lambda h: True)
     assert r.result == "unresolved" and not r.landed and not [x for x in journal.read() if x.get("event") == "flaky"]
+
+
+def test_base_reds_are_named_kept_with_their_first_seen_time_alerted_once_after_two_hours_and_cleared_when_they_pass(tmp_path, monkeypatch):
+    """2026-11-27: "7 failing case(s), every one failing on the base too" named none, so integration's own reds since 09:27 were unseen."""
+    import json as _json
+    import subprocess as sp
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    repo = tmp_path / "e"
+    (repo / "fichero/FicheroTests").mkdir(parents=True)
+    (repo / "fichero/FicheroTests/NavTests.swift").write_text("final class NavTests: XCTestCase {}\n")
+    g = lambda *a: sp.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True)  # noqa: E731
+    g("init", "-q"), g("add", "."), g("commit", "-qm", "x")
+    monkeypatch.setattr(train, "REPO", [str(repo)])
+    out = ("/x/NavTests.swift:12: error: -[FicheroTests.NavTests testBack] : XCTAssertEqual failed: (\"1\") is not equal to (\"2\")\n"
+           "Test Case '-[FicheroTests.NavTests testBack]' failed (0.1 seconds).\n")
+    cases = ["NavTests.testBack()", "PaneTests.testClose()"]
+    clock = [1000.0]
+    monkeypatch.setattr(train.time, "time", lambda: clock[0])
+    ok, said = train.against_base(cases, out, "b1", lambda: {"ok": False, "failing": cases}, ["FicheroTests/NavTests", "FicheroTests/PaneTests"])
+    assert ok
+    row = next(r for r in journal.read() if r.get("state") == "base-reds")
+    assert row["cases"] == cases and "NavTests.testBack()" in row["detail"]
+    d = _json.loads((journal.STATE / "base-reds.json").read_text())
+    assert d["NavTests.testBack()"]["first_seen"] == 1000.0 and "XCTAssertEqual failed" in d["NavTests.testBack()"]["line"]
+    assert not [r for r in journal.read() if r.get("event") == "alert"], "not two hours yet"
+    clock[0] += 2 * 3600 + 1
+    for _ in range(2):
+        train.against_base(cases, out, "b2", lambda: {"ok": False, "failing": cases}, ["FicheroTests/NavTests", "FicheroTests/PaneTests"])
+    alerts = [r for r in journal.read() if r.get("event") == "alert"]
+    assert len(alerts) == 1 and "NavTests.testBack()" in _json.dumps(alerts[0]), "ONE alert"
+    brief = (journal.STATE / "base-reds-brief.md").read_text()
+    assert "`NavTests.testBack()` in `fichero/FicheroTests/NavTests.swift`: " in brief and "XCTAssertEqual failed" in brief
+    train.against_base(["PaneTests.testClose()"], out, "b3", lambda: {"ok": False, "failing": ["PaneTests.testClose()"]}, ["FicheroTests/NavTests", "FicheroTests/PaneTests"])
+    assert set(_json.loads((journal.STATE / "base-reds.json").read_text())) == {"PaneTests.testClose()", "_alerted"}, "NavTests passed on b3: cleared"
+    train.against_base(["X.y()"], out, "b4", lambda: {"ok": False, "failing": ["X.y()"]}, ["FicheroTests/X"])
+    assert "PaneTests.testClose()" in _json.loads((journal.STATE / "base-reds.json").read_text()), "a base that did not run its suite clears nothing"
