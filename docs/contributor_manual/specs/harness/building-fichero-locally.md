@@ -891,6 +891,17 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `::test_a_conflict_with_no_live_session_starts_one_for_the_round`,
   `::test_a_conflict_the_round_resolved_resets_so_a_later_one_gets_its_own_round`,
   `::test_a_conflict_when_the_next_step_is_sent_goes_to_the_live_session_not_a_block`.
+  The round's text says "rebase, not merge". A head that already holds origin's land branch (`merge-base --is-ancestor`), as
+  when the worker merged origin and resolved the conflict there, is taken as it is, merge commit and all, with one
+  `already-on-base` row; it is never rebased into the same conflict again (2026-11-26: the files-batch step, builder-batch
+  ci-actions-1, round after round). Test:
+  `fichero-builder/tests/test_work_verb.py::test_a_head_that_merged_origin_and_resolved_the_conflict_is_taken_as_it_is_never_rebased_into_it_again`.
+  A `retry` judges the worktree's head as it is now: a tree that moved since the stored sha is a new head, the whole chain, never
+  the stale sha (2026-11-26: "retried at a84451832 from the failed rung" replayed the same conflict within a second); an unmoved
+  tree goes on from the failed rung as before. `queue said-done` takes a blocked step's DONE when it names a new sha, and still
+  refuses the sha it was blocked at. Tests:
+  `fichero-builder/tests/test_loop.py::test_a_retry_takes_the_worktrees_head_now_never_the_stale_stored_sha`,
+  `fichero-builder/tests/test_builder_restart.py::test_said_done_on_a_blocked_step_is_taken_for_a_new_sha_and_refused_for_the_one_it_was_blocked_at`.
 - `local.run.recorded-move-is-not-a-stray-write` [OK] (#6589; built 2026-11-25: `queue.tree_check` excuses a landing, a `tree-moved` row at the state the tree has now, and a clean jail root whose head is origin's land tip with the old head its ancestor; the verb is `builder queue moved --worktree P --text WHY`; `queue.stray_alert` keeps one alert per move and a `stray-write-seen` row for each other step; tests `fichero-builder/tests/test_loop.py::test_a_jail_root_fast_forwarded_to_origins_tip_and_clean_raises_nothing`, `::test_a_dirty_or_off_origin_jail_root_still_alerts`, `::test_a_tree_moved_row_excuses_its_tree_at_the_state_it_recorded`, `::test_a_move_that_still_alerts_is_one_alert_for_every_step_that_saw_it`) — the check that no tree outside a step's own moved
   excuses a move the loop or the manager made and recorded. A tree is excused when a `landed` row for the jail root, or
   a `tree-moved` row naming the tree, the old head and the new head, was written since the step's snapshot; and the

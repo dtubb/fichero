@@ -1643,6 +1643,15 @@ def _set_approval(s: dict, kind: str | None, approvals) -> None:
         s["maintainer"] = True  # the chain runs the check with --maintainer
 
 
+def tree_head(lane: dict) -> str:
+    """The lane's worktree HEAD now ('' when it cannot be read): what a retry judges, never a stale stored sha."""
+    tree = (lane or {}).get("worktree") or ""
+    if not tree or not Path(tree).exists():
+        return ""
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", tree, "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
 def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "") -> tuple[int, str]:
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
@@ -1698,17 +1707,28 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
         if action in ("retry", "approve", "send-back"):
             # an external lane has no worker to send a step to: retry and approve re-take its snapshot; send-back waits for its done
             head_ = s.get("head") or s.get("checked_head", "")  # a worker lane's step records a head only when green: the checked one counts (2026-11-11)
+            moved = ""
+            if action == "retry" and lane is not None and lane.get("kind") != "external" and (now := tree_head(lane)) and head_ and not now.startswith(head_):
+                # 2026-11-26: a retry of a rebase-conflict alert retried the stale stored sha and met the same conflict within a second,
+                # before the worker had done anything: the tree's head now is what is judged, as a new head, the whole chain
+                moved, head_ = head_, now
             again = "done" if action == "approve" or (action == "retry" and head_) else "queued"
             said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
             s.pop("waiting", None)  # the question is answered, retried or approved past: it is not asked again by a later alert
-            if action == "retry" and head_:  # the same head, the chain again from the failed rung: green rungs stand, no fresh session
+            if action == "retry" and head_ and not moved:  # the same head, the chain again from the failed rung: green rungs stand, no fresh session
                 s["head"], s["retry_rungs"] = head_, True
+            elif moved:
+                s["head"] = head_
+                s.pop("retry_rungs", None)
+                s.pop("checked_head", None)
             if action == "retry":  # #6506: the retried head goes behind fresh dones; an unchanged head is said to be one
                 s["retry_of"] = head_
                 same = head_ and s.get("red_head") == head_
                 journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({head_[:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
-                               "it answers the same unless the base or the harness changed" if same else f"retried at {head_[:9]} from the failed rung" if head_ else "retried: no check behind it, a session again"))
+                               "it answers the same unless the base or the harness changed" if same else
+                               f"retried at the tree's head {head_[:9]} (the stored {moved[:9]} is stale): the whole chain" if moved else
+                               f"retried at {head_[:9]} from the failed rung" if head_ else "retried: no check behind it, a session again"))
             if action == "approve" and s.get("approve_kind") == "guard-data" and s.get("head") and lane is not None:
                 repo_ = s.get("land_tree") or lane["worktree"]  # bound to the files' content: a later head with the same blobs is approved by itself (alert 541)
                 s["approved_guard_blobs"] = {f: blob_at(repo_, s["head"], f) for f in re.findall(r"[\w./-]+\.json", said)}
@@ -3331,8 +3351,10 @@ def said_done(lane_id: str, step: str, sha: str, head_of: Callable[[dict], str])
                 why = f"no lane {lane_id!r}"
             elif s is None or s["step"] != step:
                 why = f"{step!r} is not {lane_id}'s cursor step"
-            elif s["state"] != "sent":
-                why = f"{lane_id} {step} is {s['state']}, not sent"
+            elif s["state"] != "sent" and not (s["state"] == "blocked" and not any(
+                    (s.get(k) or "").startswith(sha) or sha.startswith(s.get(k) or "-") for k in ("head", "checked_head", "red_head"))):
+                # a blocked step takes a DONE that names a NEW sha (the worker fixed what blocked it); the same sha is still refused
+                why = f"{lane_id} {step} is {s['state']}, not sent" + (" (at the sha it was blocked at)" if s["state"] == "blocked" else "")
             elif not (head := head_of(lane)) or not head.startswith(sha):
                 why = f"{lane_id}'s tree is at {head[:9] or 'an unreadable head'}, not {sha[:9]}"
             else:
@@ -3340,6 +3362,8 @@ def said_done(lane_id: str, step: str, sha: str, head_of: Callable[[dict], str])
                 s.update(state="done", why=f"DONE {sha[:9]} recorded by hand", entered_at=_now())
                 save(lanes)
     journal.append("queue", lane=lane_id, step=step, state="done" if not why else "said-done-refused", detail=why or f"DONE {sha[:9]} recorded by hand")
+    if not why:
+        close_alerts(lane_id, step, f"DONE {sha[:9]} said: the step goes to its check")  # a blocked step's alert is answered by the new head
     return why
 
 

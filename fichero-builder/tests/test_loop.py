@@ -2404,3 +2404,23 @@ def test_an_external_lane_is_never_autofixed(state):
     assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert asked == [] and steps()["1.1"]["state"] == "blocked"
+
+
+def test_a_retry_takes_the_worktrees_head_now_never_the_stale_stored_sha(state, monkeypatch):
+    """2026-11-26: `retry` on a rebase-conflict alert said "retried at a84451832 from the failed rung" (the stale stored sha) and
+    replayed the same conflict within a second. The tree moved since: its head is judged, as a new head, the whole chain."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "ladder red", "findings": "t", "head": "a84451832"}] * (queue.ROUNDS + 1)})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked"
+    monkeypatch.setattr(queue, "tree_head", lambda ln: "c0ffee1234" + "0" * 30)
+    assert queue.answer(_alerts()[-1]["id"], "retry")[0] == 0
+    s = steps()["1.1"]
+    assert s["state"] == "done" and s["head"].startswith("c0ffee1234") and "retry_rungs" not in s
+    assert "the tree's head c0ffee123 (the stored a84451832 is stale)" in [r["detail"] for r in journal.read() if r.get("state") == "retry"][-1]
+    monkeypatch.setattr(queue, "tree_head", lambda ln: "a84451832" + "0" * 31)
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", head="a84451832")
+    queue.save(lanes)
+    journal.append("alert", id="m1-1.1-x", lane="m1", step="1.1", what="x", actions=["retry"])
+    assert queue.answer("m1-1.1-x", "retry")[0] == 0 and steps()["1.1"].get("retry_rungs") is True, "an unmoved tree: from the failed rung, as before"

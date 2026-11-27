@@ -156,11 +156,13 @@ def conflict_text(a, branch: str, files: list[str], applying: str) -> str:
             + (f" It stopped applying {applying}." if applying else "") + "\n"
             + "Conflicting files:\n" + "\n".join(f"- {f}" for f in files) + "\n"
             + f"Commits on origin/{branch} since your branch's base that touched them:\n{commits}\n"
-            + f"Rebase onto origin/{branch} yourself (`git fetch origin && git rebase origin/{branch}`). Resolve each conflict keeping BOTH "
+            + f"Rebase onto origin/{branch} yourself (`git fetch origin && git rebase origin/{branch}`): rebase, not merge (a merge of "
+            + f"origin/{branch} into your branch is replayed into the same conflict). Resolve each conflict keeping BOTH "
             + "sides: what those commits changed and what your branch changed; never drop either. Run the tests of the files you resolved, "
             + "finish the rebase, and end with the DONE line.")
 
 
+ON_BASE = "ALREADY-ON-BASE"  # do_rebase's shell says the head already holds origin/<branch>
 AUTOSTASH_KEPT = re.compile(r"autostash resulted in conflicts|applying them\s+resulted in conflicts")
 NETWORK_BLIP = re.compile(r"unable to access|Could not resolve host|Failed to connect|Connection (timed out|reset)|early EOF")
 NETWORK_RETRY_S = 20
@@ -179,7 +181,11 @@ def do_rebase(a, branch: str) -> str:
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
     before = as_worker(a, f"{g} -C {wt} rev-parse HEAD").stdout.strip()
     stashes = as_worker(a, f"{g} -C {wt} stash list").stdout.count("\n")
-    cmd = f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q --autostash origin/{q(branch)}"
+    # 2026-11-26 (app-bugs files-batch, builder-batch ci-actions-1): a worker told to rebase MERGED origin instead and resolved the
+    # conflict there; rebasing that head replayed the commits around the merge into the same conflict, round after round. A head that
+    # already holds origin/<branch> is taken as it is, merge commit and all (a train merges it, a landing is its fast-forward)
+    cmd = (f"{g} -C {wt} fetch -q origin && {{ {g} -C {wt} merge-base --is-ancestor origin/{q(branch)} HEAD && echo {ON_BASE} || "
+           f"{g} -C {wt} rebase -q --autostash origin/{q(branch)}; }}")
     r = as_worker(a, cmd)
     if r.returncode and NETWORK_BLIP.search(r.stderr or r.stdout or ""):  # manager 2026-11-08: a GitHub blip is not a conflict; once more
         time.sleep(NETWORK_RETRY_S)
@@ -190,6 +196,9 @@ def do_rebase(a, branch: str) -> str:
         time.sleep(REF_LOCK_RETRY_S * (i + 1))
         r = as_worker(a, cmd)
     said = (r.stdout or "") + (r.stderr or "")
+    if r.returncode == 0 and ON_BASE in (r.stdout or ""):
+        journal.append("rebase", lane=a.name, branch=branch, state="already-on-base", detail=f"origin/{branch} is an ancestor of the head: not rebased")
+        return regen(a, branch, before)
     # the unstaged edits no longer apply on the new base. The autostash is left in the stash list; git's wording changed (2.56: "applying
     # them resulted in conflicts"), so the stash count is read, the words only as a second sign (2026-11-25: Linux runners read it as clean)
     if r.returncode == 0 and (AUTOSTASH_KEPT.search(said) or as_worker(a, f"{g} -C {wt} stash list").stdout.count("\n") > stashes):

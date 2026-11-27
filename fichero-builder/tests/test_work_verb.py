@@ -1143,3 +1143,20 @@ def test_a_step_enters_the_train_only_green_and_ready_at_one_head(chain, monkeyp
     _beside(chain, monkeypatch, red_at="", verdict="READY")
     assert chain() == 0 and [c[0] for c in chain.calls][-1] == "land", "green and READY at one head: on to the train or the land"
     assert not work.beside_ladder(chain.tmp / "nowhere")
+
+
+def test_a_head_that_merged_origin_and_resolved_the_conflict_is_taken_as_it_is_never_rebased_into_it_again(scratch):
+    """2026-11-26 (app-bugs files-batch, builder-batch ci-actions-1): told to rebase, the worker merged origin/integration and resolved
+    the conflict; the loop's rebase replayed the commits around the merge into the same conflict, round after round."""
+    (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine")
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs")
+    why = work.do_rebase(scratch.a, "integration")
+    assert "rebase, not merge" in why, "the worker's text says it"
+    _g(scratch.wt, "fetch", "-q", "origin")
+    subprocess.run(["git", "-C", str(scratch.wt), "merge", "-q", "origin/integration"], capture_output=True)  # conflicts
+    (scratch.wt / "f").write_text("mine and theirs")
+    _g(scratch.wt, "commit", "-qam", "merge origin/integration, both sides kept")
+    head = _g(scratch.wt, "rev-parse", "HEAD")
+    assert work.do_rebase(scratch.a, "integration") == "", "no new conflict"
+    assert _g(scratch.wt, "rev-parse", "HEAD") == head and (scratch.wt / "f").read_text() == "mine and theirs", "taken as it is"
+    assert [r for r in journal.read() if r.get("state") == "already-on-base"]
