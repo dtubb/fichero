@@ -275,19 +275,9 @@ extension ActivityPaneView {
     }
 
     func find(_ id: ActivityMonitorRow.ID, in shown: [ActivityMonitorRow]? = nil) -> ActivityMonitorRow? {
-        func search(_ rows: [ActivityMonitorRow]) -> ActivityMonitorRow? {
-            for row in rows {
-                if row.id == id { return row }
-                if let found = search(row.children ?? []) { return found }
-            }
-            return nil
-        }
-        return search(shown ?? shownRows)
+        ActivityPane.row(id, in: shown ?? shownRows)
     }
 
     /// The one selected row's details and its steps' versions; nil with none or several selected.
-    var selectedPick: ActivityPaneSelection? {
-        guard selection.count == 1, let id = selection.first, let row = find(id), let picked = row.selection else { return nil }
-        return ActivityPaneSelection(selection: picked, versions: ActivityPane.versions(for: row, in: allRows))
-    }
+    var selectedPick: ActivityPaneSelection? { ActivityPane.pick(selection, shown: shownRows, all: allRows) }
 }

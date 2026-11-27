@@ -361,6 +361,23 @@ extension ActivityPane {
         let runId = row.kind == .run ? row.id : row.runRowID
         return allRows.first { $0.id == runId }.map(versions(of:)) ?? []
     }
+
+    /// The row with this id among `rows` and the rows under them.
+    static func row(_ id: ActivityMonitorRow.ID, in rows: [ActivityMonitorRow]) -> ActivityMonitorRow? {
+        for row in rows {
+            if row.id == id { return row }
+            if let found = self.row(id, in: row.children ?? []) { return found }
+        }
+        return nil
+    }
+
+    /// What the Inspector's Activity section is given for the pane's selection: the ONE selected row's details and its
+    /// run's versions; nil with none or several selected, or a row with no job behind it.
+    static func pick(_ ids: Set<ActivityMonitorRow.ID>, shown: [ActivityMonitorRow],
+                     all: [ActivityMonitorRow]) -> ActivityPaneSelection? {
+        guard ids.count == 1, let id = ids.first, let found = row(id, in: shown), let picked = found.selection else { return nil }
+        return ActivityPaneSelection(selection: picked, versions: versions(for: found, in: all))
+    }
 }
 
 extension ActivityMonitorRow {
