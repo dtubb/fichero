@@ -1477,6 +1477,12 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   own diff affects. A run the runner could not run is tried once more on another runner. Tests:
   `fichero-builder/tests/test_train.py::test_a_swift_red_with_no_case_names_searches_the_swift_steps_alone_on_their_own_suites`,
   `fichero-builder/tests/test_train.py::test_a_swift_run_the_runner_could_not_run_is_tried_once_on_another_runner`.
+  Every `-only-testing` value is `<swift_test_target>/<Suite>`, read from any form of a failing name, never a case name
+  (train-20261126-210725: `Suite.case()` went in raw and both runners refused it); names that read as no suite run nothing, never
+  the whole plan. xcodebuild refusing a selector ("isn't a member of the specified test plan or scheme") is a builder error with
+  one alert, never a runner failure and never retried. Tests:
+  `fichero-builder/tests/test_speed_tests.py::test_every_only_testing_value_is_target_slash_suite_even_from_case_names`,
+  `fichero-builder/tests/test_speed_tests.py::test_a_selector_the_test_plan_lacks_is_one_builder_error_alert_and_never_a_runner_retry`.
 - `local.train.swift-affected-suites` [OK] (#6589; built 2026-11-26) — with `[check].swift_test_target` and `[check].swift_test_dir`
   set (unset: the whole suite, as before), the train's swift-tests run only the suites its Swift diff can affect: a changed test
   file's own suites, and for any other changed Swift file the test files named after its type or naming it; a changed non-Swift

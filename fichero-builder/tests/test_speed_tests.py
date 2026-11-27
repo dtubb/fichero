@@ -306,3 +306,32 @@ def test_a_test_plan_the_unit_run_does_not_use_keeps_the_selection_and_the_whole
     own = ["fichero/fichero/SegmentTool.swift", "fichero/Tests/plans/fichero.xctestplan"]
     assert check_tool.swift_affected(tmp_path, own, cfg) is None and "fichero.xctestplan" in check_tool.swift_whole_why(own, cfg)
     assert "no [check].swift_test_target" in check_tool.swift_whole_why(own, check_tool.Config())
+
+
+def test_every_only_testing_value_is_target_slash_suite_even_from_case_names(tmp_path, monkeypatch):
+    """train-20261126-210725: `CanvasBoardProfileTests.dragCountsMoves()` went to -only-testing raw and xcodebuild refused it on the
+    iMac and the Air. The names of the 192626 tail plus that one become `FicheroTests/<Suite>`, never a case name."""
+    import pathlib
+    import re as _re
+    tail = (pathlib.Path(__file__).parent / "fixtures" / "swift-train-20261126-192626-tail.log").read_text()
+    names = [*check_tool.failing_cases(tail), "CanvasBoardProfileTests.dragCountsMoves()"]
+    fake = Fake(monkeypatch, tmp_path, [(0, ""), (0, "Executed 3 tests, with 0 failures (0 unexpected) in 1.0")])
+    check_tool.swift_tests(tmp_path, _cfg(swift_tests=SWIFT, swift_test_target="FicheroTests"), only=names)
+    sel = _re.findall(r"-only-testing:(\S+)", fake.runs[1][1])
+    assert "FicheroTests/CanvasBoardProfileTests" in sel and "FicheroTests/PaneMenuEntriesShapeTests" in sel
+    assert all(_re.fullmatch(r"FicheroTests/\w+", s) for s in sel) and len(sel) == len(set(sel)), "the suite, once, never a case"
+    assert check_tool.swift_selectors(["FicheroTests/A", "FicheroTests/A/b()", "-[FicheroTests.B c]", "C/d()", "X.D.e()"], "FicheroTests") == [
+        "FicheroTests/A", "FicheroTests/B", "FicheroTests/C", "FicheroTests/D"]
+    fake2 = Fake(monkeypatch, tmp_path, [(0, "")])
+    r = check_tool.swift_tests(tmp_path, _cfg(swift_tests=SWIFT, swift_test_target="FicheroTests"), only=["a failure with no name"])
+    assert r.get("not_run") and not fake2.runs and "no -only-testing selector" in r["stdout_tail"], "never the whole plan instead"
+
+
+def test_a_selector_the_test_plan_lacks_is_one_builder_error_alert_and_never_a_runner_retry(tmp_path, monkeypatch):
+    refusal = ("xcodebuild: error: Failed to build project fichero with scheme Fichero (Dev Local).: Tests in the target “X.y()” can’t be run "
+               "because “X.y()” isn’t a member of the specified test plan or scheme.")
+    Fake(monkeypatch, tmp_path, [(0, ""), (70, refusal)])
+    r = check_tool.swift_tests(tmp_path, _cfg(swift_tests=SWIFT, swift_test_target="FicheroTests"), only=["FicheroTests/X"])
+    assert r.get("builder_error") and not r.get("not_run") and "could not run the tests" not in r["stdout_tail"]
+    alerts = [x for x in journal.read() if x.get("event") == "alert" and x.get("rung") == "swift-tests"]
+    assert len(alerts) == 1 and "builder error" in alerts[0]["what"]

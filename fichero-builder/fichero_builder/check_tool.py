@@ -2199,6 +2199,23 @@ def swift_whole_why(changed: list[str], cfg: Config, contract: bool = False) -> 
     return f"a non-Swift build input changed: {', '.join(other[:3])}" if other else ""
 
 
+def swift_selectors(names, target: str) -> list[str]:
+    """Every `-only-testing` value as `<target>/<Suite>` (train-20261126-210725: a case name `Suite.case()` went to -only-testing
+    raw and xcodebuild refused it on both runners). Reads `<target>/<Suite>[/case]`, `Suite/case()`, `Suite.case()`, `Target.Suite.case()`
+    and `-[Target.Suite case]`; a name none of these reads is dropped. Sorted, each once."""
+    out = set()
+    for f in names:
+        f = str(f).strip()
+        m = (re.fullmatch(rf"{re.escape(target)}/(\w+)(?:/.*)?", f) or re.fullmatch(r"-\[(?:\w+\.)?(\w+) \w+\]", f)
+             or re.fullmatch(r"(\w+)/\w+\(.*\)", f) or re.fullmatch(r"(?:\w+\.)?(\w+)\.\w+\(.*\)", f) or re.fullmatch(r"(\w+)", f))
+        if m:
+            out.add(f"{target}/{m.group(1)}")
+    return sorted(out)
+
+
+NOT_IN_PLAN = re.compile(r"isn.t a member of the specified test plan or scheme")  # xcodebuild refusing a selector: the builder's error, not a runner's
+
+
 def swift_tests(root, cfg: Config, only: list[str] | tuple = (), timeout_s: float | None = None) -> dict:
     """The Swift unit tests (not a per-step rung; the merge train runs it once per train): `[check].swift_tests` with build-for-testing,
     then test-without-building, on `[check].build_remote` in the runner's one kept DerivedData. A test target that does not compile
@@ -2211,6 +2228,10 @@ def swift_tests(root, cfg: Config, only: list[str] | tuple = (), timeout_s: floa
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].swift_tests", "results": []}
     if not cfg.build_remote:
         return not_run("no [check].build_remote: the Swift tests never run on the manager's Mac")
+    if only and cfg.swift_test_target:
+        asked, only = list(only), swift_selectors(only, cfg.swift_test_target)
+        if not only:  # never the whole plan for a selection no name of which reads as a suite
+            return not_run("no -only-testing selector could be read from the names", ", ".join(asked)[:300])
     t0 = time.time()
     base = cfg.swift_tests if "-derivedDataPath" in cfg.swift_tests else (*cfg.swift_tests, "-derivedDataPath", "derived")  # the runner's kept dir is put in by _remote_build
     b = _remote_build(root, cfg, (*base, "build-for-testing"), "test", reuse=False, timeout_s=timeout_s)
@@ -2226,6 +2247,12 @@ def swift_tests(root, cfg: Config, only: list[str] | tuple = (), timeout_s: floa
     t = _remote_build(root, cfg, (*base, *(f"-only-testing:{x}" for x in only), "test-without-building"), "test", reuse=False, timeout_s=left)
     if t is None:
         return not_run("the build runner became unreachable")
+    said = "\n".join((x.get("stderr_tail") or "") + (x.get("stdout_tail") or "") for x in t.get("results") or [])
+    if NOT_IN_PLAN.search(said):  # no runner can run what the builder asked for: one alert, never a retry on another runner
+        what = next((ln for ln in said.splitlines() if NOT_IN_PLAN.search(ln)), "")[-300:]
+        _rung_alert("swift-tests", f"builder error: xcodebuild refused an -only-testing selector: {what}")
+        return {"ok": False, "skipped": False, "builder_error": True, "stdout_tail": f"BUILDER ERROR: an -only-testing selector the test plan lacks\n{what}",
+                "stderr_tail": "", "results": t.get("results") or []}
     if t.get("remote_env_red"):
         return not_run("the runner could not run the tests (not a test failure)", t["results"][0].get("stderr_tail") or "")
     row = t["results"][0]
