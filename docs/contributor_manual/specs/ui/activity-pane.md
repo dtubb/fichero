@@ -231,7 +231,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
 
 ### Ruled 2026-11-13 night: the table that says what ran on what, nothing starts by itself, one cap, one window
 
-- `activity.launch.nothing-starts-one-alert` — **[PARTIAL]** (#6584, decision 14; supersedes the auto-resume of `activity.run.quit-pauses`
+- `activity.launch.nothing-starts-one-alert` — **[OK]** (#6584, decision 14; supersedes the auto-resume of `activity.run.quit-pauses`
   and the "Interrupted; carries on" requeue of `jobs.resume`, `activity.relaunch.only-running-work-resumes`) after a quit, crash or
   engine restart the open STARTS NOTHING. Engine: on library open every unfinished row no live lane thread owns (running, waiting,
   pausing, a workflow run the quit paused) becomes `paused` with the line "Stopped when Fichero quit" (a row already paused by a
@@ -254,7 +254,11 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   window by `StoppedAtQuitAlertModifier`, asked once per project as it opens; Choose… opens the Activity window; the automatic
   kinds roll into one line ("and background work: 412 thumbnails, 80 embeds") and a held folder read into "New files in a
   synced folder" (the review's answers, 2026-11-14). Choose… opens Activity with the stopped rows selected
-  (`ActivityWindowSelectionState.revealAll`, 2026-11-14 night). Not built: the folder's name on the new-material line.
+  (`ActivityWindowSelectionState.revealAll`, 2026-11-14 night). **Built (2026-11-27):** the folder's name on the
+  new-material line: the listed item carries `folder` (the last part of the tied folder's path, never the path) and the
+  alert writes one line per folder, "New files in inbox", with no count (the held read has not looked at the files);
+  *test:* `test_rescan_at_open_holds_for_the_alert_6584.py::test_the_alerts_item_names_the_folder_by_its_name_never_its_path`,
+  `ActivityLaunchAlertTests` (`newMaterialNamesItsFolder`, `theFolderComesFromTheEngine`).
   *Changed 2026-11-21 (#6732, owner: interrupted runs resume from the launch alert):* a workflow run a crash or engine stop
   cut off (no quit to pause it) is listed too when it has a checkpoint: the open holds it `paused`, its record and rows
   saying "Paused: the engine stopped at HH:MM; Resume carries on from its last finished page"
