@@ -499,3 +499,47 @@ def test_a_swift_run_the_runner_could_not_run_is_tried_once_on_another_runner():
     from fichero_builder import check_tool
     assert check_tool.other_runner(check_tool.Config(build_remote="imac:/g1", remotes=("imac:/g1", "air:/g"))) == "air:/g"
     assert check_tool.other_runner(check_tool.Config(build_remote="imac:/g1")) == "imac:/g1", "no other: the same one, once more"
+
+
+def test_two_steps_that_both_regenerate_the_identity_ride_one_train_with_the_identity_re_baked_and_no_send_back(tmp_path, monkeypatch):
+    """2026-11-26/27 (kg-store 3.1, kg-readable 2.3, files-batch): each was sent back for a conflict in only the generated contract
+    identity, a worker round and a whole new train each. The train side is taken and re-baked into the merge, one `rebake` row."""
+    import subprocess as sp
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    r = tmp_path / "r"
+    r.mkdir()
+    g = lambda *a: sp.run(["git", "-C", str(r), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    gen = "fichero-server/src/fichero_server/api/contract_identity_generated.py"
+    (r / gen).parent.mkdir(parents=True)
+    (r / gen).write_text("ID = 'base'\n")
+    (r / "a.txt").write_text("a\n"), (r / "b.txt").write_text("b\n")
+    g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base")
+    base = g("rev-parse", "HEAD")
+
+    def step(name, src):
+        g("checkout", "-qb", name, base)
+        (r / src).write_text(f"{name} changed\n")
+        (r / gen).write_text(f"ID = '{name}'\n")
+        g("commit", "-qam", name)
+        return g("rev-parse", "HEAD")
+    ha, hb = step("sa", "a.txt"), step("sb", "b.txt")
+    g("checkout", "-q", "integration")
+    baked = []
+
+    def rebake(merged):
+        baked.append(merged)
+        return {gen: "ID = 'sa+sb'\n"}
+    cand, bad = train.git_merge(str(r), base, [ha, hb], "refs/train/t-1", (gen,), rebake, "t")
+    assert bad == {} and len(baked) == 1, "no send-back"
+    assert g("show", f"{cand}:{gen}") == "ID = 'sa+sb'" and g("show", f"{cand}:a.txt") == "sa changed" and g("show", f"{cand}:b.txt") == "sb changed"
+    rows = [x for x in journal.read() if x.get("event") == "rebake"]
+    assert len(rows) == 1 and rows[0]["ok"] and rows[0]["files"] == [gen]
+    # any other conflicted path still sends the step back; so does a re-bake that cannot run
+    g("checkout", "-qb", "sc", base)
+    (r / "a.txt").write_text("sc too\n"), (r / gen).write_text("ID = 'sc'\n")
+    g("commit", "-qam", "sc")
+    hc = g("rev-parse", "HEAD")
+    g("checkout", "-q", "integration")
+    assert hc in train.git_merge(str(r), base, [ha, hc], "refs/train/t-2", (gen,), rebake, "t")[1]
+    assert hb in train.git_merge(str(r), base, [ha, hb], "refs/train/t-3", (gen,), lambda m: None, "t")[1]

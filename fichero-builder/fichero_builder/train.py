@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -433,9 +434,11 @@ def _git(repo, *args, cwd=None) -> subprocess.CompletedProcess:
     return subprocess.run([land_tool.GIT, "-C", str(cwd or repo), "-c", "user.name=builder", "-c", "user.email=builder@localhost", *args], capture_output=True, text=True)
 
 
-def git_merge(repo, base: str, heads: list[str], ref: str) -> tuple[str, dict]:
+def git_merge(repo, base: str, heads: list[str], ref: str, generated: tuple = (), rebake: Callable | None = None, tid: str = "") -> tuple[str, dict]:
     """Merge `heads` one by one onto `base` in a throwaway worktree of `repo`; a head that conflicts is aborted and named with its files.
-    Returns the candidate sha (kept at `ref`) and {head: conflict text}."""
+    Returns the candidate sha (kept at `ref`) and {head: conflict text}. A conflict in only `generated` files (the contract identity)
+    takes the train side, and `rebake(merge sha) -> {path: text} | None` re-bakes them into the merge commit; one `rebake` row
+    (2026-11-26/27: kg-store 3.1, kg-readable 2.3, files-batch were each sent back for the identity files alone)."""
     wt = tempfile.mkdtemp(prefix="train-")
     conflicts: dict = {}
     try:
@@ -446,6 +449,8 @@ def git_merge(repo, base: str, heads: list[str], ref: str) -> tuple[str, dict]:
             m = _git(repo, "merge", "--no-ff", "--no-edit", "-m", f"train: merge {h[:9]}", h, cwd=wt)
             if m.returncode:
                 files = _git(repo, "diff", "--name-only", "--diff-filter=U", cwd=wt).stdout.split()
+                if files and rebake is not None and set(files) <= set(generated) and _rebaked(repo, wt, h, files, rebake, tid):
+                    continue
                 conflicts[h] = f"merging {h[:9]} onto the train's earlier steps conflicts in: {', '.join(files) or '(unknown)'}\n{(m.stdout + m.stderr).strip()[-600:]}"
                 _git(repo, "merge", "--abort", cwd=wt)
         cand = _git(repo, "rev-parse", "HEAD", cwd=wt).stdout.strip()
@@ -455,6 +460,34 @@ def git_merge(repo, base: str, heads: list[str], ref: str) -> tuple[str, dict]:
         _git(repo, "worktree", "remove", "--force", wt)
         shutil.rmtree(wt, ignore_errors=True)
         _git(repo, "worktree", "prune")
+
+
+def _rebaked(repo, wt: str, h: str, files: list[str], rebake: Callable, tid: str) -> bool:
+    """The train side of each conflicted generated file, the merge committed, then re-baked from the merged sources and amended in.
+    False (the merge undone, the conflict stands) when the re-bake could not run."""
+    from fichero_builder import journal
+    _git(repo, "checkout", "--ours", "--", *files, cwd=wt)
+    _git(repo, "add", "--", *files, cwd=wt)
+    if _git(repo, "commit", "-q", "--no-edit", "-m", f"train: merge {h[:9]}", cwd=wt).returncode:
+        _git(repo, "merge", "--abort", cwd=wt)
+        return False
+    merged = _git(repo, "rev-parse", "HEAD", cwd=wt).stdout.strip()
+    try:
+        baked = rebake(merged)
+    except Exception as e:  # noqa: BLE001 - a re-bake that cannot run is the conflict as before, never a lost train
+        baked, why = None, f"{type(e).__name__}: {e}"
+    else:
+        why = "the re-bake did not run"
+    if not baked:
+        _git(repo, "reset", "-q", "--hard", "HEAD^1", cwd=wt)
+        journal.append("rebake", train=tid, head=h, files=files, ok=False, detail=f"{why}: the conflict stands"[:300])
+        return False
+    for f, text in baked.items():
+        Path(wt, f).write_text(text)
+    _git(repo, "add", "--", *baked, cwd=wt)
+    _git(repo, "commit", "-q", "--amend", "--no-edit", cwd=wt)
+    journal.append("rebake", train=tid, head=h, files=files, ok=True, detail="the train's generated files taken and re-baked into the merge")
+    return True
 
 
 def drop_refs(repo, tid: str) -> None:
@@ -473,10 +506,33 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
 
     def merge(heads):
         n[0] += 1
-        cand, bad = git_merge(repo, base, heads, f"refs/train/{tid}-{n[0]}")
+        cand, bad = git_merge(repo, base, heads, f"refs/train/{tid}-{n[0]}", tuple(cfg.generated), rebake if cfg.rebake else None, tid)
         if cand:
             CAND.setdefault(tid, cand)
         return cand, bad
+
+    def rebake(merged: str) -> dict | None:
+        """[check].rebake and [check].regen over the merge, jailed in a scratch tree as the rungs run; the generated files it left."""
+        j = jail.load(pinned)
+        if j is not None:
+            j.require()
+        check_tool._jail_enter(j)
+        check_tool._KEY[0] = f"train {tid} rebake"
+        tree = None
+        try:
+            tree = check_tool._scratch_tree(repo, merged, pinned, cfg, overlay=False)
+            py = cfg.python or "python3"
+            lines = [" ".join(shlex.quote(py if x == "{python}" else x) for x in cfg.rebake),
+                     *(x.replace("{python}", shlex.quote(py)) for x in cfg.regen)]
+            for i, line in enumerate(lines):
+                r = check_tool._run(f"rebake-{i}", ["bash", "-c", line], tree, 600, cfg, {"FICHERO_PYTHON_BIN": py})
+                if not r.get("ok"):
+                    return None
+            return {f: Path(tree, f).read_text() for f in cfg.generated if Path(tree, f).is_file()}
+        finally:
+            check_tool._jail_exit()
+            if tree:
+                check_tool.drop_tree(repo, tree)
 
     def files_over(cand: str) -> list[str]:
         return _git(repo, "diff", "--name-only", f"{base}...{cand}").stdout.split()

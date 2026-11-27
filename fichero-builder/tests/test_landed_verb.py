@@ -633,3 +633,25 @@ def test_a_train_cleared_sha_lands_merged_onto_a_moved_origin_with_no_verdict_or
     journal.append("train", id="train-2", candidate="d" * 40, result="green", landed=["n2/1"], steps=["n2/1"])
     rc = cli.main(["landed", sha2, "--root", str(world.tmp), "--gh", "true", "--state", str(world.tmp / "s"), "--push", "--train", "train-2", "--train-step", "n2/1"])
     assert rc == 1 and "TRAIN MERGE CONFLICT\n" in capsys.readouterr().err and _g(origin, "rev-parse", "integration") == tip
+
+
+def test_cleared_steps_land_the_trains_own_merges_so_a_re_baked_identity_conflict_never_sends_one_back(world, capsys):
+    """The train re-baked the generated identity in its merge of the second step (both regenerated it); landing each cleared step
+    onto origin as the train left it takes the train's own merge commit, never a new merge that would conflict on that file again."""
+    from fichero_builder import train
+    seed, engine = world.seed, world.engine
+    heads = []
+    for n in ("1", "2"):
+        _g(seed, "checkout", "-q", "-b", f"s{n}", _g(seed, "rev-parse", "integration"))
+        (seed / "f").write_text(n), (seed / f"x{n}").write_text(n)
+        _g(seed, "add", "."), _g(seed, "commit", "-qm", f"feat: s{n}")
+        heads.append(_g(seed, "rev-parse", "HEAD"))
+        _g(engine, "fetch", "-q", str(seed), f"+refs/heads/s{n}:refs/heads/work-s{n}")
+    _g(engine, "fetch", "-q", "origin")
+    cand, bad = train.git_merge(str(engine), "refs/remotes/origin/integration", heads, "refs/train/train-9-1", ("f",), lambda m: {"f": "12"}, "train-9")
+    assert bad == {}
+    journal.append("train", id="train-9", candidate=cand, result="green", landed=["l/1", "l/2"], steps=["l/1", "l/2"])
+    for n, h in zip(("1", "2"), heads):
+        rc = cli.main(["landed", h, "--root", str(world.tmp), "--gh", "true", "--state", str(world.tmp / "s"), "--push", "--train", "train-9", "--train-step", f"l/{n}"])
+        assert rc == 0, capsys.readouterr().err
+    assert _g(world.origin, "rev-parse", "integration") == cand and _g(world.origin, "show", "integration:f") == "12"

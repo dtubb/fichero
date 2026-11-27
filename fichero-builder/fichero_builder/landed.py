@@ -351,8 +351,11 @@ def main(a) -> int:
             stops += stop
         raise Red("no READY verdict: " + ("; ".join(stops) or f"no verdict store under {journal.STATE}"))
 
+    train_rows: list = []
+
     def train_verdict():  # the merge train's row is the verdict and the check: a cleared step is never checked or reviewed again
         rows = [r for r in journal.read() if r.get("event") == "train" and r.get("id") == a.train and r.get("candidate")]
+        train_rows[:] = rows
         if not rows or a.train_step not in (rows[-1].get("landed") or []):
             raise Red(f"no train row {a.train} that lands {a.train_step}")
         return f"cleared by {a.train} (its candidate {rows[-1]['candidate'][:9]})"
@@ -361,6 +364,13 @@ def main(a) -> int:
         nonlocal sha
         from fichero_builder import train
         _ok(_git(repo, "fetch", "-q", "origin"), "fetch origin")
+        tip = _git(repo, "rev-parse", f"refs/remotes/origin/{branch}").stdout.strip()
+        cand = (train_rows[-1].get("candidate") or "") if train_rows else ""
+        for line in (_git(repo, "rev-list", "--parents", "--merges", cand).stdout.splitlines() if cand else []):
+            m, *parents = line.split()
+            if parents[:2] == [tip, sha]:  # the train's own merge of this step, onto exactly this tip: its re-baked identity included
+                sha = m
+                return f"the train's merge {m[:9]} onto origin/{branch} as it is"
         merged, bad = train.git_merge(repo, f"refs/remotes/origin/{branch}", [sha], f"refs/train/{a.train}-land-{sha[:9]}")
         if bad:
             raise Red("TRAIN MERGE CONFLICT\n" + bad[sha])  # queue.TRAIN_CONFLICT: the step goes back
