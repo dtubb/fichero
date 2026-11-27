@@ -542,6 +542,8 @@ nav:
               - Activity (the pane, the window, the one job model): contributor_manual/specs/ui/activity-pane.md
               - Models and Compute Window (draft): contributor_manual/specs/ui/models-and-compute-window.md
               - Training Window (draft): contributor_manual/specs/ui/training-window.md
+              - Recipes Window (draft): contributor_manual/specs/ui/recipes-window.md
+              - "Three Windows, One Pattern: Models & Cluster, Recipes, Training (draft)": contributor_manual/specs/ui/windows-models-recipes-training.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Canvas Organize (draft): contributor_manual/specs/ui/canvas-organize.md
               - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md

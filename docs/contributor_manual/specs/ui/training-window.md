@@ -337,6 +337,39 @@ Swift tests in `fichero/Tests/Unit/general/Views/Training/`; each is named as fi
   generated from the same routes. Test:
   `test_training_tree.py::test_the_tree_route_is_in_the_generated_surfaces`.
 
+### G. The shared layout, and training any step (owner 2026-11-27; DRAFT, not approved)
+
+Asked for by the owner on 2026-11-27 with the Models & Cluster and Recipes windows: one window for training,
+fine-tuning and distilling models, in the layout the three share (`windows-models-recipes-training.md`, which holds
+the owner's open questions). No issue is filed yet — proposed: "Windows: Models & Cluster, Recipes, Training".
+
+**Layout.** Sidebar: the search field, then Recipes (each opening to its steps), Steps (those that stand alone),
+Trained Models, Runs. Detail: a step's ground truth, measure, teacher and students and actions, or a recipe's steps
+and end score, as above. Inspector: the selected candidate (how it was made, its scores, where it can run, Open in
+Models), example (who corrected it, train or held out, Open Where Corrected) or run.
+
+**What it replaces.** The loop's rows in Models' Recipe steps item (`models.loop.drawn-in-training`); the Train a
+Model… sheet as a place to look (it stays as the start sheet the actions open); Set Up's Train page as the only place
+the offer is seen (the offer stays there and opens this window). What it reuses: every line above and the loop the
+training lane builds (`../compute/distillation.md`, `../compute/correct-measure-distil.md`); section G adds no
+mechanism.
+
+- `training-window.layout.is-the-shared-layout` — **[GAP]** (#5941; app) the window is drawn in the shared three-column
+  container (`windows.pattern.three-columns`); its sidebar's search field filters by recipe, step, model or state; the
+  Inspector shows the candidate, example or run selected in the detail. *Test (to write):* TrainingWindowTests,
+  searchFiltersTheTreeAndTheInspectorFollowsTheCandidate.
+- `training-window.sidebar.same-recipes-as-the-recipes-window` — **[GAP]** (#5941, #6052; app + engine) the sidebar's
+  recipes and steps are the ones the Recipes window lists for the project (`recipes-window.library.one-read`), each
+  with its loop state added by the tree; Show in Recipes opens a row there, and Train… on a step there opens it here.
+  *Test (to write):* test_training_tree, the tree names the same recipes and steps as the library read.
+- `training-window.sidebar.trained-models` — **[GAP]** (#5941, #5439; app) Trained Models lists every model trained in
+  the project, by distilling or fine-tuning, with the step it was made for, how it was made and the gate's verdict;
+  choosing one opens its step with that candidate selected; its card stays in Models & Cluster. *Test (to write):*
+  TrainingSidebarTests, aTrainedModelOpensItsStepOnThatCandidate.
+- `training-window.words.step-and-tool` — **[GAP]** (#5941; app) the window says Step where this spec says stage, and
+  Tool for a workflow's node, in every label (question 3 of the shared spec); the ids keep their names. *Test (to
+  write):* TrainingWindowTests, noLabelSaysStageOrNode (a check over the window's string keys).
+
 ## Build order
 
 Order among milestones (manager default, owner to confirm): `training-window` follows `activity` and
@@ -398,6 +431,18 @@ can start beside `correct-measure-distil.md` Stage 1, which it reads.
 - Behaviours: `training-window.small-screens`, `training-window.mcp-cli`
 - Tests: TrainingWindowTests.swift, test_training_tree.py
 - Depends on: 4.2
+- Size: S
+
+### Stage 6 — The shared layout (owner 2026-11-27; DRAFT)
+#### Step 6.1 — The shared container, search, the Recipes window's list, the words (#TBD)
+- Behaviours: `training-window.layout.is-the-shared-layout`, `training-window.sidebar.same-recipes-as-the-recipes-window`, `training-window.words.step-and-tool`
+- Tests: TrainingWindowTests, test_training_tree (to write)
+- Depends on: 2.1
+- Size: M
+#### Step 6.2 — Trained Models in the sidebar (#TBD)
+- Behaviours: `training-window.sidebar.trained-models`
+- Tests: TrainingSidebarTests (to write)
+- Depends on: 2.3
 - Size: S
 
 ## Test matrix

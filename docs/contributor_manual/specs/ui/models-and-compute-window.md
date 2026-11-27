@@ -283,6 +283,52 @@ filters Activity by `model:`.
   seed holds none); a CER for TRIDIS v2 and Sophro Mhiro (their cards give a range and a percentage, not one CER); Pixtral
   (its Hub card states no licence).
 
+### A4. The shared layout, search in the sidebar, and clusters, keys, default models and downloads each an item (owner 2026-11-27; DRAFT, not approved)
+
+Asked for by the owner on 2026-11-27 with the Recipes and Training windows; the shared layout and the owner's open
+questions are in `windows-models-recipes-training.md`. No issue is filed yet — proposed: "Windows: Models & Cluster,
+Recipes, Training".
+
+**Layout.** Sidebar: the search field, then Models (All Models, Usable Now, Bookmarked), Providers (one item each), This
+Mac, Clusters (another Mac, each cluster, Hugging Face Jobs), Default Models, Downloads. Detail: a group's table, or one
+thing's page (a model's card; a provider's key, switch and models; a cluster's connection; the default per kind of
+work; the downloads with the folder they go to). Inspector: the selected row's facts and run settings, as today.
+
+**What the person sees.** *Where it opens:* Window › Models & Cluster, the "Models & Cluster…" link in Settings, a
+model's name in chat, an alert's fix button; each opens on its row. *Empty:* a search that finds nothing says what it
+searched ("Nothing on this Mac, at your providers or on Hugging Face matches…"); Downloads, when empty, says so in one
+line. *Loading:* rows on this Mac filter as the person types; "Searching online…" sits under them until the finder's
+job answers. *Error:* offline, or a provider that refused, is one line under the results naming which source did not
+answer; the local results stay. *Acceptance:* typing "qwen" in the sidebar lists, under the field, the model on this
+Mac, the same family at a provider with a key, and Hugging Face's cards, each group headed by where it is; choosing a
+Hugging Face card shows its card in the detail with Download and Bookmark; Settings › AI shows Allow cloud, the caps
+and the link, and no key, default, download or cluster.
+
+**What it replaces.** Settings' HPC clusters view and "Where models run"; the window's one combined item "Keys,
+Defaults & Downloads" (ui-4), which becomes a provider's own page, Default Models and Downloads; the Found item and the
+toolbar's search field, whose results are listed in the sidebar instead (question 9 of the shared spec).
+
+- `models.window.is-the-shared-layout` — **[GAP]** (#6588; app) the window is drawn in the shared three-column
+  container (`windows.pattern.three-columns`): choosing a group in the sidebar shows its table in the detail, choosing
+  one model, provider or cluster shows that thing's page, and the Inspector follows the detail's selection. *Test (to
+  write):* ModelsWindowSharedLayoutTests, aProviderItemShowsItsPageAndAGroupItsTable.
+- `models.sidebar.search-finds-local-and-online` — **[GAP]** (#6588, #5611; app + engine) the sidebar's search field
+  finds models on this Mac, in the model lists of the providers that have a key, and on Hugging Face and the finder's
+  other sources, through the one `find-models` job (`models.search.is-the-finder`); the results are listed in the
+  sidebar under the field, grouped On This Mac, by provider, and Hugging Face, each row with the finder's words for
+  whether it can run here; choosing one shows its card in the detail. A source that did not answer is named; the others
+  still list. *Test (to write):* test_find_models_searches_provider_lists (a stub provider's list is searched and
+  grouped; a refusing provider is named), and ModelsSidebarSearchTests, resultsAreGroupedByWhereTheyAre.
+- `models.sidebar.default-models-and-downloads-are-items` — **[GAP]** (#6588, #4307; app) Default Models (the model per
+  kind of work, the shared model row over the one list) and Downloads (each download with bytes and time left, and the
+  folder models are kept in) are sidebar items of their own; a provider's key, switch and base URL are on that
+  provider's page; the combined item "Keys, Defaults & Downloads" is gone. *Test (to write):* extend
+  `AISettingsPlacementTests.swift` (each of the three is reachable at its own item and nowhere else).
+- `models.settings.clusters-leave-settings` — **[GAP]** (#5454, #4307; app) each cluster and each other Mac is a row
+  under Clusters with its page (host, allocation, key, image, Test Connection: the flow `models.place.add-a-cluster`
+  names); Settings has no clusters view and no "Where models run". *Test (to write):* extend
+  `AISettingsPlacementTests.swift` (no cluster control is reachable from Settings).
+
 ### B. What a row says
 
 - `models.row.installed-means-it-loads` — **[PARTIAL]** (#6591; `activity.download.installed-means-it-loads` owns the
@@ -543,6 +589,26 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 - Behaviours: `models.run-settings.per-model`
 - Tests: test_model_run_settings.py (not yet written), ModelRunSettingsTests.swift (not yet written)
 - Depends on: 1.1
+- Size: M
+
+### Stage 6 — The shared layout, search in the sidebar, Settings' parts as items (owner 2026-11-27; DRAFT, after ui-3 to cards-1)
+
+#### Step 6.1 — The finder searches the providers' model lists (#TBD)
+- Behaviours: `models.sidebar.search-finds-local-and-online`
+- Tests: test_find_models_searches_provider_lists, ModelsSidebarSearchTests (to write)
+- Depends on: 2.5
+- Size: M
+
+#### Step 6.2 — The window in the shared container (#TBD)
+- Behaviours: `models.window.is-the-shared-layout`
+- Tests: ModelsWindowSharedLayoutTests (to write)
+- Depends on: 2.4
+- Size: M
+
+#### Step 6.3 — Default Models, Downloads and Clusters as items; Settings keeps the link (#TBD)
+- Behaviours: `models.sidebar.default-models-and-downloads-are-items`, `models.settings.clusters-leave-settings`
+- Tests: fichero/Tests/Unit/general/Views/Settings/AISettingsPlacementTests.swift (extended)
+- Depends on: 6.2, 3.1
 - Size: M
 
 ## Test matrix
