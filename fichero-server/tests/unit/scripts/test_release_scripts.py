@@ -510,7 +510,7 @@ def test_publish_deploys_the_appcast_with_the_netlify_cli_after_writing_it_and_b
     r = subprocess.run(["bash", "-c", harness], capture_output=True, text=True,
                        env={**os.environ, "PATH": f"{bin_}:{os.environ['PATH']}", "FICHERO_SITE_DIR": str(site)})
     assert r.returncode == 0, r.stdout + r.stderr
-    want = ["appcast-write", *(["docs-site"] if public else []), "eleventy-build", "netlify-deploy", "verify"]
+    want = ["appcast-write", "docs-site", "eleventy-build", "netlify-deploy", "verify"]  # owner 2026-11-27: every release updates the Fichero page
     assert log.read_text().split() == want
 
 

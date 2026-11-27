@@ -867,13 +867,13 @@ publish_part() {
     fi
   done
   # Default: the dev DMG on the dev channel only (never the channel-less public item), a GitHub
-  # pre-release (never Latest), no site. --public: the same dev DMG as the public item, Latest, and the
+  # pre-release (never Latest), and the site (owner 2026-11-27: the Fichero page shows every release). --public: the same dev DMG as the public item, Latest, and the
   # site (FICHERO_RELEASE_PUBLIC tells create-github-release.sh to ignore the dev .tier file).
   if [ "${PUBLIC_RELEASE:-false}" = true ]; then
     export FICHERO_RELEASE_PUBLIC=1
     unset FICHERO_RELEASE_CHANNEL
   else
-    export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1
+    export FICHERO_RELEASE_CHANNEL=dev
     case " ${GITHUB_ARGS[*]-} " in *" --prerelease "*) ;; *) GITHUB_ARGS+=("--prerelease") ;; esac
   fi
   "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}" \
