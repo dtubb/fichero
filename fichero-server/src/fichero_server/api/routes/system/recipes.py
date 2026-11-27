@@ -1671,7 +1671,7 @@ async def add_candidate_by_address(request: AddByAddressRequest) -> dict[str, st
     return {"key": key}
 
 
-@router.delete("/candidates/bookmark")
+@router.delete("/candidates/bookmark", dependencies=[Depends(editor_or_owner_only)])
 async def remove_candidate_bookmark(
     request: BookmarkRequest, library_path: Optional[str] = Depends(optional_library_path),
 ) -> dict[str, str]:

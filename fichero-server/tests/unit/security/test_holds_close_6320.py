@@ -945,10 +945,12 @@ def test_a_comment_on_a_line_of_a_denied_page_is_not_withdrawn_or_restored_by_a_
 
 def test_a_viewer_does_not_add_or_bookmark_a_model_card(project, four):
     """`POST /api/recipes/candidates/add` reads Hugging Face over the network and, with `.../bookmark`, writes the engine-wide kept
-    list: a viewer may not use the network or change what every library sees (`source.rights.a-viewer-cannot-spend-keys-or-network`).
+    list, and `DELETE .../bookmark` writes it too: a viewer may not use the network or change what every library sees (`source.rights.a-viewer-cannot-spend-keys-or-network`).
     An editor passes the check and reaches the route (an address naming no model is 422, a card no search found is 404)."""
     assert _all_refused(four, "POST", "/api/recipes/candidates/add", {"address": "acme/x"}, who=("bob", "dana"))
     assert _all_refused(four, "POST", "/api/recipes/candidates/bookmark", {"key": "nobody/nothing"}, who=("bob", "dana"))
+    assert _all_refused(four, "DELETE", "/api/recipes/candidates/bookmark", {"key": "nobody/nothing"}, who=("bob", "dana"))
     alice = dict((n, c) for n, c, _ in four)["alice"]
     assert alice.post("/api/recipes/candidates/add", json={"address": "nonsense"}).status_code == 422
     assert alice.post("/api/recipes/candidates/bookmark", json={"key": "nobody/nothing"}).status_code == 404
+    assert alice.request("DELETE", "/api/recipes/candidates/bookmark", json={"key": "nobody/nothing"}).status_code == 404
