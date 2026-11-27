@@ -179,3 +179,15 @@ def test_the_loop_neither_follows_nor_re_execs_while_a_train_runs(monkeypatch):
     stop.set()
     t.join()
     assert queue.follow_due() and queue.restart_due(("old",), "/r", {}, (), followed=True)
+
+
+def test_a_checkout_moved_by_hand_to_the_landed_tip_counts_as_followed_so_running_chains_never_hold_the_re_exec(repos):
+    """2026-11-27 16:51-18:00: the manager moved builder-live to the landed tip by hand. No `followed` was set, so the re-exec waited
+    for a tick with no chain running; with steps always in their checks it never came, and the drain held new chains for an hour."""
+    eng, live, rules = repos
+    g(live, "fetch", "-q", "origin"), g(live, "checkout", "-q", "--detach", "origin/integration")  # the hand move
+    assert queue.follow_landed(live, out=lambda s: None).startswith("followed")
+    assert [r["state"] for r in journal.read() if r["event"] == "loop"] == ["followed"]
+    assert queue.follow_landed(live, out=lambda s: None) == "", "once per tip"
+    busy = {"c": types.SimpleNamespace(done=lambda: False)}  # a chain in its check
+    assert queue.restart_due(("old",), live, busy, followed=True), "followed: a running chain does not hold the re-exec"

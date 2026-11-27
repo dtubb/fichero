@@ -3177,8 +3177,18 @@ def follow_landed(root, out=print) -> str:
     except (OSError, ValueError, KeyError):
         return ""
     tip, head = land_tool.resolve_branch(repo, branch), git("rev-parse", "HEAD").stdout.strip()
-    if not tip or not head or tip == head or (journal.STATE / "follow.tip").is_file() and (journal.STATE / "follow.tip").read_text().strip() == tip:
+    if not tip or not head or (journal.STATE / "follow.tip").is_file() and (journal.STATE / "follow.tip").read_text().strip() == tip:
         return ""
+    origin_tip = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "-q", "--verify", f"refs/remotes/origin/{branch}^{{commit}}"],
+                                capture_output=True, text=True).stdout.strip()
+    if head in (tip, origin_tip):  # the engine repo's own branch may lag origin's (2026-11-27, cb39c90)
+        # 2026-11-27 16:51-18:00: a person moved the checkout to the landed tip by hand (a re-pin). Nothing set `followed`, so the
+        # re-exec waited for a tick with no chain running; with steps always in their checks it never came, and the drain held every
+        # new chain for over an hour on the old code. A checkout at the landed tip is followed code: it re-execs as a follow does
+        # (restart_due still needs the code on disk to differ from the running code's mark).
+        (journal.STATE / "follow.tip").write_text(tip + "\n")  # ponytail: keyed on the local tip; a later origin-only move rows again, once
+        journal.append("loop", state="followed", detail=f"the loop's checkout is already at the landed {head[:9]} (moved by hand): it re-execs onto it, a running dev build first")
+        return f"followed {head[:9]} (already there)"
     # the builder's code only: a landing of harness.toml or docs alone changes nothing this process runs (the checkout keeps its
     # own harness.toml), so it is never followed (2026-11-27: a config-only commit restarted the loop and cost a train)
     paths = [client.package_dir(root)]
