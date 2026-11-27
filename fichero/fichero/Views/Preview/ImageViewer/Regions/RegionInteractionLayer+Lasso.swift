@@ -2,7 +2,7 @@ import SwiftUI
 
 #if os(macOS)  // RegionInteractionLayer is Mac-only (an AppKit event layer)
 
-/// The lasso in Select (`segment-editor.select-marquee-lasso`): ⌥-drag from empty page draws a loop, and letting go
+/// The lasso in Select (`segment-editor.select-marquee-lasso`): ⌃-drag from empty page draws a loop, and letting go
 /// selects every segment mostly inside it, at the level being edited (lines; regions with ⌘), ⇧ adding to the selection.
 /// Selecting is not an action: nothing is sent.
 extension RegionInteractionLayer {
@@ -11,7 +11,7 @@ extension RegionInteractionLayer {
         let point = [Double(event.point.x), Double(event.point.y)]
         switch event.phase {
         case .pressed:
-            guard event.option, event.clickCount == 1, isBandSelecting, artifactId != nil,
+            guard event.control, !event.option, event.clickCount == 1, isBandSelecting, artifactId != nil,
                   !hitsAnything(at: viewPoint, in: size) else { return false }
             lasso = [point]
             bandCommand = event.command
