@@ -25,26 +25,32 @@ def repo(tmp_path, monkeypatch):
     _git(r, "remote", "add", "origin", str(origin))
     monkeypatch.setattr(journal, "path", lambda: tmp_path / "journal.jsonl")
     monkeypatch.setattr(actions, "POLL_S", 0)
-    actions.reset()
     return r
 
 
 def fake_gh(tmp_path, monkeypatch, head, runs, steps=None, fail=False, shards=12, per_shard=None):
-    """`runs`: what `gh run list` prints (headSha "HEAD" = the batch head); `steps`: {step name: conclusion} on each of the `shards`
-    jobs named as tests.yml names them, `engine (N/12)`, plus a contracts job; `per_shard`: {N: {step: conclusion}} overrides."""
+    """A `gh` first on PATH, answering what ci.Hosted asks. `runs`: Actions runs (headSha "HEAD" = the batch head); each run of a sha
+    shows `shards` check runs of that sha, named as tests.yml names its jobs, `engine (N/12)`, plus a contracts job. `steps`: {step name:
+    conclusion} on each engine job; `per_shard`: {N: {step: conclusion}} overrides."""
     runs = [{**r, "headSha": head if r.get("headSha") == "HEAD" else r.get("headSha")} for r in runs]
     steps = steps or {}
-    jobs = [{"name": f"engine ({n}/12)", "steps": [{"name": k, "conclusion": v} for k, v in {**steps, **(per_shard or {}).get(n, {})}.items()]}
+    names = [f"engine ({n}/12)" for n in range(1, shards + 1)] + ["contracts"]
+    checks = {r["headSha"]: [{"name": nm, "id": i, "status": r["status"], "conclusion": r["conclusion"], "app": {"slug": "github-actions"},
+                              "details_url": f"https://github.com/o/r/actions/runs/{r['databaseId']}/job/{i}"} for i, nm in enumerate(names, 1)]
+              for r in runs}
+    jobs = [{"id": n, "name": f"engine ({n}/12)", "steps": [{"name": k, "conclusion": v} for k, v in {**steps, **(per_shard or {}).get(n, {})}.items()]}
             for n in range(1, shards + 1)]
-    jobs.append({"name": "contracts", "steps": [{"name": "Unit tests", "conclusion": "failure"}]})
+    jobs.append({"id": shards + 1, "name": "contracts", "steps": [{"name": "Unit tests", "conclusion": "failure"}]})
     script = tmp_path / "gh"
     script.write_text("#!/usr/bin/env python3\nimport sys, json\na = sys.argv[1:]\n"
                       f"if {fail!r}: sys.stderr.write('no network'); sys.exit(4)\n"
-                      f"if a[0] == 'run' and a[1] == 'list': print(json.dumps({runs!r}))\n"
-                      f"elif a[0] == 'api': print(json.dumps({{'jobs': {jobs!r}}}))\n"
-                      "elif a[:2] == ['run', 'view']: print('FAILED tests/unit/test_x.py::test_y\\nE assert 1 == 2')\n")
+                      f"checks = {checks!r}\n"
+                      "if a[0] == 'api' and '/check-runs' in a[1]: print(json.dumps({'check_runs': checks.get(a[1].split('/commits/')[1].split('/')[0], [])}))\n"
+                      f"elif a[0] == 'api' and '/jobs' in a[1]: print(json.dumps({{'jobs': {jobs!r}}}))\n"
+                      "elif a[:2] == ['run', 'view']: print('FAILED tests/unit/test_x.py::test_y\\nE assert 1 == 2')\n"
+                      "else: sys.exit(9)\n")
     script.chmod(0o755)
-    monkeypatch.setattr(actions, "GH", str(script))
+    monkeypatch.setenv("PATH", f"{tmp_path}:{__import__('os').environ['PATH']}")
 
 
 def cfg(**kw):
@@ -104,7 +110,7 @@ def test_fewer_than_twelve_shards_is_no_usable_run(repo, tmp_path, monkeypatch):
     ran = []
     _fa(repo, head, cfg(), _local(ran))
     assert ran == [1]
-    assert "11" in (tmp_path / "journal.jsonl").read_text()
+    assert "11 of 12" in (tmp_path / "journal.jsonl").read_text()
 
 
 def test_the_jobs_tests_yml_really_names_are_read(repo, tmp_path, monkeypatch):
@@ -115,7 +121,7 @@ def test_the_jobs_tests_yml_really_names_are_read(repo, tmp_path, monkeypatch):
 
 
 def test_the_guards_rung_never_reads_actions(repo, tmp_path, monkeypatch):
-    assert "guards" not in actions.STEPS
+    assert actions.STEP == "Unit tests" and all(n.startswith("engine (") for n in actions.NAMES)
 
 
 def test_no_run_in_time_runs_the_rung_locally_with_one_journal_row(repo, tmp_path, monkeypatch):
@@ -126,7 +132,7 @@ def test_no_run_in_time_runs_the_rung_locally_with_one_journal_row(repo, tmp_pat
     assert r["stdout_tail"] == "local" and len(ran) == 1
     rows = [json.loads(x) for x in (tmp_path / "journal.jsonl").read_text().splitlines()]
     why = [x for x in rows if x.get("state") == "actions-local" and x["rung"] == "unit"]
-    assert len(why) == 1 and "no finished Actions run" in why[0]["reason"]
+    assert len(why) == 1 and "0 of 12 engine jobs" in why[0]["reason"]
 
 
 def test_a_run_for_another_sha_is_refused(repo, tmp_path, monkeypatch):

@@ -1,31 +1,19 @@
 """GitHub Actions as a source for the `unit` rung (spec github-ci.md: ci.builder-reads-actions, ci.actions-or-local).
 
-`fetch` pushes the batch head to the lane's branch on origin, waits for the `tests.yml` run of exactly that sha through the GitHub
-CLI and returns what the `Unit tests` step of every `engine` shard job concluded. It runs in the loop, with the loop's credentials, never in
-a worker. Anything that is not a finished run of that sha (no run in time, no `gh`, a bad reply, a failed push, a run for another sha)
-is `state = "none"` with the reason, and the caller runs the rung on the Macs."""
+`fetch` pushes the batch head to the lane's branch on origin through `ci.Hosted`, waits with `ci.wait` for the twelve `engine (N/12)`
+check runs of exactly that sha and returns what the `Unit tests` step of every one of those jobs concluded. It runs in the loop, with
+the loop's credentials, never in a worker. Anything that is not twelve finished jobs of that sha (none in time, no `gh`, a bad reply, a
+failed push) is `state = "none"` with the reason, and the caller runs the rung on the Macs."""
 import json
 import subprocess
 import time
 
-GH = "gh"            # the tests point this at a fake
+from fichero_builder import ci
+
 POLL_S = 20.0
-WORKFLOW = "tests.yml"
-ENGINE_JOB = "engine ("  # tests.yml names the unit-tier jobs "engine (N of the twelve)"
-SHARDS = 12              # the matrix of tests.yml's engine job; fewer jobs in a run is no usable run
-STEPS = {"unit": "Unit tests"}  # guards never come from here: the step runs only check_spec_*.py and the head's own workflow
-_MEMO: dict = {}     # (head, branch) -> result, for one ladder: a repeat read of the `unit` rung reuses the run
-
-
-def reset() -> None:
-    _MEMO.clear()
-
-
-def _gh(*args, timeout_s: float = 120) -> str:
-    r = subprocess.run([GH, *args], capture_output=True, text=True, timeout=timeout_s)
-    if r.returncode:
-        raise RuntimeError(f"gh {' '.join(args[:2])} exited {r.returncode}: {r.stderr.strip()[-200:]}")
-    return r.stdout
+SHARDS = 12  # the matrix of tests.yml's engine job; fewer finished jobs is no usable run
+NAMES = tuple(f"engine ({n}/{SHARDS})" for n in range(1, SHARDS + 1))  # the check-run names tests.yml gives its unit-tier jobs
+STEP = "Unit tests"  # guards never come from here: the `Spec guards` step runs only check_spec_*.py and the head's own workflow
 
 
 def lane_branch(root, lane: str, head: str) -> str:
@@ -38,69 +26,33 @@ def lane_branch(root, lane: str, head: str) -> str:
     return branch if r.stdout.strip() == head else ""
 
 
-def _push(root, head: str, branch: str) -> None:
-    r = subprocess.run(["git", "-C", str(root), "push", "--force", "-q", "origin", f"{head}:refs/heads/{branch}"], capture_output=True, text=True, timeout=300)
-    if r.returncode:
-        raise RuntimeError(f"push to origin {branch} failed: {r.stderr.strip()[-200:]}")
-
-
-def _wait(head: str, timeout_s: float) -> dict | None:
-    """The finished run of exactly `head`, or None at the timeout. A run listed for another sha is never taken."""
-    end = time.monotonic() + timeout_s
-    while True:
-        runs = json.loads(_gh("run", "list", "--commit", head, "--workflow", WORKFLOW, "--json", "databaseId,status,conclusion,headSha") or "[]")
-        mine = [r for r in runs if r.get("headSha") == head]
-        done = [r for r in mine if r.get("status") == "completed"]
-        if done:
-            return done[0]
-        if time.monotonic() >= end:
-            return None
-        time.sleep(POLL_S)
-
-
-def _parts(run_id) -> dict:
-    jobs = json.loads(_gh("api", f"repos/{{owner}}/{{repo}}/actions/runs/{run_id}/jobs"))["jobs"]
-    engine = [j for j in jobs if j.get("name", "").startswith(ENGINE_JOB)]  # tests.yml also has contracts and builder jobs: read per job
-    if len(engine) < SHARDS:
-        raise RuntimeError(f"run {run_id} has {len(engine)} {ENGINE_JOB!r} jobs, not {SHARDS}")
-    out = {}
-    for rung, name in STEPS.items():
-        concl = []
-        for j in engine:
-            step = [s.get("conclusion") for s in j.get("steps", []) if s.get("name") == name]
-            if not step:
-                raise RuntimeError(f"run {run_id}: job {j.get('name')!r} has no step {name!r}")
-            concl.append(step[0])
-        bad = sorted({c or "none" for c in concl if c != "success"})
-        out[rung] = {"ok": not bad, "step": name, "conclusion": ", ".join(bad) or "success"}
-    return out
-
-
-def _failing(run_id) -> str:
-    try:
-        return "\n".join(_gh("run", "view", str(run_id), "--log-failed", timeout_s=120).splitlines()[-60:])
-    except (RuntimeError, subprocess.SubprocessError, OSError) as e:
-        return f"(the failing lines could not be read: {e})"
-
-
 def fetch(root, head: str, branch: str, timeout_s: float) -> dict:
-    """{"state": "green"|"red"|"none", "run": id, "parts": {rung: {ok, step, conclusion}}, "lines": failing lines, "why": reason when none}."""
-    key = (head, branch)
-    if key in _MEMO:
-        return _MEMO[key]
+    """{"state": "green"|"red"|"none", "run": id, "ok", "conclusion", "lines": failing lines, "why": reason when none}."""
+    h = ci.Hosted(ci.Cfg(wait_min=timeout_s / 60, start_min=timeout_s / 60), str(root))
     try:
         if not branch:
             raise RuntimeError("no lane branch to push: the head is not the tip of the checked lane's work-<lane> ref")
-        _push(root, head, branch)
-        run = _wait(head, timeout_s)
-        if run is None:
-            res = {"state": "none", "why": f"no finished Actions run of {head[:9]} within {timeout_s:g} s"}
-        else:
-            parts = _parts(run["databaseId"])
-            green = all(p["ok"] for p in parts.values())
-            res = {"state": "green" if green else "red", "run": run["databaseId"], "parts": parts,
-                   "lines": "" if green else _failing(run["databaseId"])}
-    except (RuntimeError, subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError) as e:
-        res = {"state": "none", "why": f"Actions not usable: {e}"}
-    _MEMO[key] = res  # a missing run too: the second rung must not wait the timeout again
-    return res
+        if err := h.push(head, branch):
+            raise RuntimeError(f"push to origin {branch} failed: {err}")
+        got, end = ci.wait(h, head, NAMES, h.cfg, clock=time.monotonic, poll_s=POLL_S)
+        if end:
+            return {"state": "none", "why": f"{len(got)} of {SHARDS} engine jobs of {head[:9]} finished within {timeout_s:g} s ({end})"}
+        run_ids = {c["run_id"] for c in got.values()}
+        if len(run_ids) != 1 or "" in run_ids:
+            raise RuntimeError(f"the engine jobs of {head[:9]} are not one Actions run: {sorted(run_ids)}")
+        run = run_ids.pop()
+        jobs = {j["name"]: j for j in h.jobs(run) if j["name"] in NAMES}
+        if missing := [n for n in NAMES if n not in jobs]:
+            raise RuntimeError(f"run {run} lacks the jobs {missing}")
+        concl = {}
+        for n, j in jobs.items():
+            step = [s["conclusion"] for s in j["steps"] if s["name"] == STEP]
+            if not step:
+                raise RuntimeError(f"run {run}: job {n!r} has no step {STEP!r}")
+            concl[n] = step[0]
+        red = [jobs[n] for n, c in concl.items() if c != "success"]
+        bad = sorted({concl[j["name"]] or "none" for j in red})
+        lines = "\n".join("\n".join(h.failed_log(run, j["id"]).splitlines()[-60:]) for j in red)
+        return {"state": "red" if red else "green", "run": run, "ok": not red, "conclusion": ", ".join(bad) or "success", "lines": lines}
+    except (RuntimeError, ci.Down, subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+        return {"state": "none", "why": f"Actions not usable: {e}"}

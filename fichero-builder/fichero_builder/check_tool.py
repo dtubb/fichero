@@ -107,7 +107,7 @@ class Config:
     swift_tests: tuple = ()             # the build tool's argv up to the action (project, scheme, destination, -testPlan fichero): `swift_tests()` appends build-for-testing, then test-without-building
     rungs: tuple = ()                   # [check].rungs: the rungs to run, in this order, by name (RUNGS and the [[check.rung]] names); () = every RUNGS rung
     rung: tuple = ()                    # [[check.rung]]: {name, argv, timeout_s}: a rung that runs argv in the scratch tree, green on exit 0
-    actions: tuple = ()                 # [check].actions: rungs a GitHub Actions run of the batch head may supply ("unit", "guards"); () = all on the Macs
+    actions: tuple = ()                 # [check].actions: rungs a GitHub Actions run of the batch head may supply (only "unit"); () = all on the Macs
     actions_timeout_s: float = 1500     # how long to wait for that run before the rung runs on the Macs
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
@@ -2519,10 +2519,8 @@ def from_actions(rung: str, root, head: str, cfg: Config, local, pinned, since: 
     if res["state"] == "none":
         journal.append("check", state="actions-local", rung=rung, head=head, reason=res["why"])
         return local()
-    part = res["parts"][rung]
-    row = {"argv": [], "exit_code": 0 if part["ok"] else 1, "ok": part["ok"], "timed_out": False, "seconds": 0, "results": [], "actions_run": res["run"],
-           "stdout_tail": f"from GitHub run {res['run']}: step {part['step']!r} {part['conclusion']}", "stderr_tail": "" if part["ok"] else res["lines"]}
-    return row
+    return {"argv": [], "exit_code": 0 if res["ok"] else 1, "ok": res["ok"], "timed_out": False, "seconds": 0, "results": [], "actions_run": res["run"],
+            "stdout_tail": f"from GitHub run {res['run']}: step {actions.STEP!r} {res['conclusion']}", "stderr_tail": "" if res["ok"] else res["lines"]}
 
 
 def rung_not_run(r: dict) -> bool:
@@ -2838,7 +2836,6 @@ def pick_rungs(all_rungs: list, cfg: Config, tree) -> list:
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
                 approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = (), lane: str = "") -> dict:
     cfg = load(pinned)
-    actions.reset()
     stricter = stricter_files(root, since, head, cfg, pinned, rows=True)
     bad = [b for b in pinned_violations(root, since, head, cfg, pinned) if b.split(": ", 1)[0] not in stricter]
     noted = ""
