@@ -844,7 +844,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `ActivityMonitorRow.automaticStarters` holds the engine's `jobs.BACKGROUND_STARTERS` (less schedule and trigger, their
   own glyph). *Test:*
   `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift` extended.
-- `activity.kept-export.one-row-per-export` — **[PARTIAL]** (#6588; decision 28; `kept_export.py`) the work changing queues ONE job
+- `activity.kept-export.one-row-per-export` — **[OK]** (#6588; decision 28; `kept_export.py`) the work changing queues ONE job
   per kept export (subject the export's id, the pages to rewrite gathered in its detail), never one per page; while it waits,
   more changes join it and push its quiet period; its row reads "Update kept export · <folder name> · N pages". When the
   folder is gone the job ends PAUSED "The export folder is gone" with Choose Folder… and nothing more is queued for that export
@@ -865,7 +865,8 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (`docs/assets/activity-pane/pane-export-folder-gone.png`). *Test (app):* `KeptExportStoreTests.chooseFolderAndKeepUpToDatePatch`,
   `ActivityErrorRowTests.primaryFix`. *Test:*
   `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (4, green),
-  `fichero-server/tests/unit/jobs/test_kept_export_choose_folder_6588.py` (4, green).
+  `fichero-server/tests/unit/jobs/test_kept_export_choose_folder_6588.py` (6, green; both files run again 2026-11-27 on the
+  worker Mac: one row for ten edits, a gone folder's paused row with no row added, Keep up to date off queuing nothing).
 
 ### Ruled 2026-11-15 morning: run controls, the sidebar, models, graphs, columns, the log, recipes (decisions 30-37)
 
