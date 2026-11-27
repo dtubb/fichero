@@ -153,10 +153,9 @@ def _folder(db: Any, folder_id: str) -> dict[str, Any] | None:
     return next((f for f in _folders(db) if f["id"] == folder_id), None)
 
 
-def folder_name(db: Any, folder_id: str) -> str | None:
-    """The tied folder's name (the last part of its path), or None when no tied folder has this id."""
-    folder = _folder(db, folder_id)
-    return Path(folder["path"]).name if folder else None
+def folder_names(db: Any) -> dict[str, str]:
+    """Each tied folder's name (the last part of its path) by its id, from one read of the tied folders."""
+    return {f["id"]: Path(f["path"]).name for f in _folders(db)}
 
 
 def _exported(db: Any, doc_id: str, fmt: str) -> str | None:

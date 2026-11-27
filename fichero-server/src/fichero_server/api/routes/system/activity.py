@@ -2292,9 +2292,10 @@ async def list_stopped_at_quit(db: Database = Depends(get_library_database)) -> 
 
     def held_rows() -> list[dict[str, Any]]:
         rows = job_queue.stopped_at_quit(db)
-        for row in rows:
-            if row["kind"] == sync_folder.READ_KIND and row["subject"]:
-                row["folder"] = sync_folder.folder_name(db, row["subject"])
+        held = [row for row in rows if row["kind"] == sync_folder.READ_KIND and row["subject"]]
+        names = sync_folder.folder_names(db) if held else {}
+        for row in held:
+            row["folder"] = names.get(row["subject"])
         return rows
 
     items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(held_rows)]

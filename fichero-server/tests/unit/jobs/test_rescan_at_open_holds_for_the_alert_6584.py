@@ -66,3 +66,19 @@ def test_the_alerts_item_names_the_folder_by_its_name_never_its_path(held, tmp_p
     [item] = client.get("/api/activity/stopped-at-quit").json()["items"]
     assert item["folder"] == "inbox"
     assert str(tmp_path) not in json.dumps(item)
+
+
+def test_the_alert_reads_the_tied_folders_once_however_many_reads_are_held(held, tmp_path, client, monkeypatch):
+    sync_folder._ensure(held)
+    for name in ("inbox", "scans", "post"):
+        (tmp_path / name).mkdir()
+        held.execute("INSERT INTO sync_folders (id, path, formats, created_at, intake) VALUES (?, ?, ?, now(), TRUE)",
+                     [f"f-{name}", str(tmp_path / name), json.dumps([])])
+    sync_folder.rescan(held, hold=True)
+    reads, read_folders = [], sync_folder._folders
+    monkeypatch.setattr(sync_folder, "_folders", lambda db: reads.append(1) or read_folders(db))
+
+    items = client.get("/api/activity/stopped-at-quit").json()["items"]
+
+    assert sorted(i["folder"] for i in items) == ["inbox", "post", "scans"]
+    assert len(reads) == 1
