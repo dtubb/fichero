@@ -12,6 +12,10 @@ base_ref = "origin/integration"
 max_commits = 100  # the most commits a lane may be ahead of origin/integration (lane_ready_check.sh reads it; the pinned copy's value judges)
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
+# ci.actions-or-local: rungs a GitHub Actions run of the batch head (tests.yml, pushed to the lane's branch) may supply; no run in
+# actions_timeout_s, or Actions down, and the rung runs on the Macs. Swift, red-on-base, perf and security never come from here.
+actions = ["unit"]
+actions_timeout_s = 1500
 min_guards = 20
 parallel = 4   # owner 2026-11-23 afternoon: the iMac runs two checks at once (two gate dirs, two heavy locks), the M1 Air one
 # Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).

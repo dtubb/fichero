@@ -712,7 +712,7 @@ MOVES = 6  # ponytail: a busier landing branch than six moves in one chain is a 
 
 # What a base delta can change, by where it lands: the rungs that must run again for it (manager 2026-11-24 throughput review).
 # A path in none of these classes has no cheap answer, so the whole ladder runs.
-_RERUN = (("guards",), ("build",), ("red-on-base", "guards"))
+_RERUN = (("guards",), ("build",), ("red-on-base", "guards", "unit"))
 
 
 def _delta_class(path: str) -> int:
