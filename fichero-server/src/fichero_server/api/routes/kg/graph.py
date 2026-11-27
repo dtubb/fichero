@@ -260,65 +260,77 @@ def traverse(
         )
     ]
     edges: list[TraverseEdge] = []
-    queue: list[tuple[str, int]] = [(entity_id, 0)]
+    # Breadth first, one depth at a time: the links of a whole depth's nodes and the statements they point at are read in two
+    # queries, and only a NAME is asked for the statements mentioning it (a statement's id is never a name's, so asking for
+    # each statement was an empty query a node: 1,841 queries for a busy name at depth 2, perf-optimize 2026-11-27).
+    frontier: list[tuple[str, bool]] = [(entity_id, True)]  # (node id, is it an entity)
 
     cut = False
-    while queue and not cut:
-        current_id, current_depth = queue.pop(0)
-        if current_depth >= max_depth:
-            continue
-
-        if include_claims:
-            room = max(TRAVERSE_NODE_LIMIT - len(nodes), 0)
-            claim_ids = db.claim_ids_mentioning([current_id], room + 1)
-            if len(claim_ids) > room:
-                cut = True
-                claim_ids = claim_ids[:room]
-            position = {cid: i for i, cid in enumerate(claim_ids)}
-            for claim in sorted(db.query_in(KnowledgeClaim, "id", claim_ids), key=lambda c: position[c.id]):
-                if claim.id not in visited:
-                    visited.add(claim.id)
-                    nodes.append(TraverseNode(
-                        id=claim.id, type="claim", label=claim.text[:120],
-                        depth=current_depth + 1,
-                        metadata={
-                            "epistemic_status": (
-                                claim.epistemic_status.value
-                                if claim.epistemic_status
-                                else None
-                            ),
-                        },
-                    ))
-                    queue.append((claim.id, current_depth + 1))
-                edges.append(TraverseEdge(
-                    source=current_id, target=claim.id,
-                    type="mentioned_in", depth=current_depth + 1,
-                ))
-
-        # Walk claim-to-claim links one hop further.
-        for link in db.query_in(KnowledgeClaimLink, "claim_id", [current_id]):
-            if link.related_claim_id in visited:
-                continue
-            if len(nodes) >= TRAVERSE_NODE_LIMIT:
-                cut = True
+    for current_depth in range(max_depth):
+        if not frontier or cut:
+            break
+        links_of: dict[str, list[KnowledgeClaimLink]] = {}
+        for link in db.query_in(KnowledgeClaimLink, "claim_id", [node_id for node_id, _ in frontier]):
+            links_of.setdefault(link.claim_id, []).append(link)
+        targets = {
+            c.id: c for c in db.query_in(KnowledgeClaim, "id", [link.related_claim_id for links in links_of.values() for link in links])
+        }
+        next_frontier: list[tuple[str, bool]] = []
+        for current_id, is_entity in frontier:
+            if cut:
                 break
-            target = db.get(KnowledgeClaim, link.related_claim_id)
-            if target is None:
-                continue
-            visited.add(target.id)
-            nodes.append(TraverseNode(
-                id=target.id, type="claim", label=target.text[:120],
-                depth=current_depth + 1,
-                metadata={
-                    "relation": link.relation_type.value,
-                },
-            ))
-            queue.append((target.id, current_depth + 1))
-            edges.append(TraverseEdge(
-                source=current_id, target=target.id,
-                type=link.relation_type.value,
-                depth=current_depth + 1,
-            ))
+            if include_claims and is_entity:
+                room = max(TRAVERSE_NODE_LIMIT - len(nodes), 0)
+                claim_ids = db.claim_ids_mentioning([current_id], room + 1)
+                if len(claim_ids) > room:
+                    cut = True
+                    claim_ids = claim_ids[:room]
+                position = {cid: i for i, cid in enumerate(claim_ids)}
+                for claim in sorted(db.query_in(KnowledgeClaim, "id", claim_ids), key=lambda c: position[c.id]):
+                    if claim.id not in visited:
+                        visited.add(claim.id)
+                        nodes.append(TraverseNode(
+                            id=claim.id, type="claim", label=claim.text[:120],
+                            depth=current_depth + 1,
+                            metadata={
+                                "epistemic_status": (
+                                    claim.epistemic_status.value
+                                    if claim.epistemic_status
+                                    else None
+                                ),
+                            },
+                        ))
+                        next_frontier.append((claim.id, False))
+                    edges.append(TraverseEdge(
+                        source=current_id, target=claim.id,
+                        type="mentioned_in", depth=current_depth + 1,
+                    ))
+
+            # Walk claim-to-claim links one hop further.
+            for link in links_of.get(current_id, []):
+                if link.related_claim_id in visited:
+                    continue
+                if len(nodes) >= TRAVERSE_NODE_LIMIT:
+                    cut = True
+                    break
+                target = targets.get(link.related_claim_id)
+                if target is None:
+                    continue
+                visited.add(target.id)
+                nodes.append(TraverseNode(
+                    id=target.id, type="claim", label=target.text[:120],
+                    depth=current_depth + 1,
+                    metadata={
+                        "relation": link.relation_type.value,
+                    },
+                ))
+                next_frontier.append((target.id, False))
+                edges.append(TraverseEdge(
+                    source=current_id, target=target.id,
+                    type=link.relation_type.value,
+                    depth=current_depth + 1,
+                ))
+        frontier = next_frontier
 
     return TraverseResponse(
         entity_id=entity_id, nodes=nodes, edges=edges, max_depth=max_depth, truncated=cut,
