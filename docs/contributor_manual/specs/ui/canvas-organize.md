@@ -336,10 +336,9 @@ review, so there is one list of things waiting for an answer.
   undone like any answer. Every other kind waits for a person until its recognizer has been scored
   on a box an editor organized and a person switches that kind on (the rule Find the Documents
   follows for boundaries).
-- **Distilled.** Every step that proposes keeps what it was asked and what was answered. A paid
-  model's answers and the editor's accepts, rejects and corrections train a small local model for
-  that step, which is offered in place of the paid call once it scores as well against the
-  editor's answers (`../compute/distillation.md`, the rule every recipe step follows).
+- **Distilled like every stage.** These steps use the one training loop and add nothing to it
+  ("These steps in the one training loop", below): a paid model's answers and the editor's accepts,
+  rejects and corrections are its training pairs.
 
 ## The physical recognizers
 
@@ -365,6 +364,24 @@ Rules for all four:
   precision measured at its score.
 - A person's correction to a mark (a hole redrawn, a torn edge marked as a cut) reruns only the
   comparisons that mark was part of.
+
+## These steps in the one training loop
+
+Every stage or workflow in Fichero can be distilled or fine-tuned, by one mechanism
+(`../compute/distillation.md`, the loop; `../compute/correct-measure-distil.md`, the contract each
+step fills). The recognizers and proposal steps here are stages like any other. What is theirs is
+only the contract each declares:
+
+| Step | Output unit | Correction gestures (surface) | Ground truth kept as | Held-out unit | Error measure | Distil or train |
+| --- | --- | --- | --- | --- | --- | --- |
+| Find marks on a sheet | a mark: outline, torn edge, hole, stain, fibres | redraw; delete; change kind (the segment editor) | an editor's segment naming the machine's | the page | overlap with the editor's marks, per kind | train |
+| Match sheets | a proposed `joins`, `verso_of`, `duplicate_of`, `stacked_on` | accept; reject; adjust the fit (the board, the evidence strip) | the editor's answer on the proposal | the proposal, by find context or folder | precision and recall at the offered score | both |
+| Propose relations from the text | a proposed `answers`, `encloses`, `copy_of`, `draft_of`, `continues`, `attests` | accept; reject; change the type | the editor's answer on the proposal | the proposal, by folder | precision and recall per kind | both |
+| Propose sets (hands, correspondents) | a proposed set and its members | accept; reject; split; merge; move one member | the editor's set | the set, by folder | pairwise precision and recall of membership | both |
+
+"Both" means a paid model's answers can teach a small local model (distil) and the editor's answers
+can train one directly (fine-tune). The switch from a paid step to its local student is the loop's:
+offered when the gate passes, made by a person, undoable.
 
 ## A test case at scale: an excavated dump of fragments
 
@@ -592,24 +609,26 @@ file, then function.
   the score suggests a level and a person switches that kind on at it, per project; switching it
   off stops further automatic accepts and undoes none. Test:
   `test_kinds_switched_on.py::test_an_unscored_kind_cannot_be_switched_on`.
-- `canvas-organize.distil.training-data-kept` — **[GAP]** (→ #5550; engine) every recognizer and
-  proposal step keeps, per answer, what it was asked (the crops, marks and readings compared, by
-  reference), what answered (the method or model and its version), the answer with its reasons,
-  and the editor's accept, reject or correction of it; a paid model's answers are kept as teacher
-  examples and the editor's as ground truth; nothing is kept from a holder's images beyond what
-  its rights allow. Test: `test_distil_training_data.py::test_a_paid_answer_and_the_editors_correction_are_one_example`.
-- `canvas-organize.distil.local-model-offered` — **[GAP]** (→ #5550; engine + app) each step that can
-  call a paid model distils a small local model from its kept examples (the loop of
-  `../compute/distillation.md`); the local model is offered in place of the paid call when, on
-  editor-answered examples held out from training, it scores at least as well as the paid model;
-  a person switches it in, per step and project, and the paid model is then asked only where the
-  local one is unsure. Test:
-  `test_distil_local_model.py::test_a_local_model_is_offered_only_when_it_matches_the_paid_one_on_held_out_answers`.
-- `canvas-organize.distil.reported` — **[GAP]** (→ #5550; engine + app) each step reports which model
-  answered each proposal, the examples kept (teacher, editor), the local and paid scores against
-  the editor's answers with the date measured, and the paid calls and cost the local model
-  replaced; shown in the run's details in Activity and on the model's card in the Models window.
-  Test: `test_distil_report.py::test_a_run_says_which_model_answered_and_what_it_replaced`.
+- `canvas-organize.distil.steps-enter-the-one-loop` — **[GAP]** (→ #5941, #5337; engine) each recognizer
+  and each proposal step is a model-capable job in the job registry like any recipe stage, with the
+  six-part contract (`stepcontract.every-step-declares-six`,
+  `stepcontract.every-stage-and-workflow-is-trainable`), and is distilled or fine-tuned by the one
+  loop and nothing of its own: the teacher run (`distill.loop.teacher-any-step`), the training job
+  (`compute.tune.start-sheet`), the one gate (`distill.gate.one-rule`, `distill.adopt.within-bar`),
+  the switch (`loopstate.switch-only-when-measured-better`) and the report
+  (`distill.loop.one-answer-per-step`, shown in the Training window, `training-window.md`). This
+  spec adds no route, sheet, gate or report for training. Test:
+  `test_canvas_steps_have_contracts.py::test_every_recognizer_and_proposal_step_reads_back_six_parts`.
+- `canvas-organize.distil.training-pairs` — **[GAP]** (→ #5550, #5337; engine) what these steps hand
+  the loop, per proposal: the input by reference (the two crops, their marks and descriptors, the
+  readings compared) and the method and version that proposed; as a **teacher** example, a paid
+  model's answer and its reasons on that input; as **ground truth**, a named editor's accept,
+  reject or correction of it (a changed type, a redone fit, a mark redrawn, a set split or merged);
+  a run's automatic duplicate is neither until an editor confirms or undoes it; a crowd or team
+  answer is kept beside the pair and is neither. The held-out unit is the proposal, drawn by find
+  context or folder so that two pieces of one sheet never fall on both sides. Nothing is kept from
+  a holder's images beyond what its rights allow. Test:
+  `test_canvas_training_pairs.py::test_a_paid_answer_and_the_editors_correction_make_one_pair_and_a_crowd_answer_makes_none`.
 
 ### D. The physical recognizers
 
@@ -804,9 +823,9 @@ Order among milestones (decided 2026-11-26): `canvas-organize` follows the segme
 - Tests: test_duplicates_accept_themselves.py, test_kinds_switched_on.py
 - Depends on: 3.1
 - Size: S
-#### Step 3.4 — Every step distilled (#TBD)
-- Behaviours: `canvas-organize.distil.training-data-kept`, `canvas-organize.distil.local-model-offered`, `canvas-organize.distil.reported`
-- Tests: test_distil_training_data.py, test_distil_local_model.py, test_distil_report.py
+#### Step 3.4 — These steps enter the one training loop (#TBD)
+- Behaviours: `canvas-organize.distil.steps-enter-the-one-loop`, `canvas-organize.distil.training-pairs`
+- Tests: test_canvas_steps_have_contracts.py, test_canvas_training_pairs.py
 - Depends on: 3.1
 - Size: M
 #### Step 3.5 — Relations proposed from the text (#TBD)
@@ -954,14 +973,31 @@ the sections and behaviours above.
 12. **Ground truth is a named editor's answer, and nothing else.** Crowd and team answers are kept
     with who gave them and shown, and never train a model alone
     (`canvas-organize.crowd.answers-are-ground-truth`).
-13. **Every recognizer and proposal step is distilled** (added by the owner). Paid-model answers and
-    the editor's accepts, rejects and corrections are training data for small local models that
-    take the paid call's place over time, as a recipe step distils its model
-    (`canvas-organize.distil.training-data-kept`, `canvas-organize.distil.local-model-offered`,
-    `canvas-organize.distil.reported`).
+13. **Every stage or workflow can be distilled or fine-tuned** (added by the owner, for the whole
+    app, not for the canvas alone). The recognizers and proposal steps here are stages like any
+    other and use the one loop; this spec says only which records are their training pairs
+    (`canvas-organize.distil.steps-enter-the-one-loop`, `canvas-organize.distil.training-pairs`;
+    the general line is `stepcontract.every-stage-and-workflow-is-trainable`).
+
+## Decided by the manager, for the owner to confirm
+
+Taken so no step waits on an answer (the owner is asked on return; each is a default, changed by
+one line here).
+
+1. **The duplicate threshold's shipped default** *(manager default, owner to confirm)*: a duplicate
+   is accepted by the run only when two signals agree: the sheet outlines match with a residual
+   under one hundredth of the sheet's diagonal, and the two readings are at least 95% the same, or,
+   where a side has no reading, the pictures' perceptual hashes match. One signal alone proposes
+   and does not accept.
+2. **Who is a named editor** *(manager default, owner to confirm)*: the project's owner and anyone
+   the owner marks as an editor of that project. Everyone else's answers are kept with their name
+   and shown, and are not ground truth.
+3. **Which open corpora are offered** *(manager default, owner to confirm)*: a corpus is listed for
+   download only if its licence allows redistribution and local use (public domain, CC0, CC BY,
+   CC BY-SA). First offered: the documentary texts published at papyri.info and the open Greek and
+   Latin literary collections; each one's licence is read again when Step 6.4 is built, and one
+   that fails is left out.
 
 ## Open questions for the owner
 
-None open. Two details are left to the step that builds them and are recorded there, not asked
-again: the shipped default of the duplicate threshold (Step 3.3), and which open corpora pass the
-licence check (Step 6.4).
+None open.
