@@ -15,6 +15,7 @@ runs in its own thread, so a lane waits only for the ladder lock (`work.after_ru
 from __future__ import annotations
 
 import hashlib
+import importlib
 import contextlib
 import json
 import os
@@ -2874,7 +2875,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
             if manage(lane, procs):
                 lane = next(x for x in load() if x["id"] == lane["id"])
             snapshot(lane)  # #6589 reliab-1: before the stale watch stores this copy, so an outside park, move or drop is kept
-            if stale.act(lane, q=sys.modules[__name__], chains=chains, hours=STALE_H[0], now=_now(), gh="gh"):
+            if stale.act(lane, q=importlib.import_module(__name__), chains=chains, hours=STALE_H[0], now=_now(), gh="gh"):
                 lane = next(x for x in load() if x["id"] == lane["id"])
             snapshot(lane)  # #6589 reliab-1: what a `store` of this copy tells an outside change from
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy

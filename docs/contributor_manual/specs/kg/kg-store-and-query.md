@@ -202,7 +202,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   object and place text with one query per hop; the degree rank counts in `kg_mentions`. The "Code today"
   sentence above describes the code before this. Not built: the ranking and the cut are still done in Python
   over the hop's edges, not in SQL; the degree rank leaves out only statements whose own source page is in the
-  Trash. *Test:* `tests/unit/kg/test_neighbourhood_reads_only_its_rows.py`; the case in
+  Trash. *Test:* `tests/unit/api/test_neighbourhood_reads_only_its_rows.py`; the case in
   `test_kg_neighbourhood_perf.py` is not yet written.
 - `kg.query.traverse-reads-real-links` — **[OK]** (#5551, #6759) `GET /api/kg/graph/traverse/{id}`
   walks statement-to-statement links. Code: the route and
@@ -224,7 +224,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   `NEIGHBOURHOOD_CLAIM_LIMIT` statements per hop and sets `truncated` when it meets more. The traverse route reads
   the statements of the name through `kg_mentions` and the links of each claim by its id, stops at
   `TRAVERSE_NODE_LIMIT` nodes and sets `truncated`. Not built: the path route builds the whole graph and has no
-  hop limit. *Test:* `tests/unit/kg/test_traverse_is_bounded.py`.
+  hop limit. *Test:* `tests/unit/api/test_traverse_is_bounded.py`.
 
 ### D. Whole-graph measures
 
