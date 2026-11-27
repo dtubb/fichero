@@ -73,7 +73,7 @@ def main() -> int:
                 refused.append(f"REFUSED: semgrep wrote no JSON for {name}")
     if "gitleaks" not in broken:
         run(["gitleaks", "git", f"--log-opts={a.since}..{a.head}", "--redact", "--report-format", "json", "--report-path", str(out / "gitleaks.json"),
-             "--baseline-path", "scripts/gitleaks_baseline.json"])
+             "--baseline-path", "scripts/gitleaks_baseline.json", "--config", "scripts/gitleaks.toml"])
         rows += sr.read_gitleaks(load(out / "gitleaks.json") or [], None)
     if osv_on and "osv-scanner" not in broken:
         locks = ["fichero-server/uv.lock", "fichero/fichero.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved", "fichero/fichero-api-client/Package.resolved"]

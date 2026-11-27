@@ -155,13 +155,13 @@ def osv_config_problems(text: str, today: _dt.date | None = None) -> list[str]:
 
 
 def gitleaks_config_problems(text: str) -> list[str]:
-    """`.gitleaks.toml` allowlists: every one by `regexes` or `paths` and carrying a `description` (the reason)."""
+    """`scripts/gitleaks.toml` allowlists: every one by `regexes` or `paths` and carrying a `description` (the reason)."""
     doc = tomllib.loads(text)
     lists = [*([doc["allowlist"]] if "allowlist" in doc else []), *doc.get("allowlists", [])]
     out = []
     for i, a in enumerate(lists, 1):
         if not a.get("description"):
-            out.append(f".gitleaks.toml allowlist {i}: no description: the reason is written there")
+            out.append(f"scripts/gitleaks.toml allowlist {i}: no description: the reason is written there")
         if not (a.get("regexes") or a.get("paths")):
-            out.append(f".gitleaks.toml allowlist {i}: an allowlist is by regexes or paths, never a blanket")
+            out.append(f"scripts/gitleaks.toml allowlist {i}: an allowlist is by regexes or paths, never a blanket")
     return out

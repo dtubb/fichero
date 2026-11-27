@@ -502,7 +502,7 @@ def green_before_approve(ladder: str, since: str, head: str, pinned) -> dict:
     return green
 
 
-SECURITY_INPUTS = ("osv-scanner.toml", ".gitleaks.toml", "scripts/bandit_baseline.json", "scripts/gitleaks_baseline.json",
+SECURITY_INPUTS = ("osv-scanner.toml", "scripts/gitleaks.toml", "scripts/bandit_baseline.json", "scripts/gitleaks_baseline.json",
                    "scripts/security_scan_run.py", "scripts/install_security_tools.sh")
 
 

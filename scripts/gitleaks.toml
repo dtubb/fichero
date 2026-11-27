@@ -1,4 +1,4 @@
-# gitleaks reads this file from the repo root for the security rung's scan of a batch's commits
+# `scripts/security_scan_run.py` hands this file to gitleaks with `--config` for the security rung's scan of a batch's commits
 # (`dev-workflows.quality.security-scan-rung`). Every allowlist names its reason; the harness refuses one without
 # (`gitleaks_config_problems`). Nothing here is a secret: a public key and the placeholder keys tests type.
 
