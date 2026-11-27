@@ -91,6 +91,15 @@ async def render_paragraph(
 # =============================================================================
 
 
+class ReadableDate(BaseModel):
+    """A clause's date as said: its text, the level it is said at, the basis it was read on and the form written on the page."""
+
+    text: str
+    level: str
+    basis: str | None = None
+    as_written: str | None = None
+
+
 class ReadableClause(BaseModel):
     """One unit of a sentence: the statements it says and where its text sits in the paragraph."""
 
@@ -102,7 +111,7 @@ class ReadableClause(BaseModel):
     state: str
     doubt: str
     sources: int
-    date: str | None = None
+    date: ReadableDate | None = None
     place: str | None = None
 
 

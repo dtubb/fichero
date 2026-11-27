@@ -144,3 +144,11 @@ def test_the_undated_words_are_said_once_and_only_after_a_dated_sentence():
         "Undated: Inés Valcárcel sold an ox.",
         "Inés Valcárcel bought a house.",
     ]
+
+
+def test_the_route_model_takes_a_clause_date_as_the_engine_gives_it():
+    from fichero_server.api.routes.kg.render import ReadableSentence
+
+    sentence = _read([_claim("c1", "vendió", "un caballo", "es", time_start="1733-01-01")])[0]
+    clause = ReadableSentence(**sentence).clauses[0]
+    assert (clause.date.text, clause.date.level) == ("en 1733", "year")
