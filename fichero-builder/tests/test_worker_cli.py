@@ -140,7 +140,7 @@ def test_the_probe_reads_the_workers_token_file_in_the_workers_own_shell_and_nev
     monkeypatch.setattr(worker_cli.subprocess, "run", lambda argv, **k: seen.append(list(argv)) or real(argv, **k))
     as_user = ("/usr/bin/env",)  # stands in for `sudo -n -H -u fichero-worker`
     assert worker_cli.probe(cli, "sonnet", as_user, tok) == ("ok", "token: unset"), "no file: the worker's own sign-in"
-    tok.write_text("sk-ant-oat-SECRET\n")
+    tok.write_text("fake-oauth-SECRET\n")
     tok.chmod(0o600)
     assert worker_cli.probe(cli, "sonnet", as_user, tok) == ("ok", "token: set")
     assert worker_cli.probe(cli, "sonnet", (), tok) == ("ok", "token: unset"), "unjailed, this process never reads it"
@@ -148,4 +148,4 @@ def test_the_probe_reads_the_workers_token_file_in_the_workers_own_shell_and_nev
     assert str(tok) in seen[1] and seen[1][:2] == ["/usr/bin/env", "/bin/sh"]
     m = fake(tmp_path / "manager", "2.1.400")
     worker_cli.sync(cli, str(m))
-    assert tok.read_text() == "sk-ant-oat-SECRET\n" and worker_cli.version(cli) == "2.1.400", "the sync replaces bin/claude only"
+    assert tok.read_text() == "fake-oauth-SECRET\n" and worker_cli.version(cli) == "2.1.400", "the sync replaces bin/claude only"

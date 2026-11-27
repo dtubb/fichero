@@ -280,7 +280,8 @@ def boundary(root, base: str, head: str, patterns: list[str], cap: int = 30) -> 
     hits: list[str] = []
     cur = f = ""
     in_hunk = False
-    diff = _git(root, "log", "--format=%x00%H", "-p", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}")
+    diff = _git(root, "log", "--format=%x00%H", "-p", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}",
+                "--not", "--remotes=origin")  # 2026-11-27: only commits not yet public; one already on origin was judged when it landed
     for ln in diff.split("\n"):
         if ln.startswith("\x00"):
             cur, in_hunk = ln[1:11], False
