@@ -49,9 +49,9 @@ class Procs:
     now: Callable[[], float] = time.time
 
 
-def _start(root, worktree, brief, name, model, tmux_session) -> str:
+def _start(root, worktree, brief, name, model, tmux_session, effort: str | None = None) -> str:
     r = subprocess.run([sys.executable, str(client.script(root, "harness_start.py", START)), "--root", str(root), "--worktree", str(worktree), "--brief", str(brief),
-                        "--name", name, "--model", model, "--session", tmux_session], capture_output=True, text=True)
+                        "--name", name, "--model", model, "--session", tmux_session, *(["--effort", effort] if effort else [])], capture_output=True, text=True)
     if r.returncode:
         raise RuntimeError(r.stderr.strip() or "harness_start failed")
     return r.stdout.strip()
@@ -232,7 +232,12 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     `base_sha`: the head the step was sent at, so its commits count as moved."""
     spend = rules_of(root, rules, role)
     provider = provider_of(root, rules, role, provider or ("claude-code" if kind == "claude" else ""))
-    label = {"role": role} if role else {}  # the journal rows of a role's worker say which role
+    effort = models.for_role(json.loads(Path(rules).read_text())["models"] if rules else models.load(root), role).effort if role else None
+    if effort and kind != "claude":  # the adapter cannot take a level: a question, never a silent drop
+        out(f"builder run refuses: [models].{role} asks for effort {effort!r}, which a {kind} session cannot take")
+        return "refused"
+    xs = {"effort": effort} if effort else {}  # passed and journalled only when a row sets it: no row, the call and the row are as before
+    label = {"role": role, **xs} if role else {}  # the journal rows of a role's worker say which role
     bad = watcher.refusals(spend, kind, model, provider)
     if bad:
         for b in bad:
@@ -250,7 +255,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend), feed=feed)
     gen = 1
     base = base_sha or procs.head()
-    pane = attach or procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
+    pane = attach or procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session, **xs)
     journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label, **({"attached": True} if attach else {}))
     started = last_change = procs.now()
     seen = None
@@ -394,7 +399,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             gen += 1
             b = Path(worktree) / f".builder-brief-{name}-{gen}.txt"
             b.write_text(successor_brief(name, gen, worktree, handoff))
-            pane = procs.start(root, worktree, b, name, model, tmux_session)
+            pane = procs.start(root, worktree, b, name, model, tmux_session, **xs)
             journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label)
             out(f"{name}: handoff, generation {gen} started")
             started = last_change = procs.now()

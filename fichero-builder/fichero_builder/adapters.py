@@ -29,6 +29,7 @@ class Adapter:
 class ClaudeCode(Adapter):
     name = "claude-code"
     harness = "Claude Code"  # the HARNESS words of the trailer
+    effort_key = "effortLevel"  # the settings.json key that takes a [models] row's effort (low|medium|high|xhigh)
 
     def answer(self, question: str):
         return {"system_prompt": "--append-system-prompt <text>", "mcp": "--strict-mcp-config --mcp-config=<scratch>/mcp.json",

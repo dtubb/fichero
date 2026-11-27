@@ -82,7 +82,7 @@ _READ_PROMPT = 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CO
 
 
 def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude", *, role: str | None = None,
-            stack: str | None = None, project: str | None = None) -> list[str]:
+            stack: str | None = None, project: str | None = None, effort: str | None = None) -> list[str]:
     """Write settings.json, mcp.json under `scratch` and the commit-msg hook in the clone; return claude's argv, whose
     --append-system-prompt is the assembled common + role + stack + project (profiles.assemble)."""
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
@@ -96,6 +96,8 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     settings = {"skipDangerousModePermissionPrompt": True, "hooks": {
         "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}],
         "PostToolUse": [handoff], "Stop": [handoff]}}
+    if effort:  # the adapter's "effort" answer: the row decides, the builder sets neither --effort nor CLAUDE_CODE_EFFORT_LEVEL
+        settings[adapters.ClaudeCode.effort_key] = effort
     (scratch / "settings.json").write_text(json.dumps(settings, indent=1))
     # the worker's git must open owner-made trees (the engine repo, the ladder's scratch worktrees) or every call there dies with
     # "dubious ownership" (first real check, 2026-11-01): _READ_PROMPT exports safe.directory=* into the worker's own environment.

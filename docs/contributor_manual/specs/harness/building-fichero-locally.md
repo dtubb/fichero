@@ -941,7 +941,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   entry the check did not name, and an acceptance red with no line in the brief change nothing. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
   Built: `autofix.plan` decides each class from the guard's output; `known-gaps-now-clean` drops the printed keys from `<guard>_known_gaps.json`, `ratchet-baseline-lower` runs the guard's `--update-baseline` when it prints a count below its baseline (only `.json` files may change), `openapi-regen` runs `[check].regen`, `spec-change-trailer` amends the head with the brief's `Spec-change:` line and returns a question for the manager when the brief has none. Tests `fichero-builder/tests/test_autofix.py::test_a_ratchet_that_prints_a_lower_count_is_lowered_and_one_that_would_rise_is_left`, `fichero-builder/tests/test_autofix.py::test_a_spec_change_red_gets_the_briefs_line_word_for_word_and_none_without_one_is_a_question`, `fichero-builder/tests/test_autofix.py::test_an_openapi_regen_red_runs_the_regen_lines_and_commits_the_tracked_files_they_changed`.
-- `local.models.effort-per-role` [GAP] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
+- `local.models.effort-per-role` [OK] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
   and the worker, reviewer or spec writer started on that role runs at that level: low for lint and mechanical
   batches, medium for workers, high for reviewers and spec writers. The adapter passes it in the form its harness
   takes. For Claude Code that is `"effortLevel"` in the settings.json the builder writes for the worker (the same level
@@ -953,6 +953,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `test_adapters.py`, a row with `effort = "low"` puts the level in the start command; no row leaves the command
   unchanged; `effort = "max"` refuses. Serves: builds Fichero (the same work for fewer tokens).
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+  Built: `models.Model.effort` (`low`, `medium`, `high`; any other value is a Question); `run.run` passes it to `harness_start.py --effort`, which writes `effortLevel` into the generated settings.json (`start_tool.prepare(effort=)`, key named by `adapters.ClaudeCode.effort_key`) and puts it on the `worker` and `cost` rows; a non-Claude session with an effort row refuses the start. Tests `fichero-builder/tests/test_model_config.py::test_a_row_may_carry_an_effort_and_any_other_value_asks`, `fichero-builder/tests/test_adapters.py::test_an_effort_goes_in_the_settings_file_and_no_row_leaves_the_command_unchanged`.
 
 
 ### K. Small models: cheaper and faster, and as reliable (owner 2026-11-21)

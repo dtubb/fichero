@@ -144,3 +144,13 @@ def test_a_qwen_trial_run_parks_before_the_start_once_the_weeks_openrouter_rows_
     else:
         assert cli.main(argv) == 0 and started == []
         assert any("this week's openrouter spend 25.00 USD reached the cap 25.00 before the start" in r.get("what", "") for r in journal.read())
+
+
+def test_a_row_may_carry_an_effort_and_any_other_value_asks(tmp_path):
+    (tmp_path / "harness.toml").write_text(TABLE.replace('model = "sonnet" }', 'model = "sonnet", effort = "low" }'))
+    cfg = models.load(tmp_path)
+    assert models.for_role(cfg, "builder").effort == "low"
+    assert models.for_role(cfg, "reviewer").effort is None
+    cfg["builder"]["effort"] = "max"
+    with pytest.raises(models.Question, match="effort 'max'"):
+        models.for_role(cfg, "builder")
