@@ -17,6 +17,14 @@ extension Workflow {
         nodes.first { $0.id == id }
     }
 
+    /// Writes an edited node back by id. A node deleted since the edit began
+    /// is not written: there is no row to write, and an index kept from before
+    /// the delete would name another node or none.
+    mutating func replaceNode(_ node: WorkflowNode) {
+        guard let index = nodes.firstIndex(where: { $0.id == node.id }) else { return }
+        nodes[index] = node
+    }
+
     /// Adds an edge and the mapping that makes the engine read it. Returns
     /// false, changing nothing, when either node is gone or the same edge
     /// (same nodes, same ports) is already there.

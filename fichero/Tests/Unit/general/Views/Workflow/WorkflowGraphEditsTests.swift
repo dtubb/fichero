@@ -8,7 +8,8 @@ import XCTest
 /// auto-wire branch). An edge removed without its mapping therefore still
 /// feeds the node at run, and stops the node's other edges from being wired.
 /// spec: workflows `workflows.canvas.edit-keeps-mappings-with-edges`,
-/// `workflows.canvas.one-edge-per-port-pair`.
+/// `workflows.canvas.one-edge-per-port-pair`,
+/// `workflows.canvas.node-popover-follows-its-node`.
 final class WorkflowGraphEditsTests: XCTestCase {
 
     private func node(_ id: String, mappings: [InputMapping] = []) -> WorkflowNode {
@@ -129,5 +130,31 @@ final class WorkflowGraphEditsTests: XCTestCase {
         XCTAssertTrue(workflow.edges.isEmpty)
         XCTAssertEqual(workflow.node(withId: "b")?.inputMappings, [])
         XCTAssertEqual(workflow.node(withId: "c")?.inputMappings, [mapping("extra", from: "b", "text")])
+    }
+
+    // MARK: - The node popover's binding
+
+    func testReplacingANodeWritesItByIdNotByPosition() {
+        var workflow = Workflow(name: "w", nodes: [node("a"), node("b")])
+        var edited = node("b")
+        edited.label = "Edited"
+
+        workflow.removeNodes(ids: ["a"])   // b moves from index 1 to index 0
+        workflow.replaceNode(edited)
+
+        XCTAssertEqual(workflow.node(withId: "b")?.label, "Edited")
+    }
+
+    func testReplacingADeletedNodeChangesNothing() {
+        var workflow = Workflow(name: "w", nodes: [node("a"), node("b")])
+        var edited = node("b")
+        edited.label = "Edited"
+
+        workflow.removeNodes(ids: ["b"])
+        let before = workflow
+        workflow.replaceNode(edited)
+
+        XCTAssertEqual(workflow, before)
+        XCTAssertNil(workflow.node(withId: "b"))
     }
 }
