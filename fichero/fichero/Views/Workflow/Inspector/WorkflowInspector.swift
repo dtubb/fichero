@@ -187,8 +187,8 @@ struct WorkflowInspector: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            let ordered = WorkflowTopology.orderedNodes(nodes: workflow.nodes, edges: workflow.edges)
-            List(Array(ordered.enumerated()), id: \.element.id) { index, node in
+            let steps = WorkflowInspectorLists.chainSteps(of: workflow)
+            List(Array(steps.enumerated()), id: \.element.id) { index, node in
                 HStack(spacing: 8) {
                     Text("\(index + 1)")
                         .font(.caption.monospacedDigit())
@@ -216,9 +216,8 @@ struct WorkflowInspector: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            // Keyed by thread: `WorkflowExecution.id` is the workflow's id, the
-            // same for every run listed here.
-            List(workflowRuns, id: \.threadId) { run in
+            List(workflowRuns) { row in
+                let run = row.run
                 HStack(spacing: 8) {
                     Image(systemName: run.isRunning ? "play.circle.fill" : "checkmark.circle")
                         .foregroundStyle(run.isRunning ? Color.accentColor : .secondary)
@@ -234,14 +233,13 @@ struct WorkflowInspector: View {
         }
     }
 
-    /// This workflow's executions from the shared observer, running first.
-    private var workflowRuns: [WorkflowExecution] {
+    /// This workflow's runs from the shared observer, newest first, one row
+    /// for each run.
+    private var workflowRuns: [WorkflowInspectorLists.RunRow] {
         let all = executionObserver.map {
             Array($0.activeExecutions.values) + Array($0.completedExecutions.values)
         } ?? []
-        return all
-            .filter { $0.id == workflow.id }
-            .sorted { $0.startTime > $1.startTime }
+        return WorkflowInspectorLists.runRows(of: workflow.id, among: all)
     }
 
     /// Shared bottom mini-toolbar (#3531) — a per-tab status line.
