@@ -389,6 +389,14 @@ extension LibraryManager {
         await loadLibraryDataIfNeeded(for: library)
     }
 
+    /// The same re-ask, started and not awaited: the caller goes on to start its streams while the load runs (#7078).
+    @discardableResult
+    func askForLoadOnEngineReadyInBackground(_ library: LibraryReference, engineReady: Bool) -> Task<Void, Never> {
+        Task { @MainActor in
+            await askForLoadOnEngineReady(library, engineReady: engineReady)
+        }
+    }
+
     /// The open-time sandbox grant threw, so its engineWork leg will never clear the gate: clear it here, so the
     /// window's re-ask loads the library and the load reports its own failure (#7078).
     func grantDidFail(for library: LibraryReference) {

@@ -88,11 +88,8 @@ struct LibraryWorkspaceRoot: View {
                 // pill until the user taps Reconnect (#3351).
                 guard appState.isBackendRunning else { return }
                 // The engine became ready after this window began loading: ask again (#7078).
-                // In its own task: a slow or failing load must not hold back the streams and fonts below.
-                let ready = appState.isBackendRunning
-                Task { @MainActor in
-                    await libraryManager.askForLoadOnEngineReady(library, engineReady: ready)
-                }
+                // Not awaited: a slow or failing load must not hold back the streams and fonts below.
+                libraryManager.askForLoadOnEngineReadyInBackground(library, engineReady: appState.isBackendRunning)
                 library.changeStream.start()
                 if featureManager.isVisible(.activity) {
                     library.activityStore.start()

@@ -43,12 +43,18 @@ final class LaunchWindowLoadTests: XCTestCase {
         XCTAssertFalse(manager.libraryIdsAwaitingGrant.contains(library.id))
     }
 
-    func testTheWorkspaceRootStartsTheLoadInItsOwnTaskBeforeTheStreams() throws {
-        let source = try AppSource.text("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
-        let ask = try XCTUnwrap(source.range(of: "askForLoadOnEngineReady"))
-        let stream = try XCTUnwrap(source.range(of: "library.changeStream.start()"))
-        XCTAssertTrue(ask.lowerBound < stream.lowerBound)
-        let before = source[..<ask.lowerBound]
-        XCTAssertTrue(before.suffix(120).contains("Task { @MainActor in"), "the load is awaited inline, so it delays the streams")
+    func testTheBackgroundReaskReturnsAtOnceAndKeepsAGateThatIsSet() async {
+        // Called without `await`: the caller is not held while the load runs (#7078).
+        let manager = LibraryManager.shared
+        let library = manager.createNewLibrary()
+        manager.backendIsReady = true
+        manager.libraryIdsAwaitingGrant.insert(library.id)
+        defer { manager.libraryIdsAwaitingGrant.remove(library.id) }
+
+        let task = manager.askForLoadOnEngineReadyInBackground(library, engineReady: true)
+        await task.value
+
+        XCTAssertTrue(manager.libraryIdsAwaitingGrant.contains(library.id))
+        XCTAssertFalse(manager.loadingLibraryIds.contains(library.id))
     }
 }
