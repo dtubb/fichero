@@ -227,13 +227,16 @@ def test_a_gone_worker_gets_a_new_session_on_the_same_step_and_a_parked_one_bloc
     assert steps()["1.1"]["state"] == "blocked" and "parked" in steps()["1.1"]["why"]
 
 
-def test_an_owner_restart_stops_the_old_session_before_starting_a_new_one(state):
-    """No handle for a sent step: the old session may still be up, and two workers must never share a worktree."""
+def test_an_owner_restart_stops_the_old_session_before_starting_a_new_one(state, monkeypatch):
+    """No handle for a sent step: the old session may still be up, and two workers must never share a worktree. Past the start-up
+    grace (queue.START_GRACE_S): a session sent moments ago may still be starting."""
     lane(state)
     fake = Fake()
     queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
     fake.seqs = set()
     handles = {}
+    later = queue._now() + queue.START_GRACE_S + 1
+    monkeypatch.setattr(queue, "_now", lambda: later)
     queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
     assert fake.stops == ["m1"] and len(fake.starts) == 1 and steps()["1.1"]["state"] == "queued"
     queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)

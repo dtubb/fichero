@@ -891,6 +891,17 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 alert(lane["id"], s["step"], f"a live session runs in tmux window {', '.join(wins)} and this loop cannot watch it (no `builder run` on its feed): "
                       "it is left running; `builder queue stop` ends it, then retry", str(journal.STATE / "journal.jsonl"), ["retry", "park"])
             return True
+        if s["state"] == "sent" and _now() - s.get("entered_at", 0) < START_GRACE_S:
+            # 2026-11-27 12:14:52: a re-exec came 40-90 s after seg-tools, training and perf-optimize were sent; their sessions had no
+            # window, process id or watcher yet, and the restarted loop stopped all three as lost. A session this young is still
+            # starting: wait for it to show (one row), and judge it once the grace is over.
+            if not s.get("start_wait"):
+                s["start_wait"] = True
+                store(lane)
+                journal.append("queue", lane=lane["id"], step=s["step"], state="start-wait",
+                               detail=f"no handle, window or watcher yet for a session sent {_now() - s.get('entered_at', 0):.0f} s ago: waiting up to {START_GRACE_S} s for it to start")
+            return True
+        s.pop("start_wait", None)
         procs.stop(lane)  # ponytail: it stops within its own tick and the new one starts one tick later; two workers never share a worktree for long
         lane["feed"] = ""
         move(s, "queued", "stopping the session this loop lost track of")
@@ -2185,6 +2196,7 @@ def uv_prune_when_due(procs: Procs, chains: dict | None) -> None:
 
 WORKER_CLI_S = 3600
 WORKER_CLI_HELD_S = 300
+START_GRACE_S = 300  # a sent step's session this young may have no window, process id or watcher yet: a restarted loop waits for it
 QUICK_GONE_S = 60  # a session that ends 'gone' this soon is probed for a revoked sign-in at the next tick
 WORKER_CLI_AT = [0.0]  # in memory: so the first tick after a start checks
 

@@ -616,6 +616,10 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `fichero-builder/tests/test_builder_restart.py::test_a_re_exec_with_five_live_windows_adopts_five_and_stops_none`,
   `fichero-builder/tests/test_builder_restart.py::test_a_live_process_id_with_a_renamed_window_is_adopted`,
   `fichero-builder/tests/test_builder_restart.py::test_a_lane_with_neither_a_live_window_nor_a_live_process_is_queued_once`.
+  A sent step whose session is younger than `START_GRACE_S` (300 s) is never stopped as lost: with no handle, window, process id or
+  watcher yet it is still starting, so the loop writes one `start-wait` row and judges it once the grace is over (2026-11-27 12:14:52:
+  a re-exec 40-90 s after seg-tools, training and perf-optimize were sent stopped all three). Test:
+  `fichero-builder/tests/test_builder_restart.py::test_a_re_exec_while_a_session_is_still_starting_waits_for_it_and_adopts_it_once_it_shows`.
 - `local.run.drain-expired-one-row` [OK] (#6589) — when the wait for a re-exec passes its limit, the loop says so once
   for each lane and head, and the re-exec then happens at the first tick with no chain running, before another chain
   starts. Today the branch after `DRAIN_MAX_S` in `queue.tick_lane` appends a `drain-expired` row every time it is

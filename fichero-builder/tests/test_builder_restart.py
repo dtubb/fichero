@@ -40,9 +40,26 @@ def test_a_restarted_loop_adopts_a_live_session_and_stops_nothing(state):
     assert [r["state"] for r in journal.read() if r.get("state") == "adopted"] == ["adopted"]
 
 
-def test_a_restarted_loop_still_stops_a_session_it_cannot_adopt(state):
+def test_a_restarted_loop_still_stops_a_session_it_cannot_adopt(state, monkeypatch):
     fake, handles = _restarted_with_a_lost_handle(state, lambda ln: None)
-    assert fake.stops == ["m1"] and handles == {} and steps()["1.1"]["state"] == "queued"
+    assert fake.stops == [] and steps()["1.1"]["state"] == "sent", "sent moments ago: still starting, never stopped at once"
+    later = queue._now() + queue.START_GRACE_S + 1
+    monkeypatch.setattr(queue, "_now", lambda: later)
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert fake.stops == ["m1"] and handles == {} and steps()["1.1"]["state"] == "queued", "past the grace with nothing to adopt: stopped"
+
+
+def test_a_re_exec_while_a_session_is_still_starting_waits_for_it_and_adopts_it_once_it_shows(state, monkeypatch):
+    """2026-11-27 12:14:52: the loop re-execed 40-90 s after sending seg-tools, training and perf-optimize; their sessions had no window,
+    process id or watcher yet, and the restarted loop stopped all three as "the session this loop lost track of"."""
+    shown = {"up": False}
+    fake, handles = _restarted_with_a_lost_handle(state, lambda ln: "adopted" if shown["up"] else None)
+    assert fake.stops == [] and steps()["1.1"]["state"] == "sent"
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert [r["state"] for r in journal.read() if r.get("state") == "start-wait"] == ["start-wait"], "one row, not one a tick"
+    shown["up"] = True  # the session's window and watcher came up
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert fake.stops == [] and handles == {"m1": "adopted"} and steps()["1.1"]["state"] == "sent"
 
 
 def test_adopt_session_takes_a_live_window_named_for_the_lane_with_a_fake_session(monkeypatch):
@@ -99,6 +116,9 @@ def test_a_lane_with_neither_a_live_window_nor_a_live_process_is_queued_once(sta
     monkeypatch.setattr(queue, "pid_alive", lambda pid: False)
     monkeypatch.setattr(queue, "run_alive", lambda j_, feed: True)
     fake, handles = _restarted_with_a_lost_handle(state, lambda ln: queue.adopt_session(j, ln))
+    later = queue._now() + queue.START_GRACE_S + 1  # past the start-up grace: nothing came up
+    monkeypatch.setattr(queue, "_now", lambda: later)
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
     assert fake.stops == ["m1"] and handles == {} and steps()["1.1"]["state"] == "queued"
     assert len([r for r in journal.read() if r.get("state") == "queued" and "lost track" in r.get("detail", "")]) == 1
 
