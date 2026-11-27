@@ -19,8 +19,8 @@ def test_the_route_returns_clauses_and_segments_that_slice_the_paragraph(client,
     body = client.get(f"/api/kg/entities/{page.id}/readable").json()
     paragraph = body["paragraph"]
     (sentence,) = body["sentences"]
-    assert [paragraph[c["start"]:c["end"]] for c in sentence["clauses"]] == ["una mula", "dos bueyes"]
+    assert [paragraph[c["start"]:c["end"]] for c in sentence["clauses"]] == ["una mula (en 1730)", "dos bueyes (en 1731)"]
     assert {c["state"] for c in sentence["clauses"]} == {"proposed"}
     assert [paragraph[g["start"]:g["end"]] for g in sentence["segments"]] == [
-        "Inés Valcárcel", "vendió", "una mula", "y", "dos bueyes", "."]
-    assert [g["origin"] for g in sentence["segments"]][3:5] == ["table:es:and", sentence["segments"][4]["origin"]]
+        "Inés Valcárcel", "vendió", "una mula", "(en 1730)", "y", "dos bueyes", "(en 1731)", "."]
+    assert [g["origin"] for g in sentence["segments"]][4:6] == ["table:es:and", sentence["segments"][5]["origin"]]

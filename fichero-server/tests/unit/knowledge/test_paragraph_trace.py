@@ -61,7 +61,8 @@ def test_a_joined_sentence_has_one_clause_per_unit():
     born, sold = sentences
     assert [c["claim_ids"] for c in born["clauses"]] == [["c4"]]
     assert [c["claim_ids"] for c in sold["clauses"]] == [["c1"], ["c2"], ["c3"]]
-    assert [paragraph[c["start"]:c["end"]] for c in sold["clauses"]] == ["una mula", "dos bueyes", "un huerto"]
+    assert [paragraph[c["start"]:c["end"]] for c in sold["clauses"]] == [
+        "una mula (en 1731)", "dos bueyes (en 1732)", "un huerto (en 1733)"]
     assert (born["clauses"][0]["start"], born["clauses"][0]["end"]) == (born["start"], born["end"])
 
 
@@ -79,13 +80,17 @@ def test_every_character_traces_to_its_origin():
             kind, _, rest = seg["origin"].partition(":")
             if kind == "claim":
                 cid, _, field = rest.partition(":")
-                assert text == getattr(by_id[cid], field)
+                if field == "time_start":
+                    assert text == f"(en {getattr(by_id[cid], field)[:4]})"
+                else:
+                    assert text == getattr(by_id[cid], field)
             else:
                 assert seg["origin"] in {"table:es:and", "punctuation"}
         assert all(i in covered for i in range(s["start"], s["end"]) if paragraph[i].isalnum())
     origins = [seg["origin"] for seg in sentences[0]["segments"]]
-    assert origins == ["claim:c1:svo_subject", "claim:c1:svo_verb", "claim:c1:svo_object", "punctuation",
-                       "claim:c2:svo_object", "table:es:and", "claim:c3:svo_object", "punctuation"]
+    assert origins == ["claim:c1:svo_subject", "claim:c1:svo_verb", "claim:c1:svo_object", "claim:c1:time_start",
+                       "punctuation", "claim:c2:svo_object", "claim:c2:time_start", "table:es:and",
+                       "claim:c3:svo_object", "claim:c3:time_start", "punctuation"]
     assert sentences[0]["segments"][0]["claim_ids"] == ["c1", "c2", "c3"]
 
 
@@ -144,7 +149,8 @@ def test_a_clause_carries_the_fields_later_steps_fill():
 def test_the_sentence_text_is_what_the_plain_renderer_gives():
     from fichero_server.knowledge.readable import _render_group_sentence, aggregate_claims
 
-    for claims in (_merged(), [_claim("c4", "nació en", "Villa Arenal")],
+    undated = [c.model_copy(update={"time_start": None}) for c in _merged()]  # the plain renderer says no date
+    for claims in (undated, [_claim("c4", "nació en", "Villa Arenal")],
                    [KnowledgeClaim(id="t1", text="Murió en San Telmo", subject_entity_id=PAGE, entity_ids=[PAGE])]):
         (group,) = aggregate_claims(claims)
         assert _read(claims)[0] == _render_group_sentence(group, claims[0])

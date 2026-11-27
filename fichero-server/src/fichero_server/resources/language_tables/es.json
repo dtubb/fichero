@@ -4,5 +4,17 @@
   "at": "en",
   "times": "veces",
   "prepositions": ["a", "al", "de", "del", "en", "por", "para", "con", "ante", "desde", "hasta", "sobre"],
-  "contractions": {"de el": "del", "a el": "al"}
+  "contractions": {"de el": "del", "a el": "al"},
+  "dates": {
+    "day": "el {day} de {month} de {year}",
+    "month": "en {month} de {year}",
+    "year": "en {year}",
+    "span": "de {year} a {end_year}",
+    "about": "hacia {year}",
+    "after": "en {year} o después",
+    "before": "en {year} o antes",
+    "inferred": "{date} (fecha inferida)",
+    "undated": "Sin fecha conocida:",
+    "months": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+  }
 }

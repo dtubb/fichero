@@ -4,5 +4,17 @@
   "at": "at",
   "times": "times",
   "prepositions": ["to", "from", "in", "at", "on", "by", "with", "for", "of", "into", "before", "after"],
-  "contractions": {}
+  "contractions": {},
+  "dates": {
+    "day": "on {day} {month} {year}",
+    "month": "in {month} {year}",
+    "year": "in {year}",
+    "span": "from {year} to {end_year}",
+    "about": "about {year}",
+    "after": "in or after {year}",
+    "before": "in or before {year}",
+    "inferred": "{date} (date inferred)",
+    "undated": "Undated:",
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+  }
 }

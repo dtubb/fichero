@@ -91243,9 +91243,8 @@
             "title": "Sources"
           },
           "date": {
-            "type": "string",
-            "nullable": true,
-            "title": "Date"
+            "$ref": "#/components/schemas/ReadableDate",
+            "nullable": true
           },
           "place": {
             "type": "string",
@@ -91266,6 +91265,35 @@
         ],
         "title": "ReadableClause",
         "description": "One unit of a sentence: the statements it says and where its text sits in the paragraph."
+      },
+      "ReadableDate": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Basis"
+          },
+          "as_written": {
+            "type": "string",
+            "nullable": true,
+            "title": "As Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "level"
+        ],
+        "title": "ReadableDate",
+        "description": "A clause's date as said: its text, the level it is said at, the basis it was read on and the form written on the page."
       },
       "ReadableSegment": {
         "properties": {

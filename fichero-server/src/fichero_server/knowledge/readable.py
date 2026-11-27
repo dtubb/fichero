@@ -46,6 +46,7 @@ from fichero_server.knowledge.paragraph import (
 from fichero_server.models.knowledge import (
     ClaimCurationState,
     EpistemicStatus,
+    EvidenceBasis,
     KnowledgeClaim,
     KnowledgeEntity,
 )
@@ -302,6 +303,23 @@ LANGUAGE_TABLES_DIR = Path(__file__).resolve().parent.parent / "resources" / "la
 _TABLE_STRINGS = ("and", "at", "times")
 
 
+_DATE_PATTERNS = ("day", "month", "year", "span", "about", "after", "before")
+
+
+def _check_date_words(name: str, dates: object) -> None:
+    """A table's `dates` is the seven level patterns, `inferred` (holding `{date}`), `undated` and twelve month names."""
+    if not isinstance(dates, dict):
+        raise ValueError(f"{name}: dates must be an object")
+    for key in (*_DATE_PATTERNS, "inferred", "undated"):
+        if not isinstance(dates.get(key), str) or not dates[key]:
+            raise ValueError(f"{name}: dates.{key} must be a non-empty string")
+    if "{date}" not in dates["inferred"]:
+        raise ValueError(f"{name}: dates.inferred must hold {{date}}")
+    months = dates.get("months")
+    if not isinstance(months, list) or len(months) != 12 or not all(isinstance(m, str) and m for m in months):
+        raise ValueError(f"{name}: dates.months must be twelve names")
+
+
 def load_language_tables(directory: Path) -> dict[str, dict]:
     """Every `<language>.json` in `directory`, keyed by language; a file with a missing or mistyped
     key, or named for a language other than its own `language` field, raises ValueError."""
@@ -320,6 +338,9 @@ def load_language_tables(directory: Path) -> dict[str, dict]:
             isinstance(k, str) and len(k.split()) == 2 and isinstance(v, str) and v for k, v in contractions.items()
         ):
             raise ValueError(f"{path.name}: contractions must map two words to one")
+        dates = table.get("dates")
+        if dates is not None:
+            _check_date_words(path.name, dates)
         tables[path.stem] = {
             **table,
             "prepositions": {_fold(w) for w in prepositions},
@@ -329,6 +350,68 @@ def load_language_tables(directory: Path) -> dict[str, dict]:
 
 
 _TABLES = load_language_tables(LANGUAGE_TABLES_DIR)
+
+_DATE_PARTS = re.compile(r"^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?")
+
+
+def _claim_date(claim: KnowledgeClaim, language: str | None) -> dict | None:
+    """The date of `claim` in `language`'s table as {text, level, basis, as_written}; None when the
+    claim has no readable date or the language's table holds no date words.
+
+    The point is `time_start` (with `time_end`, `time_precision`), else the first date value. The
+    level is the one held, never finer: a start with no stored level is a year; `circa`, `open_end`
+    and `open_start` of that date value are read as the table's about / after / before rows (said at
+    the year); a start and end in different years is a span. A date value whose basis is inferred is
+    followed by the table's inferred words. `as_written` is that date value's label.
+    """
+    words = (_TABLES.get(language or "") or {}).get("dates")
+    if not words:
+        return None
+    value = claim.date_values[0] if claim.date_values else None
+    if claim.time_start:
+        start, end, precision = claim.time_start, claim.time_end, claim.time_precision
+        if value is not None and value.start != claim.time_start:
+            value = None
+    elif value is not None and value.start:
+        start, end, precision = value.start, value.end, value.precision
+    else:
+        return None
+    parts = _DATE_PARTS.match(start)
+    if not parts:
+        return None
+    year, month, day = parts.group(1), parts.group(2), parts.group(3)
+    end_year = (_DATE_PARTS.match(end).group(1) if end and _DATE_PARTS.match(end) else year)
+    if value is not None and value.circa:
+        level = "about"
+    elif value is not None and value.open_end:
+        level = "after"
+    elif value is not None and value.open_start:
+        level = "before"
+    elif end_year != year:
+        level = "span"
+    elif precision == "day" and month and day:
+        level = "day"
+    elif precision == "month" and month:
+        level = "month"
+    else:
+        level = "year"
+    month_name = words["months"][int(month) - 1] if month and 1 <= int(month) <= 12 else ""
+    if level in ("day", "month") and not month_name:
+        level = "year"
+    text = words[level].format(year=str(int(year)), end_year=str(int(end_year)), month=month_name, day=str(int(day or 0)))
+    inferred = value is not None and value.basis == EvidenceBasis.inferred
+    if inferred:
+        text = words["inferred"].format(date=text)
+    return {
+        "text": text,
+        "level": level,
+        "basis": value.basis.value if value is not None else None,
+        "as_written": value.label if value is not None else None,
+    }
+
+
+def _date_origin(claim: KnowledgeClaim) -> str:
+    return f"claim:{claim.id}:{'time_start' if claim.time_start else 'date_values'}"
 
 
 def _join_list(items: list[str], conjunction: str) -> str:
@@ -544,6 +627,9 @@ def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
         text = " ".join(claim.text.split())
         if text:
             pieces = [(text, f"claim:{claim.id}:text")]
+    date = _claim_date(claim, lang)
+    if pieces and date:
+        pieces.insert(0, (f"{date['text'][0].upper()}{date['text'][1:]},", _date_origin(claim)))
     year = (claim.time_start or "")[:4]
     if pieces and lang not in _TABLES and year.isdigit():
         pieces.append((f"({year})", f"claim:{claim.id}:time_start"))
@@ -580,9 +666,10 @@ def _sources(claims: list[KnowledgeClaim]) -> int:
 
 def _merged_pieces(
     agg: "Aggregation", group_claims: list[KnowledgeClaim]
-) -> tuple[list[tuple[str, str, list[str]]], list[tuple[int, list[KnowledgeClaim]]]] | None:
+) -> tuple[list[tuple[str, str, list[str]]], list[tuple[int, list[KnowledgeClaim], int]]] | None:
     """The pieces of a merged sentence as `_render_group_sentence` joins them, and (index of the object
-    piece, claims) per distinct object; None when the group has no complete statement."""
+    piece, claims, index of the last piece of the object) per distinct object, whose date, when it has
+    one, follows it in brackets; None when the group has no complete statement."""
     ids = list(agg.claim_ids)
     first = group_claims[0]
     lang = agg.language if agg.language in _TABLES else "en"
@@ -596,7 +683,7 @@ def _merged_pieces(
     pieces = [p for p in head if p]
     if len(pieces) + bool(objects) < 2:
         return None
-    marks: list[tuple[int, list[KnowledgeClaim]]] = []
+    marks: list[tuple[int, list[KnowledgeClaim], int]] = []
     for i, (obj, members) in enumerate(objects):
         if agg.verb:
             verb, contraction, shown, key = _seam(agg.verb, obj, lang, contract=i == 0)
@@ -610,7 +697,11 @@ def _merged_pieces(
         elif i:
             pieces.append((",", "punctuation", ids))
         pieces.append((shown, f"claim:{members[0].id}:{_role_field(members[0], 'object')}", [m.id for m in members]))
-        marks.append((len(pieces) - 1, members))
+        at = len(pieces) - 1
+        date = _claim_date(members[0], lang)
+        if date:
+            pieces.append((f"({date['text']})", _date_origin(members[0]), [m.id for m in members]))
+        marks.append((at, members, len(pieces) - 1))
     if not pieces[-1][0].endswith((".", "!", "?")):
         pieces.append((".", "punctuation", ids))
     return pieces, marks
@@ -628,11 +719,11 @@ def _trace_group_sentence(
     merged = _merged_pieces(agg, group_claims) if agg.count > 1 else None
     if merged is None:
         pieces = [(t, o, ids) for t, o in _claim_pieces(group_claims[0])]
-        marks: list[tuple[int, list[KnowledgeClaim]]] = []
+        marks: list[tuple[int, list[KnowledgeClaim], int]] = []
     else:
         pieces, marks = merged
     text, segments = _join_pieces(pieces)
-    spans = [(segments[i]["start"], segments[i]["end"], m) for i, m in marks] if len(marks) > 1 else [
+    spans = [(segments[i]["start"], segments[j]["end"], m) for i, m, j in marks] if len(marks) > 1 else [
         (0, len(text), group_claims)
     ]
     clauses = [
@@ -645,7 +736,7 @@ def _trace_group_sentence(
             "state": _group_state(members),
             "doubt": "none",
             "sources": _sources(members),
-            "date": None,
+            "date": _claim_date(members[0], agg.language),
             "place": None,
         }
         for start, end, members in spans
@@ -729,11 +820,26 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
 
     sentences: list[dict] = []
     cursor = 0
+    said_a_date = False
+    said_undated = False
     for group in aggregate_claims(claims):
         group_claims = [by_id[cid] for cid in group.claim_ids]
         text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
         if not text:
             continue
+        dated = any(c["date"] for c in clauses)
+        undated_words = ((_TABLES.get(group.language or "") or {}).get("dates") or {}).get("undated")
+        if said_a_date and not said_undated and not dated and undated_words:
+            # the first undated sentence after dated ones opens with the table's undated words
+            shift = len(undated_words) + 1
+            text = f"{undated_words} {text}"
+            clauses = [{**c, "start": c["start"] + shift, "end": c["end"] + shift} for c in clauses]
+            segments = [
+                {"start": 0, "end": len(undated_words), "origin": f"table:{group.language}:undated", "claim_ids": list(group.claim_ids)},
+                *({**g, "start": g["start"] + shift, "end": g["end"] + shift} for g in segments),
+            ]
+            said_undated = True
+        said_a_date = said_a_date or dated
         start = cursor if not sentences else cursor + 1  # +1 for the joining space
         end = start + len(text)
         sentences.append(
