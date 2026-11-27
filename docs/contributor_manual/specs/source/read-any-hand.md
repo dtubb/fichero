@@ -236,7 +236,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   test_lines_to_target.py (a known curve gives the known figure; a flat curve gives "not reached").
 - `hands.metric.trusted-coverage` — **[GAP]** (#5338 → #6970) trusted coverage is the largest share of the report
   half's lines, taken in order of confidence, whose pooled character error is 2% or less; the whole risk-coverage
-  curve is kept beside it. A reader with no confidence has no trusted coverage, said as that. *Test (to write):*
+  curve is kept beside it. A reader with no confidence has no trusted coverage, said as that. *Test:*
   test_trusted_coverage.py (a confidence that ranks perfectly gives the share of lines under 2%; a random one gives
   nearly none).
 
