@@ -2376,7 +2376,7 @@ and node, not by job); a retry action for failed pages.
   network. Apple Vision runs beside Kraken: an Apple page takes no model-lane job, does not count as a "local page in flight"
   against Kraken's memory fan-out (`kraken_runtime.page_fan_out`), and never waits for a Kraken page; its own gate
   (`vision_base._APPLE_VISION_GATE`, at most 2, one when memory is short) bounds it. Already true, pinned by reading the code:
-  the Vision bundle and its locales load once per engine at startup, off the loop (`warm_supported_locales`), and one
+  the Vision bundle and its locales load once per engine, off the loop, in the warm-up after the app is ready and idle (`warm_supported_locales`, #7105), and one
   `VNRecognizeTextRequest` per page carries the lines and the words (a per-line Apple read is a different feature, and gap
   escalation adds a request only for a band Vision missed)
   Hosted part **[OK]**: a hosted model's call never waits for a local page: `llm.model_call_slot` puts it on the network lane (4 wide), not the model lane (`fichero-server/tests/unit/jobs/test_hosted_page_beside_local_5863.py`, unrun). NOT done, the owner's call: Kraken (CPU) beside MLX (GPU) bends the one-model-at-a-time ruling. Limit: the lane picks in order, so a hosted page behind a waiting local page is not reached until that one starts
