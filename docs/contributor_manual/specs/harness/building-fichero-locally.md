@@ -1087,6 +1087,11 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   refuses is ONE alert per tip naming the refusal and the fix. A `[check]` key the code does not know, when the builder package
   beside those rules declares it, is refused with that cause: "a NEWER builder knows them ... this process runs older code than
   its pinned rules". Tests: `fichero-builder/tests/test_follow_landed.py`.
+  The loop compares and follows only with no merge train running, after its result, and a re-exec waits for a running train
+  the same way (2026-11-27 11:51 and 12:14:55: trains 115103 and 120535 were lost to a follow); only a change to the builder's
+  package is followed, never one to harness.toml or docs alone. Tests:
+  `fichero-builder/tests/test_follow_landed.py::test_a_landing_of_rules_or_docs_alone_is_never_followed`,
+  `fichero-builder/tests/test_follow_landed.py::test_the_loop_neither_follows_nor_re_execs_while_a_train_runs`.
 - `local.check.red-on-base-pure-move` [OK] (#6589; built 2026-11-25) — with `red-on-base-pure-move` in `[check].auto`, a changed
   test file that the range renames with its content unchanged (`git diff -M100%`, R100) is not asked to be red on base, where its
   old copy already passes; one `auto` row names the old path, it runs green on head, and a source change still owes a red from

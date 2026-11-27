@@ -3036,7 +3036,18 @@ def restart_due(mark: tuple, root, chains, builds=(), followed: bool = False) ->
     read the landed rules with older code (2026-11-25 21:2x-21:39, alerts 1938-1948: every check refused "unknown rules" while
     nine busy lanes kept the quiet tick from coming)."""
     chain_runs = not followed and any(not f.done() for k, f in (chains or {}).items() if k != "pool")
-    return code_mark(root) != mark and not chain_runs and not any(t.is_alive() for t in builds)
+    return code_mark(root) != mark and not chain_runs and not any(t.is_alive() for t in builds) and not train_running()
+
+
+def train_running() -> bool:
+    """A merge train's thread (or its second) is alive in this process: a re-exec now would lose it (2026-11-27 11:51 and 12:14:55,
+    trains 115103 and 120535 lost to a follow of a landed config-only commit)."""
+    return bool((TRAIN_THREAD[0] is not None and TRAIN_THREAD[0].is_alive()) or (SECOND.get("thread") and SECOND["thread"].is_alive()))
+
+
+def follow_due() -> bool:
+    """Time to compare the loop's checkout with the landed tip: every FOLLOW_S, and only with no train running (after its result)."""
+    return time.time() - FOLLOWED_AT[0] >= FOLLOW_S and not train_running()
 
 
 def reexec() -> None:  # the tests replace this
@@ -3105,7 +3116,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             journal.append("loop", state="tick", lanes=[f"{x['id']} {x['cursor']}/{len(x['steps'])}" for x in load()], busy=busy)
         if once or not (busy or forever):
             return 0
-        if heartbeat and root and time.time() - FOLLOWED_AT[0] >= FOLLOW_S:  # a landing (or a hand push) of builder code: the loop follows it
+        if heartbeat and root and follow_due():  # a landing (or a hand push) of builder code: the loop follows it, never mid-train
             FOLLOWED_AT[0] = time.time()
             try:
                 FOLLOWED[0] = FOLLOWED[0] or follow_landed(root, out).startswith("followed")
@@ -3148,7 +3159,9 @@ def follow_landed(root, out=print) -> str:
     tip, head = land_tool.resolve_branch(repo, branch), git("rev-parse", "HEAD").stdout.strip()
     if not tip or not head or tip == head or (journal.STATE / "follow.tip").is_file() and (journal.STATE / "follow.tip").read_text().strip() == tip:
         return ""
-    paths = [client.package_dir(root), "harness.toml"]
+    # the builder's code only: a landing of harness.toml or docs alone changes nothing this process runs (the checkout keeps its
+    # own harness.toml), so it is never followed (2026-11-27: a config-only commit restarted the loop and cost a train)
+    paths = [client.package_dir(root)]
     changed = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "diff", "--name-only", head, tip, "--", *paths],
                              capture_output=True, text=True)
     behind = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "merge-base", "--is-ancestor", head, tip], capture_output=True).returncode == 0

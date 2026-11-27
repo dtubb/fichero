@@ -153,3 +153,29 @@ def test_a_live_check_key_that_differs_from_the_pinned_copy_is_named(tmp_path):
     assert w.startswith("[check].swift_test_target differs from the pinned pinned-abcdef1") and '"FicheroTests"' in w and "pinned null" in w
     (pins / "harness.toml").write_text('[check]\nswift_test_target = "FicheroTests"\nparallel = 2\n')
     assert check_tool.live_vs_pinned(tmp_path, "abcdef1234") == [] and check_tool.live_vs_pinned(tmp_path, "0000000") == []
+
+
+def test_a_landing_of_rules_or_docs_alone_is_never_followed(repos):
+    """2026-11-27 12:14:55: a config-only commit landed, the loop followed it and re-execed, and train 120535 was lost."""
+    eng, live, rules = repos
+    (live / "harness.toml").write_text(rules + "[loop]\nfollow_landed = true\n")
+    assert queue.follow_landed(live, out=lambda s: None).startswith("followed")
+    (eng / "harness.toml").write_text(rules + "# a config-only change\n")
+    (eng / "docs.md").write_text("words\n")
+    g(eng, "add", "."), g(eng, "commit", "-qm", "config and docs only")
+    assert queue.follow_landed(live, out=lambda s: None) == "" and g(live, "rev-parse", "HEAD") != g(eng, "rev-parse", "integration")
+
+
+def test_the_loop_neither_follows_nor_re_execs_while_a_train_runs(monkeypatch):
+    import threading
+    stop = threading.Event()
+    t = threading.Thread(target=stop.wait, daemon=True)
+    t.start()
+    monkeypatch.setattr(queue, "TRAIN_THREAD", [t])
+    monkeypatch.setattr(queue, "FOLLOWED_AT", [0.0])
+    monkeypatch.setattr(queue, "code_mark", lambda root: ("new",))
+    assert queue.train_running() and not queue.follow_due()
+    assert not queue.restart_due(("old",), "/r", {}, (), followed=True), "after the train's result, not during it"
+    stop.set()
+    t.join()
+    assert queue.follow_due() and queue.restart_due(("old",), "/r", {}, (), followed=True)
