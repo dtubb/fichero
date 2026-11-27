@@ -56,8 +56,7 @@ paged container with a small indicator, where a zoomed picture keeps its own pan
 - **Connection watch**: a 5 s heartbeat (`App/AppState/AppState+Heartbeat.swift`), a 3 s grace before the launch says it is
   still connecting (`Services/LaunchProbePolicy.swift`), a recovery bar with Reconnect and Change Server
   (`Views/Connect/IOSConnectionRecoveryBar.swift`), a Connection menu (`Views/Connect/IOSConnectionMenu.swift`).
-- **Drill-down**: `Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift` and `CompactPath`, `CompactStep`, `ItemPage` (`Models/Navigation/`)
-  (`Views/Shell/ShellLayoutPolicy.swift`).
+- **Drill-down**: `Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift` and `CompactPath`, `CompactStep`, `ItemPage` (`Models/Navigation/`).
 - **Capture queue**: `Models/MobileCaptureQueue*.swift`, `Views/Capture/`.
 - **Apple frameworks on the device**: VisionKit's document camera and the QR scanner only. No text is read on the device.
 
@@ -270,7 +269,7 @@ paging. The screens, in order:
 - `ios.item.header-says-where` — **[PARTIAL]** (built: a segmented `Picker` in the bar's principal slot, selection bound to the page; the Reader and Info buttons are removed. Not built: the glyph form at the largest text size; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) the bar's centre holds one small segmented header, Source · Reader ·
   Segments · Info, with the showing page selected; a tap on a name goes to that page with no swipe. It is the only title
   the item view has (`ios.titles.once-at-most`). It replaces the Reader and Info bar buttons of #6566
-  (`compactDocumentStepToolbar`, `ContentView+CompactReader.swift:150-163`), which are removed.
+  (`compactDocumentStepToolbar`, removed).
   On the narrowest phone at the largest text size the header shows glyphs with the names as accessibility labels.
   Tests: `ItemPagesTests.swift` (header selection follows the page and the reverse), `IOSItemPagesUITests.swift` (tap
   Info from Source).
