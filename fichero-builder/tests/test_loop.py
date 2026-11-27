@@ -2424,3 +2424,36 @@ def test_a_retry_takes_the_worktrees_head_now_never_the_stale_stored_sha(state, 
     queue.save(lanes)
     journal.append("alert", id="m1-1.1-x", lane="m1", step="1.1", what="x", actions=["retry"])
     assert queue.answer("m1-1.1-x", "retry")[0] == 0 and steps()["1.1"].get("retry_rungs") is True, "an unmoved tree: from the failed rung, as before"
+
+
+def test_a_session_whose_start_was_refused_blocks_at_once_with_its_output_and_every_lost_session_row_carries_the_last_lines(state, tmp_path, monkeypatch):
+    """2026-11-27 09:20-09:49: code-audit, perf-optimize and spec-windows (role maintainer-fable) went sent, 'no session', 'gone',
+    three times each, then blocked, with nothing said. Their run logs held the cause: `builder run refuses: harness.toml
+    [spend].prices has no price for 'claude-fable-5-2[1m]'`. The refusal now blocks at once, naming it; rows carry the tail."""
+    out = "--- run log ---\nm1: step 3 sent\nbuilder run refuses: harness.toml [spend].prices has no price for 'claude-fable-5-2[1m]': unknown price, no start"
+    fake, handles = _quiet_sent(state, lambda lane: False)
+    fake.procs.last_output = lambda lane: out
+    tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    tick()
+    s = steps()["1.1"]
+    assert s["state"] == "blocked" and s["restarts"] == 0 and "claude-fable-5-2[1m]" in s["why"] and "start was refused" in s["why"]
+    row = next(r for r in journal.read() if r.get("state") == "sent-no-session")
+    assert row["tail"] == out
+    import types
+    j = types.SimpleNamespace(workroot=str(tmp_path))
+    (tmp_path / "run-m1.log").write_text("shell-init: error retrieving current directory\n" + "\n".join(f"line {i}" for i in range(30)) + "\n")
+    monkeypatch.setattr(queue, "worker_windows", lambda j, name: ["@1"])
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "pane text\n")
+    tail = queue.session_output(j, {"id": "m1", "seq": 4})
+    assert tail.splitlines()[-1] == "line 29" and len(tail.splitlines()) == 20 and "shell-init" not in tail
+    saved = (journal.STATE / "session-m1-4.log").read_text()
+    assert "--- pane @1 ---\npane text" in saved and "line 0" in saved
+
+
+def test_a_context_suffixed_model_takes_its_base_models_price():
+    import types
+
+    from fichero_builder import watcher
+    s = types.SimpleNamespace(prices={"claude-fable-5-2": [15, 75], "claude-fable-5-1": [10, 50]})
+    assert watcher.price_for("claude-fable-5-2[1m]", s) == [15, 75] and watcher.price_for("claude-fable-5-3[1m]", s) is None

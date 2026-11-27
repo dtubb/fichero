@@ -4,6 +4,8 @@ decide handoff, park, alert or nothing. Plain functions, no process control here
 Caps come from `harness.toml [spend]`; a missing cap or an unknown price REFUSES to start (audit 2026-11-01 H6)."""
 from __future__ import annotations
 
+import re
+
 import json
 import tomllib
 from dataclasses import dataclass, field
@@ -84,6 +86,9 @@ def threshold(spend: Spend) -> int:
 
 def price_for(model: str, spend: Spend):
     """[in, out] for the model: an exact key, else the longest key the model name contains; None if unknown."""
+    if model in spend.prices:
+        return spend.prices[model]
+    model = re.sub(r"\[[^\]]*\]$", "", model)  # 2026-11-27: `claude-fable-5-2[1m]` is claude-fable-5-2 with a 1M context: its rates
     if model in spend.prices:
         return spend.prices[model]
     hits = sorted((k for k in spend.prices if k and k in model), key=len)

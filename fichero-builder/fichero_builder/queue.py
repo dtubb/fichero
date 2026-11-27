@@ -349,6 +349,7 @@ class Procs:
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
     head_of: Callable[[dict], str] = lambda lane: ""  # lane -> its tree's HEAD now (recorded when a step is sent: an adopted session must descend from it)
     descends: Callable[[dict, str], bool] = lambda lane, sha: bool(sha)  # lane, sha -> the tree's HEAD is the sha or a commit on it
+    last_output: Callable[[dict], str] = lambda lane: ""  # lane -> its pane's and its run log's last lines, saved as session-<lane>-<seq>.log
     session_live: Callable[[dict], Optional[bool]] = lambda lane: True  # lane -> a session at work on its step: a window that runs more than a shell (local.run.sent-needs-a-live-session)
     live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
@@ -830,6 +831,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             if end == "parked":
                 PARKED.append(lane["id"])
                 return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
+            if s["state"] == "sent" and end == "gone":  # 2026-11-27: 'gone' rows said nothing; the pane's and the run's last lines
+                tail = procs.last_output(lane)
+                journal.append("queue", lane=lane["id"], step=s["step"], state="gone", tail=tail, detail="the worker's session ended 'gone'")
+                if refused := _refusal(tail):
+                    return block(s, f"the session's start was refused: {refused}", evidence=tail)
             if s["state"] == "sent" and end == "gone" and _now() - s.get("entered_at", 0) < QUICK_GONE_S:
                 WORKER_CLI_AT[0] = 0.0  # gone at once: the next tick probes the worker's CLI (a revoked sign-in holds every lane)
             if s["state"] == "sent":
@@ -958,13 +964,17 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                     store(lane)
                     return True
                 lane["sent_misses"] = 0
-                journal.append("queue", lane=lane["id"], step=s["step"], state="sent-no-session", detail="the window runs no session: the step is queued again from its tree")
+                tail = procs.last_output(lane)  # before the stop: the pane goes with its window
+                journal.append("queue", lane=lane["id"], step=s["step"], state="sent-no-session", tail=tail,
+                               detail="the window runs no session: the step is queued again from its tree")
                 procs.stop(lane)
                 handles.pop(lane["id"], None)
                 lane["feed"] = ""
+                if refused := _refusal(tail):  # a start the run refuses (a config gap) is never three rounds of 'gone'
+                    return block(s, f"the session's start was refused: {refused}", evidence=tail)
                 s["restarts"] += 1
                 if s["restarts"] > RESTARTS:
-                    return block(s, f"the step lost its session {s['restarts']} times")
+                    return block(s, f"the step lost its session {s['restarts']} times", evidence=tail)
                 move(s, "queued", "no session was at work on it: a new session next tick")
                 return True
             if live is True and lane.get("sent_misses"):
@@ -3418,6 +3428,36 @@ def run_alive(j, feed: str) -> bool:
     return r.returncode == 0
 
 
+REFUSES = re.compile(r"^(?:builder run|harness_start) refuses:?\s*(.+)$", re.M)
+
+
+def _refusal(tail: str) -> str:
+    """The last `builder run refuses: ...` (or harness_start's) line of a session's output, or ''."""
+    hits = REFUSES.findall(tail or "")
+    return hits[-1].strip()[:300] if hits else ""
+
+
+def session_output(j, lane: dict, n: int = 20) -> str:
+    """The lane's pane (captured as the worker, while its window is there) and the last lines of `<workroot>/run-<lane>.log` (where a
+    start that fails writes), saved as `session-<lane>-<seq>.log` in the state dir; the last `n` lines of both are returned."""
+    parts = []
+    for wid in worker_windows(j, lane["id"]):
+        if pane := tmux_as_worker(j, "capture-pane", "-p", "-J", "-S", "-200", "-t", wid).rstrip():
+            parts.append(f"--- pane {wid} ---\n{pane}")
+    try:
+        lines = (Path(j.workroot) / f"run-{lane['id']}.log").read_text(errors="replace").splitlines()
+        noise = ("shell-init:", "job-working-directory:", "chdir:")  # the sudo'd shell starts in the owner's unreadable cwd
+        parts.append("--- run log ---\n" + "\n".join([ln for ln in lines if not ln.startswith(noise)][-60:]))
+    except OSError:
+        pass
+    text = "\n".join(parts)
+    try:
+        (journal.STATE / f"session-{lane['id']}-{lane.get('seq', 0)}.log").write_text(text + "\n")
+    except OSError:
+        pass
+    return "\n".join(text.splitlines()[-n:])
+
+
 def worker_windows(j, name: str, with_command: bool = False) -> list:
     """#6496: the ids of the windows named `name` on the workers' server (a name is ambiguous to tmux once there are two);
     `with_command`: (id, the pane's current command) pairs, so an idle shell can be told from a live session (alert 540)."""
@@ -3817,7 +3857,7 @@ def real_procs(root) -> Procs:
                  head_of=lambda lane: lane_head(lane["worktree"]),
                  descends=lambda lane, sha: tree_descends(lane["worktree"], sha),
                  live_windows=lambda lane: live_windows(jail.load(root), lane), session_live=lambda lane: session_live(jail.load(root), lane),
-                 landed=landed, land_cleared=land_cleared, train_run=train_run, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
+                 landed=landed, land_cleared=land_cleared, last_output=lambda lane: session_output(jail.load(root), lane) if jail.load(root) else "", train_run=train_run, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, nightly_spawn=(lambda sha, night: nightly.start_detached(root, journal.STATE, sha, night)) if ncfg else None, watchdog=real_watchdog(root, stop, tell), reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, fast_forward=lambda p, old, new: refreshed(p, old, new, branch), tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
