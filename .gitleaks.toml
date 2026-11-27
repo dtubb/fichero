@@ -1,0 +1,23 @@
+# gitleaks reads this file from the repo root for the security rung's scan of a batch's commits
+# (`dev-workflows.quality.security-scan-rung`). Every allowlist names its reason; the harness refuses one without
+# (`gitleaks_config_problems`). Nothing here is a secret: a public key and the placeholder keys tests type.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "The Sparkle public EdDSA key: the app's update-signing PUBLIC key, meant to be in the project and the release docs"
+regexes = ['''z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=''']
+
+[[allowlists]]
+description = "Placeholder API keys that tests type (sk-proj-abc..., test-api-key-...): not credentials to anything"
+regexes = ['''sk-proj-abc123(def456)?''', '''test-api-key-12345''']
+
+[[allowlists]]
+description = "A Swift type annotation, `key: P256.Signing.PrivateKey`, is a type name after the word key, not a key"
+regexes = ['''key: P256\.Signing\.PrivateKey''']
+
+[[allowlists]]
+description = "Prose and comments where the word key or keys precedes an ordinary name (a model's, a test file's), judged on the whole line"
+regexTarget = "line"
+regexes = ['''key: P256\.Signing\.PrivateKey''', '''keys: test_missing_key_never_substitutes_5364\.py''', '''secretary hand, Qwen2\.5-VL-3B''']
