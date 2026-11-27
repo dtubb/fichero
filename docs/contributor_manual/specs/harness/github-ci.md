@@ -168,36 +168,21 @@ it. Spec-change: owner 2026-11-20.
 
 ## The builder reads the results
 
-Earlier text of the line below (still the design for reading each job and step, not the run conclusion; the opt-in flag is replaced by `[check].actions` below): `builder check` may take a green GitHub Actions run for the same commit as one rung,
-  so the three Macs do less. It is opt-in: `[check.github] use_actions = false` in `harness.toml`, off until the owner
-  turns it on. How it reads a run, on the manager's side only (workers have no GitHub token and never call it):
-  `gh run list --commit <head sha> --workflow tests.yml --json databaseId,status,conclusion` for the exact head sha of the
-  batch, then the run's jobs through `gh api` (the Actions "list jobs for a workflow run" endpoint). The jobs are
-  `continue-on-error`, which makes the run's own conclusion `success` even when a job failed, so the rung reads each JOB's
-  conclusion and each step's conclusion, never the run's. The rung is satisfied only when the run is `completed`, its head
-  sha equals the batch head exactly, the `Spec guards` step of `engine (1/8)` is `success` and the `Unit tests` step of every
-  `engine (n/12)` job is `success` (the unit tier is twelve shards, `ci.python-tiers`; one missing shard is no pass). It then
-  stands in for the engine unit-test rung and the spec-guard rung of that batch, and the ladder row says
-  `from GitHub run <id>`. A run that is missing, still running, for another sha, red, cancelled, or unreadable (no `gh`,
-  no network, a bad reply) is never a pass: the rung runs on the Macs as it does today and the row says why the run was not
-  used. The `build`, `perf`, red-on-base and review rungs never come from GitHub. The security rung's scanners may be taken
-  the same way from the `security.yml` job `scanners`, and CodeQL alerts are read from code scanning for the head sha and
-  listed in the review prompt under SECURITY SCAN as reported, never as a gate. Acceptance (no network, a fake `gh`): a
-  completed run for the head sha whose `Unit tests` step succeeded satisfies the rung; the same run with the step failed,
-  a run for the parent sha, a run still `in_progress`, a `gh` that exits non-zero, and `use_actions = false` each leave the
-  rung to run locally with the reason in its row. Built: nothing yet; the workflows above are what it will read.
+Still the design and not built (the `ci.builder-reads-actions` bullet below is what is built): the security rung's scanners may be
+  taken from the `security.yml` job `scanners` the same way, and CodeQL alerts are read from code scanning for the head sha and listed in
+  the review prompt under SECURITY SCAN as reported, never as a gate. The `build`, `perf`, red-on-base and review rungs never come from GitHub.
 
 - `ci.builder-reads-actions` [PARTIAL] (#6600) — `builder check` takes the GitHub Actions run of the batch head as the `unit` rung.
   `[check].actions` in `harness.toml` lists the rungs Actions may supply (`["unit"]`; `guards` is not read from Actions: the
   `Spec guards` step runs only `check_spec_*.py` and runs the head's own workflow and scripts, so it is neither every guard nor the pinned copy);
   `[check].actions_timeout_s` (default 1500) is how long it waits. For a listed rung, in the loop with the loop's credentials
   (a worker never calls it): once the land boundary patterns (`[land].boundary`) have no hit over `since..head` and the `security` row shows gitleaks ran over the batch with no new finding (whatever `[check.security].enforce` says; a skipped, not-run or refused `security` row blocks it), the batch head is force-pushed to `refs/heads/lane-<lane>` on origin, where `<lane>` is the lane the loop is checking (`do_check` passes it down; never the HEAD of the engine repo, which judges every lane), and only when the head is the tip of that lane's `work-<lane>` ref (`tests.yml`
-  runs its Python jobs on that push), then `gh run list --commit <head> --workflow tests.yml --json databaseId,status,conclusion,headSha`
-  is polled until a run of exactly that sha is `completed`, then the run's jobs are read through `gh api` for the conclusions of the
+  runs its Python jobs on that push; `ci.Hosted.push`), then `ci.wait` polls the check runs of exactly that sha (the commit's `check-runs` endpoint)
+  until all twelve `engine (N/12)` check runs are `completed`; they must belong to one Actions run, whose jobs are read through `ci.Hosted.jobs` for the conclusions of the
   step `Unit tests` (rung `unit`) of every `engine (N/12)` job (the `contracts` and `builder` jobs are not read). The rung is green only
   when all twelve jobs are present and each `Unit tests` step is `success`; fewer than twelve jobs is no usable run. The jobs are `continue-on-error`, so the run's own conclusion
   is never read. A green step is the rung's green and its row says `from GitHub run <id>`; a red step is the rung's red, with the
-  tail of `gh run view <id> --log-failed` as the fix brief. No finished run of that sha within the timeout, a run for another sha,
+  tail of `gh run view <id> --job <job> --log-failed` of each red job (`ci.Hosted.failed_log`) as the fix brief. No finished run of that sha within the timeout, a run for another sha,
   no `gh`, no network, a boundary hit, a `security` row that is not a clean gitleaks scan (nothing is pushed), a failed push, a bad reply, no lane named, a lane name that is no branch name, a head that is not the tip of `work-<lane>`: the rung runs on the Macs as before and the
   journal gets one `check` row (`state = actions-local`) with the reason, and `unit` runs the selected tests on the Macs. Acceptance (a fake `gh`, a local bare origin; tests in
   `fichero-builder/tests/test_actions_rungs.py`): a green run (twelve `engine (N/12)` jobs) supplies the rung and the head is on origin; a red `Unit tests` step
