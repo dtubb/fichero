@@ -2719,7 +2719,11 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
     if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]) or (base_tid and len(waiting) < TRAIN[0].min_steps):
         return
     size = min(TRAIN_SIZE[0] or TRAIN[0].max_steps, TRAIN[0].max_steps)
-    waiting, left = waiting[:size], len(waiting) - min(size, len(waiting))  # queue order; the rest wait for the next train
+    # 2026-11-27 07:05-10:15: trains of 1-2 (the size halves after each non-green) took the same front steps in queue order every time
+    # (bug-7077, nav-3, unresolved again and again) while training 1b, seg-select-1, 0.3, seg-batch-6 and 3.1 waited 3-5 h. The fewest
+    # rides first, then the longest wait; a stacked step still follows its base
+    waiting = _under_first(sorted(waiting, key=lambda p: (p[1].get("train_rides", 0), p[1].get("train_since", 0))))
+    waiting, left = waiting[:size], len(waiting) - min(size, len(waiting))  # the rest wait for the next train
     tid = "train-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(_now())) + ("-2" if base_tid else "")
     spec = [{"key": f"{x['id']}/{s['step']}", "head": s["head"]} for x, s in waiting]
     with journal.Lock("queue"):
@@ -2727,6 +2731,7 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
         for i, (x, s) in enumerate(waiting):
             st = next(y for z in lanes if z["id"] == x["id"] for y in z["steps"] if y["step"] == s["step"])
             st["train_id"], st["train_pos"] = tid, i
+            st["train_rides"] = st.get("train_rides", 0) + 1
             if base_tid:
                 st["train_base"] = base_tid  # it lands only after every step of that train
             else:

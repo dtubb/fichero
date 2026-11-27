@@ -340,10 +340,16 @@ def test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it(world):
     queue.save(lanes)
     queue.TRAIN_SIZE[0] = 2
     queue.train_when_due(fake.procs, None)
-    assert taken[-1] == ["lb/3", "la/1"], "a size cut between the two takes the step under it, never the one on top"
+    assert taken[-1] == ["la/1", "la/2"], "lb/3 rode once already: la/1 (no ride) first, and la/2 only behind it, never alone"
     queue.TRAIN_SIZE[0] = 3
     queue.train_when_due(fake.procs, None)
-    assert taken[-1] == ["lb/3", "la/1", "la/2"], "behind the step under it, whatever its own wait"
+    queue.TRAIN_SIZE[0] = 1
+    queue.train_when_due(fake.procs, None)
+    assert taken[-1] == ["lb/3"], "a cut of one never takes la/2 alone: lb/3 has the fewest rides now"
+    queue.TRAIN_SIZE[0] = 3
+    queue.train_when_due(fake.procs, None)
+    assert taken[-1] in (["la/1", "la/2", "lb/3"], ["lb/3", "la/1", "la/2"]) and taken[-1].index("la/2") == taken[-1].index("la/1") + 1, \
+        "behind the step under it, whatever its own wait"
 
 
 def test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs(world):
@@ -463,3 +469,25 @@ def test_a_step_that_conflicts_only_with_another_step_of_its_train_rides_the_nex
     held = [r for r in journal.read() if r.get("state") == "train-conflict-held"]
     assert len(held) == 1 and held[0]["lane"] == "l2" and held[0]["other"] == "l1/1"
     assert chains.count("2") == 2, "its chain ran again after l1 landed: the loop's rebase onto origin"
+
+
+def test_trains_of_one_take_each_waiting_step_in_turn_never_the_same_front_step_again(world):
+    """2026-11-27 07:05-10:15: after five non-green trains the size was 1, and waiting[:1] in queue order took bug-7077 or nav-3 every
+    time (unresolved again) while five other steps waited 3-5 hours. The fewest rides go first, then the longest wait."""
+    t = Trained(*world, ["1", "2", "3"], cfg=train.Cfg(min_steps=3))
+
+    def run_train(spec, tid):
+        t.trains.append([x["key"] for x in spec])
+        keys = [x["key"] for x in spec]
+        return train.Result(id=tid, candidate="c", steps=keys, again=keys, result="unresolved")
+    t.fake.procs.train_run = run_train
+    hs: dict = {}
+    for _ in range(3):
+        queue.tick(t.fake.procs, hs, workers_n=3, push=True, out=lambda s: None)
+    queue.TRAIN[0] = train.Cfg(min_steps=1)
+    queue.TRAIN_SIZE[0] = 1
+    for _ in range(6):
+        queue.TRAIN_SIZE[0] = 1
+        queue.tick(t.fake.procs, hs, workers_n=3, push=True, out=lambda s: None)
+    firsts = [tr for tr in t.trains if len(tr) == 1][:3]
+    assert sorted(k for tr in firsts for k in tr) == ["l1/1", "l2/2", "l3/3"], f"each step boards in turn: {t.trains}"
