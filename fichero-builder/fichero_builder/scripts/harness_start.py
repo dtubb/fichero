@@ -39,7 +39,9 @@ claude = S.find_claude(Path.home(), jail.workroot)
 if not claude:
     print("harness_start refuses: no `claude` on the worker user's PATH (install it for that user)", file=sys.stderr)
     sys.exit(1)
-tokfile = Path.home() / ".claude-token"  # the worker's own home, never the workroot; read by the pane's shell, not by us
+# owner 2026-11-27: a `claude setup-token` in <workroot>/.claude-token (mode 600, the worker's; `auth login` under sudo finds no
+# keychain), else the worker's own home. Read by the pane's shell as the worker, never by us: no token in argv, logs or our env
+tokfile = next((p for p in (S.token_file(jail.workroot), Path.home() / ".claude-token") if p and p.exists()), Path.home() / ".claude-token")
 tok = ""  # optional: without the file the worker's own /login session is used
 if tokfile.exists():
     st = tokfile.stat()

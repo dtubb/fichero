@@ -37,7 +37,7 @@ def sync(worker: Path, manager: str) -> str:
     if not want or have == want:
         return have
     src = os.path.realpath(manager)
-    new = worker.with_name(worker.name + ".new")
+    new = worker.with_name(worker.name + ".new")  # bin/claude only: the token file lives in the workroot, outside bin/
     try:
         shutil.copy2(src, new)
         new.chmod(0o755)
@@ -49,10 +49,17 @@ def sync(worker: Path, manager: str) -> str:
     return want
 
 
-def probe(worker: Path, model: str, as_user=()) -> tuple[str, str]:
-    """("ok" | "auth" | "refused" | "unknown", the CLI's text), `claude -p --model <model>` run as the worker (`as_user` is the sudo prefix)."""
+# As the worker, inside its own shell: its token file (when there) becomes CLAUDE_CODE_OAUTH_TOKEN for that one exec. The path is an
+# argument, never the token: nothing of it reaches argv, a log, the journal or this process's environment.
+WITH_TOKEN = 'f=$1; shift; if [ -s "$f" ]; then CLAUDE_CODE_OAUTH_TOKEN="$(cat "$f")"; export CLAUDE_CODE_OAUTH_TOKEN; fi; exec "$@"'
+
+
+def probe(worker: Path, model: str, as_user=(), token: Path | None = None) -> tuple[str, str]:
+    """("ok" | "auth" | "refused" | "unknown", the CLI's text), `claude -p --model <model>` run as the worker (`as_user` is the sudo prefix;
+    `token` the worker's token file, read by the worker's shell only, and only under `as_user`)."""
+    wrap = [*as_user, "/bin/sh", "-c", WITH_TOKEN, "sh", str(token)] if as_user and token else list(as_user)
     try:
-        r = subprocess.run([*as_user, str(worker), "-p", "--model", model, "--max-turns", "1", "Reply ok."], capture_output=True,
+        r = subprocess.run([*wrap, str(worker), "-p", "--model", model, "--max-turns", "1", "Reply ok."], capture_output=True,
                            text=True, timeout=180, cwd="/tmp")  # 2026-11-27 09:05: the loop's cwd is unreadable to the worker: EACCES, read as nothing
     except (OSError, subprocess.SubprocessError) as e:
         return "unknown", str(e)
@@ -96,7 +103,8 @@ def wanted_models(mdl: dict, roles) -> set[str]:
     return out
 
 
-def check(worker: Path, manager: str, wanted, alert, as_user=(), today: dt.date | None = None, user: str = "fichero-worker") -> None:
+def check(worker: Path, manager: str, wanted, alert, as_user=(), today: dt.date | None = None, user: str = "fichero-worker",
+          token: Path | None = None) -> None:
     """sync; one uncached probe for the sign-in (HELD while revoked, one alert); each wanted model probed once per (version, model);
     a refusal is one alert naming it; a "sign-in ends between X and Y" warning is one alert WARN_DAYS before X."""
     ver = sync(worker, manager)
@@ -108,25 +116,27 @@ def check(worker: Path, manager: str, wanted, alert, as_user=(), today: dt.date 
     login = f"sudo -u {user} -H {worker} auth login"
     wanted = sorted(set(wanted))
     if wanted:
-        kind, text = probe(worker, wanted[0], as_user)
+        kind, text = probe(worker, wanted[0], as_user, token)
         if kind == "auth":
             HELD[0] = True
             if not cache.get("auth_alerted"):
                 cache["auth_alerted"] = True
-                alert("", ver, f"the worker's Claude sign-in is revoked: run `{login}`; no new worker session starts until it passes", text[-300:])
+                alert("", ver, f"the worker's Claude sign-in is revoked: save a `claude setup-token` to {token or '<workroot>/.claude-token'} "
+                      f"(mode 600, owned by {user}); no new worker session until a probe passes", text[-300:])
         elif kind == "ok":
             HELD[0], cache["auth_alerted"] = False, False
         else:  # neither signed in nor refused: never silence (a row each check; the hold stays as it was)
             journal.append("worker-cli", state="probe-failed", detail=f"{wanted[0]}: {text[-300:]}")
         if (x := ends_at(text)) and (today or dt.date.today()) >= x - dt.timedelta(days=WARN_DAYS) and cache.get("ends_alerted") != str(x):
             cache["ends_alerted"] = str(x)
-            alert("", ver, f"the worker's Claude sign-in ends from {x}: run `{login}` before then", text[-300:])
+            alert("", ver, f"the worker's Claude sign-in ends from {x}: save a new `claude setup-token` to {token or '<workroot>/.claude-token'} "
+                  f"before then (or `{login}`)", text[-300:])
         if ver and not HELD[0]:
             seen = cache.setdefault("models", {}).setdefault(ver, {})
             if kind in ("ok", "refused"):
                 seen[wanted[0]] = text[-300:] if kind == "refused" else ""
             for m in [m for m in wanted if m not in seen]:
-                k, t = probe(worker, m, as_user)
+                k, t = probe(worker, m, as_user, token)
                 if k in ("ok", "refused"):
                     seen[m] = t[-300:] if k == "refused" else ""
             for m in wanted:

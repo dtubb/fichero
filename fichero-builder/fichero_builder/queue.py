@@ -2189,7 +2189,8 @@ def worker_cli_job(root, rules: dict, mdl: dict):
     as_user = (j.sudo, "-n", "-H", "-u", j.user) if j and j.user and j.enabled else ()
     def job():
         try:
-            worker_cli.check(worker, manager, worker_cli.wanted_models(mdl, [x.get("role") for x in load()]), say, as_user, user=rules["jail"]["user"])
+            worker_cli.check(worker, manager, worker_cli.wanted_models(mdl, [x.get("role") for x in load()]), say, as_user, user=rules["jail"]["user"],
+                             token=start_tool.token_file(work_root))
         except Exception:  # noqa: BLE001 - never a silent thread: the probe's own failure is a row
             journal.append("worker-cli", state="error", detail=traceback.format_exc()[-1500:])
     return job

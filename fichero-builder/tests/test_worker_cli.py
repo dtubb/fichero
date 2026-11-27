@@ -51,7 +51,7 @@ def test_a_revoked_sign_in_is_one_alert_and_holds_new_sessions_until_a_probe_pas
     for _ in range(2):
         worker_cli.check(worker, str(worker), {"claude-fable-5-2[1m]"}, say, user="fichero-worker")
     assert worker_cli.HELD[0] and len(alerts) == 1
-    assert alerts[0].startswith("the worker's Claude sign-in is revoked: run `sudo -u fichero-worker -H ") and "claude auth login`" in alerts[0]
+    assert alerts[0].startswith("the worker's Claude sign-in is revoked: save a `claude setup-token` to ") and "owned by fichero-worker" in alerts[0]
     fake(worker, "2.1.332")
     worker_cli.check(worker, str(worker), {"claude-fable-5-2[1m]"}, say)
     assert not worker_cli.HELD[0] and len(alerts) == 1
@@ -115,7 +115,7 @@ def test_the_loops_job_probes_the_models_of_the_real_harness_toml_and_queue_role
     job()
     assert worker_cli.HELD[0], "a revoked sign-in holds new sessions"
     alerts = [r for r in journal.read() if r.get("event") == "alert"]
-    assert len(alerts) == 1 and "sign-in is revoked" in json.dumps(alerts[0]) and f"sudo -u fichero-worker -H {worker} auth login" in json.dumps(alerts[0])
+    assert len(alerts) == 1 and "sign-in is revoked" in json.dumps(alerts[0]) and f"setup-token` to {work_root}/.claude-token" in json.dumps(alerts[0])
     assert calls.read_text().split()[0] in ("/tmp", "/private/tmp") and "--model" in calls.read_text()
 
 
@@ -123,3 +123,29 @@ def test_a_probe_that_is_neither_signed_in_nor_refused_is_a_row_never_silence(tm
     worker = fake(tmp_path / "w" / "claude", "2.1.332", say="something else went wrong", rc=1)
     worker_cli.check(worker, str(worker), {"sonnet"}, lambda *a: None)
     assert [r["state"] for r in journal.read() if r.get("event") == "worker-cli"] == ["probe-failed"]
+
+
+def test_the_probe_reads_the_workers_token_file_in_the_workers_own_shell_and_never_puts_the_token_in_argv(tmp_path, monkeypatch):
+    """owner 2026-11-27: `auth login` fails under sudo (no keychain); a setup-token in <workroot>/.claude-token, read as the worker."""
+    import subprocess as sp
+    worker = tmp_path / "w" / "bin"
+    worker.mkdir()
+    cli = worker / "claude"
+    cli.write_text('#!/bin/sh\n[ "$1" = --version ] && { echo "2.1.332 (Claude Code)"; exit 0; }\n'
+                   'if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then echo "token: set"; else echo "token: unset"; fi\n')
+    cli.chmod(0o755)
+    tok = tmp_path / "w" / ".claude-token"
+    seen = []
+    real = sp.run
+    monkeypatch.setattr(worker_cli.subprocess, "run", lambda argv, **k: seen.append(list(argv)) or real(argv, **k))
+    as_user = ("/usr/bin/env",)  # stands in for `sudo -n -H -u fichero-worker`
+    assert worker_cli.probe(cli, "sonnet", as_user, tok) == ("ok", "token: unset"), "no file: the worker's own sign-in"
+    tok.write_text("sk-ant-oat-SECRET\n")
+    tok.chmod(0o600)
+    assert worker_cli.probe(cli, "sonnet", as_user, tok) == ("ok", "token: set")
+    assert worker_cli.probe(cli, "sonnet", (), tok) == ("ok", "token: unset"), "unjailed, this process never reads it"
+    assert not any("SECRET" in " ".join(a) for a in seen) and "CLAUDE_CODE_OAUTH_TOKEN" not in __import__("os").environ
+    assert str(tok) in seen[1] and seen[1][:2] == ["/usr/bin/env", "/bin/sh"]
+    m = fake(tmp_path / "manager", "2.1.400")
+    worker_cli.sync(cli, str(m))
+    assert tok.read_text() == "sk-ant-oat-SECRET\n" and worker_cli.version(cli) == "2.1.400", "the sync replaces bin/claude only"

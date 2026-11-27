@@ -44,6 +44,12 @@ def _hook_cmd(root, worktree, scratch, bound: tuple[int, str] | None = None) -> 
     return " ".join(shlex.quote(str(x)) for x in argv)
 
 
+def token_file(workroot) -> Path | None:
+    """<workroot>/.claude-token: the worker's `claude setup-token` (owner 2026-11-27). Only its path is ever handled here; the worker's
+    own shell reads it (`export CLAUDE_CODE_OAUTH_TOKEN="$(cat <path>)"`)."""
+    return Path(workroot) / ".claude-token" if workroot else None
+
+
 def find_claude(*homes) -> str | None:
     """claude on PATH, else <home>/.local/bin/claude for each home given (sudo -u keeps HOME as the owner's, so the caller
     passes the workroot too, #6466); a dangling link is skipped."""
