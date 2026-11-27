@@ -563,7 +563,7 @@ def test_render_entry_sale_with_recipient_is_the_real_two_claim_shape_english(db
     sentences = render_entry(db, seller.id)
     assert len(sentences) == 2
     texts = [s["text"] for s in sentences]
-    assert texts == ["Marta Escobar sold the mine.", "Marta Escobar sold to Pedro Mosquera."]
+    assert texts == ["In 1780, Marta Escobar sold the mine.", "In 1780, Marta Escobar sold to Pedro Mosquera."]
     assert " and to " not in " ".join(texts)
     assert {s["claim_ids"][0] for s in sentences} == {patient.id, recipient.id}
 
@@ -592,7 +592,7 @@ def test_render_entry_sale_with_recipient_is_the_real_two_claim_shape_spanish(db
     sentences = render_entry(db, seller.id)
     assert len(sentences) == 2
     texts = [s["text"] for s in sentences]
-    assert texts == ["Marta Escobar vendió la mina.", "Marta Escobar vendió a Pedro Mosquera."]
+    assert texts == ["En 1780, Marta Escobar vendió la mina.", "En 1780, Marta Escobar vendió a Pedro Mosquera."]
     assert " y a " not in " ".join(texts)
     assert {s["claim_ids"][0] for s in sentences} == {patient.id, recipient.id}
 

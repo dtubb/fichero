@@ -99,7 +99,7 @@ def test_a_joined_sentence_makes_the_contraction_once_at_the_verb():
     claims = [_claim("c1", "habló de", "el rey", time_start="1731-01-01"),
               _claim("c2", "habló de", "el mercado", time_start="1732-01-01")]
     texts, sentences = _read(claims)
-    assert texts == ["Inés Valcárcel habló del rey y el mercado."]
+    assert texts == ["Inés Valcárcel habló del rey (en 1731) y el mercado (en 1732)."]
     assert [g["origin"] for g in sentences[0]["segments"]][:4] == [
         "claim:c1:svo_subject", "claim:c1:svo_verb", "table:es:de el", "claim:c1:svo_object"]
 
