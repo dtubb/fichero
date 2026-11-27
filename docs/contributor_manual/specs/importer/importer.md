@@ -574,7 +574,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
 
 ### Originals are missing (#7077, #5672)
 
-- **Opener.** The alert opens on the project window once per project open, after the remembered folder has been tried. File ▸ Locate Originals… and an item's menu open the Locate Originals sheet at any time; the Items pane keeps showing its count.
+- **Opener.** The alert opens on the project window once per project open, after the remembered folder has been tried. File ▸ Locate Originals… and an item's menu open the Locate Originals sheet at any time.
 - **What it shows.** Title "Originals are missing", the engine's one sentence naming how many pages, and two buttons: "Locate…" (opens the sheet) and "Not Now" (closes it; not asked again this open). No strip or banner is drawn above the rows.
 - **Empty.** No missing originals: no alert, nothing to dismiss.
 - **Loading.** Until the missing count has been read, nothing is offered; the alert never shows a guess.
