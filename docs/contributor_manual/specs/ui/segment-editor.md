@@ -646,7 +646,7 @@ See section 7.2 below for what exists. The design:
   into words at all and says why. *Built (2026-11-13):* `line_cut.cuts_from_ink_gaps` (the profile
   along the chord of the baseline, gaps a seventh of the line's height, confidence at most 0.4);
   a line with too few gaps is left alone and named. *Tests:* `fichero-server/tests/unit/api/test_segment_cut_words.py::TestFallback`.
-- `segment-editor.cut-records-source-and-confidence` — **[PARTIAL]** (→ #5212; engine) every word and character made by a cut
+- `segment-editor.cut-records-source-and-confidence` — **[OK]** (→ #5212; engine) every word and character made by a cut
   carries `cut_source` (`ctc`, `ink-gap`, `person`), `cut_confidence` (0 to 1; the recogniser's
   character confidence at the cut for `ctc`, the gap measure for `ink-gap`, 1 for `person`) and
   the reading it was cut from, in the segment's metadata, so a later pass, the Check lens and an
@@ -657,7 +657,7 @@ See section 7.2 below for what exists. The design:
   *Built 2026-11-21:* the engine for a cut a person adds: `segment.split` with a `cut_path` across a word marks both
   pieces `cut_source: person` with confidence 1 and the reading they were cut from
   (`test_segment_move_cut.py::test_a_cut_added_inside_a_word_splits_its_stretch_of_the_reading_at_the_nearest_character`).
-  *Not built:* the app's click that sends it. Needs an on-screen check.
+  *Left to `segment-editor.cut-marks-editable` (its "click that adds a cut"):* the app's click that sends it.
   *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`,
   `fichero-server/tests/unit/api/test_segment_move_cut.py`.
 - `segment-editor.cut-marks-editable` — **[PARTIAL]** (→ #5212; app + engine) in the word layer each cut is a short mark
