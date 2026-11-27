@@ -160,3 +160,26 @@ def test_a_real_entry_links_one_known_place_and_not_a_shared_name(db):
     sentences = render_entry_with_mentions(db, PAGE)[0]
     assert {s["clauses"][0]["place"]["label"]: s["clauses"][0]["place"]["entity_id"] for s in sentences} == {
         "Quito": "ent-quito", "Lima": None}
+
+
+def _place_segment(sentence, words):
+    return [g for g in sentence["segments"] if g["start"] == sentence["text"].index(words)]
+
+
+def test_a_place_not_every_statement_shares_follows_its_own_object():
+    sentence = _read([
+        _claim("c1", "sold", "a horse", claim_location="Quito"),
+        _claim("c2", "sold", "an ox"),
+    ])[0]
+    assert sentence["text"] == "Inés Valcárcel sold a horse in Quito and an ox."
+    assert [g["claim_ids"] for g in _place_segment(sentence, "in Quito")] == [["c1"]]
+    assert [c["place"] and c["place"]["label"] for c in sentence["clauses"]] == ["Quito", None]
+
+
+def test_two_places_each_follow_their_own_object():
+    sentence = _read([
+        _claim("c1", "sold", "a horse", claim_location="Quito"),
+        _claim("c2", "sold", "an ox", claim_location="Lima"),
+    ])[0]
+    assert sentence["text"] == "Inés Valcárcel sold a horse in Quito and an ox in Lima."
+    assert [g["claim_ids"] for g in _place_segment(sentence, "in Lima")] == [["c2"]]

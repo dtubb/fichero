@@ -724,7 +724,8 @@ def _merged_pieces(
 ) -> tuple[list[tuple[str, str, list[str]]], list[tuple[int, list[KnowledgeClaim], int]]] | None:
     """The pieces of a merged sentence as `_render_group_sentence` joins them, and (index of the object
     piece, claims, index of the last piece of the object) per distinct object, whose date, when it has
-    one, follows it in brackets; None when the group has no complete statement."""
+    one, follows it in brackets; None when the group has no complete statement. A place every statement
+    has is said once at the end; otherwise each object's own places follow it, before its date."""
     ids = list(agg.claim_ids)
     first = group_claims[0]
     lang = agg.language if agg.language in _TABLES else "en"
@@ -739,6 +740,9 @@ def _merged_pieces(
     if len(pieces) + bool(objects) < 2:
         return None
     marks: list[tuple[int, list[KnowledgeClaim], int]] = []
+    # a place every statement shares is said once at the end; otherwise each object is followed by its own
+    texts = {(_claim_place(c, lang) or {}).get("text") for c in group_claims}
+    one_place = len(texts) == 1 and None not in texts
     for i, (obj, members) in enumerate(objects):
         if agg.verb:
             verb, contraction, shown, key = _seam(agg.verb, obj, lang, contract=i == 0)
@@ -753,24 +757,34 @@ def _merged_pieces(
             pieces.append((",", "punctuation", ids))
         pieces.append((shown, f"claim:{members[0].id}:{_role_field(members[0], 'object')}", [m.id for m in members]))
         at = len(pieces) - 1
+        if not one_place:
+            pieces.extend(_place_pieces(members, lang, ids))
         date = _claim_date(members[0], lang)
         if date:
             pieces.append((f"({date['text']})", _date_origin(members[0]), [m.id for m in members]))
         marks.append((at, members, len(pieces) - 1))
+    if one_place:
+        pieces.extend(_place_pieces(group_claims, lang, ids))
+    if not pieces[-1][0].endswith((".", "!", "?")):
+        pieces.append((".", "punctuation", ids))
+    return pieces, marks
+
+
+def _place_pieces(claims: list[KnowledgeClaim], lang: str, ids: list[str]) -> list[tuple[str, str, list[str]]]:
+    """Each distinct place of `claims`, once, joined by the table's list words; its piece names every claim that has it."""
     shared: dict[str, tuple[str, list[KnowledgeClaim]]] = {}
-    for c in group_claims:
+    for c in claims:
         place = _claim_place(c, lang)
         if place:
             shared.setdefault(place["text"], (place["origin"], []))[1].append(c)
+    pieces: list[tuple[str, str, list[str]]] = []
     for i, (text, (origin, members)) in enumerate(shared.items()):
         if i and i == len(shared) - 1:
             pieces.append((_TABLES[lang]["and"], f"table:{lang}:and", ids))
         elif i:
             pieces.append((",", "punctuation", ids))
         pieces.append((text, origin, [m.id for m in members]))
-    if not pieces[-1][0].endswith((".", "!", "?")):
-        pieces.append((".", "punctuation", ids))
-    return pieces, marks
+    return pieces
 
 
 def _trace_group_sentence(
