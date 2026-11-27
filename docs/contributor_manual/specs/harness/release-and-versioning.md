@@ -116,7 +116,14 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
   preflight builds the iOS scheme for `generic/platform=iOS` with signing off, and refuses with
   the compiler's `error:` lines if it fails, before the engine or any DMG is built. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.upload-watchdog-continues` — **[OK]** each TestFlight export/upload runs under a
-  watchdog: no output for `FICHERO_UPLOAD_IDLE_MINUTES` (default 30) kills it. A failed or
+  watchdog: no output for `FICHERO_UPLOAD_IDLE_MINUTES` (default 30), with no busy child (productbuild, altool,
+  iTMSTransporter, xcodebuild and the like in its process group: 2026-11-27, a silent ~36-minute productbuild was killed),
+  kills it; `FICHERO_UPLOAD_HARD_MINUTES` (default 120) ends it whatever it does (Test:
+  `fichero-server/tests/unit/scripts/test_release_guard.py::test_watchdog_counts_a_silent_busy_child_as_activity_until_the_hard_ceiling`).
+  While an export runs it prints one progress line a minute to its log and the console (owner 2026-11-27), naming the busy
+  child, the minutes and the size of the newest package written under the export dir or its temp, e.g. `mac-export 14m:
+  productbuild running, Fichero.pkg 640 MB so far`; a line counts as activity only when it shows a busy child or a growing
+  package (Test: `fichero-server/tests/unit/scripts/test_release_guard.py::test_watchdog_prints_a_progress_line_a_minute_naming_the_busy_child_and_the_package_size`). A failed or
   killed TestFlight part is marked FAILED and the run goes on to the remaining parts (the other
   TestFlight, then the publish if requested); the run still exits non-zero. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.asc-key-materialised` — **[OK]** the preflight refuses an App Store Connect

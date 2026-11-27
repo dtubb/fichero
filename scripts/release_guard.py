@@ -186,9 +186,70 @@ def ios_preflight(project: str, scheme: str, config: str, tier: str, *, run=Run)
 
 
 # ── 4. watchdog ──────────────────────────────────────────────────────────────
-def watchdog(cmd: list[str], idle_seconds: float, log: Path | None = None, *, poll: float = 1.0) -> int:
+# 2026-11-27: the Mac App Store export's productbuild works ~36 min with no output (a 1.1 GB signed pkg) and the 30-min idle
+# watchdog killed it. A live child doing the export's work counts as activity; a hard ceiling still ends a hung one.
+BUSY_CHILDREN = ("productbuild", "altool", "iTMSTransporter", "xcodebuild", "pkgbuild", "codesign", "ditto", "productsign")
+
+
+def _busy_child(pgid: int, leader: int) -> str:
+    """The name of a live process of CMD's process group (other than CMD itself) that is doing the export's work, or ''."""
+    r = subprocess.run(["ps", "-ax", "-o", "pid=,pgid=,comm="], capture_output=True, text=True)
+    for line in r.stdout.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) == 3 and parts[1] == str(pgid) and parts[0] != str(leader) and Path(parts[2]).name in BUSY_CHILDREN:
+            return Path(parts[2]).name
+    return ""
+
+
+def _newest_package(dirs, since: float, depth: int = 5) -> Path | None:
+    """The newest .pkg or .ipa written since `since` under `dirs` (the export dir, its temp), at most `depth` levels down."""
+    best = None
+    for d in dirs:
+        root = Path(d)
+        if not root.is_dir():
+            continue
+        for cur, subdirs, files in os.walk(root):
+            if len(Path(cur).relative_to(root).parts) >= depth:
+                subdirs[:] = []
+            # only the dirs written since the export began: $TMPDIR holds years of others, and a walk of it all hung the line
+            subdirs[:] = [s for s in subdirs if _mtime(Path(cur) / s) >= since]
+            for f in files:
+                if f.endswith((".pkg", ".ipa")):
+                    p = Path(cur) / f
+                    try:
+                        m = p.stat().st_mtime
+                    except OSError:
+                        continue
+                    if m >= since and (best is None or m > best[0]):
+                        best = (m, p)
+    return best[1] if best else None
+
+
+def _mtime(p: Path) -> float:
+    try:
+        return p.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def progress_line(label: str, elapsed_s: float, child: str, pkg: Path | None) -> str:
+    """The minute line the owner asked for (2026-11-27): "mac-export 14m: productbuild running, Fichero.pkg 640 MB so far"."""
+    try:
+        size = f", {pkg.name} {pkg.stat().st_size // 1_000_000} MB so far" if pkg else ", no package written yet"
+    except OSError:
+        size = ", no package written yet"
+    return f"{label} {int(elapsed_s // 60)}m: {f'{child} running' if child else 'no busy child'}{size}"
+
+
+def watchdog(cmd: list[str], idle_seconds: float, log: Path | None = None, *, poll: float = 1.0,
+             hard_seconds: float | None = None, label: str = "", watch: tuple = (), progress_seconds: float = 60.0) -> int:
     """Run CMD, echoing its output; kill its process group after IDLE_SECONDS
-    with no output. Returns CMD's exit code, or 124 when it was killed."""
+    with no output and no busy child (BUSY_CHILDREN), or after HARD_SECONDS
+    whatever it does. Returns CMD's exit code, or 124 when it was killed."""
+    hard = hard_seconds if hard_seconds is not None else 60 * float(os.environ.get("FICHERO_UPLOAD_HARD_MINUTES", "120"))
+    t0, wall0 = time.monotonic(), time.time()
+    dirs = (*watch, os.environ.get("TMPDIR") or "/tmp") if label else ()
+    next_line, last_size = [t0 + progress_seconds], [-1]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
     out = proc.stdout
     assert out is not None
@@ -208,8 +269,25 @@ def watchdog(cmd: list[str], idle_seconds: float, log: Path | None = None, *, po
     reader.start()
     try:
         while proc.poll() is None:
-            if time.monotonic() - last[0] > idle_seconds:
-                print(f"\nwatchdog: no output for {idle_seconds:g} s; killing {cmd[0]}", file=sys.stderr)
+            if label and time.monotonic() >= next_line[0]:  # one line a minute while it runs: what is at work, how far the package is
+                next_line[0] += progress_seconds
+                child, pkg = _busy_child(proc.pid, proc.pid), _newest_package(dirs, wall0)
+                size = pkg.stat().st_size if pkg and pkg.exists() else -1
+                line = (progress_line(label, time.monotonic() - t0, child, pkg) + "\n").encode()
+                sys.stdout.buffer.write(line)
+                sys.stdout.flush()
+                if sink:
+                    sink.write(line)
+                    sink.flush()
+                if child or size > last_size[0] >= 0 or (size >= 0 > last_size[0]):  # work seen: activity; a line alone never is
+                    last[0] = time.monotonic()
+                last_size[0] = size
+            over = time.monotonic() - t0 > hard
+            if not over and time.monotonic() - last[0] > idle_seconds and _busy_child(proc.pid, proc.pid):
+                last[0] = time.monotonic()  # silent, but a child is at work: not idle
+            if over or time.monotonic() - last[0] > idle_seconds:
+                print(f"\nwatchdog: {f'past the hard ceiling of {hard:g} s' if over else f'no output and no busy child for {idle_seconds:g} s'}; "
+                      f"killing {cmd[0]}", file=sys.stderr)
                 try:
                     os.killpg(proc.pid, signal.SIGTERM)
                     proc.wait(timeout=20)
@@ -600,6 +678,8 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--idle-seconds", type=float,
                    default=60 * float(os.environ.get("FICHERO_UPLOAD_IDLE_MINUTES", "30")))
     w.add_argument("--log", type=Path)
+    w.add_argument("--label", default="", help="a progress line a minute under this name (mac-export)")
+    w.add_argument("--watch", action="append", default=[], help="a dir where the package is written (repeat)")
     w.add_argument("command", nargs=argparse.REMAINDER)
     s = sub.add_parser("smoke")
     s.add_argument("dmg", type=Path)
@@ -649,7 +729,7 @@ def main(argv: list[str] | None = None) -> int:
         ok, msg = ios_preflight(a.project, a.scheme, a.config, a.tier)
     elif a.cmd == "watchdog":
         cmd = a.command[1:] if a.command[:1] == ["--"] else a.command
-        return watchdog(cmd, a.idle_seconds, a.log)
+        return watchdog(cmd, a.idle_seconds, a.log, label=a.label, watch=tuple(a.watch))
     elif a.cmd == "smoke":
         problems = smoke(a.dmg, a.version, a.build)
         ok = not problems

@@ -142,6 +142,45 @@ def test_watchdog_passes_through_a_chatty_command():
     assert rc == 3
 
 
+def test_watchdog_counts_a_silent_busy_child_as_activity_until_the_hard_ceiling(tmp_path):
+    """2026-11-27: the Mac App Store export's productbuild worked ~36 min with no output and the 30-min idle watchdog killed it."""
+    import os
+    child = tmp_path / "productbuild"
+    os.symlink("/bin/sleep", child)  # a silent child whose name is the export's work
+    cmd = ["/bin/sh", "-c", f"echo exporting; {child} 4; echo done"]
+    start = time.monotonic()
+    assert rg.watchdog(cmd, idle_seconds=1.0, poll=0.2) == 0 and time.monotonic() - start >= 3.5, "silent, not idle: it finished"
+    assert rg.watchdog(cmd, idle_seconds=1.0, poll=0.2, hard_seconds=2.0) == 124, "the hard ceiling ends it whatever it does"
+    other = tmp_path / "napper"
+    os.symlink("/bin/sleep", other)
+    assert rg.watchdog(["/bin/sh", "-c", f"echo x; {other} 30"], idle_seconds=1.0, poll=0.2) == 124, "an idle child of another name is idle"
+
+
+def test_watchdog_prints_a_progress_line_a_minute_naming_the_busy_child_and_the_package_size(tmp_path, capsys):
+    """Owner 2026-11-27: the Mac App Store export should print progress, not sit silent: `mac-export 14m: productbuild running,
+    Fichero.pkg 640 MB so far`, to the console and the log."""
+    import os
+    child = tmp_path / "productbuild"
+    os.symlink("/bin/sleep", child)
+    export = tmp_path / "export"
+    export.mkdir()
+    pkg = export / "Fichero.pkg"
+    cmd = ["/bin/sh", "-c", f"head -c 3000000 /dev/zero > {pkg}; {child} 3"]
+    log = tmp_path / "mac-export.log"
+    assert rg.watchdog(cmd, idle_seconds=1.0, log=log, poll=0.1, label="mac-export", watch=(str(export),), progress_seconds=1.0) == 0
+    lines = [ln for ln in log.read_text().splitlines() if ln.startswith("mac-export ")]
+    assert lines and lines[0] == "mac-export 0m: productbuild running, Fichero.pkg 3 MB so far", lines
+    assert "mac-export 0m: productbuild running" in capsys.readouterr().out
+    assert rg.progress_line("mac-export", 14 * 60 + 5, "", None) == "mac-export 14m: no busy child, no package written yet"
+
+
+def test_release_all_names_each_export_for_its_progress_lines():
+    r = _script("release-all.sh")
+    assert 'guard watchdog --log "$log" --label "$label" --watch "$dir" -- "$@"' in r
+    assert 'upload_with_watchdog "$RELEASE_DIR/mac-export.log" mac-export "$MAC_EXPORT_DIR" xcodebuild -exportArchive' in r
+    assert 'upload_with_watchdog "$RELEASE_DIR/ios-export.log" ios-export "$IOS_EXPORT_DIR" xcodebuild -exportArchive' in r
+
+
 # 5. ASC key evicted to an iCloud dataless placeholder
 def test_dataless_key_is_read_once_to_download(tmp_path):
     key = tmp_path / "AuthKey.p8"
@@ -647,7 +686,8 @@ def test_docs_download_links_name_fichero_dmg_and_the_one_dmg_text_calls_it_the_
 
 def test_release_all_builds_only_the_dev_dmg_and_public_only_changes_how_it_is_published():
     """release-channels-and-feature-tiers (owner 2026-11-17): one dev DMG is built; no flag publishes it as a dev-channel
-    pre-release with no site; --public publishes the same DMG as the public item (Latest, appcast, site)."""
+    pre-release; --public publishes the same DMG as the public item (Latest, appcast). Both deploy the site (owner 2026-11-27, #7099:
+    tubb.ca/apps/fichero kept naming 2026.11.24 after 11.26 and 11.27 shipped)."""
     r, c, p = _script("release-all.sh"), _script("create-github-release.sh"), _script("publish-release.sh")
     tiers = r[r.index("# DMG tiers for this run"):]
     tiers = tiers[:tiers.index("\nfi\n")]
@@ -656,7 +696,7 @@ def test_release_all_builds_only_the_dev_dmg_and_public_only_changes_how_it_is_p
     publish = r[r.index("publish_part() {"):]
     public, dev = publish.split("  else\n", 1)
     assert "export FICHERO_RELEASE_PUBLIC=1" in public and "unset FICHERO_RELEASE_CHANNEL" in public
-    assert "export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1" in dev and 'GITHUB_ARGS+=("--prerelease")' in dev
+    assert "export FICHERO_RELEASE_CHANNEL=dev\n" in dev and "FICHERO_SKIP_SITE=1" not in dev.split("fi\n", 1)[0] and 'GITHUB_ARGS+=("--prerelease")' in dev
     assert '"${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ]' in c, "a public run keeps the dev DMG public"
     assert "--github \"$@\"" in p, "publish-release.sh passes --public on"
 

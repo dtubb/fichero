@@ -651,11 +651,12 @@ run_part() {
     mark "$name" FAILED "$(cat "$PART_REASON" 2>/dev/null || echo "exit $rc; see the log above")"
   fi
 }
-# upload_with_watchdog LOG CMD...: kill an export/upload whose output stops
+# upload_with_watchdog LOG LABEL DIR CMD...: kill an export/upload whose output stops; a progress line a minute names the
+# busy child and the package's size under DIR (owner 2026-11-27: the export should not sit silent)
 # (Apple's productutil sat at "Preparing to upload 0%" > 45 min, 2026-11-13/14).
 upload_with_watchdog() {
-  local log="$1" rc=0; shift
-  guard watchdog --log "$log" -- "$@" || rc=$?
+  local log="$1" label="$2" dir="$3" rc=0; shift 3
+  guard watchdog --log "$log" --label "$label" --watch "$dir" -- "$@" || rc=$?
   if [ "$rc" -eq 124 ]; then
     fail_part "export/upload stalled: no output for ${FICHERO_UPLOAD_IDLE_MINUTES:-30} min, killed (log: $log)"
   fi
@@ -818,7 +819,7 @@ PLIST
 
   rm -rf "$MAC_EXPORT_DIR"
   need_disk "the Mac export" || fail_part "not enough disk for the Mac export"
-  if ! upload_with_watchdog "$RELEASE_DIR/mac-export.log" xcodebuild -exportArchive \
+  if ! upload_with_watchdog "$RELEASE_DIR/mac-export.log" mac-export "$MAC_EXPORT_DIR" xcodebuild -exportArchive \
     -archivePath "$MAC_ARCHIVE_PATH" \
     -exportPath "$MAC_EXPORT_DIR" \
     -exportOptionsPlist "$MAC_EXPORT_OPTIONS" \
@@ -974,7 +975,7 @@ PLIST
 
   rm -rf "$IOS_EXPORT_DIR"
   need_disk "the iOS export" || fail_part "not enough disk for the iOS export"
-  if ! upload_with_watchdog "$RELEASE_DIR/ios-export.log" xcodebuild -exportArchive \
+  if ! upload_with_watchdog "$RELEASE_DIR/ios-export.log" ios-export "$IOS_EXPORT_DIR" xcodebuild -exportArchive \
     -archivePath "$IOS_ARCHIVE_PATH" \
     -exportPath "$IOS_EXPORT_DIR" \
     -exportOptionsPlist "$IOS_EXPORT_OPTIONS" \
