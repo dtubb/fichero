@@ -6,7 +6,7 @@ import Foundation
 /// its incoming edges only when it has none (`workflows/builder.py`, the
 /// auto-wire branch). So an edge removed without its mapping still feeds the
 /// node at run, and one mapped edge stops the node's unmapped edges from being
-/// wired. Every canvas edit that removes an edge or a node goes through here.
+/// wired. Every canvas edit that adds or removes an edge goes through here.
 extension Workflow {
     /// The source path an edge from this output port writes into a mapping.
     static func mappingPath(sourceNodeId: String, sourcePortId: String) -> String {
@@ -15,6 +15,39 @@ extension Workflow {
 
     func node(withId id: String) -> WorkflowNode? {
         nodes.first { $0.id == id }
+    }
+
+    /// Adds an edge and the mapping that makes the engine read it. Returns
+    /// false, changing nothing, when either node is gone or the same edge
+    /// (same nodes, same ports) is already there.
+    @discardableResult
+    mutating func connect(
+        sourceNodeId: String,
+        sourcePortId: String,
+        targetNodeId: String,
+        targetPortId: String
+    ) -> Bool {
+        guard nodes.contains(where: { $0.id == sourceNodeId }),
+              let targetIndex = nodes.firstIndex(where: { $0.id == targetNodeId }) else { return false }
+        let alreadyConnected = edges.contains {
+            $0.sourceNodeId == sourceNodeId && $0.sourcePortId == sourcePortId
+                && $0.targetNodeId == targetNodeId && $0.targetPortId == targetPortId
+        }
+        guard !alreadyConnected else { return false }
+
+        edges.append(WorkflowEdge(
+            sourceNodeId: sourceNodeId,
+            targetNodeId: targetNodeId,
+            sourcePortId: sourcePortId,
+            targetPortId: targetPortId
+        ))
+        let mapping = InputMapping(
+            portId: targetPortId,
+            sourcePath: Self.mappingPath(sourceNodeId: sourceNodeId, sourcePortId: sourcePortId)
+        )
+        nodes[targetIndex].inputMappings.removeAll { $0.portId == targetPortId }
+        nodes[targetIndex].inputMappings.append(mapping)
+        return true
     }
 
     /// Removes an edge and the mapping that read it. A mapping on the same

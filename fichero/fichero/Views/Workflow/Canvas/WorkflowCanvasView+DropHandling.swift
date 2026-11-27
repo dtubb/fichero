@@ -111,17 +111,18 @@ extension WorkflowCanvasView {
 
             workflow.nodes.append(node)
 
-            // Auto-connect: if there's a selected node with output ports, connect to new node's input
+            // Auto-connect: if there's a selected node with output ports, connect to new node's input.
+            // Same edge-and-mapping as a drawn connection; a source deleted while the defaults
+            // loaded is refused.
             if let source = sourceNode,
                let outputPort = source.outputPorts.first,
                let inputPort = node.inputPorts.first {
-                let newEdge = WorkflowEdge(
+                workflow.connect(
                     sourceNodeId: source.id,
-                    targetNodeId: node.id,
                     sourcePortId: outputPort.id,
+                    targetNodeId: node.id,
                     targetPortId: inputPort.id
                 )
-                workflow.edges.append(newEdge)
             }
 
             selectedNodeIds = [node.id]

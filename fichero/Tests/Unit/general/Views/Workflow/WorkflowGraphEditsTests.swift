@@ -7,7 +7,8 @@ import XCTest
 /// its incoming edges only when it has none (`workflows/builder.py`, the
 /// auto-wire branch). An edge removed without its mapping therefore still
 /// feeds the node at run, and stops the node's other edges from being wired.
-/// spec: workflows `workflows.canvas.edit-keeps-mappings-with-edges`.
+/// spec: workflows `workflows.canvas.edit-keeps-mappings-with-edges`,
+/// `workflows.canvas.one-edge-per-port-pair`.
 final class WorkflowGraphEditsTests: XCTestCase {
 
     private func node(_ id: String, mappings: [InputMapping] = []) -> WorkflowNode {
@@ -25,6 +26,44 @@ final class WorkflowGraphEditsTests: XCTestCase {
             id: id, sourceNodeId: source, targetNodeId: target,
             sourcePortId: sourcePort, targetPortId: targetPort
         )
+    }
+
+    // MARK: - Connecting
+
+    func testConnectAddsTheEdgeAndItsMapping() {
+        var workflow = Workflow(name: "w", nodes: [node("a"), node("b")])
+
+        let added = workflow.connect(
+            sourceNodeId: "a", sourcePortId: "text", targetNodeId: "b", targetPortId: "files"
+        )
+
+        XCTAssertTrue(added)
+        XCTAssertEqual(workflow.edges.count, 1)
+        XCTAssertEqual(workflow.node(withId: "b")?.inputMappings, [mapping("files", from: "a", "text")])
+    }
+
+    func testConnectingTheSamePortsTwiceAddsOneEdge() {
+        var workflow = Workflow(name: "w", nodes: [node("a"), node("b")])
+        workflow.connect(sourceNodeId: "a", sourcePortId: "text", targetNodeId: "b", targetPortId: "files")
+
+        let addedAgain = workflow.connect(
+            sourceNodeId: "a", sourcePortId: "text", targetNodeId: "b", targetPortId: "files"
+        )
+
+        XCTAssertFalse(addedAgain)
+        XCTAssertEqual(workflow.edges.count, 1)
+    }
+
+    func testConnectRefusesANodeThatIsGone() {
+        var workflow = Workflow(name: "w", nodes: [node("b")])
+
+        let added = workflow.connect(
+            sourceNodeId: "gone", sourcePortId: "text", targetNodeId: "b", targetPortId: "files"
+        )
+
+        XCTAssertFalse(added)
+        XCTAssertTrue(workflow.edges.isEmpty)
+        XCTAssertEqual(workflow.node(withId: "b")?.inputMappings, [])
     }
 
     // MARK: - Removing an edge
