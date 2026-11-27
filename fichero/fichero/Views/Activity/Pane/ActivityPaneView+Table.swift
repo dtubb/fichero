@@ -86,7 +86,16 @@ extension ActivityPaneView {
             ForEach(shown) { row in
                 if let children = row.children, !children.isEmpty {
                     DisclosureTableRow(row, isExpanded: expanded(row.id)) {
-                        ForEach(children) { TableRow($0) }
+                        ForEach(children) { child in
+                            // A multi-page file opens to its pages: the one further level (`activity.pane.one-outline-table`).
+                            if let pages = child.children, !pages.isEmpty {
+                                DisclosureTableRow(child, isExpanded: expanded(child.id)) {
+                                    ForEach(pages) { TableRow($0) }
+                                }
+                            } else {
+                                TableRow(child)
+                            }
+                        }
                     }
                 } else {
                     TableRow(row)

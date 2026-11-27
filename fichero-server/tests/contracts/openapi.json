@@ -78250,6 +78250,16 @@
             "nullable": true,
             "title": "Display Name"
           },
+          "file_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Id"
+          },
+          "file_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Name"
+          },
           "model": {
             "type": "string",
             "nullable": true,

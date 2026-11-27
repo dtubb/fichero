@@ -715,6 +715,10 @@ class JobTree(BaseModel):
     # its id; null for a run or a step, and for work on no file.
     document_id: Optional[str] = None
     display_name: Optional[str] = None
+    # The multi-page file a page is a page of, and its name (#6441): the pane lists that file once, its pages under it;
+    # null for a run, a step, and a page whose document is a file of its own.
+    file_id: Optional[str] = None
+    file_name: Optional[str] = None
     model: Optional[str] = None
     state: str
     reason: Optional[str] = None

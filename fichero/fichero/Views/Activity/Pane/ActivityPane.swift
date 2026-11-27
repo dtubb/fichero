@@ -196,21 +196,6 @@ enum ActivityPane {
         }
     }
 
-    /// A run's FILES: one row per distinct document among the page nodes of its tree, in the tree's order; its state the
-    /// worst of its pages', its counts its pages; nil when the tree names no document (no disclosure).
-    static func files(of row: ActivityMonitorRow) -> [ActivityMonitorRow]? {
-        var order: [String] = []
-        var pages: [String: [ActivityMonitorRow]] = [:]
-        for page in leaves(of: row) {
-            guard let documentId = page.documentId else { continue }
-            if pages[documentId] == nil { order.append(documentId) }
-            pages[documentId, default: []].append(page)
-        }
-        guard !order.isEmpty else { return nil }
-        return order.map { documentId in fileRow(id: "\(row.id)|file:\(documentId)", documentId: documentId,
-                                                  pages: pages[documentId] ?? [], parent: row) }
-    }
-
     /// The selection carried across a Group by switch (`activity.pane.group-by-run-or-by-file`): a file stays selected as
     /// that file (by File, its row; by Run, its row under the first run that read it); a run row has no file to be, so it
     /// stays only where its id is listed. `rows` is the new grouping's outline.
@@ -246,26 +231,6 @@ enum ActivityPane {
                                                     .done, .notRun, .unknown]
         return severity.first(where: phases.contains) ?? .unknown
     }
-
-    private static func fileRow(id: String, documentId: String, pages: [ActivityMonitorRow],
-                                parent: ActivityMonitorRow) -> ActivityMonitorRow {
-        let first = pages.first
-        var row = ActivityMonitorRow(
-            id: id, kind: .page, libraryId: parent.libraryId, runRowID: parent.runRowID, runThreadId: parent.runThreadId,
-            jobId: first?.jobId, name: first?.name ?? documentId, projectName: nil,
-            phase: worst(pages.map(\.phase)), reason: pages.first { $0.phase == .failed }?.reason, workingOn: nil,
-            done: pages.filter { $0.phase == .done }.count, total: pages.count,
-            started: pages.compactMap(\.started).min(), seconds: sum(pages.compactMap(\.seconds)),
-            costUsd: sum(pages.compactMap(\.costUsd)), tokens: pages.map(\.tokens).reduce(0, +),
-            errors: pages.filter { $0.phase == .failed }.count, model: first?.model, isLive: false, children: nil
-        )
-        row.documentId = documentId
-        row.engineKind = first?.engineKind
-        row.ended = pages.compactMap(\.ended).max()
-        return row
-    }
-
-    private static func sum(_ values: [Double]) -> Double? { values.isEmpty ? nil : values.reduce(0, +) }
 
     // MARK: - Group by File
 

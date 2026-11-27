@@ -34,6 +34,36 @@ struct ActivityPaneOutlineTests {
         #expect(!files.contains { $0.kind == .step })
     }
 
+    @Test("a run over three documents opens to three file rows; a register's pages are one file row that opens to its pages")
+    func aMultiPageFileIsOneRowOverItsPages() throws {
+        var lost = Fix.page("read-r2", .failed, doc: "r2", of: "register", named: "register.pdf")
+        lost.reason = "no lines found"
+        let pages = [Fix.page("seg-r1", .done, doc: "r1", of: "register", named: "register.pdf"),
+                     Fix.page("seg-r2", .done, doc: "r2", of: "register", named: "register.pdf"),
+                     Fix.page("read-r1", .done, doc: "r1", of: "register", named: "register.pdf"), lost,
+                     Fix.page("read-r3", .running, doc: "r3", of: "register", named: "register.pdf")]
+        let singles = [Fix.page("read-a", .done, doc: "a"), Fix.page("read-b", .done, doc: "b"), Fix.page("read-c", .done, doc: "c")]
+        let run = Fix.row("recipe", .running, kind: .run, name: "Registers", children: [
+            Fix.row("read", .running, kind: .step, name: "Read", children: singles + pages)
+        ])
+
+        let files = try #require(ActivityPane.outline([run]).first?.children)
+
+        #expect(files.map(\.documentId) == ["a", "b", "c", "register"], "three documents, then the register once")
+        #expect(files.prefix(3).allSatisfy { $0.children == nil }, "a document of one page has no further disclosure")
+        let register = try #require(files.last)
+        #expect(register.name == "register.pdf" && register.id == "recipe|file:register")
+        #expect(register.done == 1 && register.total == 3, "its count is its pages, not their runs")
+        #expect(register.phase == .failed, "the failure shows over the page still running")
+        let under = try #require(register.children)
+        #expect(under.map(\.documentId) == ["r1", "r2", "r3"], "one row per page, in the tree's order")
+        #expect(under.map(\.phase) == [.done, .failed, .running] && under.allSatisfy { $0.kind == .page && $0.children == nil })
+        #expect(under[1].reason == "no lines found", "the failed page's reason reads on its row")
+        var shown = run
+        shown.children = files
+        #expect(ActivityPane.row("recipe|file:register|page:r2", in: [shown])?.documentId == "r2", "a page row is found by its id")
+    }
+
     /// `activity.pane.children-are-what-it-works-on` (#6599): a job of its own opens to the files in flight, by name.
     @Test("a thumbnails queue with two pages in flight opens to those two files by name; none in flight, no disclosure")
     func queueOpensToItsFilesInFlight() throws {

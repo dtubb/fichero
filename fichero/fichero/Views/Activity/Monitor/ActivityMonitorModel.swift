@@ -77,6 +77,10 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var isArchived = false
     /// The page's document, on a page row of a run's tree: what a FILE row groups by (`activity.pane.one-outline-table`).
     var documentId: String?
+    /// The multi-page file a page row is a page of, and its name: the file row its pages sit under; nil for a page whose
+    /// document is a file of its own.
+    var fileId: String?
+    var fileName: String?
     /// The engine's estimate of what is left to spend, while it runs (`activity.pane.cost-per-row-and-totals`).
     var costEstimateUsd: Double?
     /// Where it runs and its lane, the engine's words for the Where tab (#6588).

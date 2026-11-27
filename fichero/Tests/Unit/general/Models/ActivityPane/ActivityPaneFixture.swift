@@ -27,6 +27,14 @@ enum ActivityPaneFixture {
         row(id, phase, kind: .page, name: "Page \(doc)", model: model, documentId: doc)
     }
 
+    /// A page of the multi-page file `file` (the engine's `file_id`, `file_name`).
+    static func page(_ id: String, _ phase: Row.Phase, doc: String, of file: String, named fileName: String) -> Row {
+        var row = page(id, phase, doc: doc)
+        row.fileId = file
+        row.fileName = fileName
+        return row
+    }
+
     static let day = Date(timeIntervalSince1970: 1_800_000_000)
 
     /// "Letters": Segment over p1 and p2, then Read with Kraken (p2 failed), then Read again with Qwen (both done).
