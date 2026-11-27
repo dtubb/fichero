@@ -207,3 +207,24 @@ def test_the_now_view_lists_lanes_in_order_with_each_steps_age_the_trains_and_ev
     page = _page()
     now_js = page[page.index("function Now("):page.index("function App()")]
     assert '["now", "Now"]' in page and all(w in now_js for w in ('"lane-move"', '"queue-move"', '"pause"', '"resume"', '"start"', "d.slots", "d.trains", "age_s"))
+
+
+def test_a_message_to_the_manager_is_an_inbox_line_and_one_row_and_the_thread_shows_both_sides(live):
+    """builder-console.manager.thread: talk to the manager from the console."""
+    url, _ran = live
+    inbox, outbox = journal.STATE / "manager" / "inbox.jsonl", journal.STATE / "manager" / "outbox.jsonl"
+    assert _post(url, "/api/message", {"text": "hello"})[0] == 403 and not inbox.exists(), "the token rule of every POST"
+    assert _post(url, "/api/message", {"text": "   "}, console.TOKEN)[0] == 400 and _post(url, "/api/message", {"text": 5}, console.TOKEN)[0] == 400
+    assert not inbox.exists(), "an empty text is refused"
+    code, body = _post(url, "/api/message", {"text": " hold lane a until the build is out \n"}, console.TOKEN)
+    assert code == 200 and body["ok"]
+    (line,) = [json.loads(x) for x in inbox.read_text().splitlines()]
+    assert sorted(line) == ["text", "ts"] and line["text"] == "hold lane a until the build is out"
+    (row,) = [r for r in journal.read() if r["event"] == "owner-message"]
+    assert row["chars"] == len(line["text"]) and row["who"].endswith("@console") and "hold lane" not in json.dumps(row), "the row wakes the manager; the text stays in the inbox"
+    outbox.write_text(json.dumps({"ts": "2999-01-01T00:00:00", "text": "held"}) + "\nnot json\n")
+    t = _get(url, "/api/thread")["messages"]
+    assert [(m["from"], m["text"]) for m in t] == [("manager", "unreadable line 2 of outbox.jsonl"), ("owner", line["text"]), ("manager", "held")], "one thread, by time"
+    page = _page()
+    js = page[page.index("function Manager("):page.index("function App()")]
+    assert '["manager", "Manager"]' in page and '"/api/message"' in js and '"/api/thread"' in js and "<textarea" in js

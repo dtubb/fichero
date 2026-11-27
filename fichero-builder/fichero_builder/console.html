@@ -471,6 +471,20 @@ function Now({ st }) {
       <td>${s.held ? html`<span class="pill blue"><span class="dot blue pulse"></span>held</span>` : html`<span class="muted">free</span>`}</td><td>${s.name}</td><td class="mono muted">${s.holder}</td></tr>`)}</tbody></table></div>`;
 }
 
+// builder-console.manager.thread: the owner's messages and the manager's replies, one thread; Send appends to the manager's inbox
+function Manager({ st }) {
+  const [n, setN] = useState(0);
+  const [text, setText] = useState("");
+  const d = useApi("/api/thread", refetchKey(st) + n);
+  const send = async e => { e.preventDefault(); const j = await post("/api/message", { text }); if (j.ok) { setText(""); setN(n + 1); } };
+  return html`<h2>Manager <span class="muted" style="font-weight:400">your messages and the manager's replies</span></h2>
+    ${(d?.messages || []).map(m => html`<div class="rcard" style=${m.from === "owner" ? "margin-left:15%" : "margin-right:15%"}>
+      <div class="muted">${m.from === "owner" ? "you" : "manager"} · <${Ago} ts=${m.ts} /></div><div style="white-space:pre-wrap">${m.text}</div></div>`)}
+    ${d && !(d.messages || []).length && html`<p class="muted">No message yet.</p>`}
+    <form class="rcard" onSubmit=${send}><textarea placeholder="Message the manager" value=${text} onInput=${e => setText(e.target.value)}></textarea>
+      <div class="actions"><button class="btn primary" disabled=${!text.trim()}>Send</button></div></form>`;
+}
+
 function App() {
   const st = useStatus();
   const [msg, setMsg] = useState("");
@@ -485,7 +499,7 @@ function App() {
   return html`
     <div class="toolbar">
       <h1>Builder</h1>
-      <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["log", "Log"]].map(([t, n]) =>
+      <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["manager", "Manager"], ["log", "Log"]].map(([t, n]) =>
         html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}${t === "alerts" && st.alerts.count ? html` <span class=${"pill " + (st.alerts.owner_count ? "orange" : "")} title=${`${st.alerts.count} open alert(s) under a day old, ${st.alerts.owner_count} yours`}>${st.alerts.count}</span>` : ""}</button>`)}</div>
       <span class="spacer"></span>
       ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
@@ -514,8 +528,8 @@ function App() {
         return (q || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${q ? `${q} lane(s) with a question` : ""}
           ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>` : ""; })()}
       ${(st.open_questions || []).length > 0 && html`<h2>Questions</h2><div class="alerts">${st.open_questions.map(q => html`<div class="alert"><div><b class="mono">${q.lane} ${q.step}</b></div><div class="what">${q.question}</div></div>`)}</div>`}
-      ${{ now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
-        ? html`<${{ now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
+      ${{ manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
+        ? html`<${{ manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
         : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
     </main>`;
 }

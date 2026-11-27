@@ -143,6 +143,41 @@ def now_view(rows: list[dict], lanes: list[dict], now: float | None = None) -> d
             "trains": st["trains"], "waiting_for_train": st["waiting_for_train"], "slots": slots}
 
 
+def _manager(name: str) -> Path:
+    return journal.STATE / "manager" / name
+
+
+def message(text, who: str) -> dict:
+    """builder-console.manager.thread: the owner's message to the manager: one `{ts, text}` line appended to manager/inbox.jsonl under
+    the state dir and one `owner-message` row (who and the text's length, not the text). ValueError for a text that is not a
+    string or is blank."""
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("a message needs {text}: a string that is not blank")
+    line = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "text": text.strip()}
+    _manager("inbox.jsonl").parent.mkdir(parents=True, exist_ok=True)
+    with _manager("inbox.jsonl").open("a") as f:
+        f.write(json.dumps(line) + "\n")
+    journal.append("owner-message", who=who, chars=len(line["text"]))
+    return line
+
+
+def thread() -> list[dict]:
+    """The owner's messages (manager/inbox.jsonl) and the manager's replies (manager/outbox.jsonl) as one list by time, each
+    `{from, ts, text}`. A line that is not a `{ts, text}` object is shown as a message saying which line could not be read."""
+    out = []
+    for who, name in (("owner", "inbox.jsonl"), ("manager", "outbox.jsonl")):
+        lines = _manager(name).read_text(errors="replace").splitlines() if _manager(name).is_file() else []
+        for n, ln in enumerate(lines, 1):
+            if not ln.strip():
+                continue
+            try:
+                r = json.loads(ln)
+                out.append({"from": who, "ts": str(r["ts"]), "text": str(r["text"])})
+            except (ValueError, KeyError, TypeError):
+                out.append({"from": who, "ts": "", "text": f"unreadable line {n} of {name}"})
+    return sorted(out, key=lambda m: m["ts"])
+
+
 def _builder(*args: str) -> list[str]:
     return [sys.executable, "-m", "fichero_builder", *args]
 
@@ -1061,6 +1096,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, {"ts": None, "milestones": []})
         if path == "/api/alerts":
             return _json(self, 200, alerts_view(rows_of(ROOT)))
+        if path == "/api/thread":
+            return _json(self, 200, {"messages": thread()})
         if path == "/api/now":
             return _json(self, 200, now_view(rows_of(ROOT), queue.load()))
         if path == "/api/activity":
@@ -1178,6 +1215,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 404 if str(e).startswith("no review item") else 400, {"ok": False, "error": str(e)})
             journal.append("console", who=who, verb=f"review {item_id} {item['status']}", ok=True, state="ended", rc=0, detail=item.get("note", "")[-500:])
             return _json(self, 200, {"ok": True, "item": item})
+        if self.path.split("?")[0] == "/api/message":  # the owner's message to the manager
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                line = message(body.get("text") if isinstance(body, dict) else None, f"{getpass.getuser()}@console")
+            except ValueError as e:
+                return _json(self, 400, {"ok": False, "error": str(e)})
+            return _json(self, 200, {"ok": True, "message": line})
         if self.path.split("?")[0] == "/api/refresh":
             refresh(f"{getpass.getuser()}@console")
             return _json(self, 200, {"ok": True, "started": "refresh"})
