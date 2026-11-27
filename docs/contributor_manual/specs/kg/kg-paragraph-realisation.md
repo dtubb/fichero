@@ -302,15 +302,21 @@ held, never finer. A statement with no stored level is said to the year.
   and its segment names every statement it qualifies. Today no place is said unless the object
   holds it (0 of 6). The prototype named only some of the statements on a shared place, which
   is why this line says "every". Test (to write): `test_a_place_is_said_once_and_names_all_it_qualifies`.
+  Built: on the entry path for a language with a table that holds `places`, a clause says its place after its object unless the object holds it; a merged sentence says each distinct place once and its segment names every statement that has it. Test:
+  `fichero-server/tests/unit/knowledge/test_paragraph_places.py::test_a_place_is_said_once_and_names_all_it_qualifies`.
 - `kg.para.place-says-its-basis` — **[GAP]** (#6773, → #6838) a place read in the statement's
   own sentence is said plainly; a place that is only where the document was drawn up
   (`basis` source-anchored) is said as the document's place, in the table's words, never as
   where the event happened; an inferred place carries the table's "inferred" words; a place
   given relative to another is said as written. Test (to write):
   `test_a_documents_place_is_not_said_as_the_events_place`.
+  Built: the document's place, the inferred words and the relative place as written. Tests:
+  `fichero-server/tests/unit/knowledge/test_paragraph_places.py::test_a_documents_place_is_not_said_as_the_events_place`, `test_a_place_given_relative_to_another_is_said_as_written`.
 - `kg.para.place-links-its-name` — **[GAP]** (#6773, → #6838) when the place is a known name,
   `place.entity_id` holds it so the app can open that name. Test (to write):
   `test_a_known_place_carries_its_entity_id`.
+  Built: `place.entity_id` is the one entity whose canonical name is the place's label, else null. Test:
+  `fichero-server/tests/unit/knowledge/test_paragraph_places.py::test_a_known_place_carries_its_entity_id`.
 
 ### E. How sure
 
