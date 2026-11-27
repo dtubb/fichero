@@ -47,7 +47,8 @@ routes_file = "fichero-server/tests/contracts/openapi.json"  # the engine's rout
 # manager 2026-11-04: a rebase whose ONLY conflict is the generated contract identity takes upstream's and re-bakes it with the
 # project's own tool (#4705), never by hand
 generated = ["fichero-server/src/fichero_server/api/contract_identity_generated.py",
-             "fichero/fichero-api-client/Sources/FicheroAPIClient/ContractIdentity.generated.swift"]
+             "fichero/fichero-api-client/Sources/FicheroAPIClient/ContractIdentity.generated.swift",
+             "fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"]  # manager 2026-11-27: regen rebuilds it
 rebake = ["{python}", "fichero-server/scripts/export_openapi_schema.py", "--bake-identity-from", "fichero-server/tests/contracts/openapi.json"]
 rebake_issue = "#4705"
 # 2026-11-14: a rebase left the contracts and the engine embed list stale and the guards bounced the batch: after every rebase that moves a
