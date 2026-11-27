@@ -887,6 +887,11 @@ publish_part() {
     echo "── Website (docs site → tubb.ca) ──"
     "$ROOT_DIR/scripts/deploy-site.sh" || fail_part "deploy-site.sh failed"
   fi
+  # The appcast goes live by a Netlify CLI deploy, on every channel: Netlify ignores git pushes on this account,
+  # so the committed appcast.xml alone never reached tubb.ca (2026-11-27). FICHERO_SKIP_SITE skips only the docs site.
+  echo
+  echo "── Appcast (tubb.ca, Netlify CLI deploy) ──"
+  "$ROOT_DIR/scripts/deploy-appcast.sh" || fail_part "deploy-appcast.sh failed"
   # Success is texted only once the live appcast carries this build (release.lane.live-appcast-verified).
   guard verify-appcast "$(project_setting CURRENT_PROJECT_VERSION)" || fail_part "the live appcast does not carry this build"
 }

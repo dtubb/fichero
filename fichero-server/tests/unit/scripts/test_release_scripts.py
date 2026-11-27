@@ -469,3 +469,46 @@ def test_verify_all_gives_the_engine_imports_check_the_staged_bundle() -> None:
     staged bundle's app_packages (no argument is usage exit 2)."""
     text = _script_text(SCRIPTS_DIR / "verify_all.sh")
     assert '"$guardrail" \\\n        "fichero-server/build/fichero_server/macos/app/Fichero Server.app/Contents/Resources/app_packages"' in text
+
+
+def _publish_part_body() -> str:
+    text = (SCRIPTS_DIR / "release-all.sh").read_text()
+    start = text.index("publish_part() {")
+    return text[start:text.index("\n}\n", start) + 3]
+
+
+@pytest.mark.parametrize("public", [False, True])
+def test_publish_deploys_the_appcast_with_the_netlify_cli_after_writing_it_and_before_verifying(tmp_path: Path, public: bool) -> None:
+    """2026-11-27: the dev publish committed appcast.xml into the tubb.ca repo, but Netlify ignores git pushes on this account, so the
+    live feed never moved and verify-appcast failed after 10 minutes. The order is: appcast write, eleventy build, netlify deploy,
+    verify, on the dev channel too; FICHERO_SKIP_SITE skips only the docs site."""
+    log = tmp_path / "order.log"
+    site = tmp_path / "site"
+    (site / "apps" / "fichero").mkdir(parents=True)
+    root, bin_ = tmp_path / "root", tmp_path / "bin"
+    (root / "scripts").mkdir(parents=True)
+    bin_.mkdir()
+    shutil.copy(SCRIPTS_DIR / "deploy-appcast.sh", root / "scripts" / "deploy-appcast.sh")
+
+    def stub(path: Path, body: str) -> None:
+        path.write_text("#!/usr/bin/env bash\n" + body + "\n")
+        path.chmod(0o755)
+    stub(root / "scripts" / "create-github-release.sh", f'echo "<rss/>" > "{site}/apps/fichero/appcast.xml"; echo appcast-write >> "{log}"')
+    stub(root / "scripts" / "deploy-site.sh", f'echo docs-site >> "{log}"')
+    stub(bin_ / "npx", f'[ "$1" = "@11ty/eleventy" ] && [ "$PWD" = "{site}" ] && echo eleventy-build >> "{log}"')
+    stub(bin_ / "netlify", f'[ "$*" = "deploy --prod --dir _site" ] && echo netlify-deploy >> "{log}"')
+    harness = "\n".join([
+        "set -uo pipefail",
+        f'ROOT_DIR="{root}"; DMG_PATH="{tmp_path}/x.dmg"; DEV_DMG_PATH="{tmp_path}/none.dmg"; GITHUB_ARGS=()',
+        f"PUBLIC_RELEASE={'true' if public else 'false'}",
+        f'guard() {{ [ "$1" = verify-appcast ] && echo verify >> "{log}"; return 0; }}',
+        "fail_part() { echo \"FAIL: $*\"; exit 1; }",
+        "project_setting() { echo 1; }",
+        _publish_part_body(),
+        "publish_part",
+    ])
+    r = subprocess.run(["bash", "-c", harness], capture_output=True, text=True,
+                       env={**os.environ, "PATH": f"{bin_}:{os.environ['PATH']}", "FICHERO_SITE_DIR": str(site)})
+    assert r.returncode == 0, r.stdout + r.stderr
+    want = ["appcast-write", *(["docs-site"] if public else []), "eleventy-build", "netlify-deploy", "verify"]
+    assert log.read_text().split() == want
