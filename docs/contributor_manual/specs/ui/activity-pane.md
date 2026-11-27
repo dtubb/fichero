@@ -499,17 +499,19 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `fichero-server/tests/unit/jobs/test_archive_old_runs_6583.py`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`,
   `fichero-server/tests/unit/jobs/test_archive_runs_6441.py`, `fichero/Tests/Unit/general/Models/ActivityPane/ActivityUndoTests.swift`.
   Not built (2026-11-23): Archive Finished Older Than… in the menu; auto-archive (open question 9); swipe actions.
-- `activity.pane.automatic-runs-easy-to-delete` — **[PARTIAL]** (#6583, decision 11) an automatic run (started by the import, the
+- `activity.pane.automatic-runs-easy-to-delete` — **[OK]** (#6583, decision 11) an automatic run (started by the import, the
   schedule, a trigger, the derivative kinds) deletes like any other row, one at a time with the row's Delete or many at once:
   the filter token "Started by: automatic" plus ⌘A plus Delete, and **Archive Finished…** (which covers every ended row, runs AND
   jobs of their own; `activity.window.clear-finished` widened then renamed; today's `job.delete` with `states` is its engine). Acceptance: forty
   done thumbnail rows and two user runs: the filter plus ⌘A plus Delete removes the forty and leaves the two; Clear Finished… after
   one confirmation removes every ended row in every open project. **Built (2026-11-13 night):** `job.delete` takes `states`
   (every top-level job of its own in those states; workflow runs keep their delete), and the window's Clear Finished… sends
-  done, failed and cancelled jobs there beside the runs delete. Not built: the "Started by: automatic" filter token.
-  *Tests:* `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py` (the states form); the existing
+  done, failed and cancelled jobs there beside the runs delete. **Built (2026-11-27):** the filter token "started by:
+  automatic" keeps every row nobody at the Mac started (the engine's own starters, a schedule's and a trigger's) and Delete
+  takes what it leaves.
+  *Tests:* `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py` (the states form);
+  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift` (`startedByAutomatic`); the existing
   `ActivityClearFinishedShapeTests.swift`.
-  Not built (2026-11-23): the "Started by: automatic" filter token.
 - `activity.pane.failure-with-its-fix-in-the-row` — **[PARTIAL]** (#6354, #6441, decision 19; `run.fail.kinds-table`,
   `activity.pane.error-row-shape`) a failed row shows IN THE TABLE a red X, its kind's ROW WORDS (at most eight, `activity.pane.text-budget`) and the FIX as a
   button with its word (never an icon alone); the ONE plain sentence of what happened is the Inspector's (the examples below are those sentences): "Out of credit on OpenRouter. [Add credit]", "OpenRouter is limiting how fast you
