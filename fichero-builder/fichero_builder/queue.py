@@ -835,7 +835,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 tail = procs.last_output(lane)
                 journal.append("queue", lane=lane["id"], step=s["step"], state="gone", tail=tail, detail="the worker's session ended 'gone'")
                 if refused := _refusal(tail):
-                    return block(s, f"the session's start was refused: {refused}", evidence=tail)
+                    return _refused_block(block, s, refused, tail)
             if s["state"] == "sent" and end == "gone" and _now() - s.get("entered_at", 0) < QUICK_GONE_S:
                 WORKER_CLI_AT[0] = 0.0  # gone at once: the next tick probes the worker's CLI (a revoked sign-in holds every lane)
             if s["state"] == "sent":
@@ -971,7 +971,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 handles.pop(lane["id"], None)
                 lane["feed"] = ""
                 if refused := _refusal(tail):  # a start the run refuses (a config gap) is never three rounds of 'gone'
-                    return block(s, f"the session's start was refused: {refused}", evidence=tail)
+                    return _refused_block(block, s, refused, tail)
                 s["restarts"] += 1
                 if s["restarts"] > RESTARTS:
                     return block(s, f"the step lost its session {s['restarts']} times", evidence=tail)
@@ -3030,6 +3030,12 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         from fichero_builder import check_tool
         for w in check_tool.rules_warnings(getattr(procs, "root", "") or "."):
             journal.append("rules", state="warning", detail=w)
+        if getattr(procs, "root", ""):  # a role model with no price would only die 'gone': refused here, one alert per key
+            from fichero_builder import watcher
+            with contextlib.suppress(OSError, ValueError, KeyError, tomllib.TOMLDecodeError):
+                for model, msg in watcher.price_problems(procs.root):
+                    journal.append("rules", state="refused", detail=msg)
+                    price_alert(model)
         if getattr(procs, "root", ""):
             from fichero_builder import land_tool
             with contextlib.suppress(OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError):
@@ -3428,7 +3434,27 @@ def run_alive(j, feed: str) -> bool:
     return r.returncode == 0
 
 
+PRICE_ALERTED: set = set()  # the price keys already alerted on: ONE manager alert per missing key, however many lanes meet it
+NO_PRICE = re.compile(r"has no price for '([^']+)'")
+
+
+def price_alert(model: str) -> None:
+    from fichero_builder import watcher
+    if (key := watcher.price_key(model)) in PRICE_ALERTED:
+        return
+    PRICE_ALERTED.add(key)
+    alert("-", f"spend-prices-{slug(key)}", watcher.price_message(model), "harness.toml [spend].prices", ["retry"])
+
+
 REFUSES = re.compile(r"^(?:builder run|harness_start) refuses:?\s*(.+)$", re.M)
+
+
+def _refused_block(block, s, refused: str, tail: str):
+    """Block the step on its refusal; a missing price is one alert per key (price_alert), so each step blocks quietly."""
+    if m := NO_PRICE.search(refused):
+        price_alert(m.group(1))
+        return block(s, f"the session's start was refused: {refused}", evidence=tail, quiet=True)
+    return block(s, f"the session's start was refused: {refused}", evidence=tail)
 
 
 def _refusal(tail: str) -> str:

@@ -2457,3 +2457,29 @@ def test_a_context_suffixed_model_takes_its_base_models_price():
     from fichero_builder import watcher
     s = types.SimpleNamespace(prices={"claude-fable-5-2": [15, 75], "claude-fable-5-1": [10, 50]})
     assert watcher.price_for("claude-fable-5-2[1m]", s) == [15, 75] and watcher.price_for("claude-fable-5-3[1m]", s) is None
+
+
+def test_a_missing_price_is_one_alert_per_key_at_the_start_and_when_lanes_meet_it(state, tmp_path, monkeypatch):
+    from fichero_builder import watcher
+    (tmp_path / "harness.toml").write_text('[spend]\nday_usd = 10\nprices = { sonnet = [3, 15] }\n[models]\nproviders = ["claude-code"]\n'
+                                           'builder = { provider = "claude-code", model = "sonnet" }\n'
+                                           'maintainer-fable = { provider = "claude-code", model = "claude-fable-5-2[1m]" }\n')
+    probs = watcher.price_problems(tmp_path)
+    assert [m for m, _ in probs] == ["claude-fable-5-2[1m]"] and "add `claude-fable-5-2 = [<in>, <out>]`" in probs[0][1]
+    monkeypatch.setattr(queue, "PRICE_ALERTED", set())
+    out = "builder run refuses: harness.toml [spend].prices has no price for 'claude-fable-5-2[1m]': unknown price, no start"
+    for name in ("m1", "m2"):
+        queue.add(name, f"/w/{name}", "1.1", str(state / "b1.1"), [7])
+    fake = Fake()
+    fake.procs.session_live = lambda lane: False
+    fake.procs.last_output = lambda lane: out
+    handles = {}
+    queue.tick(fake.procs, handles, workers_n=2, push=False, out=lambda s: None)  # both sent
+    fake.seqs.clear()  # neither session says a word: their starts were refused
+    for _ in range(2):
+        queue.tick(fake.procs, handles, workers_n=2, push=False, out=lambda s: None)
+    assert {x["id"]: x["steps"][0]["state"] for x in queue.load()} == {"m1": "blocked", "m2": "blocked"}
+    alerts = [r for r in journal.read() if r.get("event") == "alert"]
+    assert len(alerts) == 1 and "claude-fable-5-2 = [<in>, <out>]" in __import__("json").dumps(alerts[0])
+    queue.price_alert("claude-fable-5-2")
+    assert len([r for r in journal.read() if r.get("event") == "alert"]) == 1, "the same key: no second alert"

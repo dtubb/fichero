@@ -116,6 +116,27 @@ def spent_week(rows: list[dict], provider: str, now_ts: str) -> float:
                if r.get("event") == "cost" and r.get("provider") == provider and week_of(r.get("ts", "")) == wk)
 
 
+def price_key(model: str) -> str:
+    return re.sub(r"\[[^\]]*\]$", "", model)
+
+
+def price_message(model: str) -> str:
+    return (f"harness.toml [spend].prices has no price for {model!r}: add `{price_key(model)} = [<in>, <out>]` (USD per million "
+            "tokens); no session on it starts")
+
+
+def price_problems(root) -> list[tuple[str, str]]:
+    """[(model, message)] for each Claude Code model a [models] role names that [spend].prices cannot price (2026-11-27: the role
+    maintainer-fable moved to claude-fable-5-2[1m] with no price, and three lanes died 'gone' three times each)."""
+    from fichero_builder import models
+    spend, mdl = load(root), models.load(root)
+    out = {}
+    for role, row in mdl.items():
+        if isinstance(row, dict) and row.get("provider") == "claude-code" and row.get("model") and price_for(row["model"], spend) is None:
+            out[row["model"]] = price_message(row["model"])
+    return sorted(out.items())
+
+
 def refusals(spend: Spend, kind: str, model: str, provider: str = "") -> list[str]:
     """Every reason not to start a worker of this kind and model; empty = go."""
     out = []
