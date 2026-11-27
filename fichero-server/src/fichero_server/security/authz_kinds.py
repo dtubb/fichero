@@ -109,8 +109,10 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "pattern_id", "framework_id", "value_id", "review_id", "pair_id", "reference_id",
         "authority_id", "property_id", "linked_structure_node_id", "linked_source_ids",
         "focus_id", "state_id",
-        "comment_id",
     )},
+    # kg.comment.withdraw/restore (#4643): a comment on a segment or a source resolves to that page; on a claim or an
+    # entity it is library-level like its node.
+    "comment_id": (RECORD, ("KgComment",)),
     "allograph_id": (LIBRARY, "an allograph of the project's letterform list: its DESCRIPTIONS on characters are resolved (description_id)"),
     "hand_id": (LIBRARY, "a hand of the project's hand list: the ATTRIBUTION of a hand to a segment is resolved (attribution_id)"),
     "sign_id": (LIBRARY, "a sign of the project's sign list (slice 14): a sign's INSTANCES are segments, resolved as segments"),

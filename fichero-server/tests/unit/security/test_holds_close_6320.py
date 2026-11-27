@@ -911,4 +911,34 @@ def test_a_reread_of_edited_lines_is_refused_for_a_caller_denied_the_page(projec
     line = Segment(document_id=document_id, pass_id=pass_row.id, kind="word", anchor=anchor, bbox_x=x, bbox_y=y, bbox_w=w, bbox_h=h,
                    tile=tile, doc_kind=f"{document_id}:word", provenance_kind=ProvenanceKind.workflow)
     db.save(line)
-    assert _all_refused(four, "POST", "/api/recipes/project/reread-edited", {"segment_ids": [line.id]}, who=("alice", "bob"))
+    assert _all_refused(four, "POST", "/api/recipes/project/reread-edited", {"segment_ids": [line.id]}, who=("alice", "bob", "carla"))
+
+
+def test_a_comment_on_a_line_of_a_denied_page_is_not_withdrawn_or_restored_by_a_caller_denied_the_page(project, four):
+    """`kg.comment.withdraw` and `kg.comment.restore` name only the comment: a comment on a line or on a page the caller is
+    denied resolves to that page, so a deny on the page reaches it."""
+    from fichero_server.models.anchors import SourceAnchor
+    from fichero_server.models.kg_comments import CommentAnchorKind, KgComment
+    from fichero_server.models.knowledge import ProvenanceKind
+    from fichero_server.models.segments import Segment, SegmentPass, bbox_and_tile_from_anchor
+
+    db = db_manager.get_database(project.harness.library)
+    document_id = project.ids["b1"]
+    pass_row = SegmentPass(document_id=document_id, name="p", provenance_kind=ProvenanceKind.workflow)
+    db.save(pass_row)
+    anchor = SourceAnchor(document_id=document_id, rect=[0.1, 0.1, 0.1, 0.1])
+    x, y, w, h, tile = bbox_and_tile_from_anchor(anchor)
+    line = Segment(document_id=document_id, pass_id=pass_row.id, kind="word", anchor=anchor, bbox_x=x, bbox_y=y, bbox_w=w, bbox_h=h,
+                   tile=tile, doc_kind=f"{document_id}:word", provenance_kind=ProvenanceKind.workflow)
+    db.save(line)
+    on_line = KgComment(anchor_kind=CommentAnchorKind.segment, anchor_id=line.id, body="on the line")
+    on_page = KgComment(anchor_kind=CommentAnchorKind.source, anchor_id=document_id, body="on the page")
+    for comment in (on_line, on_page):
+        db.save(comment)
+    for comment in (on_line, on_page):
+        for name in ("kg.comment.withdraw", "kg.comment.restore"):
+            assert _all_refused(four, "POST", "/api/actions/invoke", {"name": name, "params": {"comment_id": comment.id}}, who=("alice", "bob", "carla"))
+    assert all(db.get(KgComment, c.id).withdrawn_at is None for c in (on_line, on_page))
+    owner = _as(project.harness, "owner")
+    assert owner.post("/api/actions/invoke", json={"name": "kg.comment.withdraw", "params": {"comment_id": on_line.id}}).status_code == 200
+
