@@ -57,6 +57,12 @@ struct LibraryWorkspaceRoot: View {
     let windowState: WindowState
     let executionObserver: WorkflowExecutionObserver
 
+    /// Restarts the open task when the library, its folder, the engine, or its pending folder grant changes.
+    private var workspaceTaskId: String {
+        let awaitingGrant = libraryManager.libraryIdsAwaitingGrant.contains(library.id)
+        return "\(library.id.uuidString)-\(library.url.path)-\(appState.isBackendRunning)-\(awaitingGrant)"
+    }
+
     var body: some View {
         DocumentTabView(
                 libraryId: library.id,
@@ -78,7 +84,7 @@ struct LibraryWorkspaceRoot: View {
             // omission is #4448, and it is the only boundary that has ever
             // actually bitten here.
             .modifier(LibraryTreeEnvironment(library: library, windowState: windowState, executionObserver: executionObserver))
-            .task(id: "\(library.id.uuidString)-\(library.url.path)-\(appState.isBackendRunning)") {
+            .task(id: workspaceTaskId) {
                 if windowState.libraryId != library.id {
                     windowState.libraryId = library.id
                 }
@@ -90,6 +96,9 @@ struct LibraryWorkspaceRoot: View {
                 // The engine became ready after this window began loading: ask again (#7078).
                 // Not awaited: a slow or failing load must not hold back the streams and fonts below.
                 libraryManager.askForLoadOnEngineReadyInBackground(library, engineReady: appState.isBackendRunning)
+                // Grant, then open, then subscribe (#7092): while the folder's security-scoped grant is in flight the
+                // engine refuses the streams as outside every allowed root. This task runs again when the grant lands.
+                guard !libraryManager.libraryIdsAwaitingGrant.contains(library.id) else { return }
                 library.changeStream.start()
                 if featureManager.isVisible(.activity) {
                     library.activityStore.start()

@@ -21,6 +21,8 @@ struct ModelFinderView: View {
         let setup: RecipeSetupStore
     }
 
+    @State private var searchText = ""
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
@@ -93,6 +95,17 @@ struct ModelFinderView: View {
                 ProgressView().controlSize(.small)
             }
             Spacer()
+            TextField("Search models", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 180)
+                .controlSize(.small)
+                .accessibilityIdentifier("finder.search")
+                .onSubmit { Task { await store.setSearch(searchText) } }
+            Toggle("Show All Models", isOn: Binding(get: { store.showAll }, set: { all in Task { await store.setShowAll(all) } }))
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
+                .accessibilityIdentifier("finder.showAll")
+                .help("List every model that does this step's job, in the order the rules rank them, not only the ones worth using")
             // Pressing it again while a search runs is harmless: the engine reuses the running job.
             Button("Search Online") { Task { await store.searchOnline() } }
                 .controlSize(.small)

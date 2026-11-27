@@ -284,6 +284,14 @@ class DatabaseManager:
                     except Exception:
                         logger.exception("Page text repair could not run")
 
+                    # A path into an earlier location of this package (a copied or moved project) becomes relative (#7093).
+                    try:
+                        from fichero_server.maintenance.package_paths import relativize_on_open
+
+                        relativize_on_open(db)
+                    except Exception:
+                        logger.exception("Package paths could not be made relative")
+
                     # The text a reading's document field lost to the artifact's provenance: a background job, never in the open
                     # (queue_if_needed reads one setting and never raises).
                     from fichero_server.maintenance import image_marker_repair

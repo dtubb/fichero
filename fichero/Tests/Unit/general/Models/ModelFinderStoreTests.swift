@@ -292,6 +292,20 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertFalse(ModelFinderCard.isChosen(try XCTUnwrap(store.candidates.last)))
     }
 
+    /// WHY (#7085): the finder asks for the capped list by default; Show All Models asks without `worth_only`, and the
+    /// search field's text goes to the engine as `q`.
+    func testShowAllAndSearchAreAskedOfTheEngine() async throws {
+        FinderMockURLProtocol.reset { _ in (200, FinderJSON.list([FinderJSON.shipped])) }
+        let store = ModelFinderStore(client: makeClient())
+        await store.load(Self.query)
+        XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/recipes/candidates").last?.query["worth_only"], "true")
+        await store.setShowAll(true)
+        await store.setSearch("mccatmus")
+        let asked = try XCTUnwrap(FinderMockURLProtocol.requests(to: "/api/recipes/candidates").last)
+        XCTAssertEqual(asked.query["worth_only"], "false")
+        XCTAssertEqual(asked.query["q"], "mccatmus")
+    }
+
     /// WHY (#5660 item 4): for Find names the person chooses who runs it: spaCy (in use), an MLX model to download,
     /// Apple Intelligence and Claude. One Fichero cannot run yet offers nothing to press and says why once; one that
     /// needs a provider first links to Settings › AI.

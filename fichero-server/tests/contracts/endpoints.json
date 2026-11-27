@@ -9798,6 +9798,11 @@
             "type": "string"
           },
           {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "scripts",
             "required": true,
             "type": "string"

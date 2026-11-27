@@ -45,6 +45,10 @@ final class ModelFinderStore {
     /// Why the last online search failed, from Activity or the engine.
     private(set) var searchFailure: String?
     private(set) var isLoading = false
+    /// Show All Models (#7085): every candidate that does the job, not the engine's capped list of what is worth using.
+    private(set) var showAll = false
+    /// The search field's text (#7085): the engine keeps the candidates whose name contains it.
+    private(set) var search = ""
     var errorMessage: String?
     /// The project's downloads (#5620, `source.find.one-download-path`): the one download path, shared by the
     /// finder and Settings (setup downloads nothing: Start fetches what it needs, #5664); a card says what its download's job says.
@@ -75,6 +79,18 @@ final class ModelFinderStore {
     /// Read the list again for the same query (a download finished), never searching online.
     func reload() async {
         guard query != nil else { return }
+        await read(online: false)
+    }
+
+    /// Show every candidate, or the worth-using list again; the list is read again.
+    func setShowAll(_ all: Bool) async {
+        showAll = all
+        await read(online: false)
+    }
+
+    /// Narrow the list to the candidates whose name contains `text` (the engine matches it); the list is read again.
+    func setSearch(_ text: String) async {
+        search = text
         await read(online: false)
     }
 
@@ -177,7 +193,9 @@ final class ModelFinderStore {
                     online: online,
                     cloudAllowed: query.cloudAllowed,
                     step: query.step,
-                    worthOnly: true  // only what is worth using, filtered and capped by the engine (owner 2026-10-23)
+                    // by default only what is worth using, filtered and capped by the engine (owner 2026-10-23); Show All lifts it (#7085)
+                    worthOnly: !showAll,
+                    q: search.isEmpty ? nil : search
                 )
             )
             switch response {

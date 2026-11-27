@@ -223,6 +223,18 @@ extension AccessError {
         fromBodyLines lines: AsyncThrowingStream<String, any Error>,
         maxLines: Int = 8
     ) async -> String? {
+        await denial(fromBodyLines: lines, maxLines: maxLines).message
+    }
+
+    /// The engine's `code` for a library path outside every allowed root: not a role refusal, the folder's grant has
+    /// not reached the engine (yet) (#7092).
+    static let outsideAllowedLocationsCode = "library_outside_allowed_locations"
+
+    /// A denial's sentence and its machine code, from the body of a 403 that came back as lines.
+    static func denial(
+        fromBodyLines lines: AsyncThrowingStream<String, any Error>,
+        maxLines: Int = 8
+    ) async -> (message: String?, outsideAllowedLocations: Bool) {
         var collected: [String] = []
         var seen = 0
         do {
@@ -237,14 +249,14 @@ extension AccessError {
         }
 
         let joined = collected.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !joined.isEmpty else { return nil }
+        guard !joined.isEmpty else { return (nil, false) }
 
         if let denial = DenialBody.decode(Data(joined.utf8)) {
-            return denial.message ?? denial.reason ?? denial.code
+            return (denial.message ?? denial.reason ?? denial.code, denial.code == outsideAllowedLocationsCode)
         }
         // Not JSON — return the raw text rather than nothing. The engine said
         // something; the user is better served by it than by silence.
-        return joined
+        return (joined, false)
     }
 }
 

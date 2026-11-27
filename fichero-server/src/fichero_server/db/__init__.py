@@ -8478,6 +8478,16 @@ class Database(DatabaseEmbeddingMixin):
             return "segment_passes"
         return name.lower() + "s"
 
+    def document_ids_mentioning_package_folder(self) -> list[str]:
+        """Ids of documents whose path is absolute through a `.fichero/` folder, or whose metadata mentions one (#7093)."""
+        from fichero_server.models import Document
+
+        table = self._sql_table_name(Document)
+        self._ensure_table(Document)
+        rows, _ = self._execute_fetch_with_columns(
+            f"SELECT id FROM {table} WHERE path LIKE '/%.fichero/%' OR CAST(metadata AS VARCHAR) LIKE '%.fichero/%'")
+        return [r[0] for r in rows]
+
     def _sql_table_name(self, obj_or_model) -> str:
         """Quote a table name for DuckDB SQL."""
         return f'"{self._table_name(obj_or_model)}"'
