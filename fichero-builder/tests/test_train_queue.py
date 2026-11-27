@@ -440,3 +440,26 @@ def test_two_steps_that_conflict_both_ways_never_wait_on_each_other_and_the_olde
     queue.mark_conflicts(l2, l2["steps"][0], "h2", [("l1/1", ["segment-editor.md"])])
     s1, s2 = (x["steps"][0] for x in queue.load())
     assert "train_after" not in s1 and s2["train_after"] == ["l1/1"], "only the newer waits"
+
+
+def test_a_step_that_conflicts_only_with_another_step_of_its_train_rides_the_next_train_with_no_worker_round(world):
+    """The second of two steps that conflict with each other (not with origin) is held after the first: no fix round, rebased onto
+    origin by its own chain once the first has landed, then on the next train. A conflict that stays alone is still the worker's."""
+    t = Trained(*world, ["1", "2"], cfg=train.Cfg(min_steps=2))
+    t.merge = lambda heads: ("+".join(h for h in heads if not (h == "h2" and "h1" in heads)), {"h2": "conflict in a.py"} if {"h1", "h2"} <= set(heads) else {})
+    chains = []
+    orig = t.fake.procs.chain
+    t.fake.procs.chain = t.fake.chain = lambda lane, step, stage: chains.append(step["step"]) or orig(lane, step, stage)
+    queue.TRAIN[0] = train.Cfg(min_steps=2)
+    hs: dict = {}
+    for _ in range(3):
+        queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
+    queue.TRAIN[0] = train.Cfg(min_steps=1)
+    for _ in range(8):
+        queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
+    assert t.trains[:2] == [["l1/1", "l2/2"], ["l2/2"]], "the second rides the next train"
+    assert set(states().values()) == {"landed"}
+    assert not any("conflict" in m for m in t.fake.sent) and len(t.fake.starts) == 2, "no worker round"
+    held = [r for r in journal.read() if r.get("state") == "train-conflict-held"]
+    assert len(held) == 1 and held[0]["lane"] == "l2" and held[0]["other"] == "l1/1"
+    assert chains.count("2") == 2, "its chain ran again after l1 landed: the loop's rebase onto origin"

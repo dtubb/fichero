@@ -801,6 +801,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     fut = (chains or {}).get(lane["id"])
     if fut is not None and not fut.done():
         return True  # its check or review is running in its own thread
+    if s["state"] == "train" and s.get("train_wait_land") and not _pending(s.get("train_after") or ()):
+        # the steps it conflicted with in its train landed (or left the train): its chain rebases it onto origin, then it rides again
+        for k in ("train_wait_land", "train_after", "train_since", "premerged"):
+            s.pop(k, None)
+        move(s, "done", "the steps it conflicted with in its train are no longer waiting: rebased onto origin and checked again")
+        return True
     back = s.pop("train_back", None) if s["state"] == "train" else None  # the train's verdict on this step: sent back (a red, a conflict)
     if s["state"] == "train" and back is None:
         return True  # waits for a train (train_when_due)
@@ -2507,6 +2513,13 @@ def _a_cycle(after: dict) -> list:
     return []
 
 
+def _pending(keys) -> list[str]:
+    """The keys among `keys` whose step still waits to land from a train: in a train, or cleared and not landed yet."""
+    want = set(keys)
+    return [f"{x['id']}/{st['step']}" for x in load() for st in x["steps"] if f"{x['id']}/{st['step']}" in want
+            and (st["state"] == "train" or (st["state"] in ("done", "checking", "reviewing") and st.get("train_cleared")))]
+
+
 def other_heads(lane_id: str) -> list[tuple[str, str]]:
     """[(lane/step, head)] of every OTHER lane's step that has a head and has not landed: commits a step of this lane must never hold."""
     return [(f"{x['id']}/{st['step']}", st["head"]) for x in load() if x["id"] != lane_id for st in x["steps"]
@@ -2635,7 +2648,7 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
                     journal.append("queue", lane=x["id"], step=st["step"], state="train-requeued", detail="the train that held it did not finish: it waits for the next one")
         if requeued:
             save(lanes)
-    waiting = _under_first([(x, s) for x, s in _waiting_for_train() if not s.get("train_id")])  # a step another train holds is not taken twice
+    waiting = _under_first([(x, s) for x, s in _waiting_for_train() if not s.get("train_id") and not s.get("train_wait_land")])  # a step another train holds is not taken twice; a held one is rebased first
     keys = {f"{x['id']}/{s['step']}" for x, s in waiting}
     waiting = _under_first([(x, s) for x, s in waiting if not set(_after_no_cycle(waiting).get(f"{x['id']}/{s['step']}", ())) & keys])  # it merges after the step it conflicts with
     if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]) or (base_tid and len(waiting) < TRAIN[0].min_steps):
@@ -2721,6 +2734,16 @@ def apply_train(res: train.Result, spec: list) -> None:
                     continue
                 if key in res.landed:
                     st.update(state="done", why=f"cleared by {res.id}: lands next", entered_at=_now(), train_cleared=res.id)
+                elif key in res.back and res.back[key].get("kind") == "conflict" and (earlier := [
+                        x["key"] for x in spec[:[y["key"] for y in spec].index(key)] if x["key"] not in res.back]):
+                    # it conflicts only with steps of this train, not with origin: no worker round. It waits for them to land, then its
+                    # chain rebases it onto origin (a conflict THERE is the worker's round); cycle-safe as mark_conflicts
+                    st.pop("train_id", None)
+                    st["train_after"] = sorted(set(st.get("train_after") or ()) | set(earlier))
+                    st["train_wait_land"] = res.id
+                    journal.append("queue", lane=lane["id"], step=st["step"], state="train-conflict-held", other=", ".join(earlier),
+                                   detail=f"{res.id}: conflicts with {', '.join(earlier)} in the train: it waits for them to land, then is rebased onto origin")
+                    continue
                 elif key in res.back:
                     st["train_back"] = {"ok": False, **res.back[key]}
                 else:
