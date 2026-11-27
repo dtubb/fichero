@@ -28,11 +28,14 @@ def _gh(*args, timeout_s: float = 120) -> str:
     return r.stdout
 
 
-def lane_branch(root) -> str:
-    """The branch the batch head sits on; only a `lane-*` branch is pushed (the workflow runs on those)."""
-    r = subprocess.run(["git", "-C", str(root), "symbolic-ref", "--short", "-q", "HEAD"], capture_output=True, text=True)
-    name = r.stdout.strip()
-    return name if name.startswith("lane-") else ""
+def lane_branch(root, lane: str, head: str) -> str:
+    """`lane-<lane>` when `head` is the tip of `work-<lane>` in `root` (do_fetch's ref of that lane's worktree), else ''. The target comes
+    from the lane the loop is checking, never from the HEAD of `root`: one engine repo judges every lane, and its HEAD may sit on another's."""
+    branch = f"lane-{lane}"
+    if not lane or lane.startswith("-") or subprocess.run(["git", "check-ref-format", "--branch", branch], capture_output=True).returncode:
+        return ""
+    r = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "-q", f"refs/heads/work-{lane}^{{commit}}"], capture_output=True, text=True)
+    return branch if r.stdout.strip() == head else ""
 
 
 def _push(root, head: str, branch: str) -> None:
@@ -87,7 +90,7 @@ def fetch(root, head: str, branch: str, timeout_s: float) -> dict:
         return _MEMO[key]
     try:
         if not branch:
-            raise RuntimeError("the batch is not on a lane-* branch")
+            raise RuntimeError("no lane branch to push: the head is not the tip of the checked lane's work-<lane> ref")
         _push(root, head, branch)
         run = _wait(head, timeout_s)
         if run is None:

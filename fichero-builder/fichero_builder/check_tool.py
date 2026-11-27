@@ -2505,16 +2505,17 @@ def push_blocker(root, pinned, since: str, head: str, scan: dict | None) -> str:
     return ""
 
 
-def from_actions(rung: str, root, head: str, cfg: Config, local, pinned, since: str = "", scan: dict | None = None) -> dict:
+def from_actions(rung: str, root, head: str, cfg: Config, local, pinned, since: str = "", scan: dict | None = None, lane: str = "") -> dict:
     """A rung in [check].actions takes its result from the GitHub Actions run of the batch head (actions.fetch): green or red from the run,
     or `local()` with one journal row saying why when there is no usable run. Not listed: `local()` and no push. The head is pushed only
-    when `push_blocker` is empty (boundary clear, `scan` = the security row shows gitleaks ran clean)."""
+    when `push_blocker` is empty (boundary clear, `scan` = the security row shows gitleaks ran clean), to `lane-<lane>` and only when `head`
+    is the tip of that lane's `work-<lane>` ref (actions.lane_branch)."""
     if rung not in cfg.actions or (rung == "unit" and not cfg.always_tests):  # a rung the local run skips is not turned on by Actions
         return local()
     if why := push_blocker(root, pinned, since, head, scan):
         journal.append("check", state="actions-local", rung=rung, head=head, reason="not pushed: " + why)
         return local()
-    res = actions.fetch(root, head, actions.lane_branch(root), cfg.actions_timeout_s)
+    res = actions.fetch(root, head, actions.lane_branch(root, lane, head), cfg.actions_timeout_s)
     if res["state"] == "none":
         journal.append("check", state="actions-local", rung=rung, head=head, reason=res["why"])
         return local()
@@ -2741,16 +2742,17 @@ class EmptyRange(RuntimeError):
 
 
 def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
-                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
-    """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
+                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = (), lane: str = "") -> dict:
+    """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged. `lane`: the lane whose
+    batch this is; the `unit` rung pushes only to its branch (from_actions)."""
     if since_sha == head:
         raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
     return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened, approve_red=approve_red,
-                      approve_pinned_new=approve_pinned_new, guard_data=guard_data)
+                      approve_pinned_new=approve_pinned_new, guard_data=guard_data, lane=lane)
 
 
 def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False,
-               approve_weakened: bool | tuple = False, approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
+               approve_weakened: bool | tuple = False, approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = (), lane: str = "") -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -2775,7 +2777,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
     ACTIVITY(kind="check", key=_KEY[0], state="start")
     ended: dict = {}
     try:
-        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red, approve_pinned_new, guard_data)
+        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red, approve_pinned_new, guard_data, lane)
         return ended
     finally:
         ACTIVITY(kind="check", key=_KEY[0], state="end", ok=bool(ended.get("ok")), failed=ended.get("failed", "?"))
@@ -2834,7 +2836,7 @@ def pick_rungs(all_rungs: list, cfg: Config, tree) -> list:
 
 
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
-                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
+                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = (), lane: str = "") -> dict:
     cfg = load(pinned)
     actions.reset()
     stricter = stricter_files(root, since, head, cfg, pinned, rows=True)
@@ -2886,7 +2888,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
             ("red-on-base", lambda: red_on_base_rung(root, since, head, names, tests, whole, cfg, own, approve_red, green_only)),
             ("guards", lambda: guards_on_current_base(root, since, head, pinned, cfg, tree, data_from_head=tuple(guard_data), stricter_from_head=stricter)),
             ("security", lambda: seen.setdefault("security", security(tree, since, head, names, cfg))),
-            ("unit", lambda: from_actions("unit", root, head, cfg, lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg), pinned, since, seen.get("security"))),
+            ("unit", lambda: from_actions("unit", root, head, cfg, lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg), pinned, since, seen.get("security"), lane)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),

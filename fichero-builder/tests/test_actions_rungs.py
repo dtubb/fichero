@@ -15,11 +15,13 @@ def _git(cwd, *a):
 
 @pytest.fixture
 def repo(tmp_path, monkeypatch):
+    """The shared engine repo: its HEAD sits on ANOTHER lane's branch (lane-y), and `work-x` (do_fetch's ref of lane x) is the head."""
     origin = tmp_path / "origin.git"
     subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
     r = tmp_path / "repo"
-    subprocess.run(["git", "init", "-q", "-b", "lane-x", str(r)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "lane-y", str(r)], check=True)
     _git(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "c")
+    _git(r, "update-ref", "refs/heads/work-x", "HEAD")
     _git(r, "remote", "add", "origin", str(origin))
     monkeypatch.setattr(journal, "path", lambda: tmp_path / "journal.jsonl")
     monkeypatch.setattr(actions, "POLL_S", 0)
@@ -56,12 +58,9 @@ RUN = {"databaseId": 7, "status": "completed", "conclusion": "success", "headSha
 CLEAN = {"ok": True, "skipped": False, "gitleaks_clean": True, "stdout_tail": "no new finding"}
 
 
-def _fa(repo, head, c, local, scan=CLEAN):
-    """from_actions over the empty range head..head with a security row; the push-gate tests pass their own."""
-    pin = repo.parent / "pin0"
-    pin.mkdir(exist_ok=True)
-    (pin / "harness.toml").write_text("[land]\nbranch = 'main'\n")
-    return check_tool.from_actions("unit", repo, head, c, local, pin, head, scan)
+def _fa(repo, head, c, local, scan=CLEAN, lane="x"):
+    """from_actions for lane x over the empty range head..head with a security row; the push-gate tests pass their own."""
+    return check_tool.from_actions("unit", repo, head, c, local, _pin(repo), head, scan, lane=lane)
 
 
 def _pin(repo):
@@ -169,8 +168,37 @@ def test_a_batch_not_on_a_lane_branch_runs_locally(repo, tmp_path, monkeypatch):
     head = _git(repo, "rev-parse", "HEAD")
     fake_gh(tmp_path, monkeypatch, head, [RUN], GREEN)
     ran = []
-    _fa(repo, head, cfg(), _local(ran))
+    _fa(repo, head, cfg(), _local(ran), lane="")
     assert ran == [1]
+    assert not _origin_has(tmp_path, head)
+
+
+def test_the_push_target_is_the_checked_lanes_branch_never_the_shared_repos_head(repo, tmp_path, monkeypatch):
+    """The engine repo judges every lane; its HEAD on lane-y says nothing about the batch of lane x."""
+    head = _git(repo, "rev-parse", "HEAD")
+    fake_gh(tmp_path, monkeypatch, head, [RUN], GREEN)
+    _fa(repo, head, cfg(), _local([]))
+    heads = _git(tmp_path / "origin.git", "for-each-ref", "--format=%(refname)", "refs/heads")
+    assert heads.split() == ["refs/heads/lane-x"], "only the checked lane's branch was pushed"
+
+
+def test_a_head_that_is_not_the_lanes_tip_is_not_pushed(repo, tmp_path, monkeypatch):
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "later")
+    head = _git(repo, "rev-parse", "HEAD")  # work-x still points at the first commit
+    fake_gh(tmp_path, monkeypatch, head, [RUN], GREEN)
+    ran = []
+    _fa(repo, head, cfg(), _local(ran))
+    assert ran == [1] and not _origin_has(tmp_path, head)
+    assert "not the tip of the checked lane" in (tmp_path / "journal.jsonl").read_text()
+
+
+@pytest.mark.parametrize("lane", ["--upload-pack=x", "a b", "a..b"])
+def test_a_lane_name_that_is_no_branch_name_is_not_pushed(repo, tmp_path, monkeypatch, lane):
+    head = _git(repo, "rev-parse", "HEAD")
+    fake_gh(tmp_path, monkeypatch, head, [RUN], GREEN)
+    ran = []
+    _fa(repo, head, cfg(), _local(ran), lane=lane)
+    assert ran == [1] and not _origin_has(tmp_path, head)
 
 
 
@@ -242,3 +270,15 @@ def test_a_unit_rung_the_local_run_skips_is_not_turned_on_by_actions(repo, tmp_p
     c = check_tool.Config(actions=("unit",), actions_timeout_s=0.2)
     check_tool.from_actions("unit", repo, head, c, _local(ran), _pin(repo), head, CLEAN)
     assert ran == [1] and not _origin_has(tmp_path, head), "no always_tests: local() answers and nothing is pushed"
+
+
+def test_the_loop_hands_the_checked_lanes_name_to_the_ladder(monkeypatch, tmp_path):
+    """do_check names the lane it judges, so the `unit` rung's push target is that lane's branch (from_actions' `lane`)."""
+    import types
+    from fichero_builder import work
+    got = {}
+    monkeypatch.setattr(work.land_tool, "resolve_branch", lambda repo, branch: "b")
+    monkeypatch.setattr(work.check_tool, "ladder_over", lambda *a, **k: got.update(k) or {"ok": True, "rungs": []})
+    monkeypatch.setattr(work.journal, "STATE", tmp_path)
+    work.do_check(types.SimpleNamespace(name="x", pinned="/p", ids=[]), "/r", "integration", "h", str(tmp_path / "l.json"))
+    assert got["lane"] == "x"

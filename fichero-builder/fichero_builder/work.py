@@ -580,7 +580,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     check_tool.OWE_WHOLE[0] = bool(getattr(a, "owe_whole", False))  # [train].whole_tests: so are the whole-tests dirs (local.check.red-on-base-changed-tests-only)
     try:
         r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
-                                   approve_pinned_new=pin_new, guard_data=guard_data)
+                                   approve_pinned_new=pin_new, guard_data=guard_data, lane=a.name)
     finally:
         check_tool.REUSE[0] = None
         check_tool.HEAD_GREEN_ONLY[0] = False
