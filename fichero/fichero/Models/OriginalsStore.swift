@@ -37,6 +37,9 @@ final class OriginalsStore {
     @ObservationIgnored lazy var recallRoot: () -> URL? = { [client] in
         RememberedOriginalsRoot.recall(project: client.currentLibraryPath)
     }
+    /// The alert offering Locate… / Not Now is showing (#7077).
+    var isOffering = false
+    private var offered = false
     /// A missing original has asked for the project's originals this run; the remembered folder has been tried.
     private var askedThisRun = false
     private var triedRememberedRoot = false
@@ -46,6 +49,22 @@ final class OriginalsStore {
         cancel()
         self.folderId = folderId
         isChoosing = true
+    }
+
+    /// At open, once: when originals are missing, offer Locate… in an alert. Returns whether it offered.
+    @discardableResult
+    func offerOnce() -> Bool {
+        guard !offered, (missing?.pages ?? 0) > 0 else { return false }
+        offered = true
+        isOffering = true
+        return true
+    }
+
+    func declineOffer() { isOffering = false }
+
+    func locateFromOffer() {
+        isOffering = false
+        begin()
     }
 
     init(client: FicheroClient) {

@@ -19,7 +19,7 @@ struct FocusedLocateOriginalsButton: View {
     }
 }
 
-/// The Items pane's notice when originals are missing: the engine's sentence and the Locate button, above the rows.
+/// The Items pane's line after a relink (the missing-originals ask itself is an alert).
 struct MissingOriginalsNotice: View {
     let store: OriginalsStore
     let folderId: String?
@@ -33,19 +33,7 @@ struct MissingOriginalsNotice: View {
                     .padding(.vertical, 4)
                     .accessibilityIdentifier("library.relinkSummary")
             }
-            if let missing = store.missing, missing.pages > 0 {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    Text(missing.sentence).font(.callout).lineLimit(2)
-                    Spacer()
-                    Button("Locate Originals…") { store.begin(folderId: folderId) }
-                        .controlSize(.small)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.bar)
-                .accessibilityIdentifier("library.missingOriginals")
-            }
+            // The missing-originals ask is an alert (#7077), never a strip above the rows.
         }
         .task(id: folderId) { await store.loadMissing(folderId: folderId) }
     }
@@ -142,12 +130,22 @@ struct LocateOriginalsPresenter: ViewModifier {
             .safeAreaInset(edge: .top, spacing: 0) {
                 if let store { MissingOriginalsNotice(store: store, folderId: folderId) }
             }
+            .alert(
+                "Originals are missing",
+                isPresented: Binding(get: { store?.isOffering ?? false }, set: { if !$0 { store?.declineOffer() } })
+            ) {
+                Button("Locate…") { store?.locateFromOffer() }
+                Button("Not Now", role: .cancel) { store?.declineOffer() }
+            } message: {
+                Text(store?.missing?.sentence ?? "")
+            }
             .focusedSceneValue(\.originals, store)
             // At open, the folder this project's originals were last relinked to, with no panel (#5535).
             .task {
                 guard let store, let actionsService else { return }
                 await store.loadMissing()
                 await store.relinkFromRememberedRoot(actionsService: actionsService, steps: steps)
+                store.offerOnce()
             }
             .sheet(isPresented: Binding(get: { store?.isChoosing ?? false }, set: { store?.isChoosing = $0 })) {
                 if let store, let actionsService {

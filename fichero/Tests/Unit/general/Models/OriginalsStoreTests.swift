@@ -140,6 +140,29 @@ struct OriginalsStoreTests {
         #expect(store.askOnce(force: true), "a person's own Retry still asks")
     }
 
+    @Test("importer.originals.missing-asks-in-an-alert: missing originals are offered once per open, in an alert")
+    func offersOncePerOpen() async {
+        let store = store()
+        #expect(!store.offerOnce(), "nothing read yet, nothing to offer")
+        await store.loadMissing()
+        #expect(store.offerOnce())
+        #expect(store.isOffering && !store.isChoosing)
+        store.declineOffer()
+        #expect(!store.isOffering)
+        #expect(!store.offerOnce(), "Not Now is not asked again this open")
+        store.begin()
+        #expect(store.isChoosing, "File > Locate Originals… still opens the sheet")
+    }
+
+    @Test("importer.originals.missing-asks-in-an-alert: Locate… in the alert opens the sheet")
+    func locateFromTheAlert() async {
+        let store = store()
+        await store.loadMissing()
+        store.offerOnce()
+        store.locateFromOffer()
+        #expect(!store.isOffering && store.isChoosing)
+    }
+
     @Test("transfer.machine.originals-relinked-from-one-grant: the next launch relinks from the kept folder, no panel")
     func launchRelinksWithNoSecondPrompt() async throws {
         let store = store()
