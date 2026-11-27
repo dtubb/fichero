@@ -368,3 +368,33 @@ def test_a_lane_branch_left_from_an_old_batch_is_deleted_and_the_tree_made_when_
         assert [r["state"] for r in journal.read() if r.get("event") == "cleanup"] == ["merged-branch-deleted"]
     else:
         assert "already exists" in why and adds[0] == 1 and not any("branch -D" in s for s in ran)
+
+
+def test_the_check_range_starts_at_origins_tip_when_the_local_land_branch_is_behind_and_the_head_holds_it(tmp_path):
+    """2026-11-27 17:23, 17:39: seg-tools and console were rebased onto b6b0fb447b; the engine repo's integration was still cb39c90,
+    so b6b0fb447b's own test file sat in the step's range and red-on-base raised "NOT RED ON BASE" for a test the step never touched."""
+    import subprocess
+    import types
+
+    from fichero_builder import work
+    r = tmp_path / "r"
+    g = lambda *a: subprocess.run(["git", "-C", str(r), *a], check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    subprocess.run(["git", "init", "-q", "-b", "integration", str(r)], check=True)
+    for k, v in (("user.name", "t"), ("user.email", "t@t")):
+        g("config", k, v)
+    g("commit", "-q", "--allow-empty", "-m", "old")
+    old = g("rev-parse", "HEAD")
+    g("commit", "-q", "--allow-empty", "-m", "landed since")
+    newer = g("rev-parse", "HEAD")
+    g("update-ref", "refs/remotes/origin/integration", newer)
+    g("commit", "-q", "--allow-empty", "-m", "the step")
+    head = g("rev-parse", "HEAD")
+    g("update-ref", "refs/heads/integration", old)  # the engine repo's local branch lags origin
+    a = types.SimpleNamespace()
+    assert work.check_since(a, str(r), "integration", head) == newer
+    assert work.check_since(a, str(r), "integration") == old, "no head: the local branch, as before"
+    g("update-ref", "refs/remotes/origin/integration", head + "~0")
+    g("checkout", "-q", "-b", "other", old)
+    g("commit", "-q", "--allow-empty", "-m", "not on the head")
+    g("update-ref", "refs/remotes/origin/integration", g("rev-parse", "HEAD"))
+    assert work.check_since(a, str(r), "integration", head) == old, "an origin tip the head does not hold is not the base"

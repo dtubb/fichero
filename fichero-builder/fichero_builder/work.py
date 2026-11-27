@@ -324,9 +324,19 @@ def stack_resume(a, step: str, under: str) -> str:
     return ""
 
 
-def check_since(a, repo: str, branch: str) -> str:
-    """The sha a ladder starts from: the land branch's, or for a step stacked on another the head under it (local.step.stacks-on-a-waiting-step)."""
-    return getattr(a, "stack_base", "") or land_tool.resolve_branch(repo, branch)
+def check_since(a, repo: str, branch: str, head: str = "") -> str:
+    """The sha a ladder starts from: the land branch's, or for a step stacked on another the head under it (local.step.stacks-on-a-waiting-step).
+    With `head`: origin's tip of the land branch (do_fetch refreshes it) when the local branch is behind it and the head holds it.
+    2026-11-27: the lane had rebased onto b6b0fb447b while the engine repo's refs/heads/integration was still cb39c90; the range
+    took b6b0fb447b's own test file as the step's, and red-on-base said "NOT RED ON BASE" for it on seg-tools and console."""
+    if base := getattr(a, "stack_base", ""):
+        return base
+    tip = land_tool.resolve_branch(repo, branch)
+    if head and tip:
+        o = _git(repo, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}^{{commit}}").stdout.strip()
+        if o and o != tip and all(_git(repo, "merge-base", "--is-ancestor", x, y).returncode == 0 for x, y in ((tip, o), (o, head))):
+            return o
+    return tip
 
 
 def regen(a, branch: str, before: str) -> str:
@@ -548,7 +558,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name.
     `partial` = (rows that stand, rungs to run again, the kept row's words): a kept rebase; the rest of the ladder is reused, red-on-base
     runs its head-green half only, never the base run."""
-    since = check_since(a, repo, branch)
+    since = check_since(a, repo, branch, head)
     if not since:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
