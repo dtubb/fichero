@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from collections.abc import Mapping
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -454,7 +455,9 @@ def counting_answers(
     if not ids:
         return {}
     by_segment: dict[str, list[ReadingRead]] = {}
+    rep_rows: dict[str, list[ContentRepresentation]] = {}
     for rep_row in db.query_in(ContentRepresentation, "segment_id", ids):
+        rep_rows.setdefault(rep_row.segment_id, []).append(rep_row)
         if matches_kind_filter(rep_row, kind):
             by_segment.setdefault(rep_row.segment_id, []).append(_reading_read_from_row(rep_row))
     if not by_segment:
@@ -464,14 +467,29 @@ def counting_answers(
     for choice in db.query_in(ReadingChoice, "segment_id", list(by_segment)):
         choices.setdefault(choice.segment_id, []).append(choice)
     texts: dict[str, tuple[ReadingRead, CountingAnswer | None]] = {}
-    retired_memo: dict[tuple[str, str], set[str]] = {}   # a line's words worked out once (#5190)
     pass_of = {row.id: row.pass_id for row in rows}
+    rows_by_id = {row.id: row for row in rows}   # the rows this list holds: never read again one by one
+    # Every line's retired words (#5190) worked out at once, before the loop: line by line it was four queries a line.
+    want_kind, _want_level = reading_kind_filter(kind)
+    parent_ids = {
+        row.parent_segment_id for segment_id in by_segment
+        if (row := rows_by_id.get(segment_id)) is not None and row.kind == "word" and row.parent_segment_id
+    }
+    parents = [rows_by_id[i] for i in parent_ids if i in rows_by_id]
+    if missing := [i for i in parent_ids if i not in rows_by_id]:
+        parents += db.query_in(Segment, "id", missing)
+    retired_memo: dict[tuple[str, str], set[str]] = {(row.id, want_kind): set() for row in parents if row.kind != "line"}
+    for line_id, by_word in retired_word_readings_of_lines(
+        db, [row for row in parents if row.kind == "line"], want_kind, rule, rep_rows=rep_rows,
+    ).items():
+        retired_memo[(line_id, want_kind)] = set().union(*by_word.values())
     marked = ground_truth_pass_ids(db, pass_of.values())
     measures = ReadingMeasures(db)
     for segment_id, items in by_segment.items():
         counted = counting_of_kind_filter(
             db, segment_id, items, kind, rule=rule, choices=choices.get(segment_id, []),
             retired_memo=retired_memo, on_ground_truth=pass_of.get(segment_id) in marked, measures=measures,
+            rows=rows_by_id,
         )
         if counted is not None and counted.representation_id is not None:
             texts[segment_id] = (next(i for i in items if i.id == counted.representation_id), counted)
@@ -659,17 +677,66 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     afterwards counts). ⌘Z retracts the line reading, so this answers nothing retired and the words
     count again with nothing about them written.
     """
+    return retired_word_readings_of_lines(db, [line], kind, rule)[line.id]
+
+
+def retired_word_readings_of_lines(
+    db: Database, lines: list[Segment], kind: str, rule: Any, *,
+    rep_rows: Mapping[str, list[ContentRepresentation]] | None = None,
+) -> dict[str, dict[str, set[str]]]:
+    """`retired_word_readings` for every line of a page at once, by line id: the words, the readings, the choices and each
+    pass's as-written order are read once for all of them. Line by line it was four queries a line (484 of a 121-line page's
+    862 queries, perf-optimize 2026-11-27). `rep_rows` are the stored readings a caller already holds, by segment id; the
+    rows of any segment not in it are read here."""
+    if not lines:
+        return {}
+    words_by_line: dict[str, list[Segment]] = {}
+    for row in db.query_in(Segment, "parent_segment_id", [line.id for line in lines]):
+        if row.kind == "word" and row.deleted_at is None:
+            words_by_line.setdefault(row.parent_segment_id, []).append(row)
+    everything = [*lines, *(word for words in words_by_line.values() for word in words)]
+    held = dict(rep_rows or {})
+    if missing := [row.id for row in everything if row.id not in held]:
+        for rep_row in db.query_in(ContentRepresentation, "segment_id", missing):
+            held.setdefault(rep_row.segment_id, []).append(rep_row)
+    readings: dict[str, list[ReadingRead]] = {}
+    by_document: dict[str, list[Segment]] = {}
+    for row in everything:
+        by_document.setdefault(row.document_id, []).append(row)
+    for document_id, rows in by_document.items():
+        readings.update(_readings_for_live_rows(
+            db, rows, document_id, {}, readings=[rep_row for row in rows for rep_row in held.get(row.id, [])],
+        ))
+    choices: dict[str, list[ReadingChoice]] = {}
+    for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in everything]):
+        if choice.kind == kind:
+            choices.setdefault(choice.segment_id, []).append(choice)
+    sequences: dict[str, dict[str, int] | None] = {}
+    out: dict[str, dict[str, set[str]]] = {}
+    for line in lines:
+        if line.pass_id not in sequences:
+            sequences[line.pass_id] = _as_written_sequence(db, line.pass_id)
+        out[line.id] = _retired_by_word(
+            line, words_by_line.get(line.id, []), readings, choices, sequences[line.pass_id], kind, rule,
+        )
+    return out
+
+
+def _retired_by_word(
+    line: Segment, siblings: list[Segment], readings: Mapping[str, list[ReadingRead]],
+    choices: Mapping[str, list[ReadingChoice]], sequence: dict[str, int] | None, kind: str, rule: Any,
+) -> dict[str, set[str]]:
+    """`retired_word_readings` for one line, from readings and choices (of `kind`) already in hand, by segment id."""
     # The line AS WRITTEN (`source.reading.counts-per-level`): a person's expanded or regularised reading
     # of the line is not an edit of what it says, so it retires no word.
     line_items = [
-        i for i in readings_of_segment(db, line.id)
+        i for i in readings.get(line.id, [])
         if i.kind == kind and counting_level(i.level) == BASE_READING_LEVEL
     ]
     if not line_items:
         return {}
     by_id = {i.id: i for i in line_items}
-    line_choices = [c for c in db.query(ReadingChoice, segment_id=line.id) if c.kind == kind]
-    counted = by_id.get(resolve_counting(rule, line_choices, [_candidate(i) for i in line_items]).representation_id or "")
+    counted = by_id.get(resolve_counting(rule, choices.get(line.id, []), [_candidate(i) for i in line_items]).representation_id or "")
     if counted is None or counted.provenance_kind is not ProvenanceKind.human:
         return {}
     chain: list[str] = []
@@ -681,11 +748,7 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     chain.reverse()
 
     # The words in the order the page reads them, each with what counted before the edit.
-    siblings = [
-        row for row in db.query(Segment, parent_segment_id=line.id)
-        if row.kind == "word" and row.deleted_at is None
-    ]
-    sequence = _as_written_sequence(db, line.pass_id)
+    siblings = list(siblings)
     if sequence is not None and all(row.id in sequence for row in siblings):
         siblings.sort(key=lambda row: (sequence[row.id], row.id))
     else:
@@ -694,15 +757,14 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     older_by_word: dict[str, list[ReadingRead]] = {}
     for row in siblings:
         older = [
-            i for i in readings_of_segment(db, row.id)
+            i for i in readings.get(row.id, [])
             if i.kind == kind and counting_level(i.level) == BASE_READING_LEVEL
             and i.created_at < counted.created_at
         ]
         if not older:
             continue
         older_by_word[row.id] = older
-        word_choices = [c for c in db.query(ReadingChoice, segment_id=row.id) if c.kind == kind]
-        answer = resolve_counting(rule, word_choices, [_candidate(i) for i in older])
+        answer = resolve_counting(rule, choices.get(row.id, []), [_candidate(i) for i in older])
         text = next((i.content for i in older if i.id == answer.representation_id), None)
         if text:
             words.append((row.id, text))
@@ -716,16 +778,17 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
 
 def retired_readings_of(
     db: Database, segment_id: str, kind: str, rule: Any, memo: dict[tuple[str, str], set[str]],
-    segment: Segment | None = None,
+    segment: Segment | None = None, rows: Mapping[str, Segment] | None = None,
 ) -> set[str]:
     """The readings of ``segment_id`` (a word) its line's edit retired; empty for anything else.
     ``memo`` holds each line's answer, so a list or an export works a line out once. ``segment`` is the
-    row, for a caller that holds it already."""
-    segment = segment or db.get(Segment, segment_id)
+    row, for a caller that holds it already; ``rows`` are the rows a caller listing a page holds, by id, so the
+    word and its line are taken from them and not read again (one `get` a segment was 566 of a dense page's 1,056 queries)."""
+    segment = segment or (rows or {}).get(segment_id) or db.get(Segment, segment_id)
     if segment is None or segment.kind != "word" or not segment.parent_segment_id:
         return set()
     if (segment.parent_segment_id, kind) not in memo:
-        line = db.get(Segment, segment.parent_segment_id)
+        line = (rows or {}).get(segment.parent_segment_id) or db.get(Segment, segment.parent_segment_id)
         by_word = retired_word_readings(db, line, kind, rule) if line is not None and line.kind == "line" else {}
         memo[(segment.parent_segment_id, kind)] = set().union(*by_word.values())
     return memo[(segment.parent_segment_id, kind)]
@@ -743,6 +806,7 @@ def counting_by_kind_and_level(
     on_ground_truth: bool | None = None,
     measures: ReadingMeasures | None = None,
     segment: Segment | None = None,
+    rows: Mapping[str, Segment] | None = None,
 ) -> dict[tuple[str, str], CountingAnswer]:
     """The counting answer for each (kind, level) present, worked out fresh (`source.reading.counts-per-level`).
 
@@ -780,7 +844,7 @@ def counting_by_kind_and_level(
         if kind not in retired_of_kind:
             retired_of_kind[kind] = (
                 set() if lines_read_by_a_person_skip_their_words
-                else retired_readings_of(db, segment_id, kind, rule, memo, segment)
+                else retired_readings_of(db, segment_id, kind, rule, memo, segment, rows)
             )
         retired = retired_of_kind[kind]
         at_level = [item for item in items if item.kind == kind and counting_level(item.level) == level]
