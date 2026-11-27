@@ -1108,12 +1108,16 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         older = [x["id"] for x in load() if x["id"] != lane["id"] and x["id"] not in running and x.get("waiting_since") and x["waiting_since"] < mine
                  and not x.get("paused") and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ("done", "checking", "reviewing")
                  and not x["steps"][x["cursor"]].get("retry_of")]  # #6506 still: an alert's retry never goes before a fresh done
-        if free <= 0 or len(older) >= free:  # #6506: held HERE (one row per head), never queued FIFO in the pool
+        # owner 2026-11-27 (lanes stay 9): a chain takes a worker only when no other chain already waits for a ladder slot; ready checks
+        # wait here, in waiting_since order, instead of pinning workers in the slot wait (9 workers on 4 slots: up to 5 pinned)
+        slot_wait = [x for x in work.SLOT_WAITING if x != lane["id"]]
+        if free <= 0 or len(older) >= free or slot_wait:  # #6506: held HERE (one row per head), never queued FIFO in the pool
             if (told := (str(journal.STATE), lane["id"], s.get("head", ""))) not in WAIT_TOLD:  # one row per head and process: a restarted loop says it again
                 WAIT_TOLD.add(told)
                 journal.append("queue", lane=lane["id"], step=s["step"], state="waiting-for-worker",
                                detail=f"waiting for a chain worker ({len(running)} running: {', '.join(sorted(running))}; [loop].lanes = {chains['pool']._max_workers}"
-                                      + (f"; {len(older)} waited longer: {', '.join(sorted(older))}" if older else "") + ")")
+                                      + (f"; {len(older)} waited longer: {', '.join(sorted(older))}" if older else "")
+                                      + (f"; {', '.join(slot_wait)} already waits for a ladder slot" if slot_wait else "") + ")")
             if not lane.get("waiting_since"):
                 lane["waiting_since"] = mine
                 store(lane, expect=(s["step"], s.get("head", "")))

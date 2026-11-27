@@ -2550,3 +2550,50 @@ def test_the_lane_that_waited_longest_for_a_chain_worker_takes_the_next_free_one
     finally:
         release.set()
         pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_a_ready_chain_takes_no_worker_while_another_chain_waits_for_a_ladder_slot(state, monkeypatch):
+    """Owner 2026-11-27 (lanes stay 9): 9 chain workers sat on 4 ladder slots, up to 5 of them pinned in the slot wait. A ready check
+    now waits in the queue (waiting_since order) while any chain already waits for a slot, and starts once none does."""
+    from fichero_builder import work
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "ext", "a" * 40, "--state", str(journal.STATE)]) == 0
+    fake = Fake()
+    fake.procs.chain = lambda lane_, step, stage: {"ok": True, "head": step["head"], "why": "", "findings": ""}
+    pool = queue.ThreadPoolExecutor(max_workers=9)
+    chains = {"pool": pool}
+    monkeypatch.setattr(work, "SLOT_WAITING", ["seg-tools"])
+    try:
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert "ext" not in chains, "eight workers free, but a chain already waits for a slot: held"
+        (row,) = [r for r in journal.read() if r.get("state") == "waiting-for-worker"]
+        assert "seg-tools already waits for a ladder slot" in row["detail"]
+        work.SLOT_WAITING.clear()
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert "ext" in chains, "no chain waits for a slot: it takes a worker"
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_ladder_slot_lists_a_chain_while_it_waits_and_drops_it_once_it_holds_a_slot(tmp_path, monkeypatch):
+    import threading
+
+    from fichero_builder import work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    monkeypatch.setattr(work, "SLOTS", [0])
+    monkeypatch.setattr(work, "SLOT_WAITING", [])
+    seen = []
+    with work.ladder_slot("a", ["x.py"], 1, by_file=False):
+        assert work.SLOT_WAITING == [], "holding a slot is not waiting"
+
+        def second():
+            with work.ladder_slot("b", ["y.py"], 1, sleep=lambda s: seen.append(list(work.SLOT_WAITING)) or __import__("time").sleep(0.05), by_file=False):
+                pass
+        t = threading.Thread(target=second)
+        t.start()
+        while not seen:
+            __import__("time").sleep(0.01)
+        assert seen[0] == ["b"], "b waits for the one slot: listed"
+    t.join(5)
+    assert work.SLOT_WAITING == []

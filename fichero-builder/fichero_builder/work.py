@@ -794,42 +794,46 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: 
     `by_file=False` (local.check.no-same-file-wait: the train is on, and its candidate merge and rungs judge two steps that share a
     file together): any free slot is taken, whatever files the running ladders hold."""
     t0, said, clashed, state = time.time(), False, False, Path(journal.STATE)
-    while True:
-        with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
-            free, clash, shared = None, "", set()
-            for slot in journal.ladder_slots(SLOTS[0] or n):
-                lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
-                try:
-                    lk.__enter__()
-                except BlockingIOError:
-                    other = state / f"{slot}.files"
+    SLOT_WAITING.append(name)  # the queue starts no other chain while one waits here (a waiting chain pins a chain worker)
+    try:
+        while True:
+            with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
+                free, clash, shared = None, "", set()
+                for slot in journal.ladder_slots(SLOTS[0] or n):
+                    lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
                     try:
-                        o = json.loads(other.read_text())
-                    except (OSError, ValueError):
-                        o = {"name": "?", "files": []}
-                    if by_file and (not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE)):
-                        clash, shared = o["name"], (both if files and o["files"] else {"(an unknown file list)"})
-                    continue
-                if free is None:
-                    free = (slot, lk)
-                else:
-                    lk.__exit__()
-            if free and clash:
-                free[1].__exit__()
-                free = None
-                if not clashed:  # a slot was free and the batch still waited: one row, so the cost of the rule can be measured
-                    clashed = True
-                    journal.append("lock", state="clash", name="ladder", holder=clash, what=f"the check of {name}", pid=os.getpid(),
-                                   detail=f"a ladder slot is free, but its batch shares {', '.join(sorted(shared))} with the check of {clash}")
+                        lk.__enter__()
+                    except BlockingIOError:
+                        other = state / f"{slot}.files"
+                        try:
+                            o = json.loads(other.read_text())
+                        except (OSError, ValueError):
+                            o = {"name": "?", "files": []}
+                        if by_file and (not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE)):
+                            clash, shared = o["name"], (both if files and o["files"] else {"(an unknown file list)"})
+                        continue
+                    if free is None:
+                        free = (slot, lk)
+                    else:
+                        lk.__exit__()
+                if free and clash:
+                    free[1].__exit__()
+                    free = None
+                    if not clashed:  # a slot was free and the batch still waited: one row, so the cost of the rule can be measured
+                        clashed = True
+                        journal.append("lock", state="clash", name="ladder", holder=clash, what=f"the check of {name}", pid=os.getpid(),
+                                       detail=f"a ladder slot is free, but its batch shares {', '.join(sorted(shared))} with the check of {clash}")
+                if free:
+                    (state / f"{free[0]}.files").write_text(json.dumps({"name": name, "files": files}))
             if free:
-                (state / f"{free[0]}.files").write_text(json.dumps({"name": name, "files": files}))
-        if free:
-            break
-        if not said and time.time() - t0 > journal.Lock.WARN_S:
-            why = f"its batch shares files with the check of {clash}" if clash else f"all {n} ladder slot(s) are busy"
-            journal.append("lock", state="waiting", name="ladder", holder=clash or "?", what=f"the check of {name}", pid=os.getpid(), detail=why)
-            said = True
-        sleep(1)
+                break
+            if not said and time.time() - t0 > journal.Lock.WARN_S:
+                why = f"its batch shares files with the check of {clash}" if clash else f"all {n} ladder slot(s) are busy"
+                journal.append("lock", state="waiting", name="ladder", holder=clash or "?", what=f"the check of {name}", pid=os.getpid(), detail=why)
+                said = True
+            sleep(1)
+    finally:
+        SLOT_WAITING.remove(name)
     if said:
         journal.append("lock", state="acquired", name="ladder", what=f"the check of {name}", pid=os.getpid(), seconds=int(time.time() - t0))
     prev, check_tool.SLOT[0] = check_tool.SLOT[0], journal.ladder_slots(max(n, SLOTS[0] or n)).index(free[0])  # the slot's own runner first
@@ -841,6 +845,9 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: 
         check_tool.SLOT[0] = prev
         (state / f"{free[0]}.files").unlink(missing_ok=True)
         free[1].__exit__()
+
+
+SLOT_WAITING: list = []  # the chains waiting for a ladder slot now (2026-11-27: 9 chain workers on 4 slots, up to 5 pinned waiting)
 
 
 _EARLY = __import__("concurrent.futures").futures.ThreadPoolExecutor(max_workers=2)  # early reviews (speed 2)
