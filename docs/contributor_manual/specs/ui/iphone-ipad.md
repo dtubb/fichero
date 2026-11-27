@@ -231,7 +231,7 @@ paging. The screens, in order:
   element with the disclosure trait exists in the sidebar on an iPhone; tapping a folder shows a screen titled with the
   folder's name whose Back button is the sidebar. Tests: `SidebarPhoneRowsTests.swift` (the phone's row list for a
   seeded tree has no expandable row and no source row), `IOSDrillDownUITests.swift`.
-- `ios.nav.back-is-one-step` — **[PARTIAL]** (built: Back pops one step of the path, from a nested folder, an item, Reader and Info, tested in `CompactPathTests.swift`; the UI test `IOSDrillDownUITests` has not run) (#5964; → #6945) Back, and the edge swipe, pop exactly one screen: item view → its
+- `ios.nav.back-is-one-step` — **[PARTIAL]** (built: Back pops one step of the path, from a nested folder and from an item view whatever page is showing, tested in `CompactPathTests.swift`; the UI test `IOSDrillDownUITests` has not run) (#5964; → #6945) Back, and the edge swipe, pop exactly one screen: item view → its
   folder → the folder above → … → the sidebar. Leaving the item view clears the list's selection so the same row can be
   tapped again. Today Back from a nested folder goes to the sidebar (`ios.nav.folders-push`) and "Back" from Reader or
   Info is never reached (`ios.nav.one-path`). Tests: `CompactPathTests.swift` (Back from every depth).
