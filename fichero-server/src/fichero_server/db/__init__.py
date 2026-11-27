@@ -2724,6 +2724,65 @@ class Database(DatabaseEmbeddingMixin):
         with self._lock:
             return [(str(r[0]), int(r[1])) for r in self.conn.execute(sql, params).fetchall()]
 
+    def claim_ids_mentioning(self, entity_ids: Sequence[str], limit: int) -> list[str]:
+        """Ids of the statements that mention any of these names, in table order, at most `limit`."""
+        self._ensure_kg_mentions()
+        ids = list(entity_ids)
+        if not ids or limit <= 0:
+            return []
+        marks = ", ".join("?" for _ in ids)
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT c.id FROM knowledgeclaims c WHERE c.id IN "
+                f"(SELECT claim_id FROM kg_mentions WHERE entity_id IN ({marks})) ORDER BY c.rowid LIMIT ?",
+                [*ids, limit],
+            ).fetchall()
+        return [r[0] for r in rows]
+
+    def entity_ids_by_lowered_name(self, names: Sequence[str]) -> dict[str, str]:
+        """Lower-cased text -> entity id, for the texts that are a canonical name or an alias; a canonical name wins over an alias."""
+        wanted = sorted({n for n in names if n})
+        if not wanted:
+            return {}
+        out: dict[str, str] = {}
+        with self._lock:
+            for start in range(0, len(wanted), 500):
+                chunk = wanted[start : start + 500]
+                marks = ", ".join("?" for _ in chunk)
+                aliases = self.conn.execute(
+                    "SELECT lower(a), id FROM (SELECT id, rowid AS r, unnest(CAST(json(aliases) AS VARCHAR[])) AS a "
+                    f"FROM knowledgeentitys WHERE aliases IS NOT NULL) WHERE lower(a) IN ({marks}) ORDER BY r",
+                    chunk,
+                ).fetchall()
+                for name, entity_id in aliases:
+                    out.setdefault(name, entity_id)
+                canonical = self.conn.execute(
+                    f"SELECT lower(canonical_name), id FROM knowledgeentitys WHERE lower(canonical_name) IN ({marks}) ORDER BY rowid",
+                    chunk,
+                ).fetchall()
+                for name, entity_id in canonical:
+                    out[name] = entity_id
+        return out
+
+    def entity_mention_counts(self, entity_ids: Sequence[str], *, outside_documents: Sequence[str] = ()) -> dict[str, int]:
+        """Statements per name from `kg_mentions` for these names, leaving out statements whose source page is in `outside_documents`."""
+        self._ensure_kg_mentions()
+        ids = list(entity_ids)
+        if not ids:
+            return {}
+        marks = ", ".join("?" for _ in ids)
+        sql = f"SELECT entity_id, COUNT(DISTINCT claim_id) FROM kg_mentions WHERE entity_id IN ({marks})"
+        params: list[Any] = list(ids)
+        hidden = list(outside_documents)
+        if hidden:
+            sql += (
+                " AND claim_id NOT IN (SELECT id FROM knowledgeclaims WHERE source_document_id IN "
+                f"({', '.join('?' for _ in hidden)}))"
+            )
+            params.extend(hidden)
+        with self._lock:
+            return {r[0]: int(r[1]) for r in self.conn.execute(sql + " GROUP BY entity_id", params).fetchall()}
+
     def rebuild_kg_mentions(self) -> int:
         """Throw the link table away and remake it from the statements table in one statement; returns its row count."""
         from fichero_server.models.knowledge import KnowledgeClaim

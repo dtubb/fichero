@@ -108505,6 +108505,11 @@
           "max_depth": {
             "type": "integer",
             "title": "Max Depth"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
           }
         },
         "type": "object",
