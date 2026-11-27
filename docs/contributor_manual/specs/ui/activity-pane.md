@@ -415,10 +415,14 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   tokens; the icons replace the Started by and Kind text columns, which go. Acceptance: the fixture rows map to these symbols
   from the engine's `started_by` and `task_type` in one function; no row text names the source. **Built (2026-11-13 night):**
   the one mapping on the row model (`ActivityMonitorRow.source(startedBy:)`, `kindSymbol(engineKind:)`, each with its word);
-  not compiled here. Not built: the icon column and the filter tokens; cloud vs local needs the row's model. *Tests:*
-  `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift`; the existing
-  `fichero/Tests/Unit/general/Models/ActivityRowStartedByTests.swift`.
-  Not built (2026-11-23): the icon column and the filter tokens; cloud vs local needs the row's model.
+  not compiled here. **Built since (found 2026-11-27):** the icon column (the pane's leading source column and its optional
+  Kind column, each glyph's word in its tooltip and accessibility label) and the "started by:" token; the runtime is the
+  Model column, so no cloud or local glyph is owed. **Built (2026-11-27):** the "kind:" token, by the glyph's word or the
+  engine's own kind. Not built: the Started By text column going: it is still an optional column, off by default, as
+  `activity.pane.default-columns` lists it, so with it on a row's text names the source. *Tests:*
+  `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift`,
+  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift` (`kindToken`, `startedByAutomatic`); the
+  existing `fichero/Tests/Unit/general/Models/ActivityRowStartedByTests.swift`.
 - `activity.pane.cost-per-row-and-totals` — **[PARTIAL]** (#6598, #6441, decision 20; `activity.window.cost-column` built the per-node
   `cost_usd`; `ai/cloud-permission-and-spend.md` keeps the records) the Cost column (on by default, `activity.pane.default-columns`;
   shown in the Inspector always) shows per row the dollars SPENT so far and, while running, the ESTIMATE to finish ("$0.42 · ~$1.10
