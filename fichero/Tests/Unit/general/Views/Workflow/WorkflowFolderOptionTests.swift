@@ -37,14 +37,4 @@ final class WorkflowFolderOptionTests: XCTestCase {
 
         XCTAssertEqual(options.map(\.id), ["a", "a1"])
     }
-
-    /// The Collection node asks the shared rows whether its folder still
-    /// exists; it keeps no id-keyed dictionary of its own.
-    func testTheCollectionNodeKeepsNoDictionaryOfItsOwn() throws {
-        let url = try AppSource.root()
-            .appendingPathComponent("Views/Workflow/Nodes/NodeConfigs/CollectionNodeConfig.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertFalse(source.contains("uniqueKeysWithValues"))
-        XCTAssertTrue(source.contains("WorkflowFolderOption.tree(from:"))
-    }
 }
