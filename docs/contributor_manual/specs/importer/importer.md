@@ -786,6 +786,7 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
   and relinks every missing original found under it, matching by file name and size, then by content hash, and reports N
   relinked and M still missing; it never errors on the ones it cannot match, and an error it does show names what failed.
   Test: a folder holding three moved files relinks three and reports none missing.
+- `importer.originals.missing-asks-in-an-alert` — **[BUILT]** (#7077, #5672; owner) a project with missing originals asks the person to act in an alert on the window, "Originals are missing" with the engine's one sentence and the buttons "Locate…" (opens the Locate Originals sheet) and "Not Now", once per project open and after the remembered folder has been tried (`OriginalsStore.offerOnce`, shown by `LocateOriginalsPresenter`). It is never a strip or banner at the top of the main window. File ▸ Locate Originals… and an item's menu still open the sheet at any time. Test: `OriginalsStoreTests` (`offersOncePerOpen`, `locateFromTheAlert`).
 - `importer.originals.retry-finds-and-relinks` — **[GAP]** (#6733; app + engine; owner 2026-11-19) a thumbnail that says "Original unavailable"
   offers Retry. Retry resolves the bookmark, then searches the last folder used and the library's known roots; on finding the
   original it relinks it and offers to relink the other K missing originals in that folder too. Test: Retry finds one and
