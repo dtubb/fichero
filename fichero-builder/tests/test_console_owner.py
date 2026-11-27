@@ -18,6 +18,7 @@ def state(tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path)
     monkeypatch.setattr(console, "ROOT", tmp_path)
     monkeypatch.setattr(console, "_STATUS", {"at": 0.0, "data": None})
+    monkeypatch.setattr(console, "_CHARTS", {})
     return tmp_path
 
 
@@ -228,3 +229,49 @@ def test_a_message_to_the_manager_is_an_inbox_line_and_one_row_and_the_thread_sh
     page = _page()
     js = page[page.index("function Manager("):page.index("function App()")]
     assert '["manager", "Manager"]' in page and '"/api/message"' in js and '"/api/thread"' in js and "<textarea" in js
+
+
+def test_progress_is_series_per_day_from_the_journal_and_each_priority_specs_ok_count_from_git_history(live, monkeypatch):
+    """builder-console.progress.page: landings, trains by result, issues closed, rounds per landing, and [OK] counts over time."""
+    url, _ran = live
+    now = time.mktime(time.strptime("2026-11-27T12:00:00", "%Y-%m-%dT%H:%M:%S"))
+    rows = [{"ts": "2026-11-25T09:00:00", "event": "landed", "step": "done", "issues": [1, 2], "left_open": [2]},
+            {"ts": "2026-11-27T09:00:00", "event": "landed", "step": "done", "issues": [3, 4]},
+            {"ts": "2026-11-27T10:00:00", "event": "landed", "step": "done", "issues": []},
+            {"ts": "2026-11-27T10:00:00", "event": "landed", "step": "verdict"},
+            {"ts": "2026-10-01T10:00:00", "event": "landed", "step": "done", "issues": [9]},
+            {"ts": "2026-11-26T08:00:00", "event": "train", "id": "t1", "result": "red"},
+            {"ts": "2026-11-27T08:00:00", "event": "train", "id": "t2", "result": "green"},
+            {"ts": "2026-11-27T08:30:00", "event": "train", "id": "t3", "result": "green"},
+            {"ts": "2026-11-27T08:40:00", "event": "train", "id": "t4", "state": "train-lost"},
+            {"ts": "2026-11-26T01:00:00", "event": "queue", "lane": "a", "step": "s1", "state": "red"},
+            {"ts": "2026-11-26T02:00:00", "event": "queue", "lane": "a", "step": "s1", "state": "red"},
+            {"ts": "2026-11-26T03:00:00", "event": "queue", "lane": "a", "step": "s1", "state": "landed"},
+            {"ts": "2026-11-26T04:00:00", "event": "queue", "lane": "a", "step": "s2", "state": "landed"}]
+    spec = "- `x.a` [OK] one\n- `x.b` — **[OK]** two\n- `x.c` [GAP] (#1) three\n> an **[OK]** means built\n"
+    calls = []
+
+    def git(repo, *args):
+        calls.append(args)
+        if args[0] == "log":
+            return "c3 2026-11-27\nc2 2026-11-27\nc1 2026-11-20\n"
+        if args[0] == "rev-list":
+            return "c0\n"
+        return {"c0": "", "c1": spec.replace("[OK] one", "[GAP] (#2) one"), "c3": spec}[args[1].split(":")[0]]
+    p = console.progress_view(rows, journal.STATE, {"Seg": "specs/seg.md"}, now=now, git=git)
+    assert len(p["days"]) == console.PROGRESS_DAYS and p["days"][-1] == "2026-11-27" and p["days"][0] == "2026-10-29"
+    at = lambda series, day: series[p["days"].index(day)]  # noqa: E731
+    assert (at(p["landings"], "2026-11-25"), at(p["landings"], "2026-11-26"), at(p["landings"], "2026-11-27")) == (1, 0, 2) and sum(p["landings"]) == 3
+    assert (at(p["closed"], "2026-11-25"), at(p["closed"], "2026-11-27")) == (1, 2), "issues less the ones left open"
+    assert sorted(p["trains"]) == ["green", "red"] and at(p["trains"]["green"], "2026-11-27") == 2 and at(p["trains"]["red"], "2026-11-26") == 1
+    assert [(r["lane"], r["step"], r["rounds"]) for r in p["rounds"]] == [("a", "s1", 2), ("a", "s2", 0)], "the red rows of a step before its landed row"
+    assert p["specs"] == {"Seg": [{"day": "2026-10-28", "ok": 0}, {"day": "2026-11-20", "ok": 1}, {"day": "2026-11-27", "ok": 2}]}, "each day's last commit; behaviour lines only"
+    assert ("show", "c2:specs/seg.md") not in calls
+    (journal.STATE / "harness.toml").write_text('[land]\nbranch = "integration"\n')
+    assert _get(url, "/api/progress")["specs"] == {}, "no [console.progress_specs]: no spec chart"
+    import tomllib
+    listed = tomllib.loads((console.PKG.parent / "harness.toml").read_text())["console"]["progress_specs"]
+    assert len(listed) == 4 and all((console.PKG.parent / f).is_file() for f in listed.values()), "the project's four priority specs exist"
+    page = _page()
+    js = page[page.index("function Chart("):page.index("function App()")]
+    assert '["progress", "Progress"]' in page and "<svg" in js and "/api/progress" in js and page.count("https://") == 1, "inline SVG; nothing new is fetched"

@@ -143,6 +143,67 @@ def now_view(rows: list[dict], lanes: list[dict], now: float | None = None) -> d
             "trains": st["trains"], "waiting_for_train": st["waiting_for_train"], "slots": slots}
 
 
+PROGRESS_DAYS = 30
+OK_LINE = re.compile(r"(?m)^\s*- `[^`\n]+`.{0,12}\[OK\]")  # a behaviour bullet tagged [OK]: "- `id` [OK]" or "- `id` — **[OK]**"
+
+
+def spec_ok_series(root, path: str, branch: str, first_day: str, git=None) -> list[dict]:
+    """[{day, ok}], oldest first: the count of behaviour lines tagged [OK] in `path` at the last commit of origin/<branch> before
+    `first_day` (dated the day before it), then at the last commit of each day since on which one touched the file."""
+    git = git or _git_text
+    out = []
+    before = git(str(root), "rev-list", "-1", f"--before={first_day}T00:00:00", f"origin/{branch}").strip()
+    if before:
+        day0 = time.strftime("%Y-%m-%d", time.localtime(_secs(first_day + "T12:00:00") - 86400))
+        out.append({"day": day0, "ok": len(OK_LINE.findall(git(str(root), "show", f"{before}:{path}")))})
+    last: dict = {}
+    for ln in git(str(root), "log", f"--since={first_day}T00:00:00", "--format=%H %cs", f"origin/{branch}", "--", path).splitlines():
+        sha, _, day = ln.partition(" ")
+        last.setdefault(day, sha)  # the log is newest first: the day's last commit
+    return out + [{"day": d, "ok": len(OK_LINE.findall(git(str(root), "show", f"{sha}:{path}")))} for d, sha in sorted(last.items())]
+
+
+def progress_view(rows: list[dict], root, specs: dict, branch: str = "integration", now: float | None = None, git=None) -> dict:
+    """builder-console.progress.page: the last PROGRESS_DAYS days (`days`, oldest first) and, per day: `landings` (the `landed` rows
+    of step `done`), `closed` (their issues less `left_open`), `trains` {result: counts}; `rounds` (one entry per `queue` row
+    `landed` in the window: the `red` rows of that lane and step since its last landing); `specs` {name: spec_ok_series}."""
+    now = now or time.time()
+    days = [time.strftime("%Y-%m-%d", time.localtime(now - k * 86400)) for k in range(PROGRESS_DAYS - 1, -1, -1)]
+    at = {d: i for i, d in enumerate(days)}
+    landings, closed, trains, rounds, reds = [0] * len(days), [0] * len(days), {}, [], {}
+    for r in rows:
+        i = at.get(str(r.get("ts", ""))[:10])
+        if r.get("event") == "queue" and r.get("state") in ("red", "landed"):
+            k = (r.get("lane"), r.get("step"))
+            if r["state"] == "red":
+                reds[k] = reds.get(k, 0) + 1
+            else:
+                n = reds.pop(k, 0)
+                if i is not None:
+                    rounds.append({"ts": r["ts"], "lane": k[0], "step": k[1], "rounds": n})
+        if i is None:
+            continue
+        if r.get("event") == "landed" and r.get("step") == "done":
+            landings[i] += 1
+            closed[i] += len([n for n in r.get("issues", []) if n not in r.get("left_open", [])])
+        elif r.get("event") == "train" and r.get("result"):
+            trains.setdefault(r["result"], [0] * len(days))[i] += 1
+    return {"days": days, "landings": landings, "closed": closed, "trains": trains, "rounds": rounds,
+            "specs": {name: spec_ok_series(root, path, branch, days[0], git) for name, path in specs.items()}}
+
+
+_CHARTS: dict = {}  # {"at", "data"}: ten minutes' cache of /api/progress (a `git show` per spec and day)
+
+
+def progress_cached() -> dict:
+    if not _CHARTS or time.time() - _CHARTS["at"] > 600:
+        f = Path(ROOT) / "harness.toml"
+        doc = tomllib.loads(f.read_text()) if f.is_file() else {}
+        _CHARTS.update(at=time.time(), data=progress_view(rows_of(ROOT), ROOT, doc.get("console", {}).get("progress_specs", {}),
+                                                         doc.get("land", {}).get("branch", "integration")))
+    return _CHARTS["data"]
+
+
 def _manager(name: str) -> Path:
     return journal.STATE / "manager" / name
 
@@ -1096,6 +1157,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, {"ts": None, "milestones": []})
         if path == "/api/alerts":
             return _json(self, 200, alerts_view(rows_of(ROOT)))
+        if path == "/api/progress":
+            return _json(self, 200, progress_cached())
         if path == "/api/thread":
             return _json(self, 200, {"messages": thread()})
         if path == "/api/now":

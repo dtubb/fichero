@@ -485,6 +485,45 @@ function Manager({ st }) {
       <div class="actions"><button class="btn primary" disabled=${!text.trim()}>Send</button></div></form>`;
 }
 
+// builder-console.progress.page: charts over time as inline SVG; no chart library, nothing fetched
+const CHART = { w: 640, h: 150, l: 30, b: 18, t: 8 };
+const COLORS = ["var(--accent)", "var(--green)", "var(--orange)", "var(--red)", "var(--grey)"];
+function Chart({ title, labels, series, kind, note }) {  // series: [{name, color, values}] over `labels`; kind "bar" stacks, "line" draws one line a series
+  const { w, h, l, b, t } = CHART, n = labels.length, pw = w - l - 4, ph = h - b - t;
+  const tops = labels.map((_, i) => kind === "bar" ? series.reduce((s, x) => s + (x.values[i] || 0), 0) : Math.max(0, ...series.map(x => x.values[i] ?? 0)));
+  const max = Math.max(1, ...tops), y = v => t + ph - (v / max) * ph, x = i => l + (n > 1 ? i * pw / (n - 1) : pw / 2), bw = Math.max(2, pw / Math.max(n, 1) - 2);
+  const empty = !series.some(s => s.values.some(v => v));
+  return html`<div class="card" style="min-width:0"><div class="k">${title}${note ? html` <span class="muted">${note}</span>` : ""}</div>
+    <svg viewBox=${`0 0 ${w} ${h}`} width="100%" role="img" aria-label=${title} style="display:block">
+      <line x1=${l} y1=${y(0)} x2=${w - 4} y2=${y(0)} stroke="var(--sep)" /><line x1=${l} y1=${y(max)} x2=${w - 4} y2=${y(max)} stroke="var(--sep)" stroke-dasharray="2 3" />
+      <text x=${l - 4} y=${y(max) + 4} text-anchor="end" font-size="10" fill="var(--grey)">${max}</text><text x=${l - 4} y=${y(0)} text-anchor="end" font-size="10" fill="var(--grey)">0</text>
+      <text x=${l} y=${h - 4} font-size="10" fill="var(--grey)">${labels[0] || ""}</text><text x=${w - 4} y=${h - 4} text-anchor="end" font-size="10" fill="var(--grey)">${labels[n - 1] || ""}</text>
+      ${empty && html`<text x=${w / 2} y=${h / 2} text-anchor="middle" font-size="11" fill="var(--grey)">nothing in this window</text>`}
+      ${kind === "bar" ? labels.map((d, i) => { let base = 0; return series.map(s => { const v = s.values[i] || 0, y1 = y(base + v); base += v;
+          return v ? html`<rect x=${l + i * pw / n + 1} y=${y1} width=${bw} height=${y(base - v) - y1} fill=${s.color}><title>${`${d}: ${v} ${s.name}`}</title></rect>` : ""; }); })
+        : series.map(s => html`<polyline fill="none" stroke=${s.color} stroke-width="1.6" points=${s.values.map((v, i) => v == null ? "" : `${x(i)},${y(v)}`).join(" ")} />
+            ${s.values.map((v, i) => v == null ? "" : html`<circle cx=${x(i)} cy=${y(v)} r="2.2" fill=${s.color}><title>${`${labels[i]}: ${v} ${s.name}`}</title></circle>`)}`)}
+    </svg>
+    ${series.length > 1 && html`<div class="k">${series.map(s => html`<span style="margin-right:10px"><span class="dot" style=${`background:${s.color}`}></span> ${s.name}</span>`)}</div>`}</div>`;
+}
+function Progress({ st }) {
+  const d = useApi("/api/progress", (st.last_land_git || {}).sha || "");
+  if (!d || !d.days) return html`<p class="muted">Loading…</p>`;
+  const one = (name, values, color) => [{ name, values, color: color || COLORS[0] }];
+  const results = Object.keys(d.trains).sort((a, b) => (a === "green" ? -1 : b === "green" ? 1 : a.localeCompare(b)));
+  const specDays = [...new Set(Object.values(d.specs).flat().map(p => p.day))].sort();
+  const held = pts => { let last = null; return specDays.map(day => { const p = pts.find(q => q.day === day); if (p) last = p.ok; return last; }); };  // a day with no commit keeps the last count
+  return html`<h2>Progress <span class="muted" style="font-weight:400">the last ${d.days.length} days</span></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px">
+      <${Chart} title="Landings per day" labels=${d.days} kind="bar" series=${one("landings", d.landings, "var(--green)")} />
+      <${Chart} title="Trains per day, by result" labels=${d.days} kind="bar" series=${results.map((r, i) => ({ name: r, values: d.trains[r], color: r === "green" ? "var(--green)" : r === "red" ? "var(--red)" : COLORS[(i + 2) % COLORS.length] }))} />
+      <${Chart} title="Issues closed per day" labels=${d.days} kind="bar" series=${one("closed", d.closed)} />
+      <${Chart} title="Rounds per landing" note="red rounds of a step before it landed" labels=${d.rounds.map(r => `${r.ts.slice(0, 10)} ${r.lane}/${r.step}`)} kind="bar" series=${one("round(s)", d.rounds.map(r => r.rounds), "var(--orange)")} />
+      ${Object.keys(d.specs).length > 0 && html`<${Chart} title="[OK] behaviours per priority spec" note="from the spec files' git history" labels=${specDays} kind="line"
+        series=${Object.entries(d.specs).map(([name, pts], i) => ({ name, values: held(pts), color: COLORS[i % COLORS.length] }))} />`}
+    </div>`;
+}
+
 function App() {
   const st = useStatus();
   const [msg, setMsg] = useState("");
@@ -499,7 +538,7 @@ function App() {
   return html`
     <div class="toolbar">
       <h1>Builder</h1>
-      <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["manager", "Manager"], ["log", "Log"]].map(([t, n]) =>
+      <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["progress", "Progress"], ["manager", "Manager"], ["log", "Log"]].map(([t, n]) =>
         html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}${t === "alerts" && st.alerts.count ? html` <span class=${"pill " + (st.alerts.owner_count ? "orange" : "")} title=${`${st.alerts.count} open alert(s) under a day old, ${st.alerts.owner_count} yours`}>${st.alerts.count}</span>` : ""}</button>`)}</div>
       <span class="spacer"></span>
       ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
@@ -528,8 +567,8 @@ function App() {
         return (q || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${q ? `${q} lane(s) with a question` : ""}
           ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>` : ""; })()}
       ${(st.open_questions || []).length > 0 && html`<h2>Questions</h2><div class="alerts">${st.open_questions.map(q => html`<div class="alert"><div><b class="mono">${q.lane} ${q.step}</b></div><div class="what">${q.question}</div></div>`)}</div>`}
-      ${{ manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
-        ? html`<${{ manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
+      ${{ progress: Progress, manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
+        ? html`<${{ progress: Progress, manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
         : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
     </main>`;
 }
