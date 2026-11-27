@@ -30,6 +30,10 @@ it, automatic reprocessing), `ai/local-runtimes.md` (how each model runs), and t
 onboarding sections of `source/models-chains-and-projects.md` (what runs, chosen how). These
 three are one connected set and are built together.
 
+Three windows on one layout (DRAFT 2026-11-27, the owner to approve): `ui/windows-models-recipes-training.md` (the shared
+layout, the words Recipe, Step and Tool, the owner's open questions), `ui/models-and-compute-window.md` (Models & Cluster),
+`ui/recipes-window.md` (Recipes: workflows leave the main sidebar) and `ui/training-window.md` (Training).
+
 ## Coverage against the maintainer's pipeline list (checked 2026-10-06)
 
 The maintainer's eleven-stage list (ingest; layout and palaeographic classification; tiered reading
