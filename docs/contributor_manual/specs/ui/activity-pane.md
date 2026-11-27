@@ -867,8 +867,9 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (`jobs.paused_failure`). *Built the same night (app):* the row's one button is Choose Folder… (a folder icon; the system
   folder panel, then `KeptExportStore.chooseFolder`), the alert's button "Choose Folder…", and the project Inspector's
   Kept Exported row has a **Keep up to date** switch and Choose Folder… beside Write Now
-  (`docs/assets/activity-pane/pane-export-folder-gone.png`). *Test (app):* `KeptExportStoreTests.chooseFolderAndKeepUpToDatePatch`,
-  `ActivityErrorRowTests.primaryFix`. *Test:*
+  (`docs/assets/activity-pane/pane-export-folder-gone.png`). *Test (app):* `KeptExportStoreTests.chooseFolderAndKeepUpToDatePatch`
+  (`fichero/Tests/Unit/general/Models/KeptExportStoreTests.swift`), `ActivityErrorRowTests.primaryFix`
+  (`fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`). *Test:*
   `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (4, green),
   `fichero-server/tests/unit/jobs/test_kept_export_choose_folder_6588.py` (6, green; both files run again 2026-11-27 on the
   worker Mac: one row for ten edits, a gone folder's paused row with no row added, Keep up to date off queuing nothing).
