@@ -2378,6 +2378,48 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     osv_on = bool(cfg.security.get("osv", False))
     if not cfg.build_remote:
         return _not_run("security", cfg.security, "no runner", "no [check].build_remote: the security scan never runs on the manager's Mac", {}, problems)
+    # 2026-11-27 11:16 (train-20261127-111606): green on every rung but security, where the iMac said "bandit/semgrep/gitleaks is not
+    # installed on the runner", and the train went back red. A runner without the pinned tools is a fault of the runner, never a
+    # step's red: the next runner that has them scans; with none, a not-run row that is never red and one alert naming the runners
+    tried, missing = [], {}
+    for runner in [cfg.build_remote, *[x for x in _runners(cfg) if x != cfg.build_remote]]:
+        if runner.partition(":")[0] in {t_.partition(":")[0] for t_ in missing}:
+            continue  # the same Mac in another folder has the same tools
+        r = _security_on(root, since, head, replace(cfg, build_remote=runner), problems, pins, osv_on)
+        tried.append(runner)
+        if not (infra := r.pop("_runner_refused", None)):
+            return r
+        missing[runner] = infra
+    why = "; ".join(f"{h}: {', '.join(v)}" for h, v in missing.items())
+    journal.append("check", state="runner-tools-missing", rung="security", runners=list(missing), detail=why[-600:])
+    down = all(v == ["(unreachable)"] for v in missing.values())
+    _runner_alert(f"no check runner could run the security scan ({why[:300]})" if down else
+                  f"no check runner has the pinned security scanners ({why[:300]}): `builder machines scanners --install` puts them on each")
+    reason = "runner down" if down else "no runner has the pinned scanners"
+    return {**_not_run("security", cfg.security, reason, why, {}, problems), "ok": True, "infra": True}
+
+
+RUNNER_ALERTED: set = set()
+
+
+def _runner_alert(why: str) -> None:
+    """One manager alert per cause per process, from the loop only (a jailed check has no alert of its own to raise)."""
+    if why in RUNNER_ALERTED:
+        return
+    RUNNER_ALERTED.add(why)
+    try:
+        from fichero_builder import queue
+        queue.alert("-", "runner-tools", why, str(journal.STATE / "journal.jsonl"), ["retry"])
+    except Exception:  # noqa: BLE001 - an alert that cannot be raised is the journal row above
+        pass
+
+
+RUNNER_FAULT = re.compile(r"^REFUSED: (\S+) (?:is not installed on the runner|is \S+ on the runner, the pin is)")
+
+
+def _security_on(root, since: str, head: str, cfg: Config, problems: list, pins: dict, osv_on: bool) -> dict:
+    """The scan on cfg.build_remote. A result whose every REFUSED line is the runner's (a tool missing there, or at another version
+    than the pin) carries `_runner_refused` (those tools), so the caller tries the next runner."""
     # the runner's ssh PATH is only the system dirs; a leading ~/ becomes $HOME/ (expanded there, so it sits inside double quotes), the rest is quoted
     parts = [*(cfg.security.get("path") or SECURITY_PATH), "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
     path = ":".join('"$HOME/"' + shlex.quote(d[2:]) if d.startswith("~/") else shlex.quote(d) for d in parts)
@@ -2385,8 +2427,8 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     # the pin check first (its report goes to stderr; a mismatch is the scan's own REFUSED line), then the scan under the same PATH
     script = f"export PATH={path}; scripts/install_security_tools.sh --check >&2; {scan}"
     rr = _remote_build(root, cfg, ("sh", "-c", script), "security", reuse=False, timeout_s=float(cfg.security.get("timeout_s", 720)))  # the scan keeps its own budget
-    if rr is None:
-        return _not_run("security", cfg.security, "runner down", "the build runner is unreachable: the security scan did not run (never run here)", {}, problems)
+    if rr is None:  # unreachable: the runner's fault too, the next one scans
+        return {"_runner_refused": ["(unreachable)"]}
     r = rr["results"][0]
     if (t := _timed_out_row("security", r)) is not None:
         return t
@@ -2397,6 +2439,8 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     res = json.loads(m.group(1))
     refused, rows, rows_table = res.get("refused", []), res.get("rows", []), res.get("table", "none")
     reds = [x for x in rows if x.get("red")]
+    if refused and all(RUNNER_FAULT.match(x) for x in refused) and not [x for x in rows if x.get("red")]:
+        return {"_runner_refused": [RUNNER_FAULT.match(x)[1] for x in refused]}  # a red the scanners that ran found stands (below)
     if refused:  # REFUSED: <tool> ...: that scanner did not scan; the others did, so their reds and the lint problems stay in the lines
         tools = [(re.match(r"REFUSED: (\S+)", x) or [None, "a scanner"])[1] for x in refused]
         return _not_run("security", cfg.security, f"{', '.join(tools)} refused", "\n".join(refused), {"results": [r], "table": rows_table},

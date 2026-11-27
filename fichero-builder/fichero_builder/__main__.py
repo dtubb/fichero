@@ -233,7 +233,7 @@ def main(argv=None) -> int:
     rs.add_argument("--flow", action="store_true", help="the check flow's targets (local.flow.report): one line each, ok or over; exit 1 when any is over")
     rs.add_argument("--root", default=".", help="where harness.toml's [flow] targets are read")
     mc = sub.add_parser("machines", help="test machines: `sync <name>` installs the test plugins at the jail venv's exact pins into the machine's gate venv")
-    mc.add_argument("action", choices=["sync"]), mc.add_argument("machine"), mc.add_argument("--root", default=str(Path.cwd())), mc.add_argument("--state")
+    mc.add_argument("action", choices=["sync", "scanners"]), mc.add_argument("machine", nargs="?", default=""), mc.add_argument("--install", action="store_true", help="scanners: install the pinned security scanners where missing first"), mc.add_argument("--root", default=str(Path.cwd())), mc.add_argument("--state")
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
     ins.add_argument("machine", nargs="?", default=""), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
     ins.add_argument("--corpus", action="store_true", help="instead of a DMG: make every corpus in the manifest, hash-verified, under --dest (refused on a mismatch)")
@@ -524,7 +524,12 @@ def main(argv=None) -> int:
         from fichero_builder import measure
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
-        rc, out = measure.sync(a.root, a.machine)
+        if a.action == "scanners":  # the security rung's runner preflight (manager 2026-11-27)
+            rc, out = measure.scanners(a.root, a.install, a.machine)
+        elif not a.machine:
+            rc, out = 2, "machines sync: name the machine"
+        else:
+            rc, out = measure.sync(a.root, a.machine)
         print(out)
         return rc
     if a.cmd == "install" and a.corpus:

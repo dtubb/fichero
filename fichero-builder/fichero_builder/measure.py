@@ -182,3 +182,60 @@ def sync(root, machine: str, python: str = "") -> tuple[int, str]:
                                 f"else {d}/venv/bin/python -m pip install -q -r {d}/test-pins.txt; fi"), stdin=req.encode(), timeout=1800)
     text = (out.stdout + out.stderr).decode(errors="replace").strip()
     return row(out.returncode, f"{len(pins)} pinned packages -> {machine}:{d}/venv" + (f": {text[-600:]}" if out.returncode or text else ""))
+
+
+SCANNER_PATH = '"$HOME/.local/bin":/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin'  # the security rung's own (check_tool.SECURITY_PATH)
+VERSION = {"bandit": "bandit --version", "semgrep": "semgrep --version", "gitleaks": "gitleaks version", "osv-scanner": "osv-scanner --version"}
+
+
+def _scanner_install(pins: dict, tools: list[str]) -> str:
+    """Each pinned scanner where the rung looks (~/.local/bin): bandit and semgrep as uv tools at the pin, gitleaks and osv-scanner
+    as their release binaries at the pin. Only a tool not already at its pin is touched."""
+    parts = ["mkdir -p \"$HOME/.local/bin\""]
+    for t in tools:
+        v, q = pins[t], shlex.quote(pins[t])
+        have = f"[ \"$({VERSION[t]} 2>/dev/null | grep -Eo '[0-9]+[.][0-9]+[.][0-9]+' | head -1)\" = {q} ] || "
+        if t in ("bandit", "semgrep"):
+            parts.append(have + f"uv tool install --force {t}=={q}")
+        elif t == "gitleaks":
+            url = f"https://github.com/gitleaks/gitleaks/releases/download/v{v}/gitleaks_{v}_darwin_$(uname -m | sed s/x86_64/x64/).tar.gz"
+            parts.append(have + f"curl -fsSL {url} | tar -xz -C \"$HOME/.local/bin\" gitleaks")
+        else:
+            url = f"https://github.com/google/osv-scanner/releases/download/v{v}/osv-scanner_darwin_$(uname -m | sed s/x86_64/amd64/)"
+            parts.append(have + f"(curl -fsSL -o \"$HOME/.local/bin/osv-scanner\" {url} && chmod +x \"$HOME/.local/bin/osv-scanner\")")
+    return " && ".join(parts)
+
+
+def scanner_problems(found: dict, pins: dict, tools: list[str]) -> list[str]:
+    return [f"{t} is {found.get(t) or 'not installed'}, the pin is {pins[t]}" for t in tools if found.get(t) != pins[t]]
+
+
+def scanners(root, install: bool = False, only: str = "") -> tuple[int, str]:
+    """`builder machines scanners [--install] [<host>]` (manager 2026-11-27): the runner preflight for the security rung. Over each
+    host of [check].remote (and build_remote), under the rung's own PATH: each pinned scanner's version, held against
+    [check.security].pins; `--install` puts a missing or other-version one there first. One `machines` row a host; rc 1 when any
+    host is short."""
+    doc = tomllib.loads((Path(root) / "harness.toml").read_text())
+    chk, sec = doc.get("check", {}), doc.get("check", {}).get("security", {})
+    pins = dict(sec.get("pins") or {})
+    tools = [t for t in ("bandit", "semgrep", "gitleaks", "osv-scanner") if pins.get(t) and (t != "osv-scanner" or sec.get("osv"))]
+    hosts = list(dict.fromkeys(x.partition(":")[0] for x in [chk.get("build_remote", ""), *chk.get("remote", [])] if x))
+    rc, lines = 0, []
+    for host in [h for h in hosts if not only or h == only]:
+        pre = f"export PATH={SCANNER_PATH}; "
+        if install:
+            r = _ssh(host, pre + _scanner_install(pins, tools), timeout=1800)
+            if r.returncode:
+                lines.append(f"{host}: install failed: {(r.stdout + r.stderr).decode(errors='replace').strip()[-300:]}")
+        probe = pre + "; ".join(f"printf '%s ' {t}; {VERSION[t]} 2>/dev/null | grep -Eo '[0-9]+[.][0-9]+[.][0-9]+' | head -1; echo" for t in tools)
+        r = _ssh(host, probe, timeout=120)
+        found = {}
+        for ln in r.stdout.decode(errors="replace").splitlines():
+            name, _, v = ln.strip().partition(" ")
+            if name in tools and v.strip():
+                found[name] = v.strip()
+        bad = ["unreachable"] if r.returncode and not found else scanner_problems(found, pins, tools)
+        journal.append("machines", machine=host, step="scanners", rc=int(bool(bad)), found=found, detail="; ".join(bad) or "every pinned scanner at its pin")
+        lines.append(f"{host}: " + ("; ".join(bad) if bad else "ok (" + ", ".join(f"{t} {found[t]}" for t in tools) + ")"))
+        rc |= bool(bad)
+    return rc, "\n".join(lines) or "no [check].remote runner"
