@@ -5,6 +5,12 @@
   "times": "times",
   "prepositions": ["to", "from", "in", "at", "on", "by", "with", "for", "of", "into", "before", "after"],
   "contractions": {},
+  "places": {
+    "at": "in {place}",
+    "document": "(in a document drawn up in {place})",
+    "inferred": "in {place} (place inferred)",
+    "relative": "at {place}"
+  },
   "dates": {
     "day": "on {day} {month} {year}",
     "month": "in {month} {year}",

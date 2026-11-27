@@ -296,21 +296,28 @@ held, never finer. A statement with no stored level is said to the year.
 
 ### D. Where
 
-- `kg.para.place-stated-once` — **[GAP]** (#6773, → #6838) a statement's place
+- `kg.para.place-stated-once` — **[OK]** (#6773, → #6838) a statement's place
   (`claim_location`, else its first place value's label) is said in its clause unless the
   object already says it; a place that qualifies several clauses of one sentence is said once
   and its segment names every statement it qualifies. Today no place is said unless the object
   holds it (0 of 6). The prototype named only some of the statements on a shared place, which
   is why this line says "every". Test (to write): `test_a_place_is_said_once_and_names_all_it_qualifies`.
-- `kg.para.place-says-its-basis` — **[GAP]** (#6773, → #6838) a place read in the statement's
+  Built: on the entry path for a language with a table that holds `places`, a clause says its place after its object unless the object holds it; a merged sentence says a place every statement has once at the end, its segment naming every statement; when the statements' places differ, each object is followed by its own. Tests:
+  `fichero-server/tests/unit/knowledge/test_paragraph_places.py::test_a_place_is_said_once_and_names_all_it_qualifies`, `test_a_place_not_every_statement_shares_follows_its_own_object`, `test_two_places_each_follow_their_own_object`.
+- `kg.para.place-says-its-basis` — **[OK]** (#6773, → #6838) a place read in the statement's
   own sentence is said plainly; a place that is only where the document was drawn up
   (`basis` source-anchored) is said as the document's place, in the table's words, never as
   where the event happened; an inferred place carries the table's "inferred" words; a place
   given relative to another is said as written. Test (to write):
   `test_a_documents_place_is_not_said_as_the_events_place`.
-- `kg.para.place-links-its-name` — **[GAP]** (#6773, → #6838) when the place is a known name,
+  Built: the document's place, the inferred words and the relative place as written. Tests:
+  `fichero-server/tests/unit/knowledge/test_paragraph_places.py::test_a_documents_place_is_not_said_as_the_events_place`, `test_a_place_given_relative_to_another_is_said_as_written`.
+- `kg.para.place-links-its-name` — **[PARTIAL]** (#6773, → #6838) when the place is a known name,
   `place.entity_id` holds it so the app can open that name. Test (to write):
   `test_a_known_place_carries_its_entity_id`.
+  Built: `place.entity_id` is the one entity whose canonical name is the place's label, else null; an entry's places are looked up in one query. Tests:
+  `fichero-server/tests/unit/knowledge/test_paragraph_places.py::test_a_known_place_carries_its_entity_id`, `test_every_place_of_an_entry_is_looked_up_in_one_call`, `test_a_real_entry_links_one_known_place_and_not_a_shared_name`.
+  Not built: the app's link; the app does not open a place from `place.entity_id`.
 
 ### E. How sure
 

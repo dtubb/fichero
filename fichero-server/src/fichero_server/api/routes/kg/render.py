@@ -100,6 +100,15 @@ class ReadableDate(BaseModel):
     as_written: str | None = None
 
 
+class ReadablePlace(BaseModel):
+    """A clause's place as said: its text, the name read, the basis it was read on and the entity that name opens, when known."""
+
+    text: str
+    label: str
+    basis: str | None = None
+    entity_id: str | None = None
+
+
 class ReadableClause(BaseModel):
     """One unit of a sentence: the statements it says and where its text sits in the paragraph."""
 
@@ -112,7 +121,7 @@ class ReadableClause(BaseModel):
     doubt: str
     sources: int
     date: ReadableDate | None = None
-    place: str | None = None
+    place: ReadablePlace | None = None
 
 
 class ReadableSegment(BaseModel):

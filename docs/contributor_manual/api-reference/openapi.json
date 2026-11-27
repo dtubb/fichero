@@ -91257,9 +91257,8 @@
             "nullable": true
           },
           "place": {
-            "type": "string",
-            "nullable": true,
-            "title": "Place"
+            "$ref": "#/components/schemas/ReadablePlace",
+            "nullable": true
           }
         },
         "type": "object",
@@ -91304,6 +91303,35 @@
         ],
         "title": "ReadableDate",
         "description": "A clause's date as said: its text, the level it is said at, the basis it was read on and the form written on the page."
+      },
+      "ReadablePlace": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Basis"
+          },
+          "entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "label"
+        ],
+        "title": "ReadablePlace",
+        "description": "A clause's place as said: its text, the name read, the basis it was read on and the entity that name opens, when known."
       },
       "ReadableSegment": {
         "properties": {
