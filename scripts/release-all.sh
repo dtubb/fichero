@@ -907,7 +907,7 @@ fi
 if [ "$RUN_GITHUB" = true ] && grep -q "^Publish	OK	" "$FICHERO_RELEASE_SUMMARY"; then
   RELEASED_SHA="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
   set +e
-  MAIN_OUT="$("$ROOT_DIR/scripts/update-main.sh" "$RELEASED_SHA" "$(project_setting MARKETING_VERSION)" 2>&1)"
+  MAIN_OUT="$("$ROOT_DIR/scripts/update-main.sh" "$RELEASED_SHA" "$(project_setting MARKETING_VERSION)" "$(project_setting CURRENT_PROJECT_VERSION)" 2>&1)"
   MAIN_RC=$?
   set -e
   echo "$MAIN_OUT"
