@@ -1134,7 +1134,7 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   box's bottom along its direction (down the middle of a vertical line), marked
   `baseline: estimated`, one undo. *Not built:* the offer on the tools' own refusal (the menu says
   it). *Tests:* `fichero-server/tests/unit/api/test_segment_add_baseline.py`; `fichero/Tests/Unit/general/Views/Source/RedrawOutlineTests.swift`.
-- `segment-editor.edge.word-across-lines` — **[PARTIAL]** (→ #5212; engine) a word broken at a line end is one segment with
+- `segment-editor.edge.word-across-lines` — **[OK]** (→ #5212; engine) a word broken at a line end is one segment with
   two shapes (`source.segment.shape-kinds`); Cut Words on both lines makes the two pieces and
   offers to join them as one word when the second line's reading starts without a space and the
   first's ends with a hyphen; the join is `segment.merge` keeping both shapes. *Built (2026-11-14):* the engine:
