@@ -1658,7 +1658,7 @@ def _why_omitted(
 #: 18: a person's check verdict on a machine reading outranks a model's whatever the order (#6327), and `checked`
 #:     (which ranks machine readings, 13) reads the standing verdict, so where a model's later verdict used to
 #:     decide `checked` the counted reading can differ; the bump re-derives every page once.
-DERIVATION_VERSION = 18
+DERIVATION_VERSION = 19
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
@@ -1666,7 +1666,9 @@ DERIVATION_VERSION = 18
 #: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
 #: Re-pinned without a bump for #5522: a pass whose result the read checker flagged waits to be
 #: chosen. No result carried a flag before #5522, so no cached page's text changes.
-DERIVATION_SOURCE_SHA256 = "642f7411a9a80925fa20a20a82135a3a4c9c737baab723dee0b6ca0297b791be"
+#: Bumped to 19 for #6665: a page read in a named order that nests its lines under a region's entry came back
+#: with empty text; `document_text` now walks the whole order, so those pages derive their text and are re-read once.
+DERIVATION_SOURCE_SHA256 = "828bae121d778ce274dfd1d9b61d7786c0d11ba37af82662c214eff27ae04fb5"
 
 
 def derivation_source_digest() -> str:
