@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.api.routes.system.recipes import HfSpend
+from fichero_server.api.routes.system.recipe_start_models import HfSpend
 from fichero_server.db import Database
 from fichero_server.models.compute_requests import ReadAtScaleRequest
 

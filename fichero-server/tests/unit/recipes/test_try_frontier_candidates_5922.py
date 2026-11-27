@@ -207,7 +207,7 @@ def test_the_try_result_is_a_typed_answer_that_keeps_what_it_does_not_name():
 
 # -- review 632 ------------------------------------------------------------------------------------------------------
 def test_a_result_stored_before_the_flag_reads_measured_from_its_basis():
-    from fichero_server.api.routes.system.recipes import TryCost
+    from fichero_server.api.routes.system.recipe_start_models import TryCost
 
     assert TryCost.model_validate({"value": 0.04, "basis": "measured", "from": "run"}).measured is True
     assert TryCost.model_validate({"value": 0.04, "basis": "estimate", "from": "list"}).measured is False

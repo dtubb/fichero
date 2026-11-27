@@ -29,7 +29,7 @@ def test_a_cloud_step_with_an_unknown_model_is_unpriced():
 
 def test_the_routes_response_model_keeps_each_runs_basis():
     """The Start plan route answers through `StartEstimateRun`; a field it lacks is dropped from the response."""
-    from fichero_server.api.routes.system.recipes import StartEstimateRun
+    from fichero_server.api.routes.system.recipe_start_models import StartEstimateRun
 
     row = estimate([_workflow("cluster:hpc-1")], 100)["runs"][0]
     assert StartEstimateRun.model_validate(row).model_dump()["basis"] == "unpriced"
