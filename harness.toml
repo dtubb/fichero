@@ -530,7 +530,7 @@ window = 200000   # plain sonnet's window (owner 2026-11-02: every turn stays un
 handoff_at = 0.85
 handoff_tokens = 175000   # owner 2026-11-02: hand off here, an absolute count (a lane used 17M tokens for three steps on a 1M window)
 session_usd = 12  # owner 2026-11-21: Sonnet workers; the meter reads ~1.9x high until #6870 lands (8 handed off too often)
-day_usd = 300  # owner ruling B5 2026-11-21: 300 USD-equivalent a day from 2026-11-22 (today-only raises are over)
+day_usd = 800  # owner 2026-11-27: use the Max credits until the weekly reset (Sat 05:00); back to 300 on 11-28. Was: day_usd = 300  # owner ruling B5 2026-11-21: 300 USD-equivalent a day from 2026-11-22 (today-only raises are over)
 silent_s = 1800
 prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5], claude-fable-5-1 = [15, 75], claude-fable-5-2 = [15, 75] }  # fable: notional like the others (Max login); opus rates until the owner sets its own
 
