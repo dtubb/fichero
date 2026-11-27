@@ -96,7 +96,10 @@ struct ActivityPaneFilter: Equatable {
         case .model: return has(row.model)
         case .state: return has(ActivityPane.glyph(row).word) || has(row.phase.word) || has(row.stateText)
         case .file: return has(row.name) || ActivityPane.leaves(of: row).contains { has($0.name) } || has(row.ranOnText)
-        case .startedBy: return has(row.source.word) || has(row.startedBy)
+        // "automatic" is everything nobody at the Mac started: the engine's own starters and a schedule or trigger
+        // (`activity.pane.automatic-runs-easy-to-delete`).
+        case .startedBy:
+            return has(row.source.word) || has(row.startedBy) || (row.source == .schedule && has(ActivityMonitorRow.Source.automatic.word))
         case .date: return dateMatches(value, row.started ?? row.ended, now: now, calendar: calendar)
         }
     }

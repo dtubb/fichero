@@ -31,6 +31,30 @@ struct ActivityPaneFiltersTests {
         #expect(ActivityPaneFilter("").apply(rows) == rows)
     }
 
+    /// `activity.pane.automatic-runs-easy-to-delete` (#6583): the token, then ⌘A and Delete over what it leaves.
+    @Test("started by: automatic keeps the import's, the schedule's, a trigger's and the derivative rows, and no row a person started")
+    func startedByAutomatic() {
+        func started(_ id: String, by starter: String?, kind: ActivityMonitorRow.Kind = .job) -> ActivityMonitorRow {
+            var row = Fix.row(id, .done, kind: kind)
+            row.startedBy = starter
+            return row
+        }
+        let thumbnails = (1...40).map { started("thumb-\($0)", by: "derivatives") }
+        let automatic = thumbnails + [
+            started("import-run", by: "import", kind: .run), started("nightly", by: "schedule:nightly", kind: .run),
+            started("on-arrival", by: "trigger:new-page", kind: .run)
+        ]
+        let people = [started("mine", by: nil, kind: .run), started("theirs", by: "Ana on the studio Mac", kind: .run)]
+
+        let kept = ActivityPaneFilter("started by: automatic").apply(automatic + people)
+
+        #expect(kept.map(\.id) == automatic.map(\.id))
+        let delete = ActivityPaneVerb.delete.split(kept)
+        #expect(delete.targets.map(\.id) == automatic.map(\.id) && delete.skipped == 0, "⌘A then Delete takes what the filter leaves")
+        #expect(ActivityPaneFilter("started by: schedule").apply(automatic + people).map(\.id) == ["nightly", "on-arrival"])
+        #expect(ActivityPaneFilter("started by: Ana").apply(automatic + people).map(\.id) == ["theirs"])
+    }
+
     @Test("date: today, a day and a range, in the person's own calendar")
     func dates() {
         var calendar = Calendar(identifier: .gregorian)
