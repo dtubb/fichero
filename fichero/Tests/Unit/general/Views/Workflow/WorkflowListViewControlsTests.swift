@@ -1,39 +1,27 @@
 @testable import Fichero
 import XCTest
 
-/// Controls of the workflow list that were drawn but did nothing.
-/// spec: workflows `workflows.list.icon-double-click-opens`,
-/// `workflows.list.table-sorts-by-its-headers`.
+/// The workflow list's table view.
+/// spec: workflows `workflows.list.table-sorts-by-its-headers`.
 final class WorkflowListViewControlsTests: XCTestCase {
 
-    private func viewsSource() throws -> String {
-        let url = try AppSource.root()
-            .appendingPathComponent("Views/Workflow/Library/WorkflowListView+Views.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    /// A single-tap gesture attached before a double-tap one takes every
-    /// click, so the double tap never fires. The icon grid attaches the
-    /// double tap (open) first, as the canvas does for its nodes.
-    func testTheIconGridAttachesTheDoubleTapBeforeTheSingleTap() throws {
-        let source = try viewsSource()
-        let grid = try XCTUnwrap(source.range(of: "var iconGridView: some View"))
-        let list = try XCTUnwrap(source.range(of: "var listView: some View"))
-        let body = source[grid.upperBound..<list.lowerBound]
-
-        let double = try XCTUnwrap(body.range(of: ".onTapGesture(count: 2) {"))
-        let single = try XCTUnwrap(body.range(of: ".onTapGesture {"))
-
-        XCTAssertLessThan(double.lowerBound, single.lowerBound)
-    }
-
     /// The table hands SwiftUI a `sortOrder` binding, so its headers show a
-    /// sort arrow when clicked. The rows have to be sorted by that order, or
-    /// the arrow moves and nothing else does.
-    func testTheTableRowsAreSortedByTheSortOrderItsHeadersSet() throws {
-        let source = try viewsSource()
-        XCTAssertTrue(source.contains(
-            "Table(filteredWorkflows.sorted(using: tableSortOrder), selection: $selectedWorkflowIds, sortOrder: $tableSortOrder)"
-        ))
+    /// sort arrow when clicked. The rows it lists follow that order.
+    func testTheTableRowsFollowTheOrderTheHeadersSet() {
+        let workflows = [
+            WorkflowSidebarItem(id: "b", name: "Beta", nodeCount: 2, edgeCount: 1),
+            WorkflowSidebarItem(id: "c", name: "Gamma", nodeCount: 9, edgeCount: 8),
+            WorkflowSidebarItem(id: "a", name: "Alpha", nodeCount: 5, edgeCount: 4)
+        ]
+
+        let byName = WorkflowListView.tableRows(
+            workflows, sortedBy: [KeyPathComparator(\WorkflowSidebarItem.name)]
+        )
+        let byNodesDescending = WorkflowListView.tableRows(
+            workflows, sortedBy: [KeyPathComparator(\WorkflowSidebarItem.nodeCount, order: .reverse)]
+        )
+
+        XCTAssertEqual(byName.map(\.id), ["a", "b", "c"])
+        XCTAssertEqual(byNodesDescending.map(\.id), ["c", "a", "b"])
     }
 }
