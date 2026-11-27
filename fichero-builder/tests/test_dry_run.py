@@ -698,3 +698,21 @@ def test_a_feed_stopped_before_the_session_starts_opens_no_session(root):
     fake.procs.start = lambda *a, **k: starts.append(a) or "%9"
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed) == "lane-done"
     assert starts == []
+
+
+def test_a_worktrees_own_harness_toml_never_sets_the_runs_caps(root):
+    """Manager 2026-11-27: a worker could raise its own cap by editing its tree. The run's [spend] is the pinned --root's, or the
+    owner's published rules.json, never `<worktree>/harness.toml`: a tree saying day_usd = 999999 still parks at the pinned 5."""
+    import json
+    wt = root / "wt"
+    wt.mkdir()
+    (wt / "harness.toml").write_text('[spend]\nsession_usd = 999999\nday_usd = 999999\nwindow = 1000\nprices = { sonnet = [0, 0] }\n')
+    journal.append("cost", task="other", usd=10.0)  # today's spend is over the pinned cap of 5
+    for rules in (None, root / "rules.json"):
+        if rules:
+            rules.write_text(json.dumps({"spend": {"session_usd": 1, "day_usd": 5, "window": 1000, "prices": {"sonnet": [3, 15]}}, "models": {}}))
+        fake = Fake([HEALTHY])
+        starts = []
+        fake.procs.start = lambda *a, **k: starts.append(a) or "%9"
+        assert run.run(root, wt, root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, rules=rules) == "parked"
+        assert starts == [], "parked before any session, at the pinned cap"
