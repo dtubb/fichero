@@ -37,6 +37,9 @@ struct OriginalsStoreTests {
     {"pages": 92, "folders": ["/Users/ana/Documents/Colombia/CACIQUES"], "ids": ["p1", "p2"],
      "sentence": "92 pages' originals are not where the project says."}
     """
+    private static let noneMissing = """
+    {"pages": 0, "folders": [], "ids": [], "sentence": "All originals were found."}
+    """
     private static let plan = """
     {"new_root": "/Volumes/Archive/Colombia",
      "matched": [{"id": "p1", "name": "f. 1r.jpg", "from": "/old/f. 1r.jpg", "to": "/new/f. 1r.jpg", "by": "path"}],
@@ -161,6 +164,28 @@ struct OriginalsStoreTests {
         store.offerOnce()
         store.locateFromOffer()
         #expect(!store.isOffering && store.isChoosing)
+    }
+
+    @Test("importer.originals.missing-asks-in-an-alert: a folder's read landing before the offer does not decide it")
+    func folderReadDoesNotDecideTheOffer() async {
+        let store = store()
+        await store.loadMissing()
+        // The shown folder has nothing missing, and its answer arrives after the project's.
+        OriginalsMockURLProtocol.replies["GET /api/documents/missing-originals"] = Self.noneMissing
+        await store.loadMissing(folderId: "caciques")
+        #expect(store.missing?.pages == 0)
+        #expect(store.offerOnce(), "the project still has missing originals")
+        #expect(store.projectMissing?.pages == 92, "the alert's sentence is the project's, not the folder's")
+    }
+
+    @Test("transfer.machine.originals-relinked-from-one-grant: a folder's read does not stop the relink at launch")
+    func folderReadDoesNotStopTheLaunchRelink() async {
+        let store = store()
+        store.recallRoot = { URL(fileURLWithPath: "/Volumes/Archive/Colombia") }
+        await store.loadMissing()
+        OriginalsMockURLProtocol.replies["GET /api/documents/missing-originals"] = Self.noneMissing
+        await store.loadMissing(folderId: "caciques")
+        #expect(await store.relinkFromRememberedRoot(actionsService: ActionsService(client: store.client), steps: nil))
     }
 
     @Test("transfer.machine.originals-relinked-from-one-grant: the next launch relinks from the kept folder, no panel")

@@ -137,7 +137,7 @@ struct LocateOriginalsPresenter: ViewModifier {
                 Button("Locate…") { store?.locateFromOffer() }
                 Button("Not Now", role: .cancel) { store?.declineOffer() }
             } message: {
-                Text(store?.missing?.sentence ?? "")
+                Text(store?.projectMissing?.sentence ?? "")
             }
             .focusedSceneValue(\.originals, store)
             // At open, the folder this project's originals were last relinked to, with no panel (#5535).
