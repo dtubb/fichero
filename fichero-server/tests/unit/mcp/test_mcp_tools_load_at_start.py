@@ -75,3 +75,35 @@ def test_saving_and_deleting_through_the_routes_reload(client, app_db, monkeypat
 def test_the_lifespan_starts_the_sync():
     source = (Path(__file__).parents[3] / "src/fichero_server/api/main.py").read_text()
     assert "sync_mcp_tools_from_db" in source
+
+
+@pytest.mark.asyncio
+async def test_the_start_sync_waits_for_ready_and_idle_and_for_the_warm_up(monkeypatch, caplog):
+    """#7105: started as the lifespan yielded, the sync imported the tools package on the event loop and connected to
+    every server while the app was launching. It runs after the readiness signal, the idle wait and the warm-up."""
+    import asyncio
+    import logging
+
+    from fichero_server.api import main as api_main
+    from fichero_server.workflows.tools import mcp as tools_mcp
+
+    warmed_when_synced: list[bool] = []
+
+    async def sync(app_db=None):
+        warmed_when_synced.append(any("workflow tool stack warm-up complete" in r.message for r in caplog.records))
+        return 0
+
+    monkeypatch.setattr(tools_mcp, "sync_mcp_tools_from_db", sync)
+    monkeypatch.setattr(api_main, "_WARM_IDLE_SECONDS", 0.01)
+    caplog.set_level(logging.INFO, logger="fichero_server.api.main")
+
+    async with api_main.lifespan(api_main.app):
+        await asyncio.sleep(0.3)
+        assert warmed_when_synced == [], "the MCP tools were loaded before the app was ready"
+        api_main._mark_first_registry_200(api_main.app)
+        for _ in range(1500):  # up to 30 s: the warm-up imports the tool stack first
+            if warmed_when_synced:
+                break
+            await asyncio.sleep(0.02)
+
+    assert warmed_when_synced == [True]
