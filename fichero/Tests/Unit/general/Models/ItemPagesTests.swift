@@ -5,7 +5,8 @@ import XCTest
 /// `ios.item.segments-own-their-gestures`, `ios.item.voiceover-reaches-every-page` (#6947): the page list with no view.
 final class ItemPagesTests: XCTestCase {
     func testThePagesAndTheirOrder() {
-        XCTAssertEqual(ItemPage.allCases.map(\.title), ["Source", "Reader", "Segments", "Info"])
+        // `title` is a catalog resource, not a plain String (`Text` looks it up).
+        XCTAssertEqual(ItemPage.allCases.map { String(localized: $0.title) }, ["Source", "Reader", "Segments", "Info"])
     }
 
     func testSwipingStopsAtBothEnds() {

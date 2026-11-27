@@ -6,7 +6,8 @@ enum ItemPage: Int, CaseIterable, Identifiable {
 
     var id: Int { rawValue }
 
-    var title: String {
+    /// The header's word for the page, looked up in the String Catalog by `Text`.
+    var title: LocalizedStringResource {
         switch self {
         case .source: "Source"
         case .reader: "Reader"
@@ -16,7 +17,12 @@ enum ItemPage: Int, CaseIterable, Identifiable {
     }
 
     /// "2 of 4": what VoiceOver says with the selected tab (`ios.item.voiceover-reaches-every-page`).
-    var position: String { "\(rawValue + 1) of \(Self.allCases.count)" }
+    var position: String {
+        String(
+            localized: "\(rawValue + 1) of \(Self.allCases.count)",
+            comment: "VoiceOver value of the item view's page header: the page's place, then the number of pages"
+        )
+    }
 
     /// The page after this one; nil on the last (a swipe there does nothing).
     var next: ItemPage? { Self(rawValue: rawValue + 1) }
