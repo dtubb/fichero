@@ -214,7 +214,9 @@ struct WorkflowInspector: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(workflowRuns) { run in
+            // Keyed by thread: `WorkflowExecution.id` is the workflow's id, the
+            // same for every run listed here.
+            List(workflowRuns, id: \.threadId) { run in
                 HStack(spacing: 8) {
                     Image(systemName: run.isRunning ? "play.circle.fill" : "checkmark.circle")
                         .foregroundStyle(run.isRunning ? Color.accentColor : .secondary)
