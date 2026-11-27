@@ -335,7 +335,7 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 - `kg.para.doubt-is-attribution` — **[OK]** (#4751, → #6839) rule 5: a single-source statement
   that is tentative, or whose confidence has the source `measured` and falls in the engine's
   low band, is never said as plain fact; it takes the table's hedge and its one-source words.
-  Test: `test_a_single_unsure_statement_is_hedged_and_attributed`.
+  Test (in `test_paragraph_doubt.py`): `test_a_single_unsure_statement_is_hedged_and_attributed`.
   Built: the low band is below 0.4, the low edge of `ConfidenceBand.band(for:)` (the engine has no
   band of its own); the hedge follows the subject (or closes a statement said as its stored text)
   and the one-source words follow the object; in a merged group an unsure object is a sentence of
@@ -343,13 +343,13 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   `test_an_unsure_object_is_not_joined_into_a_plain_sentence`, `test_a_hedge_is_served_by_the_route`.
 - `kg.para.no-figure-no-hedge` — **[OK]** (#4751, → #6839) a confidence that was not measured
   (no source, or `default`) changes no word: the stored 0.5 a statement is born with is not a
-  doubt (`kg.confidence.no-made-up-figure`). No number is ever printed. Test:
+  doubt (`kg.confidence.no-made-up-figure`). No number is ever printed. Test (in `test_paragraph_doubt.py`):
   `test_an_unmeasured_figure_changes_no_word`.
   Built: a confidence whose source is anything but `measured` is not read. Test:
   `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_an_unmeasured_figure_changes_no_word`.
 - `kg.para.sources-are-counted-in-words` — **[OK]** (#4751, → #6839) rule 4: the count is of
   distinct source documents, in words from the table up to twelve, and `sources` holds the
-  number. Test: `test_two_documents_read_as_two_sources`.
+  number. Test (in `test_paragraph_doubt.py`): `test_two_documents_read_as_two_sources`.
   Built: the count follows the object in the table's `sources` words, in digits past twelve; in a
   joined sentence each object counts its own documents. Test:
   `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_two_documents_read_as_two_sources`.
@@ -357,7 +357,7 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   a `contradicts` link are one sentence that says what they share once and what differs twice,
   each with the table's attribution, in source order ("… el 14 de marzo de 1702 según una
   fuente y en 1704 según otra"); neither is dropped or preferred. Only a stored link makes a
-  dispute; the renderer never infers one. Test:
+  dispute; the renderer never infers one. Test (in `test_paragraph_doubt.py`):
   `test_a_dispute_is_one_sentence_with_both_readings`.
   Built: the pieces both readings open with (subject, verb, object, place, date, in that order)
   are said once and the rest of each follows with the table's attribution; each statement is its
@@ -365,7 +365,7 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   doubt words, makes no dispute. Tests: `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_a_dispute_is_one_sentence_with_both_readings`,
   `test_a_confirmed_statement_in_a_dispute_is_said_plainly`, `test_a_dispute_is_served_by_the_route`.
 - `kg.para.person-decision-is-plain` — **[OK]** (#4751, → #6839) rule 2 outranks 3 to 5: a
-  statement a person confirmed carries no hedge whatever its figure. Test:
+  statement a person confirmed carries no hedge whatever its figure. Test (in `test_paragraph_doubt.py`):
   `test_a_confirmed_statement_is_never_hedged`.
   Built: a statement curated, or with `epistemic_status` confirmed, takes no hedge and no count.
   Tests: `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_a_confirmed_statement_is_never_hedged`,
