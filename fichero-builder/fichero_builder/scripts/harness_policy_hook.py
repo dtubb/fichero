@@ -16,7 +16,7 @@ from fichero_builder.client import CHECKOUT as ROOT  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--worktree", default=os.getcwd())
-ap.add_argument("--scratch", default=os.environ.get("TMPDIR", "/tmp"))  # nosec B108 -- names the folder the hook lets a worker write under; the hook itself makes no file there (#7100)
+ap.add_argument("--scratch", default=os.environ.get("TMPDIR", "/tmp"))
 ap.add_argument("--root", default=str(ROOT))
 ap.add_argument("--commit-msg")
 ap.add_argument("--diff-bound", type=int)

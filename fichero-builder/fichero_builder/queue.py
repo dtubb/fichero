@@ -3839,8 +3839,8 @@ def real_procs(root) -> Procs:
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         # #6869: the worker starts in a directory it made (the workroot is world-writable), and its TMPDIR and pytest's basetemp are inside it
         own = shlex.quote(str(Path(j.workroot) / f"work-{lane['id']}"))
-        env = f"export TMPDIR={own}/tmp PYTEST_ADDOPTS=--basetemp={own}/tmp/pytest"  # nosec B108 -- the folder is tmp inside the worker's own <workroot>/work-<lane>, not the shared /tmp (#7100)
-        return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"mkdir -p {own}/tmp && [ -d {own} ] && [ ! -L {own} ] && [ -O {own} ] && cd {own} && {env} && {cmd}"],  # nosec B108 -- makes tmp inside the worker's own <workroot>/work-<lane>, whose owner is checked on the same line (#7100)
+        env = f"export TMPDIR={own}/tmp PYTEST_ADDOPTS=--basetemp={own}/tmp/pytest"
+        return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"mkdir -p {own}/tmp && [ -d {own} ] && [ ! -L {own} ] && [ -O {own} ] && cd {own} && {env} && {cmd}"],
                                 stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
 
     def attach(lane, step, window):

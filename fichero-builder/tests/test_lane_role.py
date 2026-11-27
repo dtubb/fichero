@@ -102,9 +102,9 @@ def test_a_workers_command_starts_in_a_directory_it_made_with_tmpdir_and_pytest_
     queue.real_procs(state).start({"id": "mf", "worktree": str(state / "wr" / "wt-mf"), "seq": 0}, {"step": "1.1", "brief": str(state / "brief"), "issues": []})
     own, wr = str(state / "wr" / "work-mf"), str(state / "wr")
     cmd = popens[0]
-    assert f"mkdir -p {own}/tmp" in cmd and f"[ ! -L {own} ] && [ -O {own} ]" in cmd, "the directory is made by the worker, is no link, and its owner is checked"  # nosec B108 -- an assert on the text of a command; own is a folder under pytest's tmp_path (#7100)
+    assert f"mkdir -p {own}/tmp" in cmd and f"[ ! -L {own} ] && [ -O {own} ]" in cmd, "the directory is made by the worker, is no link, and its owner is checked"
     assert f"cd {own} &&" in cmd and f"cd {wr} &&" not in cmd, "never the world-writable workroot itself"
-    assert f"TMPDIR={own}/tmp" in cmd and f"--basetemp={own}/tmp/pytest" in cmd  # nosec B108 -- an assert on the text of a command; no file is made (#7100)
+    assert f"TMPDIR={own}/tmp" in cmd and f"--basetemp={own}/tmp/pytest" in cmd
 
 
 def test_a_fix_round_closes_its_own_steps_last_session_and_starts_instead_of_alerting(state, monkeypatch):
