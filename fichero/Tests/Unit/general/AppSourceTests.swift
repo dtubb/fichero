@@ -36,6 +36,28 @@ final class AppSourceTests: XCTestCase {
         XCTAssertEqual(fromHere.path, fromDeeper.path)
     }
 
+    /// Xcode Cloud: the checkout is at $CI_PRIMARY_REPOSITORY_PATH and the
+    /// calling file's path leads nowhere near it, so the variable is read first.
+    func testTheXcodeCloudCheckoutPathIsReadFirst() throws {
+        let checkout = FileManager.default.temporaryDirectory
+            .appendingPathComponent("appsource-ci-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: checkout.appendingPathComponent("fichero/Models"),
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: checkout) }
+
+        let root = try AppSource.root(
+            from: "/private/tmp/not-the-app/Test.swift",
+            environment: ["CI_PRIMARY_REPOSITORY_PATH": checkout.path]
+        )
+
+        XCTAssertEqual(
+            root.resolvingSymlinksInPath().path,
+            checkout.appendingPathComponent("fichero").resolvingSymlinksInPath().path
+        )
+    }
+
     func testItReadsAFileThroughTheRoot() throws {
         let source = try AppSource.text("Models/DocumentStore.swift")
 

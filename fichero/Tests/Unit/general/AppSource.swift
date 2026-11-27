@@ -69,7 +69,24 @@ enum AppSource {
     ///
     /// A `StaticString` parameter would make the walk untestable at the exact
     /// property it exists to guarantee.
-    static func root(from filePath: String = #filePath) throws -> URL {
+    static func root(
+        from filePath: String = #filePath,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> URL {
+        // Xcode Cloud checks the repo out at $CI_PRIMARY_REPOSITORY_PATH and
+        // can run the tests from a copy whose #filePath has no `fichero/Models`
+        // above it. When the variable names a checkout that holds the
+        // landmark, that is the root; otherwise the walk below decides.
+        if let checkout = environment["CI_PRIMARY_REPOSITORY_PATH"], !checkout.isEmpty {
+            let candidate = URL(fileURLWithPath: checkout).appendingPathComponent("fichero")
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(
+                atPath: candidate.appendingPathComponent(landmark).path,
+                isDirectory: &isDirectory
+            ), isDirectory.boolValue {
+                return candidate.resolvingSymlinksInPath()
+            }
+        }
         // Resolve symlinks FIRST (2026-08-22): on macOS /tmp is a symlink to
         // /private/tmp, so a checkout gated from a snapshot worktree under
         // /tmp handed #filePath one spelling while directory sweeps produced
