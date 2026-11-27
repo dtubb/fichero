@@ -100,7 +100,7 @@ def test_the_worker_side_command_indexes_the_worktree_with_both_servers_first_an
     write_rules(tmp_path)
     a = types.SimpleNamespace(pinned=str(tmp_path), worktree="/wr/wt", brief="/b", root=str(tmp_path), name="n", kind="claude", session="s", tick=30.0)
     cmd = work.run_cmd(a, "sonnet")
-    code, doc, run = (cmd.index(x) for x in ("jcodemunch-mcp index /wr/wt --no-ai-summaries >/dev/null 2>&1 || {", "jdocmunch-mcp index-local /wr/wt >/dev/null 2>&1 || {",
+    code, doc, run = (cmd.index(x) for x in ("jcodemunch-mcp index /wr/wt --no-ai-summaries >/dev/null 2>&1 && echo", "jdocmunch-mcp index-local /wr/wt >/dev/null 2>&1 && echo",
                                              "-m fichero_builder run"))
     assert code < doc < run and cmd.count(f"exit {codemap.INDEX_FAILED}") == 2
 

@@ -77,6 +77,20 @@ def test_a_failed_index_build_exits_with_the_marker_and_the_run_raises_with_a_jo
     assert [x for x in journal.read() if x["event"] == "refused"][0]["task"] == "n"
 
 
+def test_an_index_build_is_skipped_while_the_tree_is_unchanged_and_runs_again_once_it_changes(world):
+    """2026-11-27: an unchanged tree took 40-50 s to index, at every session start (~2 min a start at load 80-100)."""
+    start = lambda: subprocess.run(["sh", "-c", codemap.index_prefix(world.root, world.wt) + "echo started"], capture_output=True, text=True)  # noqa: E731
+    assert start().stdout.strip() == "started"
+    (world.wr / "jdocmunch" / "venv" / "bin" / "jdocmunch-mcp.exit").write_text("3")  # any build from now on fails
+    r = start()
+    assert r.returncode == 0 and r.stdout.strip() == "started", "the same HEAD and status: no build"
+    (world.wt / "new.txt").write_text("x")
+    r = start()
+    assert r.returncode == codemap.INDEX_FAILED and "index build failed: jdocmunch" in r.stderr, "a changed tree builds again"
+    (world.wr / "jdocmunch" / "venv" / "bin" / "jdocmunch-mcp.exit").unlink()
+    assert start().stdout.strip() == "started"
+
+
 def test_a_good_index_build_lets_the_session_start(world):
     r = subprocess.run(["sh", "-c", codemap.index_prefix(world.root, world.wt) + "echo started"], capture_output=True, text=True)
     assert r.returncode == 0 and r.stdout.strip() == "started"

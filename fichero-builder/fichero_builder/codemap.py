@@ -103,12 +103,19 @@ def index_args(root, server: str, worktree) -> list[str]:
 def index_prefix(root, worktree) -> str:
     """Shell to run as the worker before the session: each provided server's index over the worktree. A failed build prints
     which server and exits INDEX_FAILED, so the session never starts without its index."""
+    # 2026-11-27: an unchanged tree still took 40-50 s to index (every file walked and hashed; longer at load 80-100), so each
+    # session start waited ~2 min. A build is skipped when the tree's HEAD and status match the last good build's, stamped in the
+    # tree's own git dir (it goes with the tree). ponytail: an index deleted by hand under an unchanged tree is not rebuilt until it changes
+    wt = shlex.quote(str(worktree))
     out = ""
     for server in INDEX_SERVERS:
         w = wrapper(root, server)
         if w:
             args = " ".join(shlex.quote(x) for x in index_args(root, server, worktree))
-            out += f"{shlex.quote(w)} {args} >/dev/null 2>&1 || {{ echo 'index build failed: {server}' >&2; exit {INDEX_FAILED}; }}; "
+            stamp = f'"$(git -C {wt} rev-parse --absolute-git-dir)/{server}-index.stamp"'
+            key = f'"$({{ git -C {wt} rev-parse HEAD; git -C {wt} status --porcelain; }} 2>/dev/null | shasum | cut -c1-40)"'
+            out += (f"k={key}; [ \"$(cat {stamp} 2>/dev/null)\" = \"$k\" ] || {{ {shlex.quote(w)} {args} >/dev/null 2>&1 && echo \"$k\" > {stamp} || "
+                    f"{{ echo 'index build failed: {server}' >&2; exit {INDEX_FAILED}; }}; }}; ")
     return out
 
 
