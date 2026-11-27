@@ -61,6 +61,7 @@ def main() -> int:
         pytest += ["-p", "pytest_benchmark", f"--benchmark-json={out / 'bench.json'}", "--benchmark-warmup=on", "--benchmark-min-rounds=3"]
     profiled = have("pyinstrument")
     argv = ["/usr/bin/time", "-l", *([sys.executable, "-m", "pyinstrument", "-r", "json", "-o", str(out / "profile.json"), "-m", "pytest", *pytest[3:]] if profiled else pytest)]
+    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- pytest run as a list with no shell; the tests path is the perf rung's own command-line argument (#7100)
     r = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": "fichero-server/src"})
     after = du()
     figs: dict = {"benchmarks": {}, "failed": [], "peak_rss_mb": None, "disk_kib": {}, "top": []}

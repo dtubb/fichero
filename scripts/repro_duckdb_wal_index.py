@@ -33,6 +33,7 @@ conn = duckdb.connect(path)
 conn.execute("CREATE TABLE t (id VARCHAR PRIMARY KEY, k VARCHAR)")
 conn.execute("CREATE INDEX idx_t_k ON t (k)")
 conn.close()
+# nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- a repro script running itself as a list with no shell, on the database path its caller gave (#7100)
 subprocess.run([sys.executable, __file__, path, "child"])
 duckdb.connect(path).close()  # replay the WAL; the close checkpoints
 conn = duckdb.connect(path)

@@ -124,6 +124,7 @@ def main() -> int:
         "--resource-path", f"{REPO}/docs/user_manual/guide:{REPO}/docs/reference_manual/tool_references/workflows:{REPO}/docs/reference_manual/tool_references/tools:{REPO}/docs/reference_manual/tool_references",
         "--metadata", "title=Fichero User Guide",
     ]
+    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- pandoc run as a list with no shell; the output path is this build script's own command-line argument (#7100)
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         print(r.stderr, file=sys.stderr)
