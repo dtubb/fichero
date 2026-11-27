@@ -2,7 +2,8 @@
 import XCTest
 
 /// The workflow inspector's Run and Chain tabs.
-/// spec: workflows `workflows.inspector.run-rows-are-runs`.
+/// spec: workflows `workflows.inspector.run-rows-are-runs`,
+/// `workflows.inspector.chain-in-execution-order`.
 final class WorkflowInspectorListsTests: XCTestCase {
 
     private func inspectorSource() throws -> String {
@@ -30,5 +31,16 @@ final class WorkflowInspectorListsTests: XCTestCase {
         let source = try inspectorSource()
         XCTAssertTrue(source.contains(#"List(workflowRuns, id: \.threadId)"#))
         XCTAssertFalse(source.contains("List(workflowRuns) {"))
+    }
+
+    /// The Chain tab numbers the steps as the canvas badges and the editor's
+    /// list do: by `WorkflowTopology`, not by the order the nodes are stored in.
+    func testTheChainTabListsStepsInExecutionOrder() throws {
+        let source = try inspectorSource()
+        XCTAssertTrue(source.contains(
+            "let ordered = WorkflowTopology.orderedNodes(nodes: workflow.nodes, edges: workflow.edges)"
+        ))
+        XCTAssertTrue(source.contains(#"List(Array(ordered.enumerated()), id: \.element.id)"#))
+        XCTAssertFalse(source.contains("List(Array(workflow.nodes.enumerated())"))
     }
 }

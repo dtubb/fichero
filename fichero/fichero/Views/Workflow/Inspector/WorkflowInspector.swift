@@ -175,7 +175,8 @@ struct WorkflowInspector: View {
     }
 
     /// Chain tab — the workflow's ordered steps. Each node is a tool (#2441);
-    /// this lists them in order (editing the node config stays in the editor).
+    /// this lists them in execution order, the order the canvas badges and the
+    /// editor's list number them in (editing the node config stays in the editor).
     @ViewBuilder
     private var chainContent: some View {
         if workflow.nodes.isEmpty {
@@ -186,7 +187,8 @@ struct WorkflowInspector: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(Array(workflow.nodes.enumerated()), id: \.element.id) { index, node in
+            let ordered = WorkflowTopology.orderedNodes(nodes: workflow.nodes, edges: workflow.edges)
+            List(Array(ordered.enumerated()), id: \.element.id) { index, node in
                 HStack(spacing: 8) {
                     Text("\(index + 1)")
                         .font(.caption.monospacedDigit())
