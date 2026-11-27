@@ -320,6 +320,18 @@ def _check_date_words(name: str, dates: object) -> None:
         raise ValueError(f"{name}: dates.months must be twelve names")
 
 
+_PLACE_WORDS = ("at", "document", "inferred", "relative")
+
+
+def _check_place_words(name: str, places: object) -> None:
+    """A table's `places` is four patterns, each holding `{place}`."""
+    if not isinstance(places, dict):
+        raise ValueError(f"{name}: places must be an object")
+    for key in _PLACE_WORDS:
+        if not isinstance(places.get(key), str) or "{place}" not in places[key]:
+            raise ValueError(f"{name}: places.{key} must be a string holding {{place}}")
+
+
 def load_language_tables(directory: Path) -> dict[str, dict]:
     """Every `<language>.json` in `directory`, keyed by language; a file with a missing or mistyped
     key, or named for a language other than its own `language` field, raises ValueError."""
@@ -338,6 +350,9 @@ def load_language_tables(directory: Path) -> dict[str, dict]:
             isinstance(k, str) and len(k.split()) == 2 and isinstance(v, str) and v for k, v in contractions.items()
         ):
             raise ValueError(f"{path.name}: contractions must map two words to one")
+        places = table.get("places")
+        if places is not None:
+            _check_place_words(path.name, places)
         dates = table.get("dates")
         if dates is not None:
             _check_date_words(path.name, dates)
@@ -407,6 +422,43 @@ def _claim_date(claim: KnowledgeClaim, language: str | None) -> dict | None:
         "level": level,
         "basis": value.basis.value if value is not None else None,
         "as_written": value.label if value is not None else None,
+    }
+
+
+def _claim_place(claim: KnowledgeClaim, language: str | None) -> dict | None:
+    """The place of `claim` in `language`'s table as {text, label, basis, entity_id, origin}; None when
+    the claim has no place, the table holds no place words, or the object already says the place.
+
+    The place is `claim_location`, else the first place value's label. The basis is that place value's
+    when it is the one read (its label is the location, or there is no location). A place value
+    that is relative to another is said as written after the table's relative word; a basis
+    source-anchored is said as the document's place, an inferred one with the inferred words,
+    anything else plainly. `entity_id` is filled by the caller.
+    """
+    words = (_TABLES.get(language or "") or {}).get("places")
+    if not words:
+        return None
+    value = claim.place_values[0] if claim.place_values else None
+    label = " ".join((claim.claim_location or (value.label if value else "")).split())
+    if not label:
+        return None
+    read = value if value is not None and (not claim.claim_location or value.label == claim.claim_location) else None
+    if _fold(label) in _fold(_claim_object(claim) or ""):
+        return None
+    if read is not None and read.relative is not None:
+        kind = "relative"
+    elif read is not None and read.basis == EvidenceBasis.source_anchored:
+        kind = "document"
+    elif read is not None and read.basis == EvidenceBasis.inferred:
+        kind = "inferred"
+    else:
+        kind = "at"
+    return {
+        "text": words[kind].format(place=label),
+        "label": label,
+        "basis": read.basis.value if read is not None else None,
+        "entity_id": None,
+        "origin": f"claim:{claim.id}:{'claim_location' if claim.claim_location else 'place_values'}",
     }
 
 
@@ -630,6 +682,9 @@ def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
     date = _claim_date(claim, lang)
     if pieces and date:
         pieces.insert(0, (f"{date['text'][0].upper()}{date['text'][1:]},", _date_origin(claim)))
+    place = _claim_place(claim, lang)
+    if pieces and place:
+        pieces.append((place["text"], place["origin"]))
     year = (claim.time_start or "")[:4]
     if pieces and lang not in _TABLES and year.isdigit():
         pieces.append((f"({year})", f"claim:{claim.id}:time_start"))
@@ -702,6 +757,17 @@ def _merged_pieces(
         if date:
             pieces.append((f"({date['text']})", _date_origin(members[0]), [m.id for m in members]))
         marks.append((at, members, len(pieces) - 1))
+    shared: dict[str, tuple[str, list[KnowledgeClaim]]] = {}
+    for c in group_claims:
+        place = _claim_place(c, lang)
+        if place:
+            shared.setdefault(place["text"], (place["origin"], []))[1].append(c)
+    for i, (text, (origin, members)) in enumerate(shared.items()):
+        if i and i == len(shared) - 1:
+            pieces.append((_TABLES[lang]["and"], f"table:{lang}:and", ids))
+        elif i:
+            pieces.append((",", "punctuation", ids))
+        pieces.append((text, origin, [m.id for m in members]))
     if not pieces[-1][0].endswith((".", "!", "?")):
         pieces.append((".", "punctuation", ids))
     return pieces, marks
@@ -737,7 +803,7 @@ def _trace_group_sentence(
             "doubt": "none",
             "sources": _sources(members),
             "date": _claim_date(members[0], agg.language),
-            "place": None,
+            "place": {k: v for k, v in (_claim_place(members[0], agg.language) or {}).items() if k != "origin"} or None,
         }
         for start, end, members in spans
     ]
@@ -822,11 +888,19 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
     cursor = 0
     said_a_date = False
     said_undated = False
+    known_places: dict[str, str | None] = {}
     for group in aggregate_claims(claims):
         group_claims = [by_id[cid] for cid in group.claim_ids]
         text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
         if not text:
             continue
+        for clause in clauses:
+            place = clause["place"]
+            if place:
+                if place["label"] not in known_places:
+                    found = db.query(KnowledgeEntity, canonical_name=place["label"])
+                    known_places[place["label"]] = found[0].id if len(found) == 1 else None
+                place["entity_id"] = known_places[place["label"]]
         dated = any(c["date"] for c in clauses)
         undated_words = ((_TABLES.get(group.language or "") or {}).get("dates") or {}).get("undated")
         if said_a_date and not said_undated and not dated and undated_words:

@@ -5,6 +5,12 @@
   "times": "veces",
   "prepositions": ["a", "al", "de", "del", "en", "por", "para", "con", "ante", "desde", "hasta", "sobre"],
   "contractions": {"de el": "del", "a el": "al"},
+  "places": {
+    "at": "en {place}",
+    "document": "(en un documento redactado en {place})",
+    "inferred": "en {place} (lugar inferido)",
+    "relative": "a {place}"
+  },
   "dates": {
     "day": "el {day} de {month} de {year}",
     "month": "en {month} de {year}",
