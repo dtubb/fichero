@@ -1697,3 +1697,15 @@ Engine: the distil route becomes a plan (steps with places and a gate step) the 
 The gate step measures CER and WER on the held-out checked pages (the measure of `training/evaluation.py`), decides by the band, records the switch, and the runner reads the remaining pages with the student on its place, skipping every page a model pass already read. The one end-to-end test lives in fichero-server/tests/unit/training/ and is named on `compute/distillation.md` Steps 1.1–1.3 as well.
 
 - test (to write): `test_teach_as_you_go_end_to_end.py` in fichero-server/tests/unit/training/ (a fake Gemini labels the first 100 of 1,000 pages, and a covering sample in a second case; a fake Job returns a student; CER and WER on the held-out pages; the switch recorded; the 900 remaining run on the student on a fake Hugging Face target; a counting fake sees zero repeated passes)
+
+#### Step 19.3 — owed behaviours no step listed: cloud asked first, default models, frontier reader, layout by the VLM
+- Behaviours: `designer.how.cloud-asked-before-any-default`, `designer.how.pick-the-default-models`, `designer.how.quality-with-cloud-is-a-frontier-reader`, `designer.layout.vlm-corrects-regions-and-lines`, `designer.layout.vlm-finds-regions-and-lines`
+- Tests: the Test line of each behaviour above
+- Depends on: 19.2
+- Size: M
+
+#### Step 19.4 — owed behaviours no step listed: photocopy condition, photocopy suggested from a sample, close on the left saves
+- Behaviours: `designer.material.condition-photocopy`, `designer.material.photocopy-suggested-from-a-sample`, `designer.setup.close-on-the-left-saves`
+- Tests: the Test line of each behaviour above
+- Depends on: 19.3
+- Size: S
