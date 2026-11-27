@@ -74,3 +74,8 @@ def test_the_common_prompt_says_small_commits_and_only_added_commits_after_done(
     for words in ("commit each logical change by itself", "After your first DONE only add commits", "never amend, squash or rebase",
                   "A step lands whole"):
         assert words in text, words
+
+
+def test_a_context_suffixed_alias_takes_its_base_models_display_name():
+    """2026-11-27: maintainer-fable runs `claude-fable-5-2[1m]`; its trailer said that id, and review refused 11 commits."""
+    assert profiles.trailer("claude-fable-5-2[1m]", "Claude Code").startswith("Written-By: Claude Fable 5.2 using Claude Code")

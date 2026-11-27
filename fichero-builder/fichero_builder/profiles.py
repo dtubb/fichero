@@ -25,7 +25,8 @@ def trailer(model: str, harness: str, root=None) -> str:
     toml = Path(root or REPO) / "harness.toml"
     doc = tomllib.loads(toml.read_text()) if toml.is_file() else {}
     names = doc.get("models", {}).get("display", {})
-    return f"Written-By: {names.get(model, model)} using {harness} using {doc.get('policy', {}).get('product', 'Fichero Builder')}"
+    base = re.sub(r"\[[^\]]*\]$", "", model)  # 2026-11-27: `claude-fable-5-2[1m]` is claude-fable-5-2 with a 1M context: its name
+    return f"Written-By: {names.get(model, names.get(base, model))} using {harness} using {doc.get('policy', {}).get('product', 'Fichero Builder')}"
 
 
 def private_text(text: str, boundary: list[str]) -> list[str]:
