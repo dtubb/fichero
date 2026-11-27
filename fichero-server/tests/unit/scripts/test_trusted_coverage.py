@@ -49,3 +49,8 @@ def test_a_partly_missing_confidence_is_refused():
 def test_no_prefix_under_the_threshold_gives_zero():
     rows = [{"edits": 10, "chars": 100, "confidence": 0.9}]
     assert c.trusted_coverage(rows)["trusted_coverage"] == 0.0
+
+
+def test_the_cut_is_not_an_argument():
+    import inspect
+    assert list(inspect.signature(c.trusted_coverage).parameters) == ["rows"]

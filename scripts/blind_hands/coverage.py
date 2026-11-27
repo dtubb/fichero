@@ -12,7 +12,7 @@ from __future__ import annotations
 THRESHOLD = 0.02
 
 
-def trusted_coverage(rows: list[dict], threshold: float = THRESHOLD) -> dict:
+def trusted_coverage(rows: list[dict]) -> dict:
     """`{"trusted_coverage": share | "no confidence", "risk_coverage": [{"coverage", "cer"}, ...]}`."""
     missing = [r for r in rows if r["confidence"] is None]
     if missing and len(missing) == len(rows):
@@ -26,6 +26,6 @@ def trusted_coverage(rows: list[dict], threshold: float = THRESHOLD) -> dict:
         chars += r["chars"]
         point = {"coverage": round(k / len(ordered), 6), "cer": round(edits / chars, 6)}
         curve.append(point)
-        if point["cer"] <= threshold:
+        if point["cer"] <= THRESHOLD:
             best = point["coverage"]
     return {"trusted_coverage": best, "risk_coverage": curve}
