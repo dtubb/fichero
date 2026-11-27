@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Reconcile open GitHub issues against the spec and the commit log, deterministically.
 
-Ownership: a spec behaviour bullet owns an issue only through the (#N) right after its own
-first-line status tag, e.g.  - `id` — **[OK]** (#10) text   or   (#10, #11; …).
-A '#N' anywhere else (prose, '-> #N' further down) owns nothing; an untagged bullet owns nothing.
+Ownership: a spec behaviour bullet owns an issue through the (#N) right after its own first-line
+status tag, e.g.  - `id` — **[OK]** (#10) text   or   (#10, #11; …), the tag bold or plain
+(`[OK]`, as the harness specs write it), and through a line of the bullet that ends `→ #N` (the issue
+the bullet was filed as). A '#N' anywhere else in prose owns nothing; an untagged bullet owns nothing.
 
 Commit evidence: a commit on the ref whose subject or body says 'Fixes #N' or 'Closes #N'
 (not 'Part of #N') is fix evidence for N.
@@ -56,7 +57,8 @@ DONE_TAGS = frozenset({"OK", "BUILT"})  # the specs use both words for a finishe
 COMMENT_MARK = "<!-- issue-spec-reconcile -->"
 
 BEHAVIOR_START_RE = re.compile(r"^(\s*)-\s+`([a-z][a-z0-9+_-]*(?:\.[a-z0-9+_-]+)+)`")
-TAG_RE = re.compile(r"\*\*\[([A-Z][A-Z/]*)[^\]]*\]\*\*")
+TAG_RE = re.compile(r"\*\*\[([A-Z][A-Z/]*)[^\]]*\]\*\*|(?<![\w`*])\[([A-Z][A-Z/]*)\](?![(\w])")  # bold or plain
+FILED_AS_RE = re.compile(r"→ #(\d+)\s*$", re.MULTILINE)  # `… (#6589) → #6895`: the bullet was filed as #6895
 OWNER_AFTER_TAG_RE = re.compile(r"\s*\(([^)]*)\)")
 ISSUE_CITE_RE = re.compile(r"#(\d+)\b")
 FIX_RE = re.compile(r"\b(?:Fixes|Closes)\s+#(\d+)\b", re.IGNORECASE)
@@ -107,14 +109,15 @@ def parse_bullets(spec: str, text: str) -> list[Bullet]:
             body.append(lines[j])
             j += 1
         blob = "\n".join(body)
-        tag_m = TAG_RE.search(lines[i])
+        tag_m = TAG_RE.search(lines[i], start.end())
         owned: set[int] = set()
         if tag_m:
             after = OWNER_AFTER_TAG_RE.match(lines[i], tag_m.end())
             if after:
                 owned = {int(n) for n in ISSUE_CITE_RE.findall(after.group(1))}
+            owned |= {int(n) for n in FILED_AS_RE.findall(blob)}
         tests = set(TEST_NAME_RE.findall(blob)) | set(PY_TEST_FILE_RE.findall(blob))
-        out.append(Bullet(spec, milestone, start.group(2), tag_m.group(1) if tag_m else "UNTAGGED",
+        out.append(Bullet(spec, milestone, start.group(2), (tag_m.group(1) or tag_m.group(2)) if tag_m else "UNTAGGED",
                           owned, tests))
         i = j
     return out
@@ -223,7 +226,8 @@ def test_missing_on_ref(ref: str, names: set[str]) -> set[str]:
     if funcs:  # ONE grep for every defined test function, then a set difference: never one grep per name
         r = subprocess.run(["git", "grep", "-h", "-o", "-E", r"(def|func) test_[[:alnum:]_]+", ref, "--", ":!docs"], capture_output=True, text=True)
         found = set(re.findall(r"(?:def|func) (\w+)", r.stdout))
-        missing |= {n for n in funcs if n not in found}
+        stems = {p.rsplit("/", 1)[-1][:-3] for p in _git("ls-tree", "-r", "--name-only", ref).split("\n") if p.endswith(".py")}
+        missing |= {n for n in funcs if n not in found and n not in stems}  # `test_release_guard` names the file
     return missing
 
 
@@ -275,9 +279,32 @@ def read_tsv(path: str) -> list[Row]:
     return rows
 
 
-def close_comment(r: Row, landed: str = "") -> str:
+def built_in(ref: str, tests: list[str]) -> str:
+    """`Built in <sha> (<subject>); test <path>::<name>.`: the commit that added the first named test found at `ref`
+    (the oldest commit whose diff adds its `def`), or '' when none is found. Deterministic: git grep and git log -S."""
+    for name in (x for x in tests if not x.endswith(".py")):
+        g = subprocess.run(["git", "grep", "-l", "-E", rf"(def|func) {re.escape(name)}[(]", ref, "--", ":!docs"],
+                           capture_output=True, text=True)
+        path = next((ln.split(":", 1)[1] for ln in g.stdout.splitlines() if ":" in ln), "")
+        whole = not path  # a name that is a test file's stem (`test_paragraph_selection`): the commit that added the file
+        if whole:
+            ls = subprocess.run(["git", "ls-tree", "-r", "--name-only", ref], capture_output=True, text=True).stdout.split("\n")
+            path = next((x for x in ls if x.endswith(f"/{name}.py")), "")
+        if not path:
+            continue
+        pick = ["--diff-filter=A"] if whole else ["-S", f"{name}("]
+        lg = subprocess.run(["git", "log", ref, "--format=%h\x1f%s", *pick, "--", path], capture_output=True, text=True)
+        first = lg.stdout.strip().splitlines()[-1:] if lg.returncode == 0 else []
+        if first:
+            sha, subject = first[0].split("\x1f", 1)
+            subject = subject if len(subject) <= 100 else subject[:99].rstrip() + "…"
+            return f"Built in {sha} ({subject}); test {path}{'' if whole else '::' + name}."
+    return ""
+
+
+def close_comment(r: Row, landed: str = "", ref: str = "") -> str:
     lines = [f"- {s}" for s in r.spec_ids] or ["- (no owning spec line)"]
-    head = f"{COMMENT_MARK}\nDone: closed by the spec/commit reconcile ({r.cls}).\n"
+    head = (built_in(ref, r.tests) + "\n" if ref and r.tests else "") + f"{COMMENT_MARK}\nDone: closed by the spec/commit reconcile ({r.cls}).\n"
     if landed:
         head += f"Landed at {landed[:9]}.\n"
     if r.commits:
@@ -290,7 +317,11 @@ def close_comment(r: Row, landed: str = "") -> str:
 
 def keep_comment(r: Row, landed: str = "") -> str:
     left = "\n".join(f"- {x}" for x in r.left) or f"- {r.note}"
+    done = [s for s in r.spec_ids if s not in r.left]
     at = f" (landed {landed[:9]})" if landed else ""
+    if done:  # partly: what is built and what is left, from the spec's own tags
+        built = "\n".join(f"- {x}" for x in done)
+        return f"{COMMENT_MARK}\nPartly built{at}. Done:\n{built}\nLeft:\n{left}\nKept open; the issue stays and is updated, not closed."
     return f"{COMMENT_MARK}\nStill open after this landing{at}: what is left is\n{left}\nKept open; the issue stays and is updated, not closed."
 
 
@@ -300,7 +331,8 @@ def _already_said(number: int, left_lines: str) -> bool:
     return r.returncode == 0 and COMMENT_MARK in r.stdout and left_lines in r.stdout
 
 
-def apply_rows(rows: list[Row], landed: str = "", milestones: bool = True, keep_comments: bool = False) -> dict[str, int]:
+def apply_rows(rows: list[Row], landed: str = "", milestones: bool = True, keep_comments: bool = False, ref: str = "",
+               partly_only: bool = False) -> dict[str, int]:
     """Closes CLOSE-A/B with a comment; with `milestones` the KEEP milestone edits; with `keep_comments` the one KEEP comment."""
     counts = {"closed": 0, "kept-milestone": 0, "kept-commented": 0, "errors": 0}
     known: set[str] = set()
@@ -310,11 +342,11 @@ def apply_rows(rows: list[Row], landed: str = "", milestones: bool = True, keep_
             capture_output=True, text=True, check=True).stdout.splitlines())
     for r in rows:
         if r.cls in ("CLOSE-A", "CLOSE-B"):
-            c = _run_gh("issue", "comment", str(r.number), "-R", REPO, "-F", "-", input=close_comment(r, landed))
+            c = _run_gh("issue", "comment", str(r.number), "-R", REPO, "-F", "-", input=close_comment(r, landed, ref or landed))
             k = _run_gh("issue", "close", str(r.number), "-R", REPO)
             counts["closed" if c.returncode == 0 and k.returncode == 0 else "errors"] += 1
         elif r.cls == "KEEP":
-            if keep_comments:
+            if keep_comments and not (partly_only and len(r.left) == len(r.spec_ids)):  # partly_only: a row with a done line
                 body = keep_comment(r, landed)
                 if not _already_said(r.number, "\n".join(f"- {x}" for x in r.left) or f"- {r.note}"):
                     c = _run_gh("issue", "comment", str(r.number), "-R", REPO, "-F", "-", input=body)
@@ -359,7 +391,7 @@ def after_landing(numbers: list[int], ref: str, landed: str) -> list[dict]:
         except (subprocess.CalledProcessError, OSError) as e:
             return out + [{"issue": n, "cls": "UNREAD", "closed": False, "note": f"reconcile failed: {e}"[:200]} for n in todo]
         for r in rows:
-            counts = apply_rows([r], landed=landed, milestones=False, keep_comments=True)
+            counts = apply_rows([r], landed=landed, milestones=False, keep_comments=True, ref=ref)
             closed = r.cls in ("CLOSE-A", "CLOSE-B") and counts["closed"] == 1
             out.append({"issue": r.number, "cls": r.cls, "closed": closed, "note": "; ".join(r.left) or r.note})
     return out
@@ -373,7 +405,7 @@ def nightly(ref: str, tsv: str) -> dict:
     counts: dict[str, int] = {}
     for r in rows:
         counts[r.cls] = counts.get(r.cls, 0) + 1
-    applied = apply_rows([r for r in rows if r.cls in ("CLOSE-A", "CLOSE-B")], milestones=False)
+    applied = apply_rows([r for r in rows if r.cls in ("CLOSE-A", "CLOSE-B")], milestones=False, ref=ref)
     return {"ref": ref, "open": len(issues), **counts, **applied}
 
 
@@ -660,6 +692,16 @@ not a bullet (#18)
     assert k.left == ["a.gap [GAP] (s.md)"] and "a.gap" in keep_comment(k, "deadbeef1234")
     c = close_comment(classify(10, b, missing, []), "deadbeef1234")
     assert "deadbeef1" in c and "a.ok-one" in c and "`test_alpha_works`" in c
+    # the harness specs' plain tag, and the `→ #N` a bullet was filed as
+    pb = parse_bullets("h.md", "- `b.plain` [OK] (#30; built) pinned by `test_alpha_works`\n"
+                               "- `b.filed` [GAP] — text (#6589)\n  more text. (#6589) → #31\n"
+                               "- `b.bracket` text with [check] keys and no tag (#32)\n")
+    assert pb[0].tag == "OK" and pb[0].owned == {30} and classify(30, pb, set(), []).cls == "CLOSE-A"
+    assert pb[1].tag == "GAP" and pb[1].owned == {31} and classify(31, pb, set(), []).cls == "KEEP"
+    assert pb[2].tag == "UNTAGGED" and pb[2].owned == set()
+    mixed = parse_bullets("m.md", "- `m.one` [OK] (#40) `test_alpha_works`\n- `m.two` [GAP] (#40) not yet\n")
+    kc = keep_comment(classify(40, mixed, set(), []))
+    assert "Partly built" in kc and "m.one [OK]" in kc.split("Left:")[0] and "m.two [GAP]" in kc.split("Left:")[1]
     print("self-test OK")
     return 0
 
@@ -669,6 +711,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--ref", default=None, help="default origin/<[land].branch>")
     ap.add_argument("--tsv")
     ap.add_argument("--apply", action="store_true", help="apply the decisions in --tsv (dry run otherwise)")
+    ap.add_argument("--partly", action="store_true",
+                    help="with --apply: close CLOSE-A/B, comment 'Partly built' on a KEEP row with a done line, move no milestone")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--link-audit", metavar="JSON", help="write the link audit (read-only) to this JSON file")
     ap.add_argument("--link-ruled", metavar="LOG", help="apply the owner's link-audit ruling, logging to LOG")
@@ -711,7 +755,8 @@ def main(argv: list[str]) -> int:
         print("gh is required", file=sys.stderr)
         return 2
     if args.apply:
-        counts = apply_rows(read_tsv(args.tsv))
+        counts = apply_rows(read_tsv(args.tsv), milestones=not args.partly, keep_comments=args.partly, ref=args.ref,
+                            partly_only=args.partly)
         print(json.dumps(counts))
         return 0 if counts["errors"] == 0 else 1
     issues = open_issues()

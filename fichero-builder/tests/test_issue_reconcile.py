@@ -60,6 +60,7 @@ def _fake(tmp_path, monkeypatch, issues):
     monkeypatch.setattr(mod, "load_specs", lambda ref: [("docs/s.md", SPEC)])
     monkeypatch.setattr(mod, "load_fixes", lambda ref: {4: ["fff111222"]})
     monkeypatch.setattr(mod, "test_missing_on_ref", lambda ref, names: set())
+    monkeypatch.setattr(mod, "built_in", lambda ref, tests: f"Built in 1234567 (feat: x); test t.py::{tests[0]}.")
     return mod, lambda: json.loads((tmp_path / "issues.json").read_text())
 
 
@@ -110,7 +111,8 @@ def test_only_the_cited_issues_tests_are_looked_up_and_in_one_git_grep(tmp_path,
     monkeypatch.undo()
     monkeypatch.setattr(mod.subprocess, "run", lambda argv, **k: (calls.append(argv), mod.subprocess.CompletedProcess(argv, 1, "def test_n3\n", ""))[1])
     missing = mod.test_missing_on_ref("HEAD", {f"test_n{i}" for i in range(450)})
-    assert len(calls) == 1 and "test_n3" not in missing and len(missing) == 449, "450 names: one grep, not 450"
+    assert len(calls) == 2 and calls[1][:2] == ["git", "ls-tree"] and "test_n3" not in missing and len(missing) == 449, \
+        "450 names: one grep and one tree listing (for names that are a test file's stem), not 450"
 
 
 def _git_in(cwd, *a):
@@ -153,3 +155,37 @@ def test_after_landing_fetches_the_sha_before_it_reads_and_a_sha_nobody_has_is_s
     monkeypatch.setattr(mod, "ensure_ref", boom)
     out = mod.after_landing([3], "abc123", "abc123")
     assert out[0]["issue"] == 3 and out[0]["cls"] == "UNREAD" and "reconcile failed" in out[0]["note"]
+
+
+def _git(d, *a):
+    import subprocess
+    return subprocess.run(["git", "-C", str(d), *a], capture_output=True, text=True, check=True).stdout
+
+
+def test_a_test_named_by_its_file_stem_is_present_and_the_evidence_names_the_commit_that_added_it(tmp_path, monkeypatch):
+    """2026-11-27: 43 issues stayed MISSING-TEST because their [OK] bullets name a test file by its stem."""
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "config", "user.email", "t@t"), _git(tmp_path, "config", "user.name", "t")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_paragraph_selection.py").write_text("def test_picks():\n    pass\n")
+    _git(tmp_path, "add", "."), _git(tmp_path, "commit", "-qm", "feat: paragraph selection")
+    sha = _git(tmp_path, "rev-parse", "--short=7", "HEAD").strip()
+    monkeypatch.chdir(tmp_path)
+    mod = _load()
+    assert mod.test_missing_on_ref("HEAD", {"test_paragraph_selection", "test_picks", "test_absent"}) == {"test_absent"}
+    assert mod.built_in("HEAD", ["test_paragraph_selection"]) == f"Built in {sha} (feat: paragraph selection); test tests/test_paragraph_selection.py."
+    assert mod.built_in("HEAD", ["test_picks"]) == f"Built in {sha} (feat: paragraph selection); test tests/test_paragraph_selection.py::test_picks."
+
+
+def test_apply_partly_closes_the_done_comments_only_a_partly_built_row_and_moves_no_milestone(tmp_path, monkeypatch):
+    mod, state = _fake(tmp_path, monkeypatch, _issues((1, []), (2, []), (7, [])))
+    rows = [mod.Row(1, "CLOSE-A", ["a.done [BUILT] (docs/s.md)"], tests=["test_one"]),
+            mod.Row(2, "KEEP", ["a.ok [OK] (docs/s.md)", "a.half [PARTIAL] (docs/s.md)"], "m1", left=["a.half [PARTIAL] (docs/s.md)"]),
+            mod.Row(7, "KEEP", ["a.gap [GAP] (docs/s.md)"], "m1", left=["a.gap [GAP] (docs/s.md)"])]
+    counts = mod.apply_rows(rows, milestones=False, keep_comments=True, ref="HEAD", partly_only=True)
+    s = state()
+    assert s["1"]["state"] == "CLOSED" and s["1"]["comments"][0].startswith("Built in 1234567 (feat: x); test t.py::test_one.")
+    assert "Partly built" in s["2"]["comments"][0] and s["2"]["state"] == "OPEN"
+    assert "comments" not in s["7"], "nothing built: no comment"
+    assert counts == {"closed": 1, "kept-milestone": 0, "kept-commented": 1, "errors": 0}
+    assert "milestone" not in (tmp_path / "calls").read_text()

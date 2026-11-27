@@ -1837,13 +1837,18 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   cached per file mtime), and the API-equivalent dollars in grey, "on Max, not billed" (`[spend].prices`; cache reads at 0.1x and cache writes at
   1.25x the input price). **Built** 2026-11-02: `console.lane_usage`, the card in `console.html`. Not yet: a per-model split.
   Test `fichero-builder/tests/test_status_page.py::test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message`.
-- `dev-workflows.run.issues-close-when-done` [PARTIAL] (#6589; owner 2026-11-14: issues close when they are done) —
+- `dev-workflows.run.issues-close-when-done` [OK] (#6589; owner 2026-11-14: issues close when they are done) —
   an issue is closed by the harness once its work is done, decided deterministically by `fichero-builder/fichero_builder/issue_reconcile.py` from the spec bullets
-  that own it (the `(#N)` right after a bullet's own status tag) and from `Fixes`/`Closes #N` commits: CLOSE-A = every owning bullet is `[OK]` or
+  that own it (the `(#N)` right after a bullet's own status tag, bold `**[OK]**` or plain `[OK]` as the harness specs write it, and a line of
+  the bullet ending `→ #N`, the issue it was filed as) and from `Fixes`/`Closes #N` commits; a named test is present when its `def`/`func`
+  is on the ref or it is a test file's stem (2026-11-27: the nightly read 2290 open issues and closed none, 43 of them held only by a
+  test named by its file, the harness specs' plain tags and their `→ #N` owning nothing): CLOSE-A = every owning bullet is `[OK]` or
   `[BUILT]` (the specs use both) and the tests it names exist on the ref; CLOSE-B = a fix commit and no owning bullet that is not done (and no named
   test missing); otherwise KEEP (an owning bullet is not done), MISSING-TEST (a named test is not on the ref) or NO-SPEC (nothing owns it).
-  (a) After every landing the queue reconciles each issue the step cites: CLOSE-A/B closes it with a comment naming the landed sha, the owning
-  bullets and the tests; KEEP gets one comment saying what is left (the bullets that are not done; the same list is not commented twice) and the
+  (a) After every landing (a train-cleared step's too) the queue reconciles each issue the step cites: CLOSE-A/B closes it with a comment
+  whose first line is `Built in <sha> (<subject>); test <path>::<name>.` (the commit that added the first named test), then the landed sha, the
+  owning bullets and the tests; KEEP gets one comment saying what is left, `Partly built` with the done bullets and the left ones when some
+  owning bullet is done (the bullets that are not done; the same list is not commented twice) and the
   issue stays open and is updated, never closed, for residue. The reconcile result is one `issue-reconcile` queue row (each issue, its class,
   whether it closed) replacing the plain `issue-open` row; it runs on a thread, reads only the tests the cited issues' own bullets name (one `git grep` for all, the specs in one `git cat-file --batch`), and is run as `python -m fichero_builder.issue_reconcile`; `gh` failing counts as unread and the lane
   goes on. The landed sha is fetched from origin first when this clone lacks it (#6848: `git ls-tree <sha>` exited 128 on every landing), and an issue left unread
@@ -1851,7 +1856,10 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   `::test_after_landing_fetches_the_sha_before_it_reads_and_a_sha_nobody_has_is_said_per_issue`, `fichero-builder/tests/test_queue_verb.py::test_a_reconcile_that_leaves_an_issue_unread_or_crashes_is_an_alert_naming_the_issue`.
   (b) Nightly, over every open issue: the dry-run TSV (issue-reconcile.tsv in the state dir) and ONE summary `issue-reconcile` row (counts per
   class and how many closed), closing only CLOSE-A/B. (c) Never an issue whose owning bullet is not done is closed; never a `type:bug` without a
-  test (a fix commit alone, CLOSE-B, leaves a bug open). **Built** 2026-11-14 against a fake gh. Not yet: a run on the real jail user. Tests
+  test (a fix commit alone, CLOSE-B, leaves a bug open). (d) By hand: `--apply --partly --tsv <reviewed TSV>` closes its CLOSE-A/B rows and
+  comments only the partly built KEEP rows, moving no milestone. **Built** 2026-11-14; the landing and nightly runs live since. Tests
+  `fichero-builder/tests/test_issue_reconcile.py::test_a_test_named_by_its_file_stem_is_present_and_the_evidence_names_the_commit_that_added_it`,
+  `::test_apply_partly_closes_the_done_comments_only_a_partly_built_row_and_moves_no_milestone`,
   `fichero-builder/tests/test_issue_reconcile.py::test_self_test_passes`,
   `::test_after_a_landing_done_issues_close_with_the_sha_bullets_and_tests_and_kept_ones_get_one_comment`,
   `::test_an_already_closed_issue_is_left_alone`,
