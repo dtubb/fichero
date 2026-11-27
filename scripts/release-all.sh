@@ -901,6 +901,23 @@ if [ "$RUN_GITHUB" = true ]; then
   run_part Publish publish_part "GitHub release, appcast$([ "${FICHERO_SKIP_SITE:-0}" = 1 ] || echo ' and site'), live appcast verified"
 fi
 
+# Every release updates main (owner 2026-11-16, release.lane.release-updates-main): once Publish is OK,
+# scripts/update-main.sh merges release/<version> at the released sha into main by a PR. Its own row;
+# a FAILED one is shown and texted but never fails the release (the end-of-run check skips it).
+if [ "$RUN_GITHUB" = true ] && grep -q "^Publish	OK	" "$FICHERO_RELEASE_SUMMARY"; then
+  RELEASED_SHA="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
+  set +e
+  MAIN_OUT="$("$ROOT_DIR/scripts/update-main.sh" "$RELEASED_SHA" "$(project_setting MARKETING_VERSION)" 2>&1)"
+  MAIN_RC=$?
+  set -e
+  echo "$MAIN_OUT"
+  case "$MAIN_RC" in
+    0) mark "Main updated" OK "${RELEASED_SHA:0:10} in origin/main" ;;
+    3) mark "Main updated" SKIPPED "${RELEASED_SHA:0:10} already in main" ;;
+    *) mark "Main updated" FAILED "$(echo "$MAIN_OUT" | tail -1)" ;;
+  esac
+fi
+
 if [ "$RUN_MAC_TESTFLIGHT" = true ]; then run_part "Mac TestFlight" mac_testflight; fi
 
 ios_testflight() {
@@ -1018,6 +1035,6 @@ if [ -e "$INTEGRATION_WT/.git" ]; then
 fi
 
 # Any FAILED part fails the run; the EXIT trap prints the summary table.
-if grep -q "	FAILED	" "$FICHERO_RELEASE_SUMMARY"; then
+if grep -v "^Main updated	" "$FICHERO_RELEASE_SUMMARY" | grep -q "	FAILED	"; then
   exit 1
 fi

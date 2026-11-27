@@ -512,3 +512,51 @@ def test_publish_deploys_the_appcast_with_the_netlify_cli_after_writing_it_and_b
     assert r.returncode == 0, r.stdout + r.stderr
     want = ["appcast-write", *(["docs-site"] if public else []), "eleventy-build", "netlify-deploy", "verify"]
     assert log.read_text().split() == want
+
+
+def _run_update_main(tmp_path: Path, in_main: bool) -> tuple[subprocess.CompletedProcess, list[str]]:
+    log, merged = tmp_path / "calls.log", tmp_path / "merged"
+    if in_main:
+        merged.touch()
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    for name, body in {
+        "git": f'echo "git $*" >> "{log}"; [ "$1" = merge-base ] && {{ [ -f "{merged}" ]; exit; }}; exit 0',
+        "gh": f'echo "gh $*" >> "{log}"; [ "$2" = view ] && exit 1; [ "$2" = merge ] && touch "{merged}"; exit 0',
+    }.items():
+        (bin_ / name).write_text("#!/usr/bin/env bash\n" + body + "\n")
+        (bin_ / name).chmod(0o755)
+    r = subprocess.run(["bash", str(SCRIPTS_DIR / "update-main.sh"), "abc123", "2026.11.27"], capture_output=True, text=True,
+                       env={**os.environ, "PATH": f"{bin_}:{os.environ['PATH']}", "FICHERO_REPO_DIR": str(tmp_path)})
+    return r, log.read_text().splitlines()
+
+
+def test_a_release_updates_main_by_a_release_branch_and_a_merged_pr_never_a_push_to_main(tmp_path: Path) -> None:
+    """Owner 2026-11-16, done by hand on 2026-11-27 (#7099): push release/<version> at the released sha, open the PR into main,
+    merge it with --merge, verify the sha is in origin/main. main is protected: nothing pushes to it, and no v* tag is touched."""
+    r, calls = _run_update_main(tmp_path, in_main=False)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert calls == [
+        "git fetch -q origin main",
+        "git merge-base --is-ancestor abc123 origin/main",
+        "git push origin abc123:refs/heads/release/2026.11.27",
+        "gh pr view release/2026.11.27 --json url -q .url",
+        "gh pr create --base main --head release/2026.11.27 --title Release 2026.11.27 --body "
+        "Release 2026.11.27 at abc123, opened by scripts/update-main.sh after the publish.",
+        "gh pr merge release/2026.11.27 --merge",
+        "git fetch -q origin main",
+        "git merge-base --is-ancestor abc123 origin/main",
+    ]
+    pushes = [c for c in calls if c.startswith("git push")]
+    assert pushes == ["git push origin abc123:refs/heads/release/2026.11.27"] and not any("tag" in c for c in calls)
+
+
+def test_a_release_whose_sha_is_already_in_main_updates_nothing(tmp_path: Path) -> None:
+    r, calls = _run_update_main(tmp_path, in_main=True)
+    assert r.returncode == 3 and calls == ["git fetch -q origin main", "git merge-base --is-ancestor abc123 origin/main"]
+
+
+def test_a_failed_main_update_is_its_own_row_and_never_fails_the_release() -> None:
+    text = (SCRIPTS_DIR / "release-all.sh").read_text()
+    assert text.index('"$ROOT_DIR/scripts/update-main.sh"') > text.index("run_part Publish publish_part")
+    assert 'grep -q "^Publish	OK	"' in text and 'grep -v "^Main updated	" "$FICHERO_RELEASE_SUMMARY" | grep -q "	FAILED	"' in text
