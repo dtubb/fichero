@@ -201,27 +201,29 @@ extension DynamicConfigView {
         ))
     }
 
+    /// A slider over the range the tool declares; a number field when it
+    /// declares none (`ConfigNumberBounds.range`).
+    @ViewBuilder
     func numberSlider(key: String, schema: [String: AnyCodableValue], description: String?) -> some View {
-        let minVal = getMin(from: schema) ?? 0
-        let maxVal = getMax(from: schema) ?? 1
-        let step = maxVal <= 2 ? 0.1 : 1.0
-
-        return HStack(spacing: 8) {
-            Slider(
-                value: Binding(
-                    get: { doubleValues[key] ?? getDefaultDouble(from: schema) },
-                    set: { newValue in
-                        doubleValues[key] = newValue
-                        updateConfig(key: key, value: .double(newValue))
-                    }
-                ),
-                in: minVal...maxVal,
-                step: step
-            )
-            Text(String(format: step < 1 ? "%.1f" : "%.0f", doubleValues[key] ?? getDefaultDouble(from: schema)))
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .frame(width: 30, alignment: .trailing)
+        let value = Binding(
+            get: { doubleValues[key] ?? getDefaultDouble(from: schema) },
+            set: { newValue in
+                doubleValues[key] = newValue
+                updateConfig(key: key, value: .double(newValue))
+            }
+        )
+        if let range = ConfigNumberBounds.range(schema: schema) {
+            let step = ConfigNumberBounds.step(for: range)
+            HStack(spacing: 8) {
+                Slider(value: value, in: range, step: step)
+                Text(ConfigNumberBounds.label(value.wrappedValue, step: step))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, alignment: .trailing)
+            }
+        } else {
+            TextField("Enter number", value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
         }
     }
 
