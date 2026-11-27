@@ -442,6 +442,35 @@ function Log({ st }) {
         <td><pre>${r.detail || ""}</pre></td></tr>`)}</tbody></table></div>`;
 }
 
+// builder-console.control.lanes-and-steps: what is running, in the queue's order, with the controls beside each lane and step
+function Now({ st }) {
+  const d = useApi("/api/now", refetchKey(st));
+  if (!d || !d.lanes) return html`<p class="muted">Loading…</p>`;
+  return html`<h2>Lanes, in the queue's order <span class="muted" style="font-weight:400">${st.lanes_note}</span></h2>
+    <div class="wrap"><table><thead><tr><th>#</th><th>Lane</th><th>Step</th><th>State</th><th>Age</th><th></th></tr></thead><tbody>
+    ${d.lanes.map((l, i) => html`<tr class="row"><td class="muted">${i + 1}</td><td><b>${l.lane}</b> <span class="muted">${l.kind}</span></td><td></td>
+        <td>${l.paused ? html`<${Pill} state="paused" />` : ""}</td><td></td>
+        <td><div class="actions">
+          <button class="btn" title="earlier among the lanes" disabled=${i === 0} onClick=${() => act("lane-move", { lane: l.lane, to: i - 1 })}>↑</button>
+          <button class="btn" title="later among the lanes" disabled=${i === d.lanes.length - 1} onClick=${() => act("lane-move", { lane: l.lane, to: i + 1 })}>↓</button>
+          ${l.paused ? html`<button class="btn" onClick=${() => act("resume", { lane: l.lane })}>${I.play} Resume</button>`
+                     : html`<button class="btn" onClick=${() => act("pause", { lane: l.lane })}>${I.pause} Pause</button>`}
+          ${!l.paused && l.steps.slice(l.cursor, l.cursor + 1).some(s => ["blocked", "parked", "queued"].includes(s.state)) && html`<button class="btn" title="a blocked step goes again as queued" onClick=${() => act("start", { lane: l.lane })}>${I.play} Start</button>`}
+        </div></td></tr>
+      ${l.steps.map((s, k) => k < l.cursor ? "" : html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span> <span class="muted">${s.issues.map(n => "#" + n).join(", ")}</span></td>
+        <td><${Pill} state=${s.state} /></td><td>${dur(s.age_s)}</td>
+        <td><div class="actions">${k > l.cursor && ["queued", "parked"].includes(s.state) && html`
+          <button class="btn" title="earlier in the lane" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: k - 1 })}>↑</button>
+          <button class="btn" title="later in the lane" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: k + 1 })}>↓</button>`}</div></td></tr>`)}`)}
+    </tbody></table></div>
+    <h2>Trains</h2>${d.trains.length ? html`<div class="wrap"><table><thead><tr><th>Train</th><th>When</th><th>Steps</th><th>Result</th><th>Landed</th></tr></thead><tbody>
+      ${[...d.trains].reverse().map(t => html`<tr class="row"><td class="mono">${t.id}</td><td><${Ago} ts=${t.ts} /></td><td class="mono">${(t.steps || []).join(", ")}</td>
+        <td><span class=${"pill " + (t.result === "green" ? "green" : t.result ? "red" : "blue")}>${t.result || "running"}</span></td><td class="mono">${(t.landed || []).join(", ")}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No train yet.</p>`}
+    ${d.waiting_for_train.length > 0 && html`<p class="muted">Waiting for the next train: <span class="mono">${d.waiting_for_train.join(", ")}</span></p>`}
+    <h2>Check slots</h2><div class="wrap"><table><tbody>${d.slots.map(s => html`<tr class="row"><td class="mono">${s.slot}</td>
+      <td>${s.held ? html`<span class="pill blue"><span class="dot blue pulse"></span>held</span>` : html`<span class="muted">free</span>`}</td><td>${s.name}</td><td class="mono muted">${s.holder}</td></tr>`)}</tbody></table></div>`;
+}
+
 function App() {
   const st = useStatus();
   const [msg, setMsg] = useState("");
@@ -456,7 +485,7 @@ function App() {
   return html`
     <div class="toolbar">
       <h1>Builder</h1>
-      <div class="seg">${[["lanes", "Lanes"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["log", "Log"]].map(([t, n]) =>
+      <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["log", "Log"]].map(([t, n]) =>
         html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}${t === "alerts" && st.alerts.count ? html` <span class=${"pill " + (st.alerts.owner_count ? "orange" : "")} title=${`${st.alerts.count} open alert(s) under a day old, ${st.alerts.owner_count} yours`}>${st.alerts.count}</span>` : ""}</button>`)}</div>
       <span class="spacer"></span>
       ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
@@ -485,8 +514,8 @@ function App() {
         return (q || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${q ? `${q} lane(s) with a question` : ""}
           ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>` : ""; })()}
       ${(st.open_questions || []).length > 0 && html`<h2>Questions</h2><div class="alerts">${st.open_questions.map(q => html`<div class="alert"><div><b class="mono">${q.lane} ${q.step}</b></div><div class="what">${q.question}</div></div>`)}</div>`}
-      ${{ log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
-        ? html`<${{ log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
+      ${{ now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
+        ? html`<${{ now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
         : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
     </main>`;
 }

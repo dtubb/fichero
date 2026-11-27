@@ -8,7 +8,9 @@ import time
 
 import pytest
 
-from fichero_builder import console, journal, work
+from fichero_builder import console, journal, queue, work
+
+_REAL_LOAD = queue.load  # the `live` fixture replaces queue.load; a test over the real queue file puts this back
 
 
 @pytest.fixture
@@ -156,3 +158,52 @@ def test_every_milestone_issue_and_step_issue_number_is_a_link_to_the_issue(tmp_
     page = _page()
     ms_js = page[page.index("function Milestones("):page.index("function Worktrees(")]
     assert "href=${i.url}" in ms_js and "issueLink(n)" in ms_js and "data.repo" in ms_js, "the issue rows and the steps' numbers link out"
+
+
+def test_a_lane_moves_in_the_queues_order_through_the_cli_and_the_console_calls_the_verbs(live, monkeypatch, capsys):
+    """builder-console.control.lanes-and-steps, the controls: pause, resume, start, a lane up or down, a queued step up or down."""
+    from fichero_builder import __main__ as cli
+    brief = journal.STATE / "b.txt"
+    brief.write_text("brief")
+    monkeypatch.setattr(console.queue, "load", _REAL_LOAD)  # the real queue file under the state dir
+    for name in ("a", "b", "c"):
+        queue.add(name, "/w/" + name, "1.1", str(brief), [])
+    st = ["--state", str(journal.STATE)]
+    assert cli.main(["queue", "move", "--lane", "c", "--to", "0", *st]) == 0 and [x["id"] for x in queue.load()] == ["c", "a", "b"]
+    assert cli.main(["queue", "move", "--lane", "c", "--to", "9", *st]) == 0 and [x["id"] for x in queue.load()] == ["a", "b", "c"], "past the end: last"
+    assert cli.main(["queue", "move", "--lane", "zz", "--to", "0", *st]) == 1 and "REFUSED" in capsys.readouterr().out
+    moved = [r for r in journal.read() if r["event"] == "queue" and r["state"] == "lane-moved"]
+    assert [(r["lane"], r["detail"]) for r in moved] == [("c", "to place 1 of 3"), ("c", "to place 3 of 3")], "one row a move"
+    url, ran = live
+    for verb, args, want in [("lane-move", {"lane": "b", "to": 0}, ["queue", "move", "--lane", "b", "--to", "0"]),
+                             ("queue-move", {"lane": "b", "step": "1.1", "to": 1}, ["queue", "move", "--lane", "b", "--step", "1.1", "--to", "1"]),
+                             ("pause", {"lane": "b"}, ["queue", "pause", "--lane", "b"]),
+                             ("resume", {"lane": "b"}, ["queue", "resume", "--lane", "b"]),
+                             ("start", {"lane": "b"}, ["queue", "resume", "--lane", "b"])]:
+        code, body = _post(url, "/api/action", {"verb": verb, "args": args}, console.TOKEN)
+        assert code == 200 and body["ok"], (verb, body)
+        assert _wait(lambda: len(ran) and ran[-1][3:3 + len(want)] == want), (verb, ran)
+    assert _wait(lambda: sum(1 for r in journal.read() if r["event"] == "console" and r.get("state") == "ended") == 5), "each one console row pair"
+
+
+def test_the_now_view_lists_lanes_in_order_with_each_steps_age_the_trains_and_every_ladder_slot_with_its_holder(live, monkeypatch):
+    """builder-console.control.lanes-and-steps, the view: what is running now, in order."""
+    url, _ran = live
+    now = time.time()
+    lanes = [_lane("b", [("s1", "landed"), ("s2", "checking")], cursor=1), _lane("a", [("s3", "queued")], paused=True)]
+    lanes[0]["steps"][1]["entered_at"] = now - 600
+    monkeypatch.setattr(console.queue, "load", lambda: lanes)
+    journal.append("train", id="train-1", steps=["b/s2"], candidate="c" * 40, result="green", landed=["b/s2"])
+    with journal.Lock("ladder", what="the check of b"):
+        (journal.STATE / "ladder.files").write_text(json.dumps({"name": "b", "files": ["x.py"]}))
+        (journal.STATE / "ladder-2.lock").write_text("999999999 the check of gone")
+        v = console.now_view(journal.read(), lanes, now=now)
+    assert [(x["lane"], x["paused"]) for x in v["lanes"]] == [("b", False), ("a", True)], "the queue's order, not sorted"
+    assert [(s["step"], s["state"], s["age_s"]) for s in v["lanes"][0]["steps"]] == [("s1", "landed", None), ("s2", "checking", 600)]
+    assert [(t["id"], t["steps"], t["result"]) for t in v["trains"]] == [("train-1", ["b/s2"], "green")]
+    assert v["slots"] == [{"slot": "ladder", "held": True, "holder": f"{os.getpid()} the check of b", "name": "b"},
+                          {"slot": "ladder-2", "held": False, "holder": "", "name": ""}], "a dead pid's lock file is a free slot"
+    assert [x["lane"] for x in _get(url, "/api/now")["lanes"]] == ["b", "a"]
+    page = _page()
+    now_js = page[page.index("function Now("):page.index("function App()")]
+    assert '["now", "Now"]' in page and all(w in now_js for w in ('"lane-move"', '"queue-move"', '"pause"', '"resume"', '"start"', "d.slots", "d.trains", "age_s"))

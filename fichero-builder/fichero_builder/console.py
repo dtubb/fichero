@@ -122,6 +122,27 @@ def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dic
     }
 
 
+def now_view(rows: list[dict], lanes: list[dict], now: float | None = None) -> dict:
+    """builder-console.control.lanes-and-steps: what is running, in order: the lanes in the queue's order, each step with its state and
+    its age (seconds since `entered_at`; None when the step has none); the last trains with their steps; every ladder slot ever used
+    here, held (its lock file's pid runs and its `.files` stands) or free, with the lock file's `<pid> <what>` and the check's name."""
+    now = now or time.time()
+    st = status(rows, lanes)
+    slots = []
+    for slot in journal.ladder_slots_known():
+        holder = journal.holders([slot])
+        try:
+            name = json.loads((journal.STATE / f"{slot}.files").read_text()).get("name", "")
+        except (OSError, ValueError):
+            name = None  # no files beside the lock: no ladder runs in it
+        held = name is not None and _alive(holder.split(" ")[0])
+        slots.append({"slot": slot, "held": held, "holder": holder if held else "", "name": name if held else ""})
+    return {"lanes": [{"lane": x["id"], "kind": x.get("kind", "worker"), "paused": bool(x.get("paused")), "cursor": x["cursor"],
+                       "steps": [{"step": s["step"], "state": s["state"], "issues": s.get("issues", []),
+                                  "age_s": int(now - s["entered_at"]) if s.get("entered_at") else None} for s in x["steps"]]} for x in lanes],
+            "trains": st["trains"], "waiting_for_train": st["waiting_for_train"], "slots": slots}
+
+
 def _builder(*args: str) -> list[str]:
     return [sys.executable, "-m", "fichero_builder", *args]
 
@@ -141,6 +162,7 @@ VERBS = {
     "stop": (("lane",), lambda a: _builder("queue", "stop", "--lane", a["lane"], *_st())),
     "start": (("lane",), lambda a: _builder("queue", "resume", "--lane", a["lane"], "--root", str(ROOT), *_st())),  # #6467: a blocked or parked lane goes again
     "queue-move": (("lane", "step", "to"), lambda a: _builder("queue", "move", "--lane", a["lane"], "--step", a["step"], "--to", a["to"], *_st())),
+    "lane-move": (("lane", "to"), lambda a: _builder("queue", "move", "--lane", a["lane"], "--to", a["to"], *_st())),  # no --step: the lane's place among the lanes
     "park": (("lane", "step"), lambda a: _builder("queue", "park", "--lane", a["lane"], "--step", a["step"], *_st())),
     "unpark": (("lane", "step"), lambda a: _builder("queue", "unpark", "--lane", a["lane"], "--step", a["step"], *_st())),
     "loop-start": ((), lambda a: ["launchctl", "bootstrap", f"gui/{os.getuid()}", _plist()]),
@@ -1039,6 +1061,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, {"ts": None, "milestones": []})
         if path == "/api/alerts":
             return _json(self, 200, alerts_view(rows_of(ROOT)))
+        if path == "/api/now":
+            return _json(self, 200, now_view(rows_of(ROOT), queue.load()))
         if path == "/api/activity":
             return _json(self, 200, activity(journal.read()))
         if path == "/api/hotspots":  # the Hotspots panel reads latest.json (perf-sweep.output.table)
