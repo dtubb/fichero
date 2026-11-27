@@ -105,7 +105,7 @@ def asc_get(cfg: Cfg, path: str) -> dict:
         raise RuntimeError("openssl could not sign the App Store Connect token (the key file is unreadable or not an EC key)")
     req = urllib.request.Request("https://api.appstoreconnect.apple.com" + path,
                                  headers={"Authorization": f"Bearer {head}.{body}.{_b64(_der_to_raw(sig.stdout))}"})
-    with urllib.request.urlopen(req, timeout=60) as f:
+    with urllib.request.urlopen(req, timeout=60) as f:  # nosec B310 -- the URL is the constant https://api.appstoreconnect.apple.com plus an API path the watcher's own code names (#7100)
         return json.loads(f.read() or b"{}")
 
 

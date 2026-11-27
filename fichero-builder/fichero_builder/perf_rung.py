@@ -51,7 +51,7 @@ def measured(exit_code: int, junit_text: str, bench_text: str = "") -> tuple[dic
     if exit_code in (2, 3, 4, 5):
         raise ValueError(f"pytest could not run (exit {exit_code}: an import error, a collection error or no tests)")
     try:
-        root = ET.fromstring(junit_text)
+        root = ET.fromstring(junit_text)  # nosec B314 -- the text is the junit report pytest wrote on the build remote, and the builder has no dependency to parse it with (#7100)
     except ET.ParseError as e:
         raise ValueError(f"pytest wrote no readable junit report ({e})") from e
     ran: dict[str, float] = {}

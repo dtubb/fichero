@@ -48,7 +48,7 @@ def _post(url, body, token=None, host=None):
     req = urllib.request.Request(url + "/api/review", data=json.dumps(body).encode(), method="POST",
                                  headers={"Content-Type": "application/json", **({"X-Builder-Token": token} if token else {}), **({"Host": host} if host else {})})
     try:
-        r = urllib.request.urlopen(req, timeout=5)
+        r = urllib.request.urlopen(req, timeout=5)  # nosec B310 -- the URL is the test's own console server on 127.0.0.1 (#7100)
         return r.status, json.loads(r.read())
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read())
@@ -106,12 +106,12 @@ def test_the_cli_adds_sets_and_lists_and_the_old_review_actions_still_parse(stat
 
 
 def test_get_review_serves_the_page_with_the_token_and_the_review_tab_and_api_review_the_json(live, state):
-    page = urllib.request.urlopen(live + "/review", timeout=5).read().decode()
+    page = urllib.request.urlopen(live + "/review", timeout=5).read().decode()  # nosec B310 -- live is the fixture's http://127.0.0.1 console server (#7100)
     assert console.TOKEN in page and "__TOKEN__" not in page and "__TAB__" not in page and 'location.hash.slice(1) || "review"' in page
     assert "max-width" in page and "Works" in page and "Polish" in page and "N/A" in page and "Bug" in page, "phone width, and the four verdict buttons"
-    home = urllib.request.urlopen(live + "/", timeout=5).read().decode()
+    home = urllib.request.urlopen(live + "/", timeout=5).read().decode()  # nosec B310 -- live is the fixture's http://127.0.0.1 console server, read at its root page (#7100)
     assert 'location.hash.slice(1) || "lanes"' in home
-    got = json.loads(urllib.request.urlopen(live + "/api/review", timeout=5).read())
+    got = json.loads(urllib.request.urlopen(live + "/api/review", timeout=5).read())  # nosec B310 -- live is the fixture's http://127.0.0.1 console server, read at its review JSON (#7100)
     assert [i["id"] for i in got["items"]] == ["activity-started-by", "b", "c"] and got["items"][0]["how"] == ITEM["how"]
 
 
