@@ -6,10 +6,10 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import IO, Any
 
-try:
-    from defusedxml import ElementTree as SafeET
-except ImportError:  # pragma: no cover - exercised when dependency is absent locally
-    from xml.etree import ElementTree as SafeET  # type: ignore[assignment]
+# defusedxml is a declared dependency. There is no fallback to the standard library's parser: an engine without it
+# must not start and quietly parse untrusted XML with the parser these helpers exist to avoid (semgrep
+# `use-defused-xml-parse`, perf-optimize security follow-up 2026-11-27).
+from defusedxml import ElementTree as SafeET
 
 
 _FORBIDDEN_XML_MARKERS = (b"<!DOCTYPE", b"<!ENTITY")
