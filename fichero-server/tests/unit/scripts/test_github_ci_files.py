@@ -173,7 +173,6 @@ def test_apple_only_dependencies_carry_a_darwin_marker_so_the_lock_syncs_on_linu
 
 
 def test_macos_only_is_a_registered_marker_that_skips_off_darwin_with_its_reason(monkeypatch):
-    import sys
     import tomllib
     markers = tomllib.loads((ROOT / "fichero-server" / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]["markers"]
     assert any(m.startswith("macos_only") for m in markers)

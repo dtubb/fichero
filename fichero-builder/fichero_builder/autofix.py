@@ -82,18 +82,24 @@ def allowlist_only_removed(path: str, before: str, after: str) -> bool:
 STALE_HEAD = re.compile(r"(drop from the set|now clean; remove them|remove from)\b[^\n]*:\s*$", re.I)
 
 
-def stale_keys(output: str) -> list[str]:
+def stale_keys(output: str, whole: bool = False) -> list[str]:
     """The entries a guard calls stale: the indented lines under its 'drop from the set:' (or 'now clean; remove them:') line."""
-    keys, on = [], False
+    keys, on, indent = [], False, None
     for ln in output.splitlines():
         if STALE_HEAD.search(ln):
-            on = True
+            on, indent = True, None
             continue
         if on:
             if not ln.strip() or not ln[:1].isspace() or ln.strip().startswith(("✗", "Fix")):
                 on = False
                 continue
-            keys.append(ln.split()[0].strip("'\""))
+            width = len(ln) - len(ln.lstrip())
+            if whole and indent is None:
+                indent = width
+            if whole and width < indent:  # the guard's next, less indented line ("operations no spec names: ...") is not a key
+                on = False
+                continue
+            keys.append((ln.strip() if whole else ln.split()[0]).strip("'\""))  # whole: a key with spaces ("GET /a")
     return keys
 
 
@@ -154,3 +160,32 @@ def fix_hints(text: str, read, regen: tuple = (), contract_guards: tuple = (), i
             msg = f"chore(contract): regenerate the contracts and the engine embed list after the rebase ({issue or 'generated files'})"
             hints.append(f"{script}: regenerate and commit: {' && '.join(regen)} && git add -u && git commit -m {shlex.quote(msg)} -m 'Written-By: <your model>'")
     return list(dict.fromkeys(hints))
+
+
+CLASSES = ("known-gaps-now-clean", "ratchet-baseline-lower", "openapi-regen", "spec-change-trailer")  # [check].autofix names these and nothing else
+KNOWN_GAPS_GUARD = "check_endpoint_coverage_matrix.py"
+RATCHET_RED = re.compile(r"down to (\d+) \(baseline (\d+)\)[^\n]*--update-baseline")
+RATCHET_FILE = re.compile(r"\.json$")  # ponytail: a ratchet's baseline is a JSON file; upgrade: the guard names its file
+DROP_KEYS = ("import json,sys; p=sys.argv[1]; d=json.load(open(p)); [d.pop(k) for k in sys.argv[2:]]; "
+             "open(p,'w').write(json.dumps(d,indent=2,ensure_ascii=False)+chr(10))")  # the file's own shape: 2-space indent, one entry a line
+
+
+def plan(classes, text: str, brief: str, read, regen: tuple = (), contract_guards: tuple = ()) -> list[dict]:
+    """The fixes the opted-in `classes` make for the reds in `text` (blocks of `FAIL: <guard path>` and what it printed), each decided by
+    that output alone: {class, rung (the guard), cmds (shell lines run in the worktree; `{python}` is the rules' interpreter),
+    allowed (files the class may change; None = the commit amends), amend (the trailer line)}. `ask` entries are a red the manager
+    answers: the spec-change class with no `Spec-change:` line in the brief (a script cannot make up a ruling)."""
+    out = []
+    for script, said in sections(text):
+        if "known-gaps-now-clean" in classes and script.endswith(KNOWN_GAPS_GUARD) and (keys := stale_keys(said, whole=True)):
+            data = script[:-3] + "_known_gaps.json"
+            out.append({"class": "known-gaps-now-clean", "rung": script, "cmds": ["{python} -c " + shlex.quote(DROP_KEYS) + " " + shlex.quote(data) + " " + " ".join(shlex.quote(k) for k in keys)],
+                        "allowed": (data,)})
+        if "ratchet-baseline-lower" in classes and (m := RATCHET_RED.search(said)) and int(m[1]) < int(m[2]):
+            out.append({"class": "ratchet-baseline-lower", "rung": script, "cmds": ["{python} " + shlex.quote(script) + " --update-baseline"], "allowed": RATCHET_FILE})
+        if "openapi-regen" in classes and regen and (script in contract_guards or (REGEN_RED.search(said) and re.search(r"contract|openapi|embed|generated", script))):
+            out.append({"class": "openapi-regen", "rung": script, "cmds": list(regen), "allowed": None})
+        if "spec-change-trailer" in classes and "Spec-change:" in said and "check_spec_acceptance" in script:
+            line = next((ln.strip() for ln in (brief or "").splitlines() if ln.strip().startswith("Spec-change:")), "")
+            out.append({"class": "spec-change-trailer", "rung": script, "cmds": [], "amend": line, "ask": not line})
+    return out

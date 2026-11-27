@@ -12,6 +12,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from fichero_builder import small_worker
+
 TRUSTED = {"OWNER", "MEMBER", "COLLABORATOR"}  # spec:197
 _PATH = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.+-]+\.(?:py|swift|md|sh|toml|json|ts|yml|yaml))(?:::(\w+))?")
 _SYMBOL = re.compile(r"`(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)(?:\(\))?`")
@@ -104,11 +106,18 @@ def build(issue: dict, *, repo: str) -> str:
     return "\n".join(out)
 
 
-def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "", where: list[str] = (), template: str = "") -> str:
+class Refused(Exception):
+    pass
+
+
+def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "", where: list[str] = (), template: str = "",
+            need_tests: bool = False) -> str:
     """One brief for a cluster: two preamble lines, the project's [brief].rules from harness.toml as the THIRD line with
     `#N` filled from the cluster's issues (so no brief needs a hand edit), the rest of the preamble, then every issue's
     build(). The worker needs no issue tool: everything it may read is in the brief. `template` (the text of [brief].template,
-    `{numbers}`, `{branch}` and `{base}` filled) replaces the code-shaped rest of the preamble (Fixes #N, test first, DONE)."""
+    `{numbers}`, `{branch}` and `{base}` filled) replaces the code-shaped rest of the preamble (Fixes #N, test first, DONE).
+    Raises Refused (small_worker.brief_problems) for a cluster of more than one step, a brief over 120 lines, or, with
+    `need_tests`, one that names no test file."""
     numbers = ", ".join(f"#{i['number']}" for i in issues)
     head = [f"You are a worker in the dev harness. Branch {branch} in this worktree (base {base}). No push.",
             "Everything you need is below: the issues' text, trusted comments and where the code is. There is no issue "
@@ -122,7 +131,10 @@ def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str
         head += _CODE_PREAMBLE(numbers)
     if where:
         head += ["## Where to start (found by the tool; your code tools find the rest)", *[f"- {w}" for w in where], ""]
-    return "\n".join(head + [build(i, repo=repo) for i in issues])
+    text = "\n".join(head + [build(i, repo=repo) for i in issues])
+    if problems := small_worker.brief_problems(text, issues, need_tests=need_tests):
+        raise Refused("; ".join(problems))
+    return text
 
 
 def template_text(root) -> str:
@@ -138,10 +150,10 @@ def template_text(root) -> str:
     return p.read_text()
 
 
-def cluster_for(root):
+def cluster_for(root, need_tests: bool = False):
     """`cluster` with root's [brief].template bound: what every verb that writes a cluster brief passes on."""
     import functools
-    return functools.partial(cluster, template=template_text(root))
+    return functools.partial(cluster, template=template_text(root), need_tests=need_tests)
 
 
 def _CODE_PREAMBLE(numbers: str) -> list[str]:  # noqa: N802 (the default words, as they always were)

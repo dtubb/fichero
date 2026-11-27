@@ -365,9 +365,10 @@ extension WorkflowBar {
     /// What the chip promises on hover — including HOW to open it, which
     /// differs by state and would otherwise be undiscoverable.
     private func chipHelp(for step: StagedWorkflowStep, index: Int) -> String {
-        let base = stepTakesModel(step)
+        var base = stepTakesModel(step)
             ? "Step \(index + 1): \(step.displayName) — \(step.modelDescription)"
             : "Step \(index + 1): \(step.displayName) — runs no model"
+        if let dropped = WorkflowBarPolicy.droppedPinNote(step) { base += ". \(dropped)" }
         switch step.state {
         case .running:   return "\(base). Click to watch it run."
         case .succeeded: return "\(base). Double-click to see what it produced."

@@ -74,6 +74,7 @@ in the same commit.
 - Body: what and why in plain words; `Fixes #N` when the issue is finished, `Part of #N` otherwise.
 - Exactly one trailer, the last line: `{{TRAILER}}`. No `Co-Authored-By`, no `Directed-By`. The one other trailer allowed: `Spec-change: <what and why>, ruled by the owner|manager`, directly above it, when the commit changes a behaviour's acceptance text.
 - Write the message to a file and `git commit -F` (backticks inside `-m "..."` are run by the shell).
+- Small commits: commit each logical change by itself as you go. After your first DONE only add commits: never amend, squash or rebase (the loop rebases). A step lands whole; nothing lands a part of it.
 
 ## Ending
 

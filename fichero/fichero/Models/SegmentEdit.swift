@@ -19,6 +19,8 @@ enum SegmentEdit {
         case update(SegmentUpdateRequest)
         case delete(SegmentDeleteRequest)
         case merge(SegmentMergeRequest)
+        /// Join Lines in the Same Row (`segment.join_rows`).
+        case joinRows(SegmentJoinRowsRequest)
         case updateMany(SegmentUpdateManyRequest)
         /// Move into a region, or out to the page (`segment.reparent`).
         case reparent(SegmentReparentRequest)

@@ -19,6 +19,8 @@ ap.add_argument("--worktree", default=os.getcwd())
 ap.add_argument("--scratch", default=os.environ.get("TMPDIR", "/tmp"))
 ap.add_argument("--root", default=str(ROOT))
 ap.add_argument("--commit-msg")
+ap.add_argument("--diff-bound", type=int)
+ap.add_argument("--diff-base")
 a = ap.parse_args()
 cfg = ph.load(a.root)
 if a.commit_msg:
@@ -26,7 +28,8 @@ if a.commit_msg:
     reasons = problems
 else:
     event = json.load(sys.stdin)
-    r = ph.check(event, cfg, worktree=Path(a.worktree), scratch=Path(a.scratch))
+    bound = ph.bound_for(a.root, a.diff_bound, a.diff_base) if a.diff_bound else None
+    r = ph.check(event, cfg, worktree=Path(a.worktree), scratch=Path(a.scratch), bound=bound)
     reasons = [r] if r else []
 if reasons:
     if os.environ.get("FICHERO_HARNESS_LOG"):

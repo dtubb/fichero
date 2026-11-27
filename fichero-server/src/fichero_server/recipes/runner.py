@@ -474,7 +474,8 @@ def _wait_out_a_pause(db: Any, job_id: str) -> None:
 
 def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> None:
     """Resume a step's paused run from its checkpoint on the engine's background loop, without waiting for it (the PUT answers at
-    once). A resume that fails is said on the recipe's row, never left silent."""
+    once). A resume that fails is said on the recipe's row, never left silent, and the step run ends failed with the reason, so the
+    recipe adopts a failed step instead of parking on a paused one for ever (#6732)."""
     from fichero_server.api.routes.workflow_execution import core
     from fichero_server.execution.runner import on_background_loop
 
@@ -484,13 +485,19 @@ def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> N
 
     def said(done: Any) -> None:
         exc = done.exception()
-        if exc is not None and recipe_id is not None:
+        if exc is None:
+            return
+        from fichero_server.workflows.activity import _fail_held_run
+
+        # This runs on the engine's loop thread, not the request's: write through the store's own open connection.
+        open_db = db_manager.open_database(key) or db
+        if recipe_id is not None:
             try:
-                # This runs on the engine's loop thread, not the request's: say it through the store's own open connection.
-                document_tree.set_job_reason(db_manager.open_database(key) or db, recipe_id, f"Could not resume its step: {exc}")
+                document_tree.set_job_reason(open_db, recipe_id, f"Could not resume its step: {exc}")
             except Exception:  # noqa: BLE001 -- the row is what we can say it on; the log has the rest
                 logger.exception("could not say the failed resume of %s on %s", thread_id, recipe_id)
             logger.warning("recipe %s: resuming its step run %s failed: %s", recipe_id, thread_id, exc)
+        _fail_held_run(open_db, thread_id, f"Could not resume: {exc}")
 
     on_background_loop(core.resume_workflow(thread_id, None, db=db)).add_done_callback(said)
 
@@ -575,7 +582,7 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
 
             forget_provider_pause(awaited)
             _resume_step_run(db, awaited, job_id)
-            jobs.pause_stored(db, job_id, False, state)  # a recipe the quit held is let go; a waiting one is untouched
+            jobs.pause_stored(db, job_id, False, state)  # a recipe the quit or the open held (paused, #6732) is let go to adopt it; a waiting one is untouched
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
             return jobs._job_row(db, job_id)[1]

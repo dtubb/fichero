@@ -23,6 +23,8 @@ pinned copy of the rules (`pinned-<sha7>`, made by `builder landed`) judges ever
 | `run.py` | one worker: start, watch, nudge, handoff + successor, the DONE end; `--feed` keeps the session across steps | `run`, `Procs`, `with_done_line` | `test_dry_run.py`, `test_main.py` |
 | `pi_rpc.py` | the Pi worker kind over RPC | `Pi` | `test_pi_rpc.py`, `test_pi_live_helpers.py` |
 | `brief_tool.py` | an issue + trusted comments + where the code is, as a brief; cluster briefs with the rules | `fetch_issue`, `build`, `cluster`, `localise` | `test_brief_tool.py` (server) |
+| `small_worker.py` | the small-worker rule: one step, a brief of at most 120 lines naming a test, the role's `diff_bound:` | `brief_problems`, `diff_bound` | `test_small_worker.py` |
+| `stale.py` | the lane's current step past `[loop].stale_hours.<state>` gets one action and a `stale` row per tick | `act`, `HOURS` | `test_stale.py` |
 | `spec_tool.py`, `steps.py` | the spec-writer brief; build-order steps as issues under the spec's milestone | `run`, `ensure_labels` | `test_spec_verb.py`, `test_steps_verb.py`, `test_steps_name.py` |
 | `milestone.py` | a milestone's issues placed under steps, one brief per step, waits and the step's map | `build_order`, `plan`, `write_briefs`, `where_map` | `test_milestone_verb.py` |
 | `work.py` | run → rebase → patches → fetch → check → review → land gate as one process; the `ladder` lock | `main`, `after_run`, `run_cmd`, `do_*`, `ensure_pinned` | `test_work_verb.py` |

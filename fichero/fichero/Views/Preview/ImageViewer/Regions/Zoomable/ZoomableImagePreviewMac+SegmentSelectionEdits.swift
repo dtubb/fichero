@@ -146,6 +146,24 @@ extension ZoomableImagePreview {
         runSegmentEdit(SegmentEdit.convertLevel(selectedSegments(documentId), to: level), documentId: documentId, name: name)
     }
 
+    /// JOIN LINES IN THE SAME ROW (`segment-editor.join-lines-in-the-same-row`): the selected lines, or every line of the
+    /// page when none is selected, that share a row become one line each; one ⌘Z. The notice says it before and after.
+    func joinLinesInTheSameRow() {
+        guard let documentId, let segmentService, let store = segmentEditStore,
+              let actionsService = actionStore?.actionsService else { return }
+        let ids = selectedSegments(documentId).map(\.id)
+        let steps = windowSteps, windowState = windowState
+        Task {
+            await SegmentRowJoiner(
+                documentId: documentId, service: segmentService, store: store, actionsService: actionsService,
+                steps: steps, windowState: windowState
+            ).run(
+                segmentIds: ids.isEmpty ? nil : ids, note: { windowState?.segmentNotice = $0 },
+                afterReread: { await loadOCRGeometry() }
+            )
+        }
+    }
+
     /// MAKE REGION FROM LINES (`segment-editor.make-region-from-lines`, ⌘G): the selected lines become the children of one
     /// new region; one ⌘Z.
     func makeRegionFromSelectedLines() {

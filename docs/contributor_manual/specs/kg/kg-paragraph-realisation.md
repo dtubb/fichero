@@ -365,23 +365,35 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 
 ### G. Words
 
-- `kg.para.table-is-data` — **[GAP]** (#4650, → #6842) a language's joining words, date
+- `kg.para.table-is-data` — **[PARTIAL]** (#4650, → #6842) a language's joining words, date
   patterns, month names, doubt words, number words, prepositions, contractions and frames are
   one data file per language in the engine's resources, validated on load; the code holds no
   language's words. Today two small dictionaries in
   `fichero-server/src/fichero_server/knowledge/readable.py` hold three words each. Test (to
   write): `test_a_language_is_added_by_a_file_alone`.
-- `kg.para.no-table-is-verbatim` — **[PARTIAL]** (#4650, → #6842) a sentence in a language
+  Built: `fichero-server/src/fichero_server/resources/language_tables/<language>.json`
+  holds the joining, place and count words, the leading prepositions and the contractions, and
+  `load_language_tables` refuses a file with a missing key or a name other than its language.
+  Not built: date patterns, month names, doubt words, number words and frames are not in the
+  files. Test: `test_a_language_is_added_by_a_file_alone` in `fichero-server/tests/unit/knowledge/test_paragraph_tables.py`.
+- `kg.para.no-table-is-verbatim` — **[OK]** (#4650, → #6842) a sentence in a language
   with no table is the statement's stored subject, verb and object and nothing else, with its
   year in digits in brackets; it joins nothing and takes no word from another language. Built:
   such a statement is never merged (`_is_solo_claim`). Not built: the year. Test (to write):
   `test_a_language_without_a_table_takes_no_borrowed_word`.
-- `kg.para.seams` — **[BROKEN]** (#5008, → #6842) at the seam of verb and object a
+  Built: the year of its start date is kept. Test:
+  `test_a_language_without_a_table_takes_no_borrowed_word` in `fichero-server/tests/unit/knowledge/test_paragraph_tables.py`.
+- `kg.para.seams` — **[PARTIAL]** (#5008, → #6842) at the seam of verb and object a
   preposition is said once, and the table's contractions are made (Spanish de + el, a + el);
   in a joined Spanish sentence the verb's preposition is repeated before each object. Today
   the said-once rule is in `render_aggregation`, which the entry path does not call, so the
   route still prints the doubled word. Tests (to write):
   `test_the_entry_path_says_a_preposition_once`, `test_spanish_contractions_at_the_seam`.
+  Built: on the entry path the object's copy of the verb's last preposition is dropped, and
+  "de el" / "a el" become "del" / "al" as a segment of origin `table:es:de el`; in a joined
+  sentence the contraction is made against the first object only. Not built: a joined sentence
+  whose objects begin with a preposition is never merged (`_is_prepositional_object`), so the
+  repeated preposition before each object does not arise there. Tests: in `fichero-server/tests/unit/knowledge/test_paragraph_tables.py`.
 - `kg.para.name-once` — **[GAP]** (#4651, → #6843) the page name is given in full in the first
   sentence. After it, while the page name stays the subject: a language whose table says the
   subject may be left out (Spanish) leaves it out; any other uses the short name. After a

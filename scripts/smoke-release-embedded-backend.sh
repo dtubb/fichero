@@ -8,7 +8,7 @@ set -euo pipefail
 # before the SwiftUI window task starts the backend.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_SRC="$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app"
+APP_SRC="${APP_SRC:-$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app}"  # the nightly names its --dev build (Dev Embedded)
 APP_DST="$HOME/Applications/Fichero.app"
 HEALTH_PATH="/api/health"
 PROBE_LAN=false

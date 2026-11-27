@@ -69,6 +69,7 @@ struct ProviderDetailView: View {
     /// with no explanation, so the user could not tell a saved key from a
     /// failed save.
     @State private var keyError: String?
+    @State private var modelDeleteError: String?
 
     @Environment(ProviderAPIService.self) var providerService
     // The on-device catalog + runtime provisioning for a LOCAL provider now live
@@ -317,6 +318,11 @@ struct ProviderDetailView: View {
 
                 if usesReferenceModels {
                 Section {
+                    if let modelDeleteError {
+                        Text("Couldn't remove the model: \(modelDeleteError)")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                     if isLoadingModels {
                         ProgressView("Loading models...")
                     } else if let modelsLoadError {
@@ -518,12 +524,14 @@ extension ProviderDetailView {
     }
 
     private func deleteModel(_ model: Components.Schemas.UserModelResponse) {
+        modelDeleteError = nil
         Task {
             do {
                 try await providerService.removeModel(providerId: provider.id, modelId: model.id)
                 await loadModels()
             } catch {
                 providersViewLogger.error("Delete model failed: \(String(describing: error))")
+                modelDeleteError = error.localizedDescription
             }
         }
     }

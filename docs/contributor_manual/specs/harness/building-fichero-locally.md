@@ -320,7 +320,7 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - Absorbed: `agent-profiles.adapter.interface` [OK], `agent-profiles.adapter.claude-code` [OK],
   `agent-profiles.adapter.pi` [PARTIAL] (#6631), `dev-workflows.models.by-config` [PARTIAL],
-  `agent-profiles.worker.small` [GAP], `dev-workflows.worker.handoff` [PARTIAL] (the handoff follows the model's
+  `agent-profiles.worker.small` [PARTIAL], `dev-workflows.worker.handoff` [PARTIAL] (the handoff follows the model's
   real context window).
 
 ### B. Gates — what makes it reliable
@@ -626,10 +626,10 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
   Built: `fichero-builder/tests/test_loop_survives.py::test_ten_ticks_past_the_drain_limit_write_one_row_a_lane_and_head_and_the_loop_re_execs_after_the_running_chain`.
 - `local.run.cursor-skips-a-parked-step` [OK] (#6589; owner 2026-11-25) — a lane whose cursor step is parked, or already landed, while a later step is queued starts that queued step on the next tick: the parked step goes to the end of the lane, still parked (`unpark` and `retry` find it there), and one `queue` row `cursor-advanced` says so. Before, seg-hang, seg-tools, seg-draw and builder-fixes sat idle for hours on 2026-11-24 and 2026-11-25. Test: `fichero-builder/tests/test_reliab.py::test_a_cursor_on_a_parked_step_with_a_queued_step_behind_it_starts_the_queued_one`. Serves: reliable.
-- `local.run.idle-windows-hold-no-slot` [OK] (#6589; owner 2026-11-25) — a lane counts against `[loop].lanes` only while its cursor step is sent, said-done, done, checking, reviewing, fixing, done-not-landed, blocked, red or queued for its live session (a blocked or red window stays open, so it keeps its slot); a window whose lane has no live step (its steps landed, or its cursor step is parked) is closed at the tick with one `queue` row `idle-window-closed`. On 2026-11-25 at 08:00 seven idle tmux windows filled the lanes and five queued steps never started. Test: `fichero-builder/tests/test_reliab.py::test_seven_idle_windows_hold_no_slot_so_five_queued_steps_all_start`, `fichero-builder/tests/test_reliab.py::test_blocked_and_red_windows_keep_their_slot`, `fichero-builder/tests/test_reliab.py::test_a_red_window_counts_against_the_lanes_cap`. Serves: reliable.
+- `local.run.idle-windows-hold-no-slot` [OK] (#6589; owner 2026-11-25) — a lane counts against `[loop].lanes` only while its cursor step is a writer: sent, fixing, blocked, red or queued for its live session (since 2026-11-26, `local.flow.writers-are-not-capped-by-checks`: a step past DONE holds none) (a blocked or red window stays open, so it keeps its slot); a window whose lane has no live step (its steps landed, or its cursor step is parked) is closed at the tick with one `queue` row `idle-window-closed`. On 2026-11-25 at 08:00 seven idle tmux windows filled the lanes and five queued steps never started. Test: `fichero-builder/tests/test_reliab.py::test_seven_idle_windows_hold_no_slot_so_five_queued_steps_all_start`, `fichero-builder/tests/test_reliab.py::test_blocked_and_red_windows_keep_their_slot`, `fichero-builder/tests/test_reliab.py::test_a_red_window_counts_against_the_lanes_cap`. Serves: reliable.
 - `local.run.tick-keeps-outside-edits` [OK] (#6589; owner 2026-11-25) — a `queue park`, `move` or `drop` made while a tick holds its copy of a lane survives the tick's store: `queue.store` writes under the queue lock, a step the tick left as it loaded it takes the file's version, goes when the file dropped it, and the file's order and cursor stand when the tick did not move them. Before, the tick wrote back the queue.json it read at its start. Tests: `fichero-builder/tests/test_reliab.py::test_a_park_made_during_a_tick_survives_the_ticks_store`, `fichero-builder/tests/test_reliab.py::test_a_drop_and_a_move_made_during_a_tick_survive_too`. Serves: reliable.
 - `local.run.idle-queue-alert` [OK] (#6589; owner 2026-11-25) — when a worker lane has a queued cursor step, no step is in flight and no hold explains it (a paused lane, the disk floor, a night hold, the drain, a heavy-lock hold) for ten minutes (`IDLE_S`), the loop raises one `idle-queue` alert naming each such lane and why it does not start, and a journal row `idle-queue`; one alert per lane and cause until the idleness ends, never one per tick. Tests: `fichero-builder/tests/test_reliab.py::test_queued_work_and_nothing_running_for_ten_minutes_is_one_alert_naming_the_lane`, `fichero-builder/tests/test_reliab.py::test_a_paused_lane_or_a_disk_hold_explains_the_idleness_and_raises_nothing`, `fichero-builder/tests/test_reliab.py::test_a_night_hold_the_drain_and_a_heavy_lock_explain_the_idleness_and_raise_nothing`. Serves: reliable.
-- `local.run.sent-needs-a-live-session` [GAP] (#6589) — a step is `sent` only while a session is at work on it. At every
+- `local.run.sent-needs-a-live-session` [PARTIAL] (#6589) — a step is `sent` only while a session is at work on it. At every
   tick the loop checks each `sent` step: the window runs more than a shell, and the session file has changed within
   `[spend].silent_s` or the session is idle after a delivered message. A `sent` step that fails the check for two ticks
   is one `queue` row `sent-no-session` and goes back to `queued` from its tree (counted as a restart, so the existing
@@ -639,7 +639,11 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   that way for hours on 2026-11-21. Test (owed): `test_loop.py`, a `sent` step whose window runs a shell is queued again
   after two ticks with one row; a quiet `sent` step past the limit alerts once. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.run.turn-ended-without-done-alerts` [GAP] (#6589) — a worker whose turn ends after a delivered message with no
+  Built: the session check is the window (`Procs.session_live`, a window that runs more than a shell); the session file's age (the `[spend].silent_s` and idle-after-delivery parts of the check) is not read, and stays unbuilt. The two-tick `sent-no-session` row and restart, and the one `[loop].sent_hours` alert (retry, park), are in `queue.tick_lane`. Tests
+  `fichero-builder/tests/test_loop.py::test_a_sent_step_whose_window_runs_a_shell_is_queued_again_after_two_ticks_with_one_row`,
+  `fichero-builder/tests/test_loop.py::test_a_sent_step_with_a_live_session_is_never_queued_again_and_a_check_that_passes_resets_the_count`,
+  `fichero-builder/tests/test_loop.py::test_a_quiet_sent_step_past_the_hours_limit_alerts_once_with_retry_and_park`.
+- `local.run.turn-ended-without-done-alerts` [OK] (#6589) — a worker whose turn ends after a delivered message with no
   DONE line and no handoff line is noticed within one tick, whether or not its branch moved. The watcher writes one
   `watch` row `turn-ended-no-done` with the last 300 characters the worker wrote. When that text ends in a question, it
   is one `question` alert for the manager (answer, send back, park), and the answer is told to the same session. When
@@ -654,7 +658,15 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   branch and a last line ending in a question mark is one alert in one tick; one with no question is nudged, then
   alerted. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.disk.thin-snapshots-before-holding` [GAP] (#6589) — before the loop holds a new lane for disk, it frees what
+  Built: the Stop hook (`harness_handoff_hook.py`) writes the last 300 characters of a turn it lets end (a message ending in a question, or the nudge cap reached) to `<name>.turn.json` in the registry folder (the worker's own; the lane's feed is the owner's, read-only to it); `run.run` reads it, or the idle session's last text where there is none, for a delivered message, whether or not the branch moved (`done-unsaid` does not count a turn this path owns). A question is the ask alert of `local.run.waiting-is-one-ask-alert`; anything else is nudged once, then alerted at the third tick. Tests
+  `fichero-builder/tests/test_dry_run.py::test_an_idle_worker_with_an_unmoved_branch_and_a_last_line_ending_in_a_question_is_one_alert_in_one_tick`,
+  `fichero-builder/tests/test_dry_run.py::test_an_idle_worker_with_no_question_is_nudged_with_the_exact_line_then_alerted_two_ticks_later`,
+  `fichero-builder/tests/test_dry_run.py::test_the_stop_hooks_file_is_read_while_the_session_file_still_says_working`,
+  `fichero-builder/tests/test_dry_run.py::test_a_hook_file_older_than_the_message_and_a_done_line_raise_nothing`,
+  `fichero-builder/tests/test_dry_run.py::test_a_moved_branch_with_a_question_is_one_alert_in_one_tick`,
+  `fichero-builder/tests/test_dry_run.py::test_a_moved_branch_with_no_question_is_nudged_once_then_alerted`,
+  `fichero-builder/tests/test_dry_run.py::test_a_turn_that_goes_on_after_the_nudge_starts_the_ended_count_again`, and the hook's own `--test` run by `test_client_scripts.py`.
+- `local.disk.thin-snapshots-before-holding` [OK] (#6589) — before the loop holds a new lane for disk, it frees what
   the system's local backup snapshots pin and measures again. On macOS, space freed by a sweep stays held by local Time
   Machine snapshots until they are thinned. Once in a low-disk episode, and at most once an hour, the loop runs
   `tmutil thinlocalsnapshots / <bytes> 4` (no sudo; bytes from `[loop].disk_thin_gb`, default 8), writes one
@@ -665,6 +677,10 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   with one `disk-thinned` row; one that frees nothing holds; a second low reading within the hour does not thin again.
   Serves: reliable, with little supervision.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+  Built: `queue.tick_lane` calls `Procs.thin` (`queue.thin_snapshots`, `tmutil thinlocalsnapshots / <bytes> 4`) when the floor would hold a new lane and this low-disk episode has not thinned (`THIN_EPISODE`, cleared when a lane passes the floor) and none ran in the last hour (`THINNED_AT`), writes one `disk-thinned` `queue` row (free before and after, and the failure text when it failed), and measures again. Tests
+  `fichero-builder/tests/test_loop.py::test_a_thin_that_frees_space_starts_the_lane_with_one_disk_thinned_row`,
+  `fichero-builder/tests/test_loop.py::test_a_thin_that_frees_nothing_holds_and_the_same_low_disk_episode_never_thins_again`,
+  `fichero-builder/tests/test_loop.py::test_a_thin_that_fails_is_a_row_and_the_hold_goes_on`.
 - `local.run.waiting-is-one-ask-alert` [OK] (#6855) — a worker whose last line is `WAITING: <question>` is one ask alert
   for the manager. The step row records `waiting=<question>`, the step is `blocked` with that one alert, and
   `console.status()["open_questions"]` lists each open question with its lane and step (a Questions section in the
@@ -777,6 +793,14 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   them leaves the night due and the next tick starts it (a live pid refuses a second). A text that cannot go after a publish
   never undoes it: the `published` row comes first, then a `text-red` row and one alert. Tests:
   `::test_a_restart_between_the_freeze_and_the_start_does_not_lose_the_night`, `::test_a_text_that_cannot_go_after_the_publish_keeps_the_night_published_and_says_so`.
+- `local.nightly.smoke-and-stamp` [OK] (#6665; built 2026-11-26) — the nightly's smoke takes the bundle the `--dev` build made (the
+  Dev Embedded configuration's, never Products/Release: 03:53 found nothing there), named to the smoke script; on another machine the copy lives
+  beside the sha's clone, which each night wipes, so rsync sends only what changed (04:54: 3.7 GB again, past the hour). Its
+  verify (`--full`) takes no ladder slot, so lane checks after the freeze never hold it (01:24). release_guard's next build is one
+  above the stamp HEAD commits and every published one, so a failed run's stamp never compounds (the DMG at 44, the file at 46, the
+  publish refused). Tests: `fichero-builder/tests/test_nightly.py::test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over`,
+  `fichero-builder/tests/test_verify_all.py::test_the_nightly_full_verify_never_waits_on_the_lanes_ladder_slots`,
+  `fichero-server/tests/unit/scripts/test_release_guard.py::test_the_next_build_counts_the_committed_stamp_so_a_failed_run_does_not_compound`.
 - `local.nightly.preflight` [OK] (#6665; built 2026-11-25) — each of that night's reds is found at the freeze, not hours in. A
   part on the local machine runs with the project venv (scripts/find_project_python.sh from the loop's checkout) first on PATH,
   and the DMG part's plain clone gets a `.venv` link to it (excluded in its `.git/info/exclude`), so the release scripts find a
@@ -867,6 +891,17 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `::test_a_conflict_with_no_live_session_starts_one_for_the_round`,
   `::test_a_conflict_the_round_resolved_resets_so_a_later_one_gets_its_own_round`,
   `::test_a_conflict_when_the_next_step_is_sent_goes_to_the_live_session_not_a_block`.
+  The round's text says "rebase, not merge". A head that already holds origin's land branch (`merge-base --is-ancestor`), as
+  when the worker merged origin and resolved the conflict there, is taken as it is, merge commit and all, with one
+  `already-on-base` row; it is never rebased into the same conflict again (2026-11-26: the files-batch step, builder-batch
+  ci-actions-1, round after round). Test:
+  `fichero-builder/tests/test_work_verb.py::test_a_head_that_merged_origin_and_resolved_the_conflict_is_taken_as_it_is_never_rebased_into_it_again`.
+  A `retry` judges the worktree's head as it is now: a tree that moved since the stored sha is a new head, the whole chain, never
+  the stale sha (2026-11-26: "retried at a84451832 from the failed rung" replayed the same conflict within a second); an unmoved
+  tree goes on from the failed rung as before. `queue said-done` takes a blocked step's DONE when it names a new sha, and still
+  refuses the sha it was blocked at. Tests:
+  `fichero-builder/tests/test_loop.py::test_a_retry_takes_the_worktrees_head_now_never_the_stale_stored_sha`,
+  `fichero-builder/tests/test_builder_restart.py::test_said_done_on_a_blocked_step_is_taken_for_a_new_sha_and_refused_for_the_one_it_was_blocked_at`.
 - `local.run.recorded-move-is-not-a-stray-write` [OK] (#6589; built 2026-11-25: `queue.tree_check` excuses a landing, a `tree-moved` row at the state the tree has now, and a clean jail root whose head is origin's land tip with the old head its ancestor; the verb is `builder queue moved --worktree P --text WHY`; `queue.stray_alert` keeps one alert per move and a `stray-write-seen` row for each other step; tests `fichero-builder/tests/test_loop.py::test_a_jail_root_fast_forwarded_to_origins_tip_and_clean_raises_nothing`, `::test_a_dirty_or_off_origin_jail_root_still_alerts`, `::test_a_tree_moved_row_excuses_its_tree_at_the_state_it_recorded`, `::test_a_move_that_still_alerts_is_one_alert_for_every_step_that_saw_it`) — the check that no tree outside a step's own moved
   excuses a move the loop or the manager made and recorded. A tree is excused when a `landed` row for the jail root, or
   a `tree-moved` row naming the tree, the old head and the new head, was written since the step's snapshot; and the
@@ -879,7 +914,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   nothing; a `tree-moved` row excuses its tree; a dirty or off-origin jail root is one alert for three steps.
   Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.autofix.loop-applies-the-printed-fix` [GAP] (#6589) — where a check prints the exact fix, the loop applies it
+- `local.autofix.loop-applies-the-printed-fix` [OK] (#6589) — where a check prints the exact fix, the loop applies it
   to a managed lane, commits and checks again; no worker is asked. The classes are opted in by name in
   `[check].autofix` (an unknown name refuses the rules file). The fix runs in the lane's worktree as the worker, the
   commit carries the lane's trailers and may touch only the files its class names (anything else is undone and the
@@ -893,7 +928,8 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   message to the worker; a class not named, a second red at the fixed head, and an external lane each go the old
   way. Serves: builds Fichero, reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.autofix.classes` [GAP] (#6589) — the four first classes, each decided by the check's own output and nothing
+  Built: `queue.py` calls `Procs.autofix` (`work.autofix`) on a red of a managed lane before a fix brief; it commits with the lane's trailers, writes one `autofix` row and moves the step back to `done`; `s["autofix_tried"]` holds `head:class` for the head and the head the fix made. Tests `fichero-builder/tests/test_autofix.py::test_a_known_gaps_red_is_one_commit_with_the_lane_trailers_one_autofix_row_and_only_the_named_entries_gone`, `fichero-builder/tests/test_autofix.py::test_a_fix_that_changes_a_file_outside_its_class_is_undone_and_changes_nothing`, `fichero-builder/tests/test_autofix.py::test_a_class_not_named_in_the_rules_is_never_tried_and_an_unknown_class_refuses_the_rules_file`, `fichero-builder/tests/test_loop.py::test_a_red_with_a_class_fix_is_checked_again_with_no_message_to_the_worker_and_the_same_red_at_that_head_goes_to_the_worker`, `fichero-builder/tests/test_loop.py::test_an_external_lane_is_never_autofixed`.
+- `local.autofix.classes` [OK] (#6589) — the four first classes, each decided by the check's own output and nothing
   else. `known-gaps-now-clean`: `scripts/check_endpoint_coverage_matrix.py` says entries of its known-gaps list are now
   clean; the loop removes exactly those entries. `ratchet-baseline-lower`: a ratchet prints a count below its baseline;
   the loop writes the lower number and never a higher one. `openapi-regen`: a contract guard says a generated copy is
@@ -904,6 +940,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `test_autofix.py`, one fixture red for each class gives the expected one-file commit; a baseline that would rise, an
   entry the check did not name, and an acceptance red with no line in the brief change nothing. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+  Built: `autofix.plan` decides each class from the guard's output; `known-gaps-now-clean` drops the printed keys from `<guard>_known_gaps.json`, `ratchet-baseline-lower` runs the guard's `--update-baseline` when it prints a count below its baseline (only `.json` files may change), `openapi-regen` runs `[check].regen`, `spec-change-trailer` amends the head with the brief's `Spec-change:` line and returns a question for the manager when the brief has none. Tests `fichero-builder/tests/test_autofix.py::test_a_ratchet_that_prints_a_lower_count_is_lowered_and_one_that_would_rise_is_left`, `fichero-builder/tests/test_autofix.py::test_a_spec_change_red_gets_the_briefs_line_word_for_word_and_none_without_one_is_a_question`, `fichero-builder/tests/test_autofix.py::test_an_openapi_regen_red_runs_the_regen_lines_and_commits_the_tracked_files_they_changed`.
 - `local.models.effort-per-role` [GAP] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
   and the worker, reviewer or spec writer started on that role runs at that level: low for lint and mechanical
   batches, medium for workers, high for reviewers and spec writers. The adapter passes it in the form its harness
@@ -1060,6 +1097,20 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   `window-closed` row, and starts; never the "holds a live session" alert (2026-11-25 21:03-21:06, alerts 1933-1935, right after a
   red). A window holding a session of another step still refuses. Test:
   `fichero-builder/tests/test_lane_role.py::test_a_fix_round_closes_its_own_steps_last_session_and_starts_instead_of_alerting`.
+- `local.run.landed-session-is-done` [OK] (#6589; built 2026-11-26; alert runner-soak-soak-5-2076: soak-4 landed at 20:24, its watcher had ended past DONE, and soak-5 refused to start on soak-4's live window, as read-any-hand 0.2 and seg-finish did) — when a step lands, its session is done with that step. A kept session (`local.queue.session.keep-across-steps`) needs the loop's live watcher; a session whose watcher has ended is gone for the loop, and is never re-attached past its DONE (a new watcher reads the old DONE on screen), so the next step starts fresh, one `session-fresh` row. The start closes a live window holding the session of a step of the lane that has landed (by its chain, a train, or `queue landed`), one `window-closed` row; it never writes the "holds a live session" alert or needs a `queue stop`. A window holding the session of a step that has not landed still refuses. Tests: `fichero-builder/tests/test_queue_batch.py::test_a_landed_steps_session_whose_watcher_ended_is_a_fresh_start_with_no_watcher_and_no_alert`, `fichero-builder/tests/test_lane_role.py::test_a_landed_steps_live_session_is_closed_for_the_next_step_instead_of_alerting`. Serves: reliable.
+- `local.check.guards-by-diff` [OK] (#6589; built 2026-11-26; owner 2026-11-26: per step only what changed, the full gate once a
+  day) — with `[check].guards_by_diff = true` (off by default), a lane's guards rung skips a guard when no changed path of the batch
+  (since...head, renames as a delete and an add) is under its `[check.guard_inputs]` prefixes and its own script did not change:
+  one `guards-by-diff` row, the guard listed as skipped. A guard with no declared inputs always runs; verify and the nightly run
+  every guard. The guards run on this machine take the one `guards` lock; the batch sent to the runners runs outside it (2026-11-25
+  12:00 to 2026-11-26 09:00: the guards rung was 9.3 h of 24.9 h of checks, and the lock held across the remote batch made 2 h of
+  waits). Test:
+  `fichero-builder/tests/test_guard_inputs.py::test_with_guards_by_diff_a_guard_whose_inputs_the_batch_does_not_touch_is_skipped_and_the_remote_batch_holds_no_lock`.
+- `local.run.retry-sends-the-current-brief` [OK] (#6589; built 2026-11-26) — a step's session gets its resume brief (a fix round,
+  a retry, a stop, a send-back); when the step's brief was rewritten after that file was made, the file is made again from the
+  current brief and its newest addendum (the `Step <step>: the ...` findings, the stop note or the send-back), with one
+  `brief-renewed` row, so a retry never re-sends a brief the manager replaced. Test:
+  `fichero-builder/tests/test_lane_role.py::test_a_retry_after_the_brief_was_rewritten_sends_the_new_brief_with_the_newest_addendum`.
 
 ### L. A review is a step kind (owner 2026-11-21, #6847)
 
@@ -1121,6 +1172,357 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   real journal or the real issues. Test: `fichero-builder/tests/test_review_verb.py` sets `GIT_CONFIG_GLOBAL` and `HOME` to the scratch
   directory and asserts the fake `gh` is the only issue client called. Serves: reliable.
 
+
+### Check flow: what runs per step, per train and per night (owner 2026-11-26, #6589)
+
+The owner asked (2026-11-26) for a much faster path from DONE to landed: whether review, perf and the other costly checks
+can run once over several steps, and whether a step should be many small commits. This section is the answer and the
+behaviours it needs. Sections J, K and M keep their built behaviours; a line below says so where it replaces one.
+Spec-change: manager (owner asked 2026-11-26 for a faster check flow). Each behaviour names its owed test as a file under
+`fichero-builder/tests` and the test function in it; the citation takes the `file::name` form when the test is written.
+
+| Where | Runs | Why there |
+|---|---|---|
+| Per step, at each DONE | pinned-checks, ready, diff-bound; the changed tests red on the base and green on the head; the guards the diff touches; contract-current and the since-guards; the security lints on added lines; the review, beside the ladder | cheap, needs the step's own diff, or is what the worker's fix round is written from |
+| Per train, once on the candidate | the build, the affected Swift suites and the UI pass (built); the whole test directories of the combined diff; the guards the combined diff touches; the security scanners; perf; each judged against the train's base | costs minutes whatever the step, and is where two steps first meet |
+| Per night, on the frozen sha | every guard, the full suites, the DMG, the smoke, the perf sweep | a day of landings is the most a rare red may cost |
+
+No test, guard or scanner is dropped or weakened: each runs before a step lands or, as today, at night. What changes
+is how many times it runs and when the worker hears.
+
+#### What was measured (the journal, 24 h to 2026-11-26 15:35)
+
+- 155 ladder runs took 37.6 h of wall time, 10.9 min at the median and 23 min at the 90th percentile. By rung:
+  red-on-base 19.5 h (50%), guards 13.6 h (35%), security 2.6 h, perf 1.5 h, build 1.1 h, ready 0.4 h. (The manager's
+  count over 2026-11-25 12:00 to 2026-11-26 09:00, by in-rung seconds: 123 checks, 24.9 h, and 17.5 h more waiting for
+  a slot, 11.4 h of it because two steps sharing a file never check at once.)
+- 81 reviews took 0.9 h in all: 29 s at the median, 94 s at the 90th percentile. 52 of them said NOT READY.
+- Of 157 ladder ends, 82 were green; the reds were red-on-base 24, guards 23, ready 19, pinned-checks 7, diff-bound 2.
+- 27 steps said DONE 129 times, 4.8 times a step. 15 steps landed.
+- From a step's first DONE to landed: 7.8 h at the median, 16.4 h at the 90th percentile. From its last DONE to
+  landed: 31 min and 2.5 h.
+- 7 trains ran. 2 were green, of one step each; 3 ended unresolved, 1 red, 1 in error.
+
+The time is not in the review. It is in the rounds: a step is checked nearly five times, each check runs the whole
+ladder again, and a red and a NOT READY arrive one after the other, never together.
+
+#### The five answers
+
+1. **What stays per step, what moves to the train, what is nightly.** The table above. Per step keeps what is cheap,
+   reads the step's own diff, or writes the fix round. Red-on-base splits: the changed tests stay per step (the base
+   run and the head run of those files only); the whole test directories that the head run adds today move to the
+   train, judged against the train's base. Guards stay per step by diff and run once more on the candidate, which is
+   what makes dropping the same-file rule safe. The security scanners and perf move to the train; the added-line
+   security lints stay. The nightly is unchanged.
+2. **Review stays per step, and moves beside the ladder.** A review costs 29 s and 64% of them send work back, so it is
+   the worker's feedback, not a cost to batch: in a train it would save under an hour a day and put a train's wait in
+   front of each of 52 findings. It starts as soon as the instant rungs are green and runs while the ladder runs, and
+   the worker gets the ladder's reds and the review's findings in one fix round. A step enters a train only when it is
+   READY, so a NOT READY step is never in a candidate and holds no other step. On a fix round the reviewer reads the
+   earlier findings and the fix, never the whole diff again.
+3. **A step is one landing made of many small commits.** The step stays the unit of the brief, the spec line, the
+   review and the landing (three to five related fixes, or one behaviour). Inside it the worker commits each logical
+   change, and after its first DONE only adds commits. Commits do not land one by one: each would owe its own test
+   red on the base, its own spec line and its own review, which is a smaller step and is made when the work is planned,
+   not by landing parts. What small commits buy is the fix round: a verdict judged on files the fix did not touch is
+   kept, so the second check costs what the fix changed, and the reviewer reads the fix alone.
+4. **The train replaces the same-file rule.** With the train on, two steps that share a file check at once. The
+   candidate merge finds a textual conflict and the train's rungs, with the guards now among them, judge the two
+   together. So that the worker hears before the train, each DONE is test-merged against the land branch and the steps
+   waiting for the train. With the train off the rule stays.
+5. **Targets.** Under `local.flow.report` below, each with the one number that proves it.
+
+One setting, no code: with `[train].min_steps = 1` a train starts whenever a step waits and none runs, and steps that
+turn green meanwhile ride the next one, so the batch grows with the load and an idle train never holds a step for
+`max_wait_min`. `local.train.start` already does this.
+
+#### Behaviours
+
+- `local.review.beside-the-ladder` [OK] (#6589; built 2026-11-26; on with [review].beside_ladder (default false); the tests live beside the chain fixture in test_work_verb.py) — with `[review].beside_ladder = true` (default false: the review
+  follows a green ladder, as before) a step's review starts when its pinned-checks, ready and diff-bound rungs are
+  green and runs while the other rungs run; an instant rung red starts no review. The step leaves `checking` when both
+  have ended. A red ladder and a NOT READY at one head make one fix round whose text holds both, each under its own
+  heading, counted as one round of `[loop].rounds`. A green ladder with a NOT READY, and a red ladder with a READY,
+  go back as today. A step moves to `train` only with a green ladder and a READY at the same head. Tests: `fichero-builder/tests/test_work_verb.py::test_a_review_runs_beside_the_ladder_and_a_red_with_a_not_ready_is_one_fix_round`, `fichero-builder/tests/test_work_verb.py::test_a_ready_red_no_review_is_started`, `fichero-builder/tests/test_work_verb.py::test_a_step_enters_the_train_only_green_and_ready_at_one_head`. Serves: reliable, fast.
+- `local.review.fix-round-reads-the-fix` [OK] (#6589; built 2026-11-26) — a review of a head that descends from a head already
+  reviewed for the same step is given that review's findings and the diff between the two heads, and answers each
+  earlier finding as fixed or not fixed and names any new fault in that diff; READY needs every earlier finding fixed
+  and no new fault. A head that does not descend from the reviewed one (a rebase, an amend) is reviewed whole, with one
+  `review` row `whole-again`. Tests: `fichero-builder/tests/test_loop.py::test_a_fix_round_review_gets_the_earlier_findings_and_only_the_fix_diff`, `fichero-builder/tests/test_loop.py::test_a_rebased_head_is_reviewed_whole_with_a_row`. Serves: reliable, fast.
+- `local.check.fix-round-reuses-verdicts` [OK] (#6589; built 2026-11-26; on with [check].reuse_fix_verdicts (default off); kept: red-on-base, guards, build, security, contract-current and since-guards) — a ladder over a head that descends from a head the same
+  step was checked at, on the same base sha and the same pinned copy, keeps a rung's earlier green without running it
+  when no path the new commits change is an input of that rung: for red-on-base, the changed tests, the files under
+  `[check].red_paths` and the tests' `conftest.py` files; for the guards, each guard's `[check.guard_inputs]` and its
+  script (a guard with no declared inputs runs); for security, contract-current, the since-guards and the build, the
+  paths each already reads to decide whether it runs. The kept rung is a `rung` row with `reused` naming the head it
+  was judged at. A red rung, the instant rungs, a moved base, another pinned copy or a head that does not descend
+  always run. Tests: `fichero-builder/tests/test_ladder_all_reds.py::test_a_fix_commit_that_touches_no_input_of_a_green_rung_keeps_its_verdict_with_a_reused_row`, `fichero-builder/tests/test_ladder_all_reds.py::test_security_contract_current_and_the_since_guards_keep_their_green_when_the_fix_touches_none_of_their_inputs`, `fichero-builder/tests/test_ladder_all_reds.py::test_a_moved_base_a_rebased_head_or_a_touched_input_runs_the_rung_again`. Serves: reliable, fast.
+- `local.check.red-on-base-changed-tests-only` [OK] (#6589; built 2026-11-26; on with [train].whole_tests (default false) beside the train) — with the train on, the step's red-on-base rung runs the
+  changed test files and nothing else, on the base and on the head; the `[check.whole_tests]` directories of the diff
+  are not run by the step and the rung's row lists them as `owed to the train`. With `[train].enabled = false` the
+  head run includes them, as before. Tests: `fichero-builder/tests/test_ladder_all_reds.py::test_with_the_train_on_red_on_base_runs_only_the_changed_tests_and_lists_the_whole_dirs_as_owed`, `fichero-builder/tests/test_ladder_all_reds.py::test_with_the_train_off_the_head_run_still_includes_the_whole_dirs`. Serves: reliable, fast.
+- `local.train.whole-tests-against-base` [OK] (#6589; built 2026-11-26; a step that owes dirs a train did not run waits for the next, one `owed-not-run` row) — a train runs, once on its candidate, every
+  `[check.whole_tests]` directory that any of its steps owes. A failing case is run once on the train's base (kept per
+  base sha and selection, like `local.train.swift-tests-against-base`); the candidate is red only for cases that fail
+  on it and pass on the base, and a base that could not run judges nothing. A step lands only from a train that ran
+  the directories it owes. Tests: `fichero-builder/tests/test_train.py::test_the_train_runs_the_owed_whole_dirs_once_and_is_red_only_for_cases_green_on_its_base`, `fichero-builder/tests/test_train_queue.py::test_a_step_never_lands_from_a_train_that_did_not_run_its_owed_dirs`.
+  Serves: reliable.
+- `local.train.guards-on-candidate` [OK] (#6589; built 2026-11-26) — a train runs, once on its candidate, the guards its combined diff
+  touches (the `local.check.guards-by-diff` rule over base...candidate); a guard red on the candidate and green on the
+  base makes the train red at `guards`. Tests: `fichero-builder/tests/test_train.py::test_two_steps_each_green_alone_that_break_a_guard_together_make_the_train_red_at_guards`. Serves: reliable.
+- `local.train.security-and-perf-once` [OK] (#6589; built 2026-11-26; on with [train].security_perf (default false) beside the train; a finding is matched to a step by the text of the line it names) — with the train on, a step's security rung runs only the
+  added-line lints, and its perf rung is skipped with the row `owed to the train`; the train runs the security scanners
+  and perf once over base...candidate. A scanner finding goes back to the step whose diff added the line it names, and
+  the other steps go on. Perf stays report-only: its row names the train and the steps whose diff touches the measured
+  paths, and sends none back. With the train off both run per step, as before. Tests: `fichero-builder/tests/test_security_rung.py::test_with_the_train_on_a_step_runs_only_the_added_line_lints_and_a_scanner_finding_goes_to_the_step_that_added_the_line`, `fichero-builder/tests/test_perf_rung.py::test_with_the_train_on_perf_runs_once_on_the_candidate_and_sends_no_step_back`.
+  Serves: reliable, fast.
+- `local.train.red-goes-to-its-step` [OK] (#6589; built 2026-11-26; hosted CI's red cases go through the same search, as whole-tests) — a train red at whole-tests or guards on cases or guards that are
+  green on its base is searched like `local.train.swift-search-not-bisect`, never bisected by prefix: each step whose
+  diff touches the failing test's directory, its `[check.whole_tests]` prefix or the guard's inputs, newest first, runs
+  alone on the land branch with only those cases or guards, and the first that fails one is sent back with their
+  output; the rest go on. When none fails alone (two steps break it only together) the newest such step goes back with
+  the output and the names of the others. Tests: `fichero-builder/tests/test_train.py::test_a_whole_tests_red_searches_the_steps_that_touch_it_with_only_the_failing_cases_and_sends_one_back`, `fichero-builder/tests/test_train.py::test_a_red_only_two_steps_make_together_sends_the_newest_back_naming_the_other`, `fichero-builder/tests/test_train.py::test_hosted_ci_red_cases_are_searched_on_the_local_runners_among_the_cleared_steps`. Serves: reliable.
+- `local.train.rungs-side-by-side` [OK] (#6589; built 2026-11-26; on with [train].side_by_side (default false); the unit tier runs in the Python chain too; both chains share the build runner's slots, not one runner each) — a train's rungs that need no Xcode build (whole-tests, guards,
+  security, perf) start when the candidate is made and run while the build and the Swift tests run, each on a free
+  runner; the train's wall time is the longest chain, not the sum, and `local.train.time-limit` holds over all of
+  them. Tests: `fichero-builder/tests/test_train.py::test_the_python_rungs_run_while_the_swift_rungs_run_and_the_wall_time_is_the_longest`.
+  Serves: fast.
+- `local.check.no-same-file-wait` [OK] (#6589; built 2026-11-26) — with the train on, a ladder slot is given to a step whatever files
+  another running ladder holds: no `lock` row of state `clash` is written. With `[train].enabled = false` two batches
+  that share a file take turns, as built (Speed 3). This replaces `local.perf.ladder-slots-follow-runners`'s rule for
+  shared files. Tests: `fichero-builder/tests/test_work_verb.py::test_with_the_train_on_two_batches_sharing_a_source_file_check_at_once_with_no_clash_row`, `fichero-builder/tests/test_work_verb.py::test_with_the_train_off_a_batch_sharing_a_file_still_waits`. Serves: fast.
+- `local.check.conflict-told-at-done` [OK] (#6589; built 2026-11-26) — at each DONE, before a ladder slot is taken, the head is
+  test-merged in memory (`git merge-tree`, no worktree) onto the land branch and then onto each step waiting for the
+  train, in train order. A conflict with the land branch goes to the worker at once as the conflict fix round of
+  section J. A conflict with a waiting step is one `queue` row `conflicts-with` naming that step and the files; the
+  step is checked as usual and is held out of that step's train, so it merges after it. Tests: `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`, `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`, `fichero-builder/tests/test_train_queue.py::test_a_worker_lanes_done_is_premerged_by_its_chain_right_after_the_fetch` (a worker lane's new head is in the engine repo only after the chain's fetch, so the chain asks there, before any ladder slot). Serves: reliable, fast.
+- `local.step.small-commits-one-landing` [OK] (#6589; built 2026-11-26) — the common worker prompt says: commit each logical change by
+  itself as the work goes; after the first DONE only add commits, never amend, squash or rebase (the loop rebases); a
+  step lands whole. Nothing lands a part of a step. Tests: `fichero-builder/tests/test_profiles.py::test_the_common_prompt_says_small_commits_and_only_added_commits_after_done`. Serves: fast.
+- `local.flow.report` [OK] (#6589; built 2026-11-26; test `fichero-builder/tests/test_rung_stats.py::test_flow_prints_each_target_from_a_fixture_journal_and_exits_1_when_one_is_over`) — `builder rung-stats --flow [--since TS]` prints, from the journal alone, one line
+  for each target with its measured value and `ok` or `over`, and exits 1 when any is over:
+
+  | Target | Number | Today |
+  |---|---|---|
+  | a ladder run's wall time | median 4 min, 90th percentile 10 min | 10.9 min, 23 min |
+  | time a step waits for a ladder slot because of a shared file | 0 | 11.4 h a day |
+  | DONE rows for each landed step | mean 2.5 | 4.8 |
+  | last DONE to landed | median 25 min, 90th percentile 45 min | 31 min, 2.5 h |
+  | first DONE to landed | median 90 min, 90th percentile 4 h | 7.8 h, 16.4 h |
+  | a train's wall time | 90th percentile 30 min | up to 88 min |
+  | `ready` reds inside a ladder (the presubmit at DONE catches them) | 0 | 19 a day |
+
+  The targets are `[flow]` keys in `harness.toml` with these defaults. Tests: `fichero-builder/tests/test_rung_stats.py::test_flow_prints_each_target_from_a_fixture_journal_and_exits_1_when_one_is_over`. Serves: reliable.
+
+#### In flight: check slots, stacked steps and train size (owner 2026-11-26, #6589)
+
+The owner asked (2026-11-26) why only three lanes are checked at once, and for more work in flight and landed together.
+Over the same 24 h the lanes' cursor steps spent 13.5 h being written and 172 h said-done or in a check (`done` 101.8 h,
+`checking` 70.5 h), and 9.6 h waiting for a train; the load average of the loop's machine at a rung's start was 52 at
+the median and 117 at the 90th percentile. Of 8 trains, 2 were green, each of one step; the trains of 4, 6 and 8 steps
+ended unresolved or at the time limit. So a fixed lane count caps the wrong thing: writing is a small share of a lane's
+day, checks are the queue, and what limits checks is what the runners can carry, which is measured, not set. Owed tests
+are named as in the behaviours above. Spec-change: manager (owner asked 2026-11-26 for more in flight).
+
+- `local.flow.check-slots-from-runners` [OK] (#6589; built 2026-11-26; on with [check].slots_from_runners (default off: [check].parallel, as before); the count reads the pinned copy's [check], as the ladders do; a host with two gate dirs is probed once) — the number of ladders that run at once is counted each tick from
+  the runners, not read as a fixed number. Each runner in `[check].remote` writes one `runner` row a tick (reachable,
+  cores, 1-minute load, free memory, free disk). A runner gives `[check].slots_per_runner` slots (default 1) while its
+  row is under three ticks old, its load for each core is at most `[check].runner_max_load` (default 1.0), its free
+  memory is at least `[check].runner_min_free_ram_gb` (default 4) and its free disk at least `remote_min_free_gb`; else
+  it gives none and a ladder already on it finishes. `[check].parallel`, when set, is a ceiling; with no runner counted
+  one ladder runs on the loop's machine. A change of the count is one `slots` row naming each runner and why it counts
+  or not. This replaces the fixed count of `local.perf.ladder-slots-follow-runners`. Tests: `fichero-builder/tests/test_heavy_lock.py::test_ladder_slots_are_the_sum_of_runners_under_the_load_and_memory_limits_and_parallel_is_a_ceiling`, `fichero-builder/tests/test_heavy_lock.py::test_the_slot_count_reads_the_pinned_check_and_probes_a_host_with_two_gate_dirs_once`, `fichero-builder/tests/test_heavy_lock.py::test_a_runner_over_its_load_or_with_a_stale_row_gives_no_slot_and_one_slots_row_says_why`. Serves: reliable, fast.
+- `local.flow.writers-are-not-capped-by-checks` [OK] (#6589; built 2026-11-26; the same lane's next step stacks with local.step.stacks-on-a-waiting-step) — `[loop].lanes` counts writers: a lane holds one of
+  them only while its cursor step is `sent` or `fixing` (a model session at work). A step that is said-done, done,
+  checking, reviewing or waiting for the train holds none, so another lane's step starts, or the same lane stacks its
+  next step (`local.step.stacks-on-a-waiting-step`). Steps past DONE and not yet landed are capped by
+  `[loop].max_in_flight` (default three times `[loop].lanes`): at the cap no new step starts, with one `queue` row
+  `in-flight-cap`, so finished work never piles up faster than the checks land it. A blocked or red step keeps its
+  writer, as built. When built this replaces the list of states in `local.run.idle-windows-hold-no-slot`. Tests: `fichero-builder/tests/test_loop_lane_set.py::test_a_step_waiting_for_its_check_or_the_train_holds_no_writer_so_the_next_queued_step_starts`, `fichero-builder/tests/test_loop_lane_set.py::test_no_step_starts_past_max_in_flight_and_one_row_says_so`. Serves: fast.
+- `local.step.stacks-on-a-waiting-step` [OK] (#6589; built 2026-11-26; on with [loop].stack_depth = 1 (default 0); N landing alone also sets N+1 aside, lands N, and puts N+1 back on the landed head) — with `[loop].stack_depth = 1` (default 0: a lane's next step
+  starts when the one before it lands, as before) a lane's step N+1 starts in the lane's worktree on N's head once N is
+  green and READY and waits for the train. N+1's checks and review read the range from N's head to its own, with N's
+  head as the base of red-on-base. N+1 enters a train only behind N in the same train, or after N has landed, never
+  before it; when N lands, N+1's range is rebased onto the land branch as any lane is. When N is sent back, the loop
+  commits N+1's uncommitted work as one commit `wip: <step>`, keeps N+1's commits under the ref `stack/<lane>/<step>`,
+  sets the worktree to N's head and sends N's fix round; N+1 is `queued` with the row `stack-held` and any check of it
+  is cancelled. When N is green again the loop rebases the kept commits onto N's new head, puts the `wip` commit back as
+  uncommitted work and resumes N+1; a conflict in that rebase is N+1's conflict fix round of section J. A rebased N+1 is
+  checked and reviewed whole (`local.check.fix-round-reuses-verdicts` keeps nothing over a rebase). One step stacks on
+  one; a third waits. Tests: `fichero-builder/tests/test_work_tree.py::test_step_two_starts_on_step_ones_head_while_one_waits_for_the_train_and_is_checked_over_its_own_range`, `fichero-builder/tests/test_work_tree.py::test_when_step_one_goes_back_step_twos_commits_are_kept_under_a_ref_and_rebased_onto_the_fixed_head`, `fichero-builder/tests/test_work_tree.py::test_a_conflict_in_that_rebase_is_step_twos_fix_round`, `fichero-builder/tests/test_train_queue.py::test_a_stacked_step_never_enters_a_train_ahead_of_the_step_under_it`, `fichero-builder/tests/test_work_tree.py::test_when_step_one_is_cleared_it_lands_alone_and_step_two_goes_on_from_its_landed_head`. Serves: fast.
+- `local.train.size-follows-the-last-result` [OK] (#6589; built 2026-11-26; a stacked pair rides behind its lower step, built with local.step.stacks-on-a-waiting-step; the size and the last five results are kept in the state dir's train-memory.json, so a restart goes on from them) — a train takes at most `size` waiting steps in queue
+  order and the rest wait for the next; a stacked pair is never split with the upper step first. `size` starts at
+  `[train].max_steps` (default 6: at nine trains in ten green for a step alone, six together are green about half the
+  time, and a red of six costs at most four more runs). After a train that is red, unresolved or timed out, `size` is
+  halved (never under 1); after a green train it doubles, up to `max_steps`. The train's journal row carries `size`
+  and the number left waiting. Tests: `fichero-builder/tests/test_train_queue.py::test_a_train_takes_at_most_size_steps_in_order_and_the_rest_wait`, `fichero-builder/tests/test_train_queue.py::test_the_train_size_and_the_last_results_survive_a_restart`, `fichero-builder/tests/test_train_queue.py::test_size_halves_after_a_red_train_and_doubles_after_a_green_one_up_to_max_steps`, `fichero-builder/tests/test_train_queue.py::test_a_red_train_halves_the_next_ones_size`. Serves: reliable, fast.
+- `local.train.second-train-on-the-first` [OK] (#6589; built 2026-11-26; the free build runner is the build lock's state (local.train.build-lock-first); the last five results are kept in the state dir with the size; it stops at its next run once the first train fails) — with `[train].overlap = 2` (default 1: one train at a time, as
+  built) a second train starts while one runs when `[train].min_steps` steps wait, a runner for the Xcode build is
+  free, and at least 4 of the last 5 trains were green. Its base is the first train's candidate. When the first lands
+  every step, the second's result stands and it lands after it; when the first sends a step back or ends any other way,
+  the second is cancelled with one `train` row `cancelled: its base did not land` and its steps wait again, sent back
+  to no worker. Never more than two. Tests: `fichero-builder/tests/test_train_queue.py::test_a_second_train_runs_on_the_firsts_candidate_and_lands_after_it`, `fichero-builder/tests/test_train.py::test_a_second_train_stops_at_its_next_run_once_its_base_train_failed`, `fichero-builder/tests/test_train_queue.py::test_when_the_first_train_sends_a_step_back_the_second_is_cancelled_and_its_steps_wait_again`, `fichero-builder/tests/test_train_queue.py::test_no_second_train_starts_unless_four_of_the_last_five_were_green`. Serves: fast.
+- `local.train.build-lock-first` [OK] (#6589; built 2026-11-26) — a merge train's build takes the next turn at `[check].build_lock`, ahead of
+  any lane's build rung that waits for it: the train writes one wait file beside the lock while it waits, and a lane's build
+  rung that gets the lock meanwhile lets it go at once, with one `check` row `build-lock-yield`, and tries again. A wait file
+  of a process that is gone is removed. `Procs.build_free` (`local.train.second-train-on-the-first`) is true only when no
+  build holds the lock and no train waits for it. With no `[check].build_lock` both are as before. On whenever the train
+  runs (no key). Tests: `fichero-builder/tests/test_heavy_lock.py::test_a_train_waiting_for_the_build_lock_builds_before_a_lane_that_waited_longer`, `fichero-builder/tests/test_heavy_lock.py::test_a_second_train_sees_the_build_runner_busy_while_a_build_holds_the_lock`. Serves: fast.
+
+#### Hosted CI in the flow: the train's candidate is checked on GitHub Actions and Xcode Cloud (owner 2026-11-26, #6589)
+
+The owner asked (2026-11-26) for GitHub Actions and Xcode Cloud in the flow. The model is a merge queue, and the
+builder's train stays the one queue: it already orders, batches and sends back, and GitHub's own merge queue beside it
+would be a second order of landing. The train pushes its candidate to a branch, hosted CI runs the whole suites on it,
+and the train lands on the check results. The local runners keep what must be fast: every per-step rung, and the
+train's affected suites. When built this replaces the ruling in `pipeline.github-actions` that the Macs are the only
+gate.
+
+| Where | Local runners | Hosted CI |
+|---|---|---|
+| Per step | every rung of the table above | nothing |
+| Per train | the build, the affected Swift suites, the guards on the candidate | the whole Python suites and their shards on Actions; the full Swift test plan on Xcode Cloud when its hours allow |
+| Per night | the DMG, notarising, the smoke (they need the signing identity and a screen) | every tier and the full Swift plan on the frozen sha |
+| Per release | the Mac DMG | the iOS archive and the TestFlight upload on Xcode Cloud |
+
+Today (2026-11-26): the Swift, builder and contract jobs are green on Actions, the engine shards reach their 30-minute
+limit, and the Xcode Cloud build is red in its clone script; both are being fixed in step ci-actions-1. Cost decides
+how much of this runs per train: eight engine shards of 25 minutes are 200 runner minutes a train, a macOS minute
+counts ten times on a private repository, and a full Swift plan of 20 minutes on each of 15 trains a day would use a
+month's 25 included Xcode Cloud hours in five days. So CI starts in `report` mode, the train's CI jobs run only the
+tiers its diff touches, and the full Swift plan runs per night and per release unless the hours are set higher.
+Spec-change: manager (owner asked 2026-11-26 for hosted CI in the flow).
+
+- `local.ci.train-candidate-on-a-branch` [OK] (#6589; built 2026-11-26; off by default; the Xcode Cloud start condition on `train/**` is set in Xcode Cloud's own workflow, not in this repository) — with `[ci].train` set to `report` or `required` (default
+  `off`) a train pushes its candidate to `train/<train id>` on the land remote before its local rungs start, and
+  deletes the branch when the train ends, however it ends. The tests workflow runs on a push to `train/**`, one run a
+  branch (a concurrency group by ref, a newer push cancels the older run), each tier only when the candidate's diff
+  from its base touches that tier's paths, and ends in one job `train-gate` that needs every tier and is green when
+  each was green or skipped: a tier that did not run never leaves a required check unreported. The Xcode Cloud
+  workflow named in `[ci].xcode_workflow` starts on the same branches when `[ci].xcode_cloud_on` lists `train`
+  (default `["nightly", "release"]`). No worker and no lane pushes a `train/` branch. Tests: `fichero-builder/tests/test_ci_train.py::test_a_train_pushes_its_candidate_to_a_train_branch_first_and_deletes_it_however_it_ends`, `fichero-builder/tests/test_ci_train.py::test_the_workflow_runs_on_train_branches_and_train_gate_is_green_when_each_tier_is_green_or_skipped`, `fichero-builder/tests/test_ci_train.py::test_with_ci_off_no_branch_is_pushed`. Serves: reliable.
+- `local.ci.train-lands-on-green-checks` [OK] (#6589; built 2026-11-26; off by default; a required red's cases go to local.train.red-goes-to-its-step) — the train reads the check runs of its candidate sha through
+  the GitHub API (the manager's `gh`, never a worker's) for each name in `[ci].required` (default `["train-gate"]`,
+  and the Xcode Cloud check when it runs on trains). In `report` mode the train lands on its local rungs as built and
+  its journal row gains `ci`: each required check, its conclusion, its minutes and whether it agreed with the local
+  result. In `required` mode the train lands only when its local rungs and every required check are green at that
+  sha; a check that has not completed within `[ci].wait_min` (default 45) is not run, never green, and the train ends
+  `timeout` as `local.train.time-limit` says, with `wait_min` as its limit. `required` is refused by the rules check
+  until `builder rung-stats --flow` shows, over the last seven days of `report` rows, that CI's 90th percentile is
+  under `wait_min` and that it disagreed with the local result on at most one train in twenty; `--flow` prints that
+  line once report rows exist. Tests: `fichero-builder/tests/test_ci_train.py::test_in_report_mode_the_train_lands_on_its_local_rungs_and_records_each_check_and_its_agreement`, `fichero-builder/tests/test_ci_train.py::test_in_required_mode_a_green_local_train_with_a_red_or_missing_check_does_not_land`, `fichero-builder/tests/test_ci_train.py::test_required_is_refused_until_seven_days_of_report_rows_meet_the_time_and_agreement_bars`. Serves: reliable.
+- `local.ci.red-is-retried-once-and-judged-against-base` [OK] (#6589; built 2026-11-26; off with [ci]) — a required check that fails is sorted before
+  it counts. Infrastructure (no runner acquired, a cancelled or timed-out job, a failure in a set-up step before any
+  test ran): its failed jobs are re-run once; a second such failure is not run, with one alert, and
+  `local.ci.caps-and-fallback` decides the train. Tests: the failing cases are read from the job logs, as
+  `builder github-watch` reads them, and the failed jobs are re-run once; a case that passes the second time is green
+  with one `flaky` row naming it and its job, so it is filed and never hidden. A case that fails twice is judged
+  against the base: the same check's newest completed run at the train's base sha, started once (the base pushed to
+  `train/<train id>-base`, deleted with the train's branch) when there is none; a case red there too is the base's, and the candidate is red only for cases green on its base. Those cases
+  go to `local.train.red-goes-to-its-step`, which finds the step on the local runners. Tests: `fichero-builder/tests/test_ci_train.py::test_an_infrastructure_failure_is_rerun_once_and_a_second_one_is_not_run_never_red`, `fichero-builder/tests/test_ci_train.py::test_a_case_green_on_the_rerun_is_green_with_a_flaky_row`, `fichero-builder/tests/test_ci_train.py::test_a_case_red_twice_and_red_on_the_base_run_sends_no_step_back`, `fichero-builder/tests/test_ci_train.py::test_a_case_red_twice_and_green_on_the_base_goes_to_the_step_search`. Serves: reliable.
+- `local.ci.nightly-gate-on-the-frozen-sha` [OK] (#6589; built 2026-11-26; off by default; the local verify still runs whole beside it, so `[ci].local_guards` narrows nothing yet; a red is judged against the last published night's sha) — with `[ci].nightly = true` (default false) the nightly, at
+  its freeze, pushes the frozen sha as `nightly/<date>` and starts the tests workflow on it by dispatch with every
+  tier on, and the Xcode Cloud full test plan; a cron schedule is not used, because it cannot know the frozen sha. The
+  `verify` stage waits for the check runs and judges them as `local.ci.red-is-retried-once-and-judged-against-base`
+  says; its report lists each check with its minutes. The DMG, notarising and the smoke stay on the local machine. The
+  guards that need the whole checkout history or a local tool stay in the local verify, named in `[ci].local_guards`.
+  Nothing is published on a red or missing check. Tests: `fichero-builder/tests/test_nightly.py::test_the_nightly_dispatches_ci_on_the_frozen_sha_and_verify_waits_for_its_checks`, `fichero-builder/tests/test_nightly.py::test_a_red_or_missing_nightly_check_publishes_nothing`. Serves: reliable.
+- `local.ci.testflight-from-xcode-cloud` [OK] (#6589; built 2026-11-26; off by default; the wait reads the Xcode Cloud workflow's GitHub check run at the frozen sha, not the store's (ASC) processing state: the ASC poller release-all.sh calls is not in the repository) — with `[ci].testflight = "xcode-cloud"` (default `local`) the
+  release run's `ios` stage makes no archive on the local machine (the archive ran it out of memory): it pushes the
+  tag or release branch that matches `[ci].testflight_refs`, which starts the Xcode Cloud workflow that archives and
+  uploads to TestFlight, then polls the build through the store's (ASC) API until it is processed, failed or
+  `[ci].testflight_wait_min` (default 60) has passed. A failed or late build fails the stage with the build's error and
+  the other stages go on as they do today; the owner is texted either way, as for any release part. Tests: `fichero-builder/tests/test_release_run.py::test_the_ios_stage_pushes_the_ref_and_waits_for_the_xcode_cloud_build_with_no_local_archive`, `fichero-builder/tests/test_release_run.py::test_a_failed_or_late_xcode_cloud_build_fails_the_ios_stage_with_its_error`. Serves: reliable.
+- `local.ci.caps-and-fallback` [OK] (#6589; built 2026-11-26; [ci] is off by default) — `[ci].actions_minutes_month` and `[ci].xcode_cloud_hours_month` are
+  caps; `train` and `nightly` CI are refused by the rules check while `xcode_cloud_hours_month` is unset, as a metered
+  model provider is with no weekly cap. The Actions cap is optional (0 = none): the repository is public, so standard
+  Actions minutes are free (owner 2026-11-26). The builder sums, from the check runs it started, each job's billed minutes (a macOS job by
+  `[ci].macos_multiplier`, default 10) and each Xcode Cloud build's compute time, for the calendar month, in one `ci`
+  row a day. At 80% of a cap there is one alert. At the cap, or when the API cannot be reached or no run has started
+  within `[ci].start_min` (default 10), the train goes on with its local rungs alone, running the whole suites there
+  as it does with CI off, with one `ci-fallback` row saying which; it never waits and never lands on a check it did
+  not get. The nightly's fallback is the local verify, and its report says CI did not run. Tests: `fichero-builder/tests/test_ci_train.py::test_ci_with_no_cap_set_is_refused_by_the_rules_check`, `fichero-builder/tests/test_ci_train.py::test_minutes_are_summed_per_month_with_the_macos_multiplier_and_eighty_percent_is_one_alert`, `fichero-builder/tests/test_ci_train.py::test_at_the_cap_or_with_ci_down_the_train_runs_its_whole_suites_locally_with_a_fallback_row`. Serves: reliable.
+
+### M. The merge train: the expensive checks run once for many steps (owner 2026-11-25, #6589)
+
+A step used to run the Swift build, the UI pass and the full unit tier alone before it landed, so the checks that cost the
+most ran once per step. The owner (2026-11-25): be strategic, so that more things can land. A step now runs only the cheap
+rungs, waits, and lands with others after one train. Tests: `fichero-builder/tests/test_train.py`,
+`fichero-builder/tests/test_train_queue.py`. Serves: reliable, fast.
+
+- `local.train.cheap-rungs-then-wait` [OK] (#6589; test `fichero-builder/tests/test_train.py::test_the_ladder_skips_the_rungs_the_train_runs_once`; `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`) — with `[train].enabled` (default true) a step green on the cheap rungs (its ladder
+  skips the build and ui rungs; the unit rung may run the whole suite) moves to queue state `train` instead of landing.
+- `local.train.start` [OK] (#6589; test `fichero-builder/tests/test_train.py::test_the_cfg_and_when_a_train_is_due`; `fichero-builder/tests/test_train_queue.py::test_max_wait_triggers_a_train_of_two`) — a train starts when `[train].min_steps` (default 4) steps wait, or the oldest has waited
+  `[train].max_wait_min` (default 45). Only one train runs at a time.
+- `local.train.one-candidate-run` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`; `fichero-builder/tests/test_train_queue.py::test_a_merge_conflict_drops_one_step_and_the_train_goes_on`) — a train merges every waiting step's head onto the land branch in queue order into a
+  throwaway candidate and runs the build, the Swift tests, the UI pass and the unit tier on it once. A step that does not merge
+  cleanly is sent back with the conflict and the rest go on. A green candidate lands every step in it.
+- `local.train.cleared-lands-without-a-new-check` [OK] (#6589; built 2026-11-26; train-20261126-181343: a cleared step ran a 31-minute ladder and a whole review again, was NOT READY on the moved base, and held the other two) — a step a green train cleared lands with no new ladder and no new review: the train's row is its verdict and its check (`builder landed --train <id> --train-step <lane/step>`), and its head is merged onto the land branch as it is at that moment, which covers both a branch that moved since the candidate and a change of order only. A merge that conflicts sends that step back to its worker with the conflict; a landing refused for any other reason blocks that step alone. Neither holds the train's later steps. Tests: `fichero-builder/tests/test_train_queue.py::test_train_cleared_steps_land_the_trains_merge_with_no_new_ladder_or_review_and_one_failure_never_holds_the_others`, `fichero-builder/tests/test_landed_verb.py::test_a_train_cleared_sha_lands_merged_onto_a_moved_origin_with_no_verdict_or_check_row_and_a_conflict_refuses`. Serves: reliable, fast.
+- `local.train.bisect-with-budget` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_a_red_train_of_four_lands_three_and_sends_the_culprit_back`; `fichero-builder/tests/test_train.py::test_the_extra_runs_never_pass_ceil_log2_n_plus_one`) — a red candidate is bisected: the first red rung is re-run over prefixes of the train until
+  one step is the culprit, then once over the rest. The extra runs never exceed ceil(log2(n)) + 1; a second culprit is left for
+  the next train. The culprit goes back to its lane with the failing rung's output.
+- `local.train.swift-tests-against-base` [OK] (#6589, #7095; built 2026-11-26) — the train's swift-tests rung is judged like
+  red-on-base: when a candidate's Swift tests fail naming cases, the train's base runs them once per base sha (kept as
+  `swift-base-<sha>.json` in the state dir), and the candidate is red only for the cases that fail on it and pass on the base; a
+  base that could not run, or does not compile, judges nothing. When the rest of a bisected train is red at the same rung on the
+  same named cases as the prefix, no step is sent back: they all wait for the next train. A run that ends in
+  `** TEST EXECUTE FAILED **` with failing cases (Swift Testing's run line, xcodebuild's `Failing tests:` list) is a test failure
+  naming them, never NOT RUN. (2026-11-26 12:06-13:20, train-20261126-120639: the land branch's own reds made every prefix red, the
+  first step was sent back for them under "NOT RUN", and nothing landed from 05:41.) Tests:
+  `fichero-builder/tests/test_train.py::test_the_trains_swift_tests_are_red_only_for_cases_that_pass_on_the_base_which_runs_once_per_sha`,
+  `::test_when_the_rest_is_red_on_the_same_cases_as_the_prefix_no_step_is_sent_back`,
+  `fichero-builder/tests/test_speed_tests.py::test_test_execute_failed_with_failing_cases_is_a_test_failure_naming_them_never_not_run`.
+  A whole-plan run is judged the same way (train-20261126-192626: xcodebuild's `Failing tests:` list says `Suite.case()`, no suite
+  was read, and the base never ran); with no suite read the base is never run and the red says `no case names, see tail`; the
+  lines that name the new cases are never cut from the rung's output. Tests:
+  `fichero-builder/tests/test_train.py::test_a_whole_plan_swift_red_is_judged_on_the_bases_failing_suites_and_searched_never_bisected`,
+  `fichero-builder/tests/test_train.py::test_a_swift_red_with_no_suite_read_from_its_names_never_runs_the_base`.
+- `local.train.swift-search-not-bisect` [OK] (#6589; built 2026-11-26; owner 2026-11-26: an 88-minute merge is not acceptable) — a
+  train red at swift-tests on cases that pass on its base is never bisected by prefixes: each step that touches Swift, newest
+  first, runs alone on the land branch with only those cases (`-only-testing`), and the first that fails one is sent back naming
+  them; the rest go on as after a bisect. When none fails alone, none goes back and all wait. The failing cases are read from the
+  run's whole log, never its cut tail (14:16: none read of 40, so the base judge could not run). (train-20261126-120639: 4404 s,
+  797 s on the candidate and 808, 1107 and 1471 s of whole-suite prefix runs.) Tests:
+  `fichero-builder/tests/test_train.py::test_a_swift_red_on_new_cases_searches_the_swift_steps_newest_first_with_only_those_cases_never_by_prefix`,
+  `::test_a_swift_red_no_single_step_reproduces_sends_none_back`,
+  `fichero-builder/tests/test_speed_tests.py::test_the_failing_cases_come_from_the_whole_log_and_a_selection_runs_only_those_suites`.
+  Every Swift red is searched this way, never bisected by prefixes; with no case names each Swift step runs alone on the suites its
+  own diff affects. A run the runner could not run is tried once more on another runner. Tests:
+  `fichero-builder/tests/test_train.py::test_a_swift_red_with_no_case_names_searches_the_swift_steps_alone_on_their_own_suites`,
+  `fichero-builder/tests/test_train.py::test_a_swift_run_the_runner_could_not_run_is_tried_once_on_another_runner`.
+  Every `-only-testing` value is `<swift_test_target>/<Suite>`, read from any form of a failing name, never a case name
+  (train-20261126-210725: `Suite.case()` went in raw and both runners refused it); names that read as no suite run nothing, never
+  the whole plan. xcodebuild refusing a selector ("isn't a member of the specified test plan or scheme") is a builder error with
+  one alert, never a runner failure and never retried. Tests:
+  `fichero-builder/tests/test_speed_tests.py::test_every_only_testing_value_is_target_slash_suite_even_from_case_names`,
+  `fichero-builder/tests/test_speed_tests.py::test_a_selector_the_test_plan_lacks_is_one_builder_error_alert_and_never_a_runner_retry`.
+- `local.train.swift-affected-suites` [OK] (#6589; built 2026-11-26) — with `[check].swift_test_target` and `[check].swift_test_dir`
+  set (unset: the whole suite, as before), the train's swift-tests run only the suites its Swift diff can affect: a changed test
+  file's own suites, and for any other changed Swift file the test files named after its type or naming it; a changed non-Swift
+  build input (other than the project file, file lists, docs), or more than 150 suites (296 suites cost what the whole plan did), runs the whole suite; no affected suite is
+  green with that said. The base judge runs the same selection, kept per selection. The nightly runs the whole suite. The build for
+  testing stays incremental in the runner's one kept DerivedData (`<gate>/derived`, never wiped per tree). Tests:
+  `fichero-builder/tests/test_speed_tests.py::test_swift_affected_picks_the_suites_a_changed_type_can_reach_and_falls_back_to_everything`,
+  `::test_a_second_build_reuses_the_same_derived_dir_and_never_a_fresh_one`,
+  `::test_a_test_plan_the_unit_run_does_not_use_keeps_the_selection_and_the_whole_run_says_why`. Fixed 2026-11-26
+  (train-20261126-152959 ran all 5077 tests for 1080 s, then a base run to the 30-minute cap): the keys are read from the
+  pinned rules, so a hand edit of the loop's checkout never reaches a train; a test plan other than the `-testPlan` the run uses
+  is not a unit build input; the swift-tests row of the `train` journal row says `selection` (`N suite(s)` or `whole: <why>`),
+  `base_seconds` and `base_selection`, and a red rung keeps its last lines as `tail`; the base judge runs only the suites of the
+  failing cases. Tests: `fichero-builder/tests/test_train.py::test_the_train_row_says_the_swift_selection_the_base_runs_seconds_and_a_reds_tail`,
+  `fichero-builder/tests/test_train.py::test_the_base_runs_only_the_suites_of_the_failing_cases`.
+  An `openapi.json` change selects the suites that name a schema or operation it changed, never the whole plan; the client's
+  Package or generator config still runs it whole. Tests:
+  `fichero-builder/tests/test_train.py::test_an_openapi_change_selects_the_suites_naming_its_changed_types_not_the_whole_plan`.
+- `local.train.time-limit` [OK] (#6589; built 2026-11-26) — a train never holds its steps longer than `[train].max_run_min`
+  (default 30): no run starts past it and a Swift test run is cut at it; the train ends `timeout`, every step not sent back waits
+  for the next train, and one alert says so (train-20261126-134056 ran 90 min with no result). Test:
+  `fichero-builder/tests/test_train.py::test_a_train_past_its_time_limit_stops_and_every_step_waits_again`.
+- `local.train.off-keeps-per-step` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_a_train_that_is_off_lands_each_step_by_itself`) — with `[train].enabled = false` a step runs the whole ladder alone and lands as before.
+- `local.train.journal-row` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_four_green_steps_land_together_after_one_swift_run`) — every train writes one journal row: its id, its steps, the candidate, the result, the steps
+  landed and the steps sent back.
+- `local.train.console-row` [OK] (#6589; test `fichero-builder/tests/test_train_queue.py::test_the_console_shows_a_train_as_one_row_with_its_steps_and_the_waiting_ones`) — `builder console` status lists the last trains (id, steps, candidate, result, landed, sent back)
+  and the steps waiting for the next one.
 
 ### From `dev-workflows.md` — Behaviours
 
@@ -1892,7 +2294,9 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
 - `dev-workflows.run.loop-blocked-watchdog` [PARTIAL] (#6466) — a `blocked` step never waits forever. `block` stamps `blocked_at` (a step blocked before this code is stamped when first seen); after `[loop].blocked_hours` (default 4) it is retried ONCE: a fresh session on its brief plus the question (`retry-<lane>-<step>.txt`; a worker lane's live session is closed first; an external lane with a head is re-taken as `done`), its alerts answered `retried`, one `queue` row `blocked-retry`. Blocked again that long, it is parked: moved to the end of its lane as `parked` with ONE alert (actions retry, park), so the batch queued behind it is the cursor's and nothing freezes; a parked step at the cursor waits for `queue resume`, an alert `retry`, or `builder done`. Test `fichero-builder/tests/test_loop.py::test_a_step_blocked_longer_than_the_limit_is_retried_once_in_a_fresh_session_then_parked_behind_the_next_batch`.
 - `dev-workflows.run.loop-dismiss-parks` [PARTIAL] (#6466) — Dismiss and Dismiss All never orphan a step: every dismissed alert whose step is still `blocked` parks that step (as above); a step in any other state is untouched. An auto send-back (see `run.loop-alerts`) also raises its alert (actions send-back, retry, park), superseded by the lane's next done, so a lane with no pane is never silent. Tests `fichero-builder/tests/test_alerts_clear.py::test_dismissing_a_blocked_steps_alert_parks_the_step_and_the_lane_goes_on`, `::test_dismiss_all_parks_every_blocked_step_behind_its_alerts`, `fichero-builder/tests/test_loop.py::test_an_auto_send_back_raises_an_alert_too`.
 - `dev-workflows.run.loop-auto-approve-pinned` [PARTIAL] (#6466; owner 2026-11-10 approved the harness fix's pinned diffs) — a maintainer lane's `needs-maintainer` refusal (and no other approval) is approved by itself only when every file its pinned diff names is in `[loop.approved_pinned]` at exactly that blob (`git rev-parse work-<lane>:<path>`): `maintainer` set for that head, state `done` again, one `queue` row `auto-approve`, no alert. A file not listed, a different blob, or a lane without `maintainer` is the alert as before; never by name alone. Test `fichero-builder/tests/test_loop.py::test_a_maintainer_lanes_pinned_diff_is_approved_by_itself_only_when_every_blob_matches_the_approved_list`.
+- `local.rules.which-file` [OK] (#6589; built 2026-11-26; test `fichero-builder/tests/test_follow_landed.py::test_a_live_check_key_that_differs_from_the_pinned_copy_is_named`) — the loop reads `[loop]`, `[queue]`, `[train]`, `[nightly]`, `[models]` and `[land]` from its own checkout's `harness.toml` (the `[loop]` keys again every tick); every ladder rung, review and train rung reads `[check]` (and the guard inputs under it) from the pinned copy of the land branch's commit, so a `[check]` change takes effect only once it is committed and landed. At start, one `rules` row `live-differs` names each `[check]` key whose live value differs from the pinned copy at the land branch's tip. Why: 2026-11-26, `swift_test_target` was set only in the live file and every train still ran the whole Swift suite. Serves: reliable.
 - `dev-workflows.run.loop-cleanup` [PARTIAL] (#6589 item 16) — when a landed step's head is an ancestor of origin/<land branch>, the loop removes that step's `land-<lane>` snapshot worktree with `git worktree remove`, never `--force`; a dirty tree stays and one `cleanup` row says why (once, not every tick). A worker lane with no queued or open step left also loses its tree `wt-<lane>` and, only when its branch is merged into origin/<land branch>, the branch (an unmerged one keeps tree and branch, with a row). Each removal is a `cleanup` journal row. Tests `fichero-builder/tests/test_loop.py::test_a_landed_lanes_snapshot_and_a_finished_worker_lanes_tree_and_merged_branch_are_removed_each_a_row`, `::test_a_dirty_snapshot_stays_with_a_row_that_says_why`, `::test_a_lane_with_steps_left_keeps_its_tree_and_branch`, `::test_an_unmerged_lane_branch_is_kept`, `::test_a_snapshot_a_later_batch_is_using_is_not_removed` (a snapshot is removed only when its HEAD is the step's head and no non-landed step names the same tree). Not yet: a real run on the manager's Mac.
+- `local.landed.prune-branch` [OK] (#6589; built 2026-11-26; test `fichero-builder/tests/test_loop.py::test_a_landed_lanes_branch_fully_on_the_land_branch_is_deleted_on_origin_and_one_with_its_own_commit_stays`) — when the cleanup above removes a finished lane's tree, it also deletes that lane's branch on origin when `git cherry` against origin/<land branch> shows no `+` (every commit is on the land branch, as itself or as a rebased copy); a branch with a commit of its own stays, with one `cleanup` row; a branch that is not on origin is left alone. The local branch counts as merged by the same test, so a rebased lane is cleaned up too. A tree is still removed only once it is clean. Why: 54 merged branches had piled up on origin. Serves: reliable.
 - `dev-workflows.run.loop-plan` [PARTIAL] (#6467; owner 2026-11-09: order the queue from the console, no manager) — `builder queue move --lane L --step S --to N` puts a queued or parked step at index N of the lane's steps (clamped to the cursor and the end); `queue park` sends a queued or blocked step to the end as parked; `queue unpark` makes a parked step queued; a landed step or one in flight is refused. `queue drop --text <why>` takes a PARKED step out of its lane for good, one `dropped` queue row holding the reason and its head; any other state, or no reason, is refused (#6589, 2026-11-15: superseded parks sat on the console for a week; test `fichero-builder/tests/test_queue_verb.py::test_queue_drop_takes_a_parked_step_out_of_its_lane_with_a_reason_and_refuses_anything_else`). The console's Plan clicks (↑ ↓ Park Unpark on a lane's queued steps, Start on a blocked, parked or idle lane = `queue resume`) are these verbs through `/api/action`, under the queue lock, no model in the path; `/api/status` says per lane `why` it waits (paused, held, finished, or the cursor step's state and reason) and its `queued` batches, and `events` (the last 15 queue, alert, loop, landed and console rows), shown on the page. Tests `fichero-builder/tests/test_queue_verb.py::test_queue_move_park_and_unpark_reorder_the_steps_behind_the_cursor_under_the_lock_and_refuse_the_rest`, `fichero-builder/tests/test_status_page.py::test_the_console_moves_parks_unparks_and_starts_through_the_queue_verbs`, `::test_api_status_says_why_a_lane_waits_and_lists_its_queued_batches_and_the_last_events`, `::test_the_page_wires_the_plan_clicks_to_the_queue_verbs`. Not yet (#6467 items 2, 3, 5): milestones and issue priority beyond the existing build-order reorder.
 - `dev-workflows.run.loop-current` [PARTIAL] (#6466) — the loop's agents run with `PYTHONUNBUFFERED=1` and the loop's stdout line-buffered, so loop.log is current; `harness.toml` of the loop's root is part of the code mark, so an edit re-execs the loop at the next quiet tick as a code change does. Tests `fichero-builder/tests/test_launchd.py::test_the_agents_run_unbuffered_so_loop_log_is_current`, `fichero-builder/tests/test_loop_survives.py::test_a_rules_edit_changes_the_code_mark_so_the_loop_re_execs`. Was: (#6589) the five `[loop]` keys of `dev-workflows.run.restart-rules-per-tick` are read at every tick and are left out of the mark, so editing them does not re-exec; every other rule is still in the mark.
 - `dev-workflows.run.restart-resets-nothing` [PARTIAL] (#6589; owner 2026-11-15: restarting the builder resets nothing) — a worker's `builder run` starts in its own session (`start_new_session`) and the loop's LaunchAgent sets `AbandonProcessGroup`, so `launchctl kickstart -k local.builder.loop` does not kill the worker tmux server and no lane restarts its session. Tests `fichero-builder/tests/test_builder_restart.py::test_the_loop_agent_abandons_its_process_group_so_a_kickstart_leaves_the_workers`. Not yet: a real kickstart on the manager's Mac.
@@ -2298,14 +2702,16 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
 
 #### E. Small, circumscribed workers
 
-- `agent-profiles.worker.small` [GAP] (#6625) (owner 2026-11-16) — a worker gets **one step**, a brief under 120 lines
+- `agent-profiles.worker.small` [PARTIAL] (#6625) (owner 2026-11-16) — a worker gets **one step**, a brief under 120 lines
   that names its files and its tests by path, and a diff bound **per role** (owner 2026-11-16: no single global
   number): a `diff_bound:` line in `roles/<role>.md`, lines changed with generated files excluded, smaller for
   bug-fixing and code-review, larger for the feature role; the bound is the role's whatever the stack; a role file with no bound refuses to start; the brief tool refuses a cluster with more than one step or a brief over the line cap, the policy hook
   counts the bound and the worker is told once then parked with a question; a step whose named files exceed the
   bound is split by `builder steps` before any brief. Acceptance: a two-step brief refuses; a 121-line brief refuses;
   a diff past the role's bound yields one tell and then a park row; a role file with no `diff_bound:` refuses; a brief
-  with no named test is refused for a code project. Test (to write): fichero-builder/tests/test_small_worker (new).
+  with no named test is refused for a code project. Built: the brief refusals (`brief_tool.cluster`), the `diff_bound:` refusal
+  (`profiles.role_bound`) and the policy hook's tell-then-park-marker on `git commit`; not built: the loop turning the marker into a
+  `parked` row, and `builder steps` splitting a step. Test: fichero-builder/tests/test_small_worker.py.
 
 #### F. Swift rungs and the UI smoke
 
@@ -2475,7 +2881,7 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
 
 - `builder-console.step.one-state` [PARTIAL] (#6643) (lane-qwen shows `done`, `paused`, and `blocked 4 h: retried once` at once;
   `done` means both "lane finished" and "worker said DONE, check pending") — a step is in exactly one of: `queued`, `sent`,
-  `said-done` (DONE received, check not run), `checking`, `reviewing`, `fixing` (round n of 2), `blocked`
+  `said-done` (DONE received, check not run), `checking`, `reviewing`, `train` (green on the cheap rungs, waiting for a merge train: `local.train.cheap-rungs-then-wait`), `fixing` (round n of 2), `blocked`
   (question, with the question), `red` (check failed, with the rung), `done-not-landed` (green and READY, not on the
   integration branch), `landed`, `parked` (`queue.STATES`). `paused` and `held` are **lane** flags shown beside the state
   ("said-done · lane paused since 11-08"), never a state; a lane is `finished` only when every step is final. `why` is the
@@ -2484,7 +2890,7 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   queued → sent → said-done → checking → red → fixing → said-done → checking → reviewing → done-not-landed → landed has at
   each point one state, a `why` about that state, and an age that resets; pausing the lane changes the flag and nothing
   else. Built: `queue.state_view` and the `entered_at` stamp; the console page does not show the state, age and flags yet. Test: fichero-builder/tests/test_step_state.py.
-- `builder-console.stale.acted-on` [GAP] (#6646) (a week-old half-finished lane is a defect, owner 2026-11-16; 30 of 50 lanes today
+- `builder-console.stale.acted-on` [PARTIAL] (#6646) (a week-old half-finished lane is a defect, owner 2026-11-16; 30 of 50 lanes today
   are finished-but-listed, two are 9-day-old paused trials, one is blocked on a question since 11-08) — every tick the loop
   lists each step older than `[loop].stale_hours.<state>` (defaults: said-done 1 h, checking 3 h, reviewing 3 h, fixing
   12 h, red 12 h, blocked 48 h, done-not-landed 24 h, queued 7 d, sent/working 2 × the step's usual run time) and acts,
@@ -2496,14 +2902,18 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   resume", and `retired` after 7 more unanswered. Nothing is ever silently left: a step the loop cannot move has an open
   alert, and the page's "Needs you" lists it with its age. Acceptance (fake clock, fake journal): each state past its
   hours gets its action and row; a lane paused 15 d is retired with a row; a step under its hours is untouched; the
-  `stale` rows for one tick never act twice on one step. Test (to write): fichero-builder/tests/test_stale (new).
+  `stale` rows for one tick never act twice on one step. Built: `stale.act`, run by `queue.tick`, cursor step only: said-done,
+  checking, reviewing, red, fixing and blocked, with `[loop].stale_hours` read each tick; not built: done-not-landed, queued and
+  sent steps, the paused or held lane's alert and `retired`, and "Needs you" listing the stale step. Test: fichero-builder/tests/test_stale.py.
 - `builder-console.step.moves-on` [PARTIAL] (#6646) (the queue feeds the next brief after a landing; a finished lane stops; a
   closed-out or retired step does not advance the cursor) — when a step reaches a final state the lane takes its next step
   itself, in the same session when one is open, else a fresh one; a lane with no step left takes the next step of its
   milestone from the work tree, and a milestone with none left frees the lane for the next milestone in order, within
   `[loop].lanes`. A `moves-on` row names the step left and the step taken. Acceptance: landing step 2 of 3 sends step 3
-  within a tick; a closed-out step 2 sends step 3; the last step landed starts the next milestone's first step. Test (to
-  write): fichero-builder/tests/test_moves_on (new).
+  within a tick; a closed-out step 2 sends step 3; the last step landed starts the next milestone's first step. Built: `queue.moved_on` writes the
+  `moves-on` row at each cursor advance (landed, already-landed, `closed-out`), the feed writes one when it takes a milestone, and a
+  `closed-out` step does not hold the lane; not built: taking the next step of the milestone from the work tree when a lane has none
+  left. Test: fichero-builder/tests/test_moves_on.py.
 - `builder-console.cleanup.is-a-step` [PARTIAL] (#6647) (`builder sweep` exists, offered by a button; `agent-profiles.cleanup.after-land`
   names the position) — cleanup is the last step of every lane and runs itself: once a step's head is on the integration
   branch its land snapshot goes; once a lane is `finished` its worker tree, feed, inbox and branch go after

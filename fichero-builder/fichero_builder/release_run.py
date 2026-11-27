@@ -223,6 +223,14 @@ def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, ch
         "publish": on("mac", "scripts/release-all.sh --dev --skip-dmg --skip-testflight --github --prerelease", 7200),
         "text": text_stage,
     }
+    import tomllib
+    from fichero_builder import ci
+    try:
+        cic = ci.load(tomllib.loads((root / "harness.toml").read_text()))
+    except (OSError, ValueError):
+        cic = ci.Cfg()
+    if cic.testflight == "xcode-cloud":  # local.ci.testflight-from-xcode-cloud: no local archive (it ran the machine out of memory)
+        out["ios"] = lambda: ci.testflight(cic, ci.Hosted(cic, str(root)), green_detail("freeze"), run_id)
     if merge_branch:
         out["merge"] = lambda: _sh(f"cd {shlex.quote(str(root))} && gh pr merge {shlex.quote(merge_branch)} --squash", "local", 600)
     return out

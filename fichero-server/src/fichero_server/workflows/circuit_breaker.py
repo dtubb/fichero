@@ -318,7 +318,8 @@ def _gemini_retry_delay(exc: BaseException) -> str | None:
 
 #: The words of a provider that has no credit, and of one that refused the key (a refusal that reached us as text only, a
 #: wrapper having dropped the status). ONE list for `classify_provider_error` and `fatal_cause`, so they cannot disagree.
-NO_CREDIT_WORDS = ("insufficient_quota", "insufficient quota", "key limit", "credit balance", "out of credits")
+NO_CREDIT_WORDS = ("insufficient_quota", "insufficient quota", "key limit", "credit balance", "out of credits",
+                   "credits are depleted", "insufficient balance")
 KEY_REFUSED_WORDS = ("invalid api key", "invalid_api_key", "incorrect api key", "401 unauthorized", "invalid x-api-key",
                      "authentication_error")
 

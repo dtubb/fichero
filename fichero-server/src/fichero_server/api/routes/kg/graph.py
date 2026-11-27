@@ -207,6 +207,11 @@ class TraverseResponse(BaseModel):
     nodes: list[TraverseNode]
     edges: list[TraverseEdge]
     max_depth: int
+    truncated: bool = False  # True when the walk stopped at TRAVERSE_NODE_LIMIT nodes
+
+
+#: The most nodes one traversal returns; a walk that meets more stops and sets `truncated`.
+TRAVERSE_NODE_LIMIT = 5000
 
 
 @router.get(
@@ -257,15 +262,20 @@ def traverse(
     edges: list[TraverseEdge] = []
     queue: list[tuple[str, int]] = [(entity_id, 0)]
 
-    while queue:
+    cut = False
+    while queue and not cut:
         current_id, current_depth = queue.pop(0)
         if current_depth >= max_depth:
             continue
 
         if include_claims:
-            for claim in db.query(KnowledgeClaim):
-                if current_id not in (claim.entity_ids or []):
-                    continue
+            room = max(TRAVERSE_NODE_LIMIT - len(nodes), 0)
+            claim_ids = db.claim_ids_mentioning([current_id], room + 1)
+            if len(claim_ids) > room:
+                cut = True
+                claim_ids = claim_ids[:room]
+            position = {cid: i for i, cid in enumerate(claim_ids)}
+            for claim in sorted(db.query_in(KnowledgeClaim, "id", claim_ids), key=lambda c: position[c.id]):
                 if claim.id not in visited:
                     visited.add(claim.id)
                     nodes.append(TraverseNode(
@@ -286,28 +296,32 @@ def traverse(
                 ))
 
         # Walk claim-to-claim links one hop further.
-        for link in db.query(KnowledgeClaimLink):
-            if link.claim_id == current_id and link.related_claim_id not in visited:
-                target = db.get(KnowledgeClaim, link.related_claim_id)
-                if target is None:
-                    continue
-                visited.add(target.id)
-                nodes.append(TraverseNode(
-                    id=target.id, type="claim", label=target.text[:120],
-                    depth=current_depth + 1,
-                    metadata={
-                        "relation": link.relation_type.value,
-                    },
-                ))
-                queue.append((target.id, current_depth + 1))
-                edges.append(TraverseEdge(
-                    source=current_id, target=target.id,
-                    type=link.relation_type.value,
-                    depth=current_depth + 1,
-                ))
+        for link in db.query_in(KnowledgeClaimLink, "claim_id", [current_id]):
+            if link.related_claim_id in visited:
+                continue
+            if len(nodes) >= TRAVERSE_NODE_LIMIT:
+                cut = True
+                break
+            target = db.get(KnowledgeClaim, link.related_claim_id)
+            if target is None:
+                continue
+            visited.add(target.id)
+            nodes.append(TraverseNode(
+                id=target.id, type="claim", label=target.text[:120],
+                depth=current_depth + 1,
+                metadata={
+                    "relation": link.relation_type.value,
+                },
+            ))
+            queue.append((target.id, current_depth + 1))
+            edges.append(TraverseEdge(
+                source=current_id, target=target.id,
+                type=link.relation_type.value,
+                depth=current_depth + 1,
+            ))
 
     return TraverseResponse(
-        entity_id=entity_id, nodes=nodes, edges=edges, max_depth=max_depth,
+        entity_id=entity_id, nodes=nodes, edges=edges, max_depth=max_depth, truncated=cut,
     )
 
 
@@ -405,6 +419,10 @@ class NeighborhoodResponse(BaseModel):
     truncated: bool  # True if `limit` cut off neighbors that would otherwise have been included
 
 
+#: The most statements one hop of a neighbourhood reads; a walk that meets more says so in `truncated`.
+NEIGHBOURHOOD_CLAIM_LIMIT = 20000
+
+
 def neighborhood_impl(
     db: Database,
     entity_id: str,
@@ -428,31 +446,13 @@ def neighborhood_impl(
     if focus is None:
         raise HTTPException(404, f"Entity not found: {entity_id}")
 
-    # Build an entity-id → entity lookup so we can decorate neighbor
-    # nodes with canonical_name / type / aliases without re-querying.
-    entities_all = db.query(KnowledgeEntity)
-    by_id: dict[str, KnowledgeEntity] = {ent.id: ent for ent in entities_all}
+    # Only the statements of the frontier are read, through `kg_mentions`; only the names on them are hydrated.
+    from fichero_server.knowledge.trash_visibility import trashed_document_ids, visible_claims
 
-    # Name → entity_id lookup for resolving literal `object` phrases
-    # against known entities. Case-insensitive, canonical-name + aliases.
+    trashed = trashed_document_ids(db)  # statements resting only on trashed pages draw no edge
+    by_id: dict[str, KnowledgeEntity] = {focus.id: focus}
     name_to_id: dict[str, str] = {}
-    for ent in entities_all:
-        name_to_id[ent.canonical_name.lower()] = ent.id
-        for alias in (ent.aliases or []):
-            name_to_id.setdefault(alias.lower(), ent.id)
-
-    # BFS over entity IDs, recording which hop we reached each at, AND
-    # collecting candidate edges. We DON'T truncate during traversal —
-    # arbitrary first-N hides the most-connected neighbors when the
-    # focus is a hub. Instead we collect everything in this hop budget,
-    # then rank + truncate at the end. (#993 — scaling-review
-    # bottleneck 5)
-    from fichero_server.knowledge.trash_visibility import visible_claims
-
-    # Statements resting only on trashed pages draw no edges (`safety.trash.dependants-go-with-their-source`).
-    claims_all = visible_claims(db, db.query(KnowledgeClaim))
-    if may_read is not None:  # a claim on a page the caller may not read draws no edge (#6320)
-        claims_all = [c for c in claims_all if not c.source_document_id or may_read(c.source_document_id)]
+    cut = False
     candidate_edges: list[NeighborhoodEdge] = []
     candidate_neighbor_ids: dict[str, int] = {}  # entity_id → hop
     frontier: set[str] = {entity_id}
@@ -460,7 +460,22 @@ def neighborhood_impl(
 
     for current_hop in range(1, hops + 1):
         next_frontier: set[str] = set()
-        for claim in claims_all:
+        claim_ids = db.claim_ids_mentioning(sorted(frontier), NEIGHBOURHOOD_CLAIM_LIMIT + 1)
+        if len(claim_ids) > NEIGHBOURHOOD_CLAIM_LIMIT:
+            cut = True
+            claim_ids = claim_ids[:NEIGHBOURHOOD_CLAIM_LIMIT]
+        position = {cid: i for i, cid in enumerate(claim_ids)}
+        hop_claims = sorted(db.query_in(KnowledgeClaim, "id", claim_ids), key=lambda c: position[c.id])
+        hop_claims = visible_claims(db, hop_claims, trashed)
+        if may_read is not None:  # a claim on a page the caller may not read draws no edge (#6320)
+            hop_claims = [c for c in hop_claims if not c.source_document_id or may_read(c.source_document_id)]
+        texts = {((c.metadata or {}).get("object") or "").strip().lower() for c in hop_claims}
+        texts |= {(c.claim_location or "").strip().lower() for c in hop_claims}
+        name_to_id.update(db.entity_ids_by_lowered_name(sorted(t for t in texts if t)))
+        wanted = {eid for c in hop_claims for eid in (c.entity_ids or [])} | set(name_to_id.values())
+        for ent in db.query_in(KnowledgeEntity, "id", sorted(wanted - by_id.keys())):
+            by_id[ent.id] = ent
+        for claim in hop_claims:
             cl_entities = list(claim.entity_ids or [])
             if not any(eid in frontier for eid in cl_entities):
                 continue
@@ -550,11 +565,8 @@ def neighborhood_impl(
 
     degree_by_entity: dict[str, int] = {}
     if rank == "degree":
-        # Computed on-demand because it's the only rank mode that needs
-        # global state. Cheap: scan claims once, tally entity_ids.
-        for claim in claims_all:
-            for eid in (claim.entity_ids or []):
-                degree_by_entity[eid] = degree_by_entity.get(eid, 0) + 1
+        # Statements per candidate from `kg_mentions`, leaving out those on trashed pages.
+        degree_by_entity = db.entity_mention_counts(list(candidate_neighbor_ids), outside_documents=sorted(trashed))
 
     def neighbor_sort_key(nid: str) -> tuple:
         if rank == "edge_weight":
@@ -570,7 +582,7 @@ def neighborhood_impl(
     ordered_ids = sorted(candidate_neighbor_ids.keys(), key=neighbor_sort_key)
     kept_ids = ordered_ids[:limit]
     kept_set: set[str] = set(kept_ids)
-    truncated = len(ordered_ids) > limit
+    truncated = len(ordered_ids) > limit or cut
 
     # Re-build neighbor_ids preserving the original hop annotation, and
     # filter edges down to those that touch at least one kept neighbor

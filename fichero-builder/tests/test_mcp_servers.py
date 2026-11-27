@@ -19,12 +19,13 @@ def world(tmp_path, monkeypatch):
     for rel, tools in (("roles/testing.md", ""), ("roles/manager.md", "tools: builder-verbs"), ("stacks/swift.md", "tools: xcode, apple-docs"),
                        ("stacks/python.md", "tools: engine"), ("projects/p/project.md", "tools: xcode, engine, builder-verbs")):
         (agents / rel).parent.mkdir(parents=True, exist_ok=True)
-        (agents / rel).write_text(f"# {rel}\n{tools}\n")
+        (agents / rel).write_text(f"# {rel}\n{tools}\n" + ("diff_bound: 300\n" if rel.startswith("roles/") else ""))
     (agents / "common").mkdir()
     (agents / "common" / "common.md").write_text("common\n")
     wt = tmp_path / "wt"
     wt.mkdir()
     subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(wt), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x"], check=True)  # a role's bound counts from the tree's head
     monkeypatch.setenv("HOME", str(tmp_path / "h"))
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
     monkeypatch.setattr(journal, "STATE", tmp_path / "state")

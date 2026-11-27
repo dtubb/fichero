@@ -94,6 +94,25 @@ def test_local_build_reads_the_xcconfig(tmp_path):
     assert rg.local_build(x) == 23
 
 
+def test_the_next_build_counts_the_committed_stamp_so_a_failed_run_does_not_compound(tmp_path):
+    """2026-11-26: each failed release-all run stamped the file one higher before it built (44 built, the file at 46), and the
+    publish refused the mismatch. The next build is one above what HEAD commits, however often a run stamped the file."""
+    import subprocess
+
+    def g(*a):
+        subprocess.run(["git", "-C", str(tmp_path), *a], capture_output=True, text=True, check=True)
+    g("init", "-q"), g("config", "user.email", "t@t"), g("config", "user.name", "t")
+    x = tmp_path / "Version.xcconfig"
+    x.write_text("MARKETING_VERSION = 2026.11.26\nCURRENT_PROJECT_VERSION = 43\n")
+    g("add", "."), g("commit", "-qm", "stamp")
+    x.write_text("MARKETING_VERSION = 2026.11.26\nCURRENT_PROJECT_VERSION = 45\n")  # two failed runs since the build of 44
+    assert rg.committed_build(x) == 43 and rg.next_build(rg.committed_build(x), [43]) == 44
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    (loose / "Version.xcconfig").write_text("CURRENT_PROJECT_VERSION = 50\n")
+    assert rg.committed_build(loose / "Version.xcconfig") == 50, "an untracked file: its own value"
+
+
 # 3. iOS: `.buttonStyle(.link)` surfaced only at the archive, 3 h in
 def test_ios_preflight_is_an_unsigned_generic_ios_build_that_shows_errors():
     def run(cmd, **_kw):

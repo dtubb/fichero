@@ -20,7 +20,8 @@
 > training job, the trainers, where a model lives and publishing (`compute/jobs-and-fine-tuning.md`, `compute.tune.*`,
 > `compute.model.*`, `compute.publish.*`); the Train sheet, the places table, the scorers and the A/B table
 > (`compute/training-and-evaluation.md`, `training.*`); what counts as ground truth (`source/ground-truth.md`); how each
-> runtime ships and runs (`ai/local-runtimes.md`); and the loop's UI, which is the Models and Cluster window
+> runtime ships and runs (`ai/local-runtimes.md`); and the loop's UI, which is the Training window
+> (`ui/training-window.md`), while models, their cards and run settings stay in the Models and Cluster window
 > (`ui/models-and-compute-window.md`, `models.loop.*`, `models.run-settings.*`).
 >
 > **Added 2026-11-22.** What each step must declare to enter this loop (its unit, its correction gestures, its held-out

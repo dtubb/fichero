@@ -122,15 +122,25 @@ PART_LEFT = re.compile(r"(?m)^PART (\d+) left:[ \t]*(\S.*)$")  # a batch's end l
 REDELIVER_S, REDELIVERIES = 60.0, 3  # a message with no turn started after this long is delivered again, up to this many times
 
 
-def register(name: str, worktree, handoff, model: str, window: int, tmux_session: str, reg_dir=None, handoff_tokens: int = 0) -> Path:
+def register(name: str, worktree, handoff, model: str, window: int, tmux_session: str, reg_dir=None, handoff_tokens: int = 0, feed=None) -> Path:
     """The registry entry the in-session handoff hook reads (scripts/harness_handoff_hook.py): with it the hook tells the
     worker at 85 % and nudges an idle one on; `successor: watcher` leaves ending and the successor to this loop."""
     d = Path(reg_dir or os.environ.get("FICHERO_HARNESS_REG") or Path.home() / ".claude" / "builders")
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{name}.json"
     p.write_text(json.dumps({"worktree": str(worktree), "handoff": str(handoff), "model": model, "window": window, "handoff_tokens": handoff_tokens,
-                             "session": tmux_session, "successor": "watcher"}, indent=1))
+                             "session": tmux_session, "successor": "watcher", **({"feed": str(feed), "turn_file": str(d / f"{name}.turn.json")} if feed else {})}, indent=1))
     return p
+
+
+def hook_turn(name: str, since: float, reg_dir=None) -> str:
+    """The last message of a turn the Stop hook wrote (`<name>.turn.json` in the registry folder: at, text) after `since`; '' when none."""
+    d = Path(reg_dir or os.environ.get("FICHERO_HARNESS_REG") or Path.home() / ".claude" / "builders")
+    try:
+        d = json.loads((d / f"{name}.turn.json").read_text())
+        return str(d["text"]) if float(d["at"]) >= since else ""
+    except (OSError, ValueError, KeyError, TypeError):
+        return ""
 
 
 def reading_of(first_commit: dict | None) -> dict:
@@ -237,7 +247,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         out(f"{name}: parked before the start, this week's {provider} spend {wk:.2f} of {spend.week_usd[provider]:.2f} USD")
         return "parked"
     handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
-    register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend))
+    register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend), feed=feed)
     gen = 1
     base = base_sha or procs.head()
     pane = attach or procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
@@ -248,6 +258,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     state: dict = {}
     base0, first_commit = base, None
     rules_bad = False  # the last read of the rules failed (one alert per spell)
+    ended_ticks = 0  # ticks a delivered message's turn ended with no DONE, WAITING or handoff line (local.run.turn-ended-without-done-alerts)
     unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
     outstanding, sent_turn = (outstanding if attach else True), -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
     # #6589 2026-11-20: a DONE counts only if printed after THIS message was delivered: a prompt arrived since it was sent (the session
@@ -255,11 +266,11 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     sent = {"prompts": -1, "text": "", "at": started, "words": "", "again": 0}
 
     def step_done(sha: str, moved: bool, **more) -> None:
-        nonlocal outstanding, base, unsaid, nudged
+        nonlocal outstanding, base, unsaid, nudged, ended_ticks
         journal.append("step", task=name, seq=seq, sha=sha, moved=moved, context=state.get("context", 0), window=spend.window, model=model,
                        **({"left": [{"part": int(n), "why": w[:300]} for n, w in PART_LEFT.findall(state.get("last_text", ""))]} if PART_LEFT.search(state.get("last_text", "")) else {}), **more)
         out(f"{name}: step {seq} {'done at ' + sha[:9] if moved else 'ended with no commit'}")
-        outstanding, base, unsaid, nudged = False, sha, 0, False
+        outstanding, base, unsaid, nudged, ended_ticks = False, sha, 0, False, 0
     while True:
         procs.sleep(tick_s)
         now = procs.now()
@@ -325,7 +336,25 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         if idle and not m and feed is not None and (w := WAITING.search(state.get("last_text", ""))):
             step_done(head, head != base, waiting=w.group(1)[:500])  # #6855: the queue raises the ask alert from this row; the session stays
             continue
-        unsaid = unsaid + 1 if head and head != base and not said else 0
+        ended = (hook_turn(name, sent["at"]) or (state.get("last_text", "") if idle else "")) if feed is not None and outstanding and delivered else ""
+        if ended and not DONE.search(ended) and not WAITING.search(ended) and HANDOFF_READY not in ended:
+            hd = procs.head()
+            tail, ended_ticks = ended.strip()[-300:], ended_ticks + 1
+            if ended_ticks == 1:
+                journal.append("watch", task=name, what=f"turn-ended-no-done: {tail}")
+                if tail.endswith("?"):  # a question: the same ask alert as WAITING, answered by send-back into this session
+                    step_done(hd, hd != base, waiting=tail)
+                    continue
+                words = f"Your turn ended without the DONE line: end your turn with the exact line DONE {hd[:7]}"
+                journal.append("watch", task=name, what=f"nudge: {words}")
+                procs.tell(pane, words)
+                sent["at"] = now  # the hook's file from before the nudge says nothing about the reply
+            elif ended_ticks >= 3:
+                step_done(hd, hd != base, waiting=f"the turn ended with no DONE or WAITING line: {tail}")
+                continue
+        elif ended_ticks:
+            ended_ticks = 0  # a turn that went on after the nudge starts the count again
+        unsaid = unsaid + 1 if head and head != base and not said and not ended_ticks else 0
         if unsaid == 2 and not nudged:
             words = f"Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE {head[:7]}"
             journal.append("watch", task=name, what=f"nudge: {words}")

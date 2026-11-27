@@ -794,6 +794,74 @@ def preview_simplify_segments(
     ])
 
 
+class JoinRowGroup(BaseModel):
+    #: The lines of one row in the page's reading order; the first keeps its id when they are joined.
+    segment_ids: list[str]
+    keep_id: str
+
+
+class JoinRowsPreview(BaseModel):
+    document_id: str
+    groups: list[JoinRowGroup]
+    #: The lines that sit in no row with another, so Join Lines in the Same Row leaves them as they are.
+    left_alone: list[str]
+
+
+@router.get("/document/{doc_id}/join-rows-preview", response_model=JoinRowsPreview)
+@off_loop
+def preview_join_rows(
+    doc_id: str,
+    segment_ids: Optional[list[str]] = Query(None, description="Only these lines are grouped; absent, every line of the page's working pass."),
+    db: Database = Depends(get_library_database),
+) -> JoinRowsPreview:
+    """The rows `segment.join_rows` would join, written nowhere (`segment-editor.join-rows-says-what-it-will-do`): the
+    groups of lines in one row and the lines left alone, so the menu can say it before it acts. Lines of different
+    regions are never one row."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+        working_pass,
+    )
+    from fichero_server.media import line_join
+
+    document = db.get(Document, doc_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    pass_id = working_pass(db, doc_id).pass_id
+    page = [row for row in db.query(Segment, document_id=doc_id) if row.deleted_at is None and row.pass_id == pass_id]
+    if segment_ids:
+        by_id = {row.id: row for row in page}
+        for segment_id in segment_ids:
+            if segment_id not in by_id:
+                raise HTTPException(status_code=404, detail=f"Segment not found on this page: {segment_id}")
+        chosen = set(segment_ids)
+        page_lines = [row for row in page if row.kind == "line" and row.id in chosen]
+    else:
+        page_lines = [row for row in page if row.kind == "line"]
+    outlined = [(row, line_join.outline_of(row.anchor)) for row in page_lines]
+    lines = [(row, outline) for row, outline in outlined if outline is not None]
+    rungs = direction_rungs(db, document)
+    vertical = _lines_are_vertical(page, document)
+    groups: list[JoinRowGroup] = []
+    grouped: set[str] = set()
+    for parent in dict.fromkeys(row.parent_segment_id for row, _outline in lines):
+        members = [(row, outline) for row, outline in lines if row.parent_segment_id == parent]
+        counted = _counting_readings(db, members[0][0].id)
+        _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        direction, _level = _direction_of(members[0][0], document, text, vertical, rungs)
+        for group in line_join.row_groups([outline for _row, outline in members], direction):
+            ids = [members[i][0].id for i in group]
+            groups.append(JoinRowGroup(segment_ids=ids, keep_id=ids[0]))
+            grouped.update(ids)
+    outline_by_id = {row.id: outline for row, outline in lines}
+    groups.sort(key=lambda group: min(line_join.bounds(outline_by_id[sid])[1] for sid in group.segment_ids))
+    return JoinRowsPreview(
+        document_id=doc_id, groups=groups,
+        left_alone=[row.id for row, _outline in lines if row.id not in grouped] + [row.id for row, outline in outlined if outline is None],
+    )
+
+
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
 @off_loop
 def list_document_segments(
@@ -2858,6 +2926,11 @@ class SegmentGroupLinesParams(BaseModel):
     order_entries: list[SegmentOrderEntryParams] = Field(
         default_factory=list, description="With region_id: the reading-order entries of the region and its lines, written back as they were.",
     )
+    replaced_region_id: Optional[str] = Field(
+        default=None,
+        description="With region_id: the region the lines came out of, which the group left empty and deleted; it is deleted again.",
+    )
+    replaced_region_version: Optional[int] = Field(default=None, description="With replaced_region_id: its version as last read.")
 
 
 class SegmentUngroupRegionParams(BaseModel):
@@ -2870,6 +2943,10 @@ class SegmentUngroupRegionParams(BaseModel):
     order_entries: list[SegmentOrderEntryParams] = Field(
         default_factory=list, description="The lines' reading-order entries as they were before a group; written back as recorded instead of by page position.",
     )
+    restore_region_id: Optional[str] = Field(
+        default=None,
+        description="A region a group deleted when it emptied it: it is brought back and the lines go into it instead of to the region's parent.",
+    )
 
 
 def _invert_group_lines(before, after, ctx: ActionContext):
@@ -2878,7 +2955,7 @@ def _invert_group_lines(before, after, ctx: ActionContext):
         return None
     return ("segment.ungroup_region", {
         "region_id": after["region_id"], "expected_version": after["region_version"],
-        "order_entries": after.get("order_entries", []),
+        "order_entries": after.get("order_entries", []), "restore_region_id": after.get("replaced_region_id"),
     })
 
 
@@ -2892,6 +2969,7 @@ def _invert_ungroup_region(before, after, ctx: ActionContext):
     return ("segment.group_lines", {
         "segment_ids": list(versions), "expected_versions": versions, "region_id": after["region_id"],
         "order_entries": after.get("order_entries", []),
+        "replaced_region_id": after.get("restored_region_id"), "replaced_region_version": after.get("restored_region_version"),
     })
 
 
@@ -2907,7 +2985,9 @@ def _action_segment_group_lines(db: Database, params: SegmentGroupLinesParams, c
     """Make a region from lines: a new region whose box is the union of the lines' shapes, in the lines' own parent
     (so a region of lines inside a region nests), and the lines move into it as its children, placed in every order by
     page position. One audit row, one undo. All or nothing: the lines must be live, at the versions the caller saw, in
-    one pass and under one parent. With `region_id` it brings back a region `segment.ungroup_region` took away."""
+    one pass and under one parent. When the lines are every live child of their parent region, that region is left with
+    no lines and is deleted in the same edit, and the new region takes its place under its parent (manager's ruling,
+    #6737). With `region_id` it brings back a region `segment.ungroup_region` took away."""
     _refuse_repeated_ids(params.segment_ids)
     rows = [_live_current_row(db, sid, _require_expected_version(params.expected_versions, sid)) for sid in params.segment_ids]
     first = rows[0]
@@ -2918,6 +2998,17 @@ def _action_segment_group_lines(db: Database, params: SegmentGroupLinesParams, c
             status_code=422, detail="the lines are inside different regions: select lines of one region (or none) to group them",
         )
     parent_id = first.parent_segment_id
+    emptied: Segment | None = None
+    if params.region_id is None and parent_id is not None:
+        taken = {row.id for row in rows}
+        old = db.get(Segment, parent_id)
+        if old is not None and all(c.id in taken or c.deleted_at is not None for c in db.query(Segment, parent_segment_id=old.id)):
+            emptied = old
+            parent_id = old.parent_segment_id
+    elif params.replaced_region_id is not None:
+        if params.replaced_region_version is None:
+            raise HTTPException(status_code=422, detail="replaced_region_version is required with replaced_region_id")
+        emptied = _live_current_row(db, params.replaced_region_id, params.replaced_region_version)
 
     audit_id = uuid.uuid4().hex
     if params.region_id is None:
@@ -2957,19 +3048,34 @@ def _action_segment_group_lines(db: Database, params: SegmentGroupLinesParams, c
     if params.region_id is None:
         order_entries = _reposition_entries(db, rows)
     else:
-        order_entries = _put_entries_back(db, [entry for entry in params.order_entries if entry.segment_id != region.id])
+        order_entries = _put_entries_back(db, [
+            entry for entry in params.order_entries if entry.segment_id not in (region.id, params.replaced_region_id)])
+    emptied_after: dict[str, Any] = {}
+    if emptied is not None:
+        from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+        snapshot_segment_version(db, emptied, deleted=True, actor=ctx.actor, audit_id=audit_id)
+        emptied.deleted_at = utc_now()
+        emptied.deleted_by = ctx.actor
+        db.save(emptied)
+        db.save(SegmentForwarding(
+            document_id=emptied.document_id, old_segment_id=emptied.id, kind="deleted",
+            new_segment_ids=[], actor=ctx.actor, audit_id=audit_id, sequence=db.next_forwarding_sequence(),
+        ))
+        order_entries = [*remove_segment_entries(db, [emptied.id]), *order_entries]
+        emptied_after = {"replaced_region_id": emptied.id, "replaced_region_version": emptied.version}
 
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
-        target_ids=[region.id, *[row.id for row in rows]],
+        target_ids=[region.id, *[row.id for row in rows], *([emptied.id] if emptied is not None else [])],
         before=None,
         after={
             "versions": after_versions, "region_id": region.id, "region_version": region.version,
-            "order_entries": order_entries,
+            "order_entries": order_entries, **emptied_after,
         },
         emit_type="segment.updated",
-        segment_ids=[region.id, *[row.id for row in rows]],
+        segment_ids=[region.id, *[row.id for row in rows], *([emptied.id] if emptied is not None else [])],
         pass_ids=[first.pass_id],
         document_ids=[first.document_id],
     )
@@ -2987,7 +3093,8 @@ def _action_segment_group_lines(db: Database, params: SegmentGroupLinesParams, c
 def _action_segment_ungroup_region(db: Database, params: SegmentUngroupRegionParams, ctx: ActionContext):
     """Ungroup a region: its live children go to the region's own parent (in the order by page position, or as the
     caller recorded them), then the region is deleted, like `segment.delete`. One audit row, one undo: the undo brings
-    the region back with the same children. A region with no children is just removed."""
+    the region back with the same children. A region with no children is just removed. With `restore_region_id` (the
+    undo of a group that emptied a region) that region is brought back and the lines go into it, not to the parent."""
     from fichero_server.api.routes.document.reading_orders import remove_segment_entries
 
     _assert_not_provisional_http(params.region_id, what="region_id")
@@ -2995,10 +3102,29 @@ def _action_segment_ungroup_region(db: Database, params: SegmentUngroupRegionPar
     children = [row for row in db.query(Segment, parent_segment_id=region.id) if row.deleted_at is None]
 
     audit_id = uuid.uuid4().hex
+    target_id = region.parent_segment_id
+    restored_after: dict[str, Any] = {}
+    if params.restore_region_id is not None:
+        back = db.get(Segment, params.restore_region_id)
+        if back is None:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {params.restore_region_id}")
+        if back.deleted_at is None:
+            raise HTTPException(status_code=409, detail=f"segment {back.id!r} is not deleted")
+        _assert_restore_target_live(db, back)
+        snapshot_segment_version(db, back, deleted=True, actor=ctx.actor, audit_id=audit_id)
+        back.deleted_at = None
+        back.deleted_by = None
+        db.save(back)
+        db.save(SegmentForwarding(
+            document_id=back.document_id, old_segment_id=back.id, kind="restored",
+            new_segment_ids=[], actor=ctx.actor, audit_id=audit_id, sequence=db.next_forwarding_sequence(),
+        ))
+        target_id = back.id
+        restored_after = {"restored_region_id": back.id, "restored_region_version": back.version}
     after_versions: list[dict[str, Any]] = []
     for row in children:
         snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
-        row.parent_segment_id = region.parent_segment_id
+        row.parent_segment_id = target_id
         db.save(row)
         after_versions.append({"segment_id": row.id, "version": row.version})
     order_entries = _put_entries_back(db, params.order_entries) if params.order_entries else _reposition_entries(db, children)
@@ -3016,14 +3142,14 @@ def _action_segment_ungroup_region(db: Database, params: SegmentUngroupRegionPar
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
-        target_ids=[region.id, *[row.id for row in children]],
+        target_ids=[region.id, *[row.id for row in children], *([restored_after["restored_region_id"]] if restored_after else [])],
         before=None,
         after={
             "versions": after_versions, "region_id": region.id, "region_version": region.version,
-            "order_entries": [*order_entries, *region_entries],
+            "order_entries": [*order_entries, *region_entries], **restored_after,
         },
         emit_type="segment.updated",
-        segment_ids=[region.id, *[row.id for row in children]],
+        segment_ids=[region.id, *[row.id for row in children], *([restored_after["restored_region_id"]] if restored_after else [])],
         pass_ids=[region.pass_id],
         document_ids=[region.document_id],
     )
@@ -4025,6 +4151,114 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
     return {"segment_ids": restored_ids}, spec
 
 
+# --- join the lines of a row (segment-editor.join-lines-in-the-same-row) ------
+
+
+class SegmentJoinRowsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Each row as the preview answered it (the lines are objects, not bare id lists, so the write check
+    #: reads their ids as targets).
+    groups: list[JoinRowGroup] = Field(description="Each row's lines and the one that keeps its id.")
+    expected_versions: dict[str, int] = Field(description="Each line's version as last read, {segment_id: version}; a changed line refuses the whole join.")
+
+
+def _invert_join_rows(before, after, ctx: ActionContext):
+    """One `segment.unmerge_rows` carrying each group's own `segment.unmerge` params, worked out from `after` alone."""
+    if not after:
+        return None
+    steps = [_invert_merge(None, merged, ctx) for merged in after.get("merges", [])]
+    if not steps or any(step is None for step in steps):
+        return None
+    return "segment.unmerge_rows", {"steps": [params for _name, params in steps]}
+
+
+@action(
+    "segment.join_rows",
+    SegmentJoinRowsParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_join_rows,
+    redo_via_own_invert=True,
+)
+def _action_join_rows(db: Database, params: SegmentJoinRowsParams, ctx: ActionContext):
+    """Each group of lines joined by `segment.merge` (outlines, baselines, readings and words, across regions), all in
+    this one action, so one undo takes every group back. All or nothing: a refused group joins none."""
+    if not params.groups:
+        raise HTTPException(status_code=422, detail="groups is empty: nothing to join")
+    short = [group.segment_ids for group in params.groups if len(group.segment_ids) < 2]
+    if short:
+        raise HTTPException(status_code=422, detail=f"a row needs two or more lines: {short}")
+    _refuse_repeated_ids([segment_id for group in params.groups for segment_id in group.segment_ids])
+    merges: list[dict] = []
+    kept_ids: list[str] = []
+    representation_ids: list[str] = []
+    versions: dict[str, int] = {}
+    target_ids: list[str] = []
+    pass_ids: set[str] = set()
+    document_ids: set[str] = set()
+    for group in params.groups:
+        for segment_id in group.segment_ids:
+            _require_expected_version(params.expected_versions, segment_id)
+        result, merged = _action_merge(db, SegmentMergeParams(
+            segment_ids=group.segment_ids, keep_id=group.keep_id,
+            expected_versions={segment_id: params.expected_versions[segment_id] for segment_id in group.segment_ids},
+            join_geometry=True, move_into_region=True,
+        ), ctx)
+        merges.append(merged.after)
+        kept_ids.append(group.keep_id)
+        representation_ids.extend(result["representation_ids"])
+        versions.update(merged.after["versions"])
+        target_ids.extend(merged.target_ids)
+        pass_ids.update(merged.pass_ids)
+        document_ids.update(merged.document_ids)
+    spec = ChangeSpec(
+        audit_id=uuid.uuid4().hex,
+        domains=["segment"],
+        target_ids=target_ids,
+        before=None,
+        after={"kept_ids": kept_ids, "merges": merges, "versions": versions},
+        emit_type="segment.merged",
+        segment_ids=target_ids,
+        pass_ids=list(pass_ids),
+        document_ids=list(document_ids),
+    )
+    return {"kept_ids": kept_ids, "representation_ids": representation_ids}, spec
+
+
+class SegmentUnmergeRowsParams(BaseModel):
+    """Internal: `segment.join_rows`' inverse only, one `segment.unmerge` per group."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    steps: list[SegmentUnmergeParams]
+
+
+@action("segment.unmerge_rows", SegmentUnmergeRowsParams, domains=["segment"], undoable=False)
+def _action_unmerge_rows(db: Database, params: SegmentUnmergeRowsParams, ctx: ActionContext):
+    restored: list[str] = []
+    versions: dict[str, int] = {}
+    pass_ids: set[str] = set()
+    document_ids: set[str] = set()
+    for step in params.steps:
+        _result, spec = _action_unmerge(db, step, ctx)
+        restored.extend(spec.after["segment_ids"])
+        versions.update(spec.after["versions"])
+        pass_ids.update(spec.pass_ids)
+        document_ids.update(spec.document_ids)
+    return {"segment_ids": restored}, ChangeSpec(
+        audit_id=uuid.uuid4().hex,
+        domains=["segment"],
+        target_ids=restored,
+        before=None,
+        after={"segment_ids": restored, "versions": versions},
+        emit_type="segment.merged",
+        segment_ids=restored,
+        pass_ids=list(pass_ids),
+        document_ids=list(document_ids),
+    )
+
+
 # --- redraw an outline from its baseline (segment-editor) -----------------
 
 
@@ -4291,7 +4525,7 @@ class SegmentConvertLevelParams(BaseModel):
 def _action_convert_level(db: Database, params: SegmentConvertLevelParams, ctx: ActionContext):
     """Change each segment's kind (`segment-editor.convert-level`); shape, id, readings and order entries are kept.
     A region becomes a line with a baseline along the lower third of its box; a line keeps its baseline as a region.
-    A region that holds lines is refused (merging their text is not built), as is a segment already at that level.
+    A region that holds lines is refused with "This region holds N lines; move or delete them first" (manager's ruling: no merge), as is a segment already at that level.
     One action, one undo, all or nothing."""
     _refuse_repeated_ids(params.segment_ids)
     rows: list[Segment] = []
@@ -4305,12 +4539,14 @@ def _action_convert_level(db: Database, params: SegmentConvertLevelParams, ctx: 
         not_regions = [row.id for row in rows if row.kind != "region"]
         if not_regions:
             raise HTTPException(status_code=422, detail=f"only a region becomes a line: {not_regions}")
-        parents = {child.parent_segment_id for child in db.query_in(Segment, "parent_segment_id", [row.id for row in rows])
-                   if child.deleted_at is None}
-        holding = [row.id for row in rows if row.id in parents]
-        if holding:
-            raise HTTPException(
-                status_code=422, detail=f"these regions hold lines, so they cannot become one line: {holding}")
+        held: dict[str, int] = {}
+        for child in db.query_in(Segment, "parent_segment_id", [row.id for row in rows]):
+            if child.deleted_at is None:
+                held[child.parent_segment_id] = held.get(child.parent_segment_id, 0) + 1
+        if held:
+            raise HTTPException(status_code=422, detail="; ".join(
+                f"This region holds {n} {'line' if n == 1 else 'lines'}; move or delete them first ({region_id})"
+                for region_id, n in held.items()))
     elif any(row.kind != "line" for row in rows):
         raise HTTPException(status_code=422, detail="only a line becomes a region")
 
@@ -6527,6 +6763,22 @@ async def merge_segments(
     )
     result = registry.invoke(db, "segment.merge", params.model_dump(mode="json"), ctx)
     return result.result
+
+
+@router.post("/join-rows")
+async def join_rows(
+    params: SegmentJoinRowsParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.join_rows", params.model_dump(mode="json"), ctx)
+    return {**result.result, "audit_id": result.audit_id}
 
 
 @router.post("/split")

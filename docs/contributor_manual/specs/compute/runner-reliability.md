@@ -105,6 +105,11 @@ a download) and takes up the first item not done; it never redoes a done item an
 survives a relaunch as paused (`activity.relaunch.only-running-work-resumes`); the open never continues it. One pause
 per cause per run: a second page meeting the same cause joins the pause, it does not fail.
 
+A run the engine's death or stop cut off takes the same path (owner 2026-11-21, #6732, #6863 item 3): the next open holds
+it `paused`, never failed and never "stalled"; the launch alert lists it, one item per run, with Continue, which takes up
+the first item not done, and Leave Paused. Only a Continue whose resume cannot proceed fails the run, with the reason. A
+run with no checkpoint has nothing to resume from and is failed at the open, as `compute.run.interrupted-on-start` says.
+
 ### 3. One place it is shown
 
 The Activity row (the states table of `ui/activity-pane.md`: paused with its cause as its line, blocked under its
@@ -410,8 +415,12 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   from the selection runner goes through the same lane, the same table and the same pause path as a recipe's step; a
   refusal before Start is the typed refusal alert; a failure mid-run is the one alert; a start that resolves to nothing says
   so in words (never "resolved to 0 processable files" from the workflow row itself, #4961); the bar sends no model override
-  a workflow cannot take (#4963). Built: the typed refusal on the hand-run paths (uncompiled); owed: the mid-run alert, the
-  two scope bugs.
+  a workflow cannot take (#4963). Built (uncompiled): the typed refusal on the hand-run paths; Start and the folder's run show
+  the engine's refusal where pressed; a workflow that cannot start is titled for a run, never "Import Error"; a chain the app
+  cannot follow says so; a batch run with an empty scope, no project or a workflow not in the library says so; a Stop or a
+  Continue the engine refuses is shown; the workflow row is no scope (#4961); the bar sends no model override to a workflow
+  that takes none (#4963); the bar says when a pinned model is not sent to a workflow that takes none (#4963). Owed:
+  the mid-run alert, the bar's model control disabled with its reason.
 - `runner.hand-run.redo-selection` — **[PARTIAL]** (#6744, #6602) "Run a Step Again on the Selection" in a library row's
   context menu (`RunStepAgainOnSelectionMenu`) runs the chosen step on the selected folders and items as one run: the pages
   are the selection with each folder expanded to its files (`RecipeFolderScope.redoPages`, once, no duplicates). The menu
@@ -420,9 +429,11 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   save. A refused Start, or a refused folder run, shows the engine's words in `RunRefusalAlert`. Tests:
   `RedoScopeTests`, `RunRefusalAlertTests` (the words), the `steps` expectation in `RecipeSetupStoreTests`
   (uncompiled); owed: a test of the menu's visibility rule and of `RunRefusalAlert.show` (a platform alert, no seam).
-- `runner.hand-run.never-swallowed` — **[GAP]** (#3931, #6602) no hand-run path drops the engine's error body: every
+- `runner.hand-run.never-swallowed` — **[PARTIAL]** (#3931, #6602) no hand-run path drops the engine's error body: every
   `.undocumented(statusCode, _)` site that starts work reads the engine's `detail` and shows its words (182 sites drop it,
-  #3931); a refused grant shows the engine's reason (#6602).
+  #3931); a refused grant shows the engine's reason (#6602). Built (uncompiled): Start, the folder's run, the batch service
+  (`BatchServiceError.engineRefused`), a provider that fails to add and a model that fails to delete. Owed: the remaining
+  run-starting `.undocumented` sites.
 
 ### F. The engine: one failure, on the run (carried from the former failure-alerts spec, 2026-11-18)
 

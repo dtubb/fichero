@@ -140,3 +140,16 @@ def test_the_committed_rules_file_loads_and_every_auto_rule_the_code_reads_is_re
     src = "\n".join(p.read_text() for p in (root / "fichero-builder" / "fichero_builder").glob("*.py"))
     read = set(re.findall(r'"([a-z0-9-]+)" (?:not )?in [a-z_.]*auto\b', src))
     assert read and not read - set(check_tool.AUTO_RULES), f"rules the code reads that the parser refuses: {sorted(read - set(check_tool.AUTO_RULES))}"
+
+
+def test_a_live_check_key_that_differs_from_the_pinned_copy_is_named(tmp_path):
+    """local.rules.which-file: [check] is read from the pinned commit copy, so a live-only edit is named at start, one line per key."""
+    from fichero_builder import check_tool
+    pins = tmp_path / "pins" / "pinned-abcdef1"
+    pins.mkdir(parents=True)
+    (tmp_path / "harness.toml").write_text(f'[land]\npinned_dir = "{tmp_path / "pins"}"\n[check]\nswift_test_target = "FicheroTests"\nparallel = 2\n')
+    (pins / "harness.toml").write_text('[check]\nparallel = 2\n')
+    (w,) = check_tool.live_vs_pinned(tmp_path, "abcdef1234")
+    assert w.startswith("[check].swift_test_target differs from the pinned pinned-abcdef1") and '"FicheroTests"' in w and "pinned null" in w
+    (pins / "harness.toml").write_text('[check]\nswift_test_target = "FicheroTests"\nparallel = 2\n')
+    assert check_tool.live_vs_pinned(tmp_path, "abcdef1234") == [] and check_tool.live_vs_pinned(tmp_path, "0000000") == []

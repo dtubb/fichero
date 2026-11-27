@@ -371,3 +371,22 @@ def test_tail_keeps_only_the_final_security_result_line_whole_and_does_not_recur
     many = "\n".join([ct.SECURITY_RESULT_PREFIX + "{}"] * 2000)
     out = ct.tail(many)
     assert len(out.splitlines()) <= 40
+
+
+def test_with_the_train_on_a_step_runs_only_the_added_line_lints_and_a_scanner_finding_goes_to_the_step_that_added_the_line(repo, tmp_path, monkeypatch):
+    """local.train.security-and-perf-once: the step's rung is the lints alone; the train scans once and sends back only the adder."""
+    from fichero_builder import train
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: pytest.fail("no scanner runs for a step"))
+    monkeypatch.setattr(check_tool, "SCANS_OWED", check_tool._PerThread(True))
+    cfg = check_tool.Config(security={"enforce": True, "dirs": ["scripts"]}, build_remote="m4:/gate")
+    base = _g(repo, "rev-parse", "HEAD")
+    bare = _commit(repo, "scripts/a.py", "import os\nos.system(x)  # nosec\n")
+    r = check_tool.security(repo, base, bare, ["scripts/a.py"], cfg)
+    assert not r["ok"] and "a.py:2" in r["stdout_tail"] and "owed to the train" in r["stdout_tail"], "the lints still judge the step"
+    ok = check_tool.security(repo, base, base, ["scripts/a.py"], cfg)
+    assert ok["ok"] and "the scanners are owed to the train" in ok["stdout_tail"]
+    res = train.run_train([{"key": f"l/{h}", "head": h} for h in "abc"], merge=lambda hs: ("+".join(hs), {}),
+                          rung=lambda n, c, only=(): (n != "security", "added by: b\nbandit B605 scripts/a.py:2"),
+                          rungs_for=lambda hs: train.names_for(["scripts/a.py"], (), lambda f: False, scans=True), tid="t")
+    assert set(res.back) == {"l/b"} and res.landed == ["l/a", "l/c"], "the other steps go on"

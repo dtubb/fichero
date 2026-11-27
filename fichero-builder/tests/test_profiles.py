@@ -43,7 +43,7 @@ def test_common_is_first_project_free_and_carries_policy_and_trailer():
 
 def test_assembly_order_and_a_planted_file_is_not_obeyed(tmp_path):
     agents = tmp_path / "agents"
-    for sub, name, body in (("common", "common", "COMMON {{TRAILER}} {{POLICY}}"), ("roles", "feature", "ROLE"), ("stacks", "python", "STACK"),
+    for sub, name, body in (("common", "common", "COMMON {{TRAILER}} {{POLICY}}"), ("roles", "feature", "ROLE\ndiff_bound: 300"), ("stacks", "python", "STACK"),
                             ("projects/demo", "project", "PROJECT")):
         (agents / sub).mkdir(parents=True, exist_ok=True)
         (agents / sub / f"{name}.md").write_text(body)
@@ -66,3 +66,11 @@ def test_the_trailer_names_the_model_by_its_display_name_from_models_display_and
     assert profiles.trailer("Qwen3-Coder-Next", "opencode") == "Written-By: Qwen3-Coder-Next using opencode using Fichero Builder"
     (tmp_path / "harness.toml").write_text('[models.display]\nsonnet = "Claude Sonnet 9"\n')  # a changed alias is a config edit, not a code edit
     assert profiles.trailer("sonnet", "Claude Code", root=tmp_path).startswith("Written-By: Claude Sonnet 9 using")
+
+
+def test_the_common_prompt_says_small_commits_and_only_added_commits_after_done():
+    """local.step.small-commits-one-landing: every worker hears it, whatever its role."""
+    text = profiles.assemble(ROOT, **RUN)
+    for words in ("commit each logical change by itself", "After your first DONE only add commits", "never amend, squash or rebase",
+                  "A step lands whole"):
+        assert words in text, words

@@ -186,6 +186,16 @@ Tests to write sit in `fichero-server/tests/unit/training/` unless a path says o
   row names a registered step and every model-capable step has a row, or the walk fails naming the difference.
   *Test (to write):* test_step_contract_walk.py.
 
+- `stepcontract.every-stage-and-workflow-is-trainable` — **[GAP]** (#5941, #5337; owner 2026-11-26) every stage or
+  workflow can be distilled or fine-tuned: each model-capable stage of a recipe and each model-capable node of a
+  workflow, run inside a recipe or alone, enters the one loop through its contract, by distillation from a teacher, by
+  fine-tuning on a person's corrections, or both; the engine's one answer per step (`distill.loop.one-answer-per-step`)
+  is given for a workflow's node as for a recipe's step; and no surface has a training mechanism of its own (the canvas
+  recognizers, `ui/canvas-organize.md`, are the first to rely on this). A stage that cannot be trained says "neither"
+  with its reason, as the contract already requires. *Test (to write):* test_every_stage_and_workflow_is_trainable.py
+  (a recipe stage and a node of a workflow run alone each read back a loop answer from the same function; a job that
+  trains by a path of its own is refused by the walk).
+
 ### B. Ground truth, kept apart
 
 - `correct.truth.apart-and-attributed` — **[GAP]** (#5404, #4947) for every step, a person's correction is a record of
@@ -289,8 +299,8 @@ The shared core, in the `read-any-hand` milestone. Engine before app. Each step 
 ### Stage 1 — The contract and the ground truth
 
 #### Step 1.1 — Every step declares its contract; a step without one is refused
-- Behaviours: `stepcontract.every-step-declares-six`, `stepcontract.recipe-refuses-a-step-without-one`, `stepcontract.table-matches-the-registry`
-- Tests: test_step_contract.py, test_step_contract_walk.py
+- Behaviours: `stepcontract.every-step-declares-six`, `stepcontract.recipe-refuses-a-step-without-one`, `stepcontract.table-matches-the-registry`, `stepcontract.every-stage-and-workflow-is-trainable`
+- Tests: test_step_contract.py, test_step_contract_walk.py, test_every_stage_and_workflow_is_trainable.py
 - Size: M
 
 #### Step 1.2 — One reader of a step's ground truth; corrections apart; unsure teaches nothing

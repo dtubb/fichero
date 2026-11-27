@@ -60,6 +60,8 @@ extension ContentView {
         for step: StagedWorkflowStep,
         stagedCount: Int = 1
     ) -> (provider: String?, model: String?) {
+        // A workflow that takes no override gets none, pinned or not (#4963): the engine refuses the run otherwise.
+        guard WorkflowBarPolicy.stepAcceptsRunOverride(step) else { return (nil, nil) }
         // A pin the step's tool cannot use is NOT sent (R-11, 2026-09-04):
         // the engine would decline to stamp it and the node would resolve its
         // tier default anyway, so sending it would only make the bar's
@@ -177,7 +179,7 @@ extension ContentView {
                 : effective)
         guard !selectedIds.isEmpty else {
             workflowLogger.warning("runWorkflowOnSelection: no selection — nothing to run")
-            importError = "Select one or more documents before running a workflow."
+            importError = RunStartWords.noSelection
             return
         }
 
@@ -342,7 +344,11 @@ extension ContentView {
             to: threadId,
             onCancel: { [weak workflowStreamService] in
                 Task { @MainActor in
-                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                    do {
+                        try await workflowStreamService?.stopWorkflow(threadId: threadId)
+                    } catch {
+                        RunRefusalAlert.show(RunStartWords.stopFailure(error), title: RunStartWords.stopTitle)
+                    }
                 }
             }
         )
@@ -387,7 +393,7 @@ extension ContentView {
             // Not a failure to explain in the banner: the alert says what was refused and offers the way through.
             executionObserver.cloudRefusal = CloudRefusalPrompt(refusal: refusal, resend: resend)
         } else {
-            importError = "Workflow failed to start: \(error.localizedDescription)"
+            importError = RunStartWords.workflowStartFailure(error)
         }
         workflowLogger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
         executionObserver.endExecution(threadId: threadId, status: .failed)
@@ -448,9 +454,13 @@ extension ContentView {
         let service = workflowStreamService
         observer.cloudRefusal = CloudRefusalPrompt(refusal: refusal) { once in
             Task { @MainActor in
-                try? await service.resumeWorkflow(
-                    threadId: runId, allowCloudOnce: once.allowCloud, overCapOnce: once.overCap,
-                    onEvent: { observer.handleEvent($0, forThreadId: runId) })
+                do {
+                    try await service.resumeWorkflow(
+                        threadId: runId, allowCloudOnce: once.allowCloud, overCapOnce: once.overCap,
+                        onEvent: { observer.handleEvent($0, forThreadId: runId) })
+                } catch {
+                    RunRefusalAlert.show(RunStartWords.resumeFailure(error), title: RunStartWords.resumeTitle)
+                }
             }
         }
     }

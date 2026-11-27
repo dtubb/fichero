@@ -77,6 +77,7 @@ extension LibraryView {
             // Absence-read-as-success: a silent return here is a Run click
             // that did nothing. Name it so the console answers the report.
             logger.warning("runBatchWorkflow: empty scope — no run started")
+            RunRefusalAlert.show(RunStartWords.noSelection)
             return
         }
 
@@ -202,11 +203,13 @@ extension LibraryView {
     ) -> (library: LibraryManager.LibraryReference, workflowName: String)? {
         guard let library = activeLibraryReference else {
             logger.error("runBatchWorkflow: no library reference — cannot run \(workflowId)")
+            RunRefusalAlert.show(RunStartWords.noLibrary)
             return nil
         }
         let workflows = library.workflowStore.workflows
         guard Self.workflowIsRunnable(workflowId: workflowId, in: workflows) else {
             logger.error("runBatchWorkflow: \(workflowId) not in execution library — refusing to send")
+            RunRefusalAlert.show(RunStartWords.notRunnableHere)
             return nil
         }
         let workflowName = workflows.first(where: { $0.id == workflowId })?.name ?? workflowId

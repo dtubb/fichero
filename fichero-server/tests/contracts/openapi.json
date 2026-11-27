@@ -5979,6 +5979,64 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/join-rows-preview": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Preview Join Rows",
+        "description": "The rows `segment.join_rows` would join, written nowhere (`segment-editor.join-rows-says-what-it-will-do`): the\ngroups of lines in one row and the lines left alone, so the menu can say it before it acts. Lines of different\nregions are never one row.",
+        "operationId": "preview_join_rows_api_segments_document__doc_id__join_rows_preview_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "segment_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true,
+              "description": "Only these lines are grouped; absent, every line of the page's working pass.",
+              "title": "Segment Ids"
+            },
+            "description": "Only these lines are grouped; absent, every line of the page's working pass."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinRowsPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}": {
       "get": {
         "tags": [
@@ -6705,6 +6763,61 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Merge Segments Api Segments Merge Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/join-rows": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Join Rows",
+        "operationId": "join_rows_api_segments_join_rows_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentJoinRowsParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Join Rows Api Segments Join Rows Post"
                 }
               }
             }
@@ -78276,6 +78389,56 @@
         "title": "JobTree",
         "description": "A job and everything under it: a run, its steps, their pages (`activity.jobs-are-a-tree`)."
       },
+      "JoinRowGroup": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Segment Ids"
+          },
+          "keep_id": {
+            "type": "string",
+            "title": "Keep Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_ids",
+          "keep_id"
+        ],
+        "title": "JoinRowGroup"
+      },
+      "JoinRowsPreview": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/JoinRowGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "left_alone": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Left Alone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "groups",
+          "left_alone"
+        ],
+        "title": "JoinRowsPreview"
+      },
       "JsonlExportRequest": {
         "properties": {
           "output_path": {
@@ -99346,6 +99509,33 @@
         ],
         "title": "SegmentInspectRead"
       },
+      "SegmentJoinRowsParams": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/JoinRowGroup"
+            },
+            "type": "array",
+            "title": "Groups",
+            "description": "Each row's lines and the one that keeps its id."
+          },
+          "expected_versions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Expected Versions",
+            "description": "Each line's version as last read, {segment_id: version}; a changed line refuses the whole join."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "groups",
+          "expected_versions"
+        ],
+        "title": "SegmentJoinRowsParams"
+      },
       "SegmentListResponse": {
         "properties": {
           "document_id": {
@@ -108315,6 +108505,11 @@
           "max_depth": {
             "type": "integer",
             "title": "Max Depth"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
           }
         },
         "type": "object",

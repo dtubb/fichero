@@ -1701,6 +1701,9 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("GET", "/segments/document/{doc_id}/validate"): [],  # read-only: what is wrong before an export
     ("GET", "/segments/document/{doc_id}/simplify-preview"): [],  # read-only: what Simplify would write, written nowhere
     ("GET", "/segments/document/{doc_id}/doubtful"): [],  # read-only: the low-confidence lens
+    ("GET", "/segments/document/{doc_id}/types"): [],  # read-only: the region types the Type menu offers
+    ("GET", "/segments/inspect"): [],  # read-only: the Inspector form for a selection; unknown ids are withheld, not refused
+    ("GET", "/segments/document/{doc_id}/join-rows-preview"): [],  # read-only: which rows Join Lines in the Same Row would join
     ("POST", "/segments/document/{doc_id}/text-layer"): [
         ("doc_id (path)", lambda doc_id, pass_id: ("POST", "/api/segments/document/legacy:x/text-layer", None)),
     ],
@@ -1782,6 +1785,12 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
             "POST", "/api/segments/merge",
             {"segment_ids": ["real", "real2"], "keep_id": "legacy:x",
              "expected_versions": {"real": 1, "real2": 1, "legacy:x": 1}},
+        )),
+    ],
+    ("POST", "/segments/join-rows"): [
+        ("groups[][]", lambda doc_id, pass_id: (
+            "POST", "/api/segments/join-rows",
+            {"groups": [{"segment_ids": ["legacy:x", "real"], "keep_id": "real"}], "expected_versions": {"legacy:x": 1, "real": 1}},
         )),
     ],
     ("POST", "/segments/split"): [

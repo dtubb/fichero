@@ -30,6 +30,19 @@ ActionKind = Literal["retry", "resume", "open-settings", "choose-model", "report
 PROVIDERS_CONTROL = "settings.ai.providers"
 LOCAL_MODELS_CONTROL = "settings.ai.localModels"
 
+#: provider type -> the page where its credit is added or its limit raised (#7039); a provider not listed has none to name.
+BILLING_URLS: dict[str, str] = {
+    "openrouter": "https://openrouter.ai/credits",
+    "anthropic": "https://console.anthropic.com/settings/billing",
+    "openai": "https://platform.openai.com/settings/organization/billing/overview",
+    "google": "https://aistudio.google.com/plan_information",
+    "mistral": "https://admin.mistral.ai/plateforme/billing",
+    "deepseek": "https://platform.deepseek.com/top_up",
+    "groq": "https://console.groq.com/settings/billing",
+    "together": "https://api.together.xyz/settings/billing",
+    "xai": "https://console.x.ai/",
+}
+
 
 class ModelBrokenError(Exception):
     """A model that is on this Mac but will not load (`model-broken`): `model` is its display name; the message is for the log."""
@@ -328,7 +341,12 @@ def credit_pause_failure(paused: dict, *, step: str | None = None, done: int | N
     failure.fix = ("Check the key in Settings › AI › Providers, then Continue." if refused else
                    f"Add credit or raise the limit at {name}, then Continue; Fichero checks again and goes on from the first page not done.")
     failure.fix += " Fichero goes on from the first page not done." if refused else ""
+    link = BILLING_URLS.get(paused["provider"])
+    if link and not refused:
+        failure.fix += f" Billing page: {link}"
     failure.actions = [_a("resume"), _a("open-settings", PROVIDERS_CONTROL)]
+    if not refused:  # the run can also go on with a model installed on this Mac: choose it on the step, then Continue
+        failure.actions += [_a("choose-model"), _a("open-settings", LOCAL_MODELS_CONTROL)]
     return failure
 
 

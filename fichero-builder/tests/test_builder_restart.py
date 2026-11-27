@@ -271,3 +271,17 @@ def _feed(path):
     lanes = queue.load()
     lanes[0]["feed"] = path
     queue.save(lanes)
+
+
+def test_said_done_on_a_blocked_step_is_taken_for_a_new_sha_and_refused_for_the_one_it_was_blocked_at(state):
+    """2026-11-26: the worker resolved a rebase conflict and said DONE, but `queue said-done` refused while the step was blocked."""
+    lane(state)
+    fake = Fake()
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", head="a84451832" + "0" * 31, why="rebase onto origin/integration stopped on a conflict in f")
+    queue.save(lanes)
+    old = lambda ln: "a84451832" + "0" * 31  # noqa: E731
+    assert "blocked" in queue.said_done("m1", "1.1", "a84451832", old), "the sha it was blocked at: refused"
+    new = lambda ln: "bbbbbbbbbb" + "0" * 30  # noqa: E731
+    assert queue.said_done("m1", "1.1", "bbbbbbbbbb", new) == "" and steps()["1.1"]["state"] == "done"

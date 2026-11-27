@@ -37,8 +37,11 @@ def refusals(root, jail: Jail | None) -> list[str]:
     return jail.probe()
 
 
-def _hook_cmd(root, worktree, scratch) -> str:
-    return " ".join(shlex.quote(str(x)) for x in (sys.executable, client.script(root, "harness_policy_hook.py", _HOOK), "--root", root, "--worktree", worktree, "--scratch", scratch))
+def _hook_cmd(root, worktree, scratch, bound: tuple[int, str] | None = None) -> str:
+    argv = [sys.executable, client.script(root, "harness_policy_hook.py", _HOOK), "--root", root, "--worktree", worktree, "--scratch", scratch]
+    if bound:
+        argv += ["--diff-bound", bound[0], "--diff-base", bound[1]]
+    return " ".join(shlex.quote(str(x)) for x in argv)
 
 
 def find_claude(*homes) -> str | None:
@@ -84,7 +87,11 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     --append-system-prompt is the assembled common + role + stack + project (profiles.assemble)."""
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
-    hook = {"type": "command", "command": _hook_cmd(root, worktree, scratch)}
+    bound = None
+    if role:  # agent-profiles.worker.small: counted from the tree's head now (a resumed session counts only what it adds)
+        head = subprocess.run(["git", "-C", str(worktree), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        bound = (profiles.role_bound(profiles.AGENTS, role), head)
+    hook = {"type": "command", "command": _hook_cmd(root, worktree, scratch, bound)}
     handoff = {"hooks": [{"type": "command", "command": " ".join(shlex.quote(str(x)) for x in (sys.executable, client.script(root, "harness_handoff_hook.py", _HANDOFF)))}]}
     settings = {"skipDangerousModePermissionPrompt": True, "hooks": {
         "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}],

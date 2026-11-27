@@ -1064,3 +1064,99 @@ def test_a_timeout_beside_a_real_red_is_the_real_red_with_no_fix_for_the_timed_o
     r2["rungs"][0]["results"].append({"name": "check_x", "ok": False, "stdout_tail": "FAIL"})
     assert work.timed_out_only(r2) == []
     assert work.timed_out_only(_timed_out_guards()) == ["check_openapi_route_set_current"]
+
+
+def test_with_the_train_on_two_batches_sharing_a_source_file_check_at_once_with_no_clash_row(scratch, tmp_path):
+    """local.check.no-same-file-wait (2026-11-26: 11.4 h a day waited for a slot behind a shared file): with the train on, its
+    candidate merge and rungs judge two steps that share a file together, so a free slot is taken whatever the others hold."""
+    pin = tmp_path / "pin2"
+    pin.mkdir()
+    (pin / "harness.toml").write_text("[train]\nenabled = true\n")
+    assert work.train_enabled(pin)
+    with work.ladder_slot("seg-draw", ["fichero-server/src/segments.py"], 2, by_file=not work.train_enabled(pin)) as s1:
+        with work.ladder_slot("seg-finish", ["fichero-server/src/segments.py"], 2, sleep=_stop, by_file=not work.train_enabled(pin)) as s2:
+            assert {s1, s2} == {"ladder", "ladder-2"}
+    assert not [r for r in journal.read() if r.get("state") == "clash"]
+
+
+def test_with_the_train_off_a_batch_sharing_a_file_still_waits(scratch, tmp_path):
+    pin = tmp_path / "pin3"
+    pin.mkdir()
+    (pin / "harness.toml").write_text("[train]\nenabled = false\n")
+    assert not work.train_enabled(pin) and not work.train_enabled(tmp_path / "nowhere")
+    with work.ladder_slot("seg-draw", ["fichero-server/src/segments.py"], 2, by_file=not work.train_enabled(pin)):
+        with pytest.raises(_Waited):
+            with work.ladder_slot("seg-finish", ["fichero-server/src/segments.py"], 2, sleep=_stop, by_file=not work.train_enabled(pin)):
+                pass
+    assert [r["holder"] for r in journal.read() if r.get("state") == "clash"] == ["seg-draw"]
+
+
+def _beside(chain, monkeypatch, red_at: str, verdict: str):
+    """[review].beside_ladder on: a fake ladder reports ready and diff-bound, then goes red at `red_at` ('' = green); the review
+    answers `verdict` and is never killed."""
+    (chain.tmp / "harness.toml").write_text(RULES + "[review]\nbeside_ladder = true\n")
+    seen = {}
+
+    def review(a, repo, head, ladder, verdicts, model, holder=None):
+        chain.calls.append(("review", model, ladder.endswith(".partial")))
+        seen["after"] = [x["name"] for x in json.loads(Path(ladder).read_text()).get("rungs", [])] if ladder.endswith(".partial") else None
+        return verdict == "READY", ("looks fine\n" + verdict)
+
+    def check(a, repo, since, head, ladder):
+        chain.calls.append(("check", since, head))
+        instant = [{"name": "ready", "ok": red_at != "ready"}]
+        work.check_tool.ON_RUNG[0]("ready", red_at != "ready", instant)
+        if red_at == "ready":
+            return {"ok": False, "failed": "ready"}
+        both = instant + [{"name": "diff-bound", "ok": True}]
+        work.check_tool.ON_RUNG[0]("diff-bound", True, both)
+        return {"ok": not red_at, "failed": red_at}
+    monkeypatch.setattr(work, "do_review", review)
+    monkeypatch.setattr(work, "do_check", check)
+    monkeypatch.setattr(work.land_tool, "unreviewed", lambda *a: True)
+    monkeypatch.setattr(work, "pick_reviewer", lambda *a: "opus")
+    return seen
+
+
+def test_a_review_runs_beside_the_ladder_and_a_red_with_a_not_ready_is_one_fix_round(chain, monkeypatch):
+    """local.review.beside-the-ladder: the review starts after the instant rungs, runs while the rest of the ladder runs, and a red
+    ladder with a NOT READY at one head is one fix round holding both under their own headings."""
+    seen = _beside(chain, monkeypatch, red_at="unit", verdict="NOT READY: the fetch can fail")
+    assert chain() != 0
+    assert seen["after"] == ["ready", "diff-bound"], "it started after the instant rungs, over a ladder of only those"
+    assert "land" not in [c[0] for c in chain.calls]
+    r = work.red_and_not_ready({"ok": False, "kind": "red", "why": "the check is red", "findings": "failed rung: unit"}, False, "NOT READY: x")
+    assert r["kind"] == "red" and "## The check is red\nfailed rung: unit" in r["findings"] and "## The review: NOT READY\nNOT READY: x" in r["findings"]
+    assert work.red_and_not_ready({"why": "w", "findings": "f"}, True, "READY") == {"why": "w", "findings": "f"}, "a READY beside a red: as before"
+
+
+def test_a_ready_red_no_review_is_started(chain, monkeypatch):
+    _beside(chain, monkeypatch, red_at="ready", verdict="READY")
+    assert chain() != 0
+    assert "review" not in [c[0] for c in chain.calls], "an instant rung red starts no review"
+
+
+def test_a_step_enters_the_train_only_green_and_ready_at_one_head(chain, monkeypatch):
+    _beside(chain, monkeypatch, red_at="", verdict="NOT READY: a gap")
+    assert chain() != 0 and "land" not in [c[0] for c in chain.calls], "green with a NOT READY goes back, as today"
+    chain.calls.clear()
+    _beside(chain, monkeypatch, red_at="", verdict="READY")
+    assert chain() == 0 and [c[0] for c in chain.calls][-1] == "land", "green and READY at one head: on to the train or the land"
+    assert not work.beside_ladder(chain.tmp / "nowhere")
+
+
+def test_a_head_that_merged_origin_and_resolved_the_conflict_is_taken_as_it_is_never_rebased_into_it_again(scratch):
+    """2026-11-26 (app-bugs files-batch, builder-batch ci-actions-1): told to rebase, the worker merged origin/integration and resolved
+    the conflict; the loop's rebase replayed the commits around the merge into the same conflict, round after round."""
+    (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine")
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs")
+    why = work.do_rebase(scratch.a, "integration")
+    assert "rebase, not merge" in why, "the worker's text says it"
+    _g(scratch.wt, "fetch", "-q", "origin")
+    subprocess.run(["git", "-C", str(scratch.wt), "merge", "-q", "origin/integration"], capture_output=True)  # conflicts
+    (scratch.wt / "f").write_text("mine and theirs")
+    _g(scratch.wt, "commit", "-qam", "merge origin/integration, both sides kept")
+    head = _g(scratch.wt, "rev-parse", "HEAD")
+    assert work.do_rebase(scratch.a, "integration") == "", "no new conflict"
+    assert _g(scratch.wt, "rev-parse", "HEAD") == head and (scratch.wt / "f").read_text() == "mine and theirs", "taken as it is"
+    assert [r for r in journal.read() if r.get("state") == "already-on-base"]

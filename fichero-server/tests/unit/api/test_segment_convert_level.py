@@ -61,11 +61,13 @@ def test_a_region_with_child_lines_is_refused_with_the_reason_and_nothing_change
     region = _segment(client, doc, pass_id, kind="region", polygon=_box(0.05, 0.1, 0.9, 0.5))
     other = _segment(client, doc, pass_id, kind="region", polygon=_box(0.05, 0.7, 0.9, 0.2))
     _segment(client, doc, pass_id, polygon=_box(0.1, 0.2, 0.8, 0.05), parent=region)
+    _segment(client, doc, pass_id, polygon=_box(0.1, 0.3, 0.8, 0.05), parent=region)
 
     with pytest.raises(HTTPException) as refused:
         _convert(db, [other, region], "line")
 
-    assert refused.value.status_code == 422 and "lines" in refused.value.detail
+    assert refused.value.status_code == 422
+    assert refused.value.detail == f"This region holds 2 lines; move or delete them first ({region})"
     assert db.get(Segment, other).kind == "region" and db.get(Segment, region).kind == "region"
 
 

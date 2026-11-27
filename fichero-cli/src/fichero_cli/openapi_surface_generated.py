@@ -17256,6 +17256,21 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("preview-join-rows")
+    def segments_preview_join_rows_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        segment_ids: Optional[list[str]] = typer.Option(None, '--segment-ids', help="Only these lines are grouped; absent, every line of the page's working pass. A list: repeat the flag, or give the values comma-separated, or as JSON."),
+    ) -> None:
+        """Preview Join Rows (GET /api/segments/document/{doc_id}/join-rows-preview)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/join-rows-preview"
+            params = {
+                "segment_ids": _list_values(segment_ids),
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document-matches")
     def segments_list_document_matches_get(
         ctx: typer.Context,
@@ -17370,6 +17385,26 @@ def register_generated_openapi_commands(
                 "segment_ids": _list_values(segment_ids),
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("join-rows")
+    def segments_join_rows_post(
+        ctx: typer.Context,
+        expected_versions: str = typer.Option(..., '--expected-versions', help="Each line's version as last read, {segment_id: version}; a changed line refuses the whole join. JSON."),
+        groups: str = typer.Option(..., '--groups', help="Each row's lines and the one that keeps its id. JSON."),
+    ) -> None:
+        """Join Rows (POST /api/segments/join-rows)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/join-rows"
+            params = None
+            payload = _build_json_payload({
+                "expected_versions": expected_versions,
+                "groups": groups,
+            }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each line's version as last read, {segment_id: version}; a changed line refuses the whole join.", 'x-cli-required': True},
+                "groups": {'items': {'$ref': '#/components/schemas/JoinRowGroup'}, 'type': 'array', 'title': 'Groups', 'description': "Each row's lines and the one that keeps its id.", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("propose-match")

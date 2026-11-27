@@ -156,11 +156,13 @@ def conflict_text(a, branch: str, files: list[str], applying: str) -> str:
             + (f" It stopped applying {applying}." if applying else "") + "\n"
             + "Conflicting files:\n" + "\n".join(f"- {f}" for f in files) + "\n"
             + f"Commits on origin/{branch} since your branch's base that touched them:\n{commits}\n"
-            + f"Rebase onto origin/{branch} yourself (`git fetch origin && git rebase origin/{branch}`). Resolve each conflict keeping BOTH "
+            + f"Rebase onto origin/{branch} yourself (`git fetch origin && git rebase origin/{branch}`): rebase, not merge (a merge of "
+            + f"origin/{branch} into your branch is replayed into the same conflict). Resolve each conflict keeping BOTH "
             + "sides: what those commits changed and what your branch changed; never drop either. Run the tests of the files you resolved, "
             + "finish the rebase, and end with the DONE line.")
 
 
+ON_BASE = "ALREADY-ON-BASE"  # do_rebase's shell says the head already holds origin/<branch>
 AUTOSTASH_KEPT = re.compile(r"autostash resulted in conflicts|applying them\s+resulted in conflicts")
 NETWORK_BLIP = re.compile(r"unable to access|Could not resolve host|Failed to connect|Connection (timed out|reset)|early EOF")
 NETWORK_RETRY_S = 20
@@ -179,7 +181,11 @@ def do_rebase(a, branch: str) -> str:
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
     before = as_worker(a, f"{g} -C {wt} rev-parse HEAD").stdout.strip()
     stashes = as_worker(a, f"{g} -C {wt} stash list").stdout.count("\n")
-    cmd = f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q --autostash origin/{q(branch)}"
+    # 2026-11-26 (app-bugs files-batch, builder-batch ci-actions-1): a worker told to rebase MERGED origin instead and resolved the
+    # conflict there; rebasing that head replayed the commits around the merge into the same conflict, round after round. A head that
+    # already holds origin/<branch> is taken as it is, merge commit and all (a train merges it, a landing is its fast-forward)
+    cmd = (f"{g} -C {wt} fetch -q origin && {{ {g} -C {wt} merge-base --is-ancestor origin/{q(branch)} HEAD && echo {ON_BASE} || "
+           f"{g} -C {wt} rebase -q --autostash origin/{q(branch)}; }}")
     r = as_worker(a, cmd)
     if r.returncode and NETWORK_BLIP.search(r.stderr or r.stdout or ""):  # manager 2026-11-08: a GitHub blip is not a conflict; once more
         time.sleep(NETWORK_RETRY_S)
@@ -190,6 +196,9 @@ def do_rebase(a, branch: str) -> str:
         time.sleep(REF_LOCK_RETRY_S * (i + 1))
         r = as_worker(a, cmd)
     said = (r.stdout or "") + (r.stderr or "")
+    if r.returncode == 0 and ON_BASE in (r.stdout or ""):
+        journal.append("rebase", lane=a.name, branch=branch, state="already-on-base", detail=f"origin/{branch} is an ancestor of the head: not rebased")
+        return regen(a, branch, before)
     # the unstaged edits no longer apply on the new base. The autostash is left in the stash list; git's wording changed (2.56: "applying
     # them resulted in conflicts"), so the stash count is read, the words only as a second sign (2026-11-25: Linux runners read it as clean)
     if r.returncode == 0 and (AUTOSTASH_KEPT.search(said) or as_worker(a, f"{g} -C {wt} stash list").stdout.count("\n") > stashes):
@@ -235,6 +244,50 @@ def do_rebase(a, branch: str) -> str:
     return regen(a, branch, before)
 
 
+def stack_hold(a, step: str, under: str) -> str:
+    """local.step.stacks-on-a-waiting-step, as the worker: the step's uncommitted work becomes one commit `wip: <step>`, its commits
+    are kept under refs/heads/stack/<lane>/<step>, and the tree is reset to `under`, the head of the step it was stacked on. '' or why."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    ref = q(f"refs/heads/stack/{a.name}/{step}")
+    r = as_worker(a, f"{g} -C {wt} add -A && ({g} -C {wt} diff --cached --quiet || {g} -C {wt} commit -q --no-verify -m {q('wip: ' + step)}) && "
+                     f"{g} -C {wt} update-ref {ref} HEAD && {g} -C {wt} reset -q --hard {q(under)}")
+    return "" if r.returncode == 0 else f"the tree could not be set aside: {(r.stderr or r.stdout).strip()[-300:]}"
+
+
+def stack_resume(a, step: str, under: str) -> str:
+    """As the worker: the commits kept by `stack_hold` (under..ref) are cherry-picked onto the tree's HEAD, a last `wip: <step>` commit
+    goes back to uncommitted work, and the ref is deleted. A conflict is aborted, the ref kept, and the why carries the worker's fix
+    text after REBASE_CONFLICT. '' when done."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    name = f"stack/{a.name}/{step}"
+    ref, span = q(f"refs/heads/{name}"), q(f"{under}..refs/heads/{name}")
+    n = as_worker(a, f"{g} -C {wt} rev-list --count {span}")
+    if n.returncode:
+        return f"the kept work of {step} could not be read: {(n.stderr or n.stdout).strip()[-300:]}"
+    if int(n.stdout.strip() or 0):
+        r = as_worker(a, f"{g} -C {wt} cherry-pick --allow-empty {span}")
+        if r.returncode:
+            files = sorted(set(as_worker(a, f"{g} -C {wt} diff --name-only --diff-filter=U").stdout.split()))
+            as_worker(a, f"{g} -C {wt} cherry-pick --abort")
+            return (f"the kept work of {step} did not go back on the fixed head: a conflict in {', '.join(files) or '(unknown files)'}" + REBASE_CONFLICT
+                    + f"This step was set aside while the step under it was fixed. Its commits are kept under the branch {name} (a last commit "
+                    + f"`wip: {step}` is the work you had not committed); putting them back on the new head stopped on a conflict in:\n"
+                    + "\n".join(f"- {f}" for f in files) + "\n"
+                    + f"Put them back yourself: `git cherry-pick {under[:12]}..{name}`. Resolve each conflict keeping BOTH sides, what the fix "
+                    + f"under you changed and what your step changed; then, if the last commit is `wip: {step}`, `git reset HEAD~1`. Run the "
+                    + f"tests of the files you resolved, delete the branch (`git branch -D {name}`) and end with the DONE line.")
+        last = as_worker(a, f"{g} -C {wt} log -1 --format=%s").stdout.strip()
+        if last == f"wip: {step}":
+            as_worker(a, f"{g} -C {wt} reset -q HEAD~1")
+    as_worker(a, f"{g} -C {wt} update-ref -d {ref}")
+    return ""
+
+
+def check_since(a, repo: str, branch: str) -> str:
+    """The sha a ladder starts from: the land branch's, or for a step stacked on another the head under it (local.step.stacks-on-a-waiting-step)."""
+    return getattr(a, "stack_base", "") or land_tool.resolve_branch(repo, branch)
+
+
 def regen(a, branch: str, before: str) -> str:
     """run.rebase-rebakes-generated (2026-11-14: a rebase left the contracts and the engine embed list stale, and the guards bounced the
     batch): after a rebase that moved the lane, each `[check].regen` line runs in the worktree as the worker, and a tracked file it
@@ -260,6 +313,58 @@ def regen(a, branch: str, before: str) -> str:
     as_worker(a, f"cd {wt} && {g} add -u && {g} commit -q -m {q(msg)} -m {q(trailers or 'Written-By: Claude')}")
     journal.append("rebake", lane=a.name, branch=branch, files=sorted(changed), detail="regenerated after the rebase and committed")
     return ""
+
+
+def autofix(a, step: str, findings: str, brief: str, skip: tuple = ()) -> dict:
+    """local.autofix.loop-applies-the-printed-fix: the opted-in `[check].autofix` classes (autofix.plan) applied to a red in the lane's
+    worktree as the worker. Each fix is one commit with the lane's own trailers (the spec-change class amends the head with the brief's
+    `Spec-change:` line) and one `autofix` row; a fix that fails, or changes a file its class does not name, is undone and changes
+    nothing; a worktree with uncommitted tracked edits is left alone. `skip` = classes already tried at this head. {"rows": [..], "ask": a red only the manager can answer}."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    sh = lambda cmd: as_worker(a, f"cd {wt} && {cmd}")  # noqa: E731
+    if sh(f"{g} status --porcelain --untracked-files=no").stdout.strip():
+        return {"rows": [], "ask": False}  # uncommitted tracked edits are the worker's: undo, `add -u` and amend would discard or sweep them in
+    cfg = check_tool.load(a.pinned)
+    head = lambda: sh(f"{g} rev-parse HEAD").stdout.strip()  # noqa: E731
+    env = f"PYTHONPATH={q(':'.join(cfg.python_path))} FICHERO_PYTHON_BIN={q(cfg.python)} " if cfg.python else ""
+    from fichero_builder import autofix as af
+    items = [p for p in af.plan(tuple(c for c in cfg.autofix if c not in skip), findings, brief,
+                                lambda f: sh(f"{g} show HEAD:{q(f)}").stdout, cfg.regen, tuple(cfg.contract_guards))]
+    rows, ask = [], False
+    for p in sorted(items, key=lambda p: "amend" not in p):  # the amend first: it rewrites the lane's own head, the fixes go on top
+        if p.get("ask"):
+            ask = True
+            continue
+        before = head()
+        if "amend" in p:
+            if sh(f"{g} -c trailer.where=start commit -q --amend --no-edit --trailer {q(p['amend'])}").returncode:
+                continue
+            files = []
+        else:
+            written = next((ln for ln in sh(f"{g} log -1 --format=%B").stdout.splitlines() if ln.startswith("Written-By:")), "")
+            if not written:
+                continue  # no Written-By on the head: a commit of ours would break the trailer rule, the red goes to the worker
+            untracked = lambda: set(sh(f"{g} ls-files --others --exclude-standard").stdout.split())  # noqa: E731
+            had = untracked()
+            def undo():
+                sh(f"{g} checkout -q -- .")  # a half-run or out-of-class fix never reaches a commit
+                if new := sorted(untracked() - had):
+                    sh(f"{g} clean -fdq -- " + " ".join(q(f) for f in new))
+            if any(sh(env + c.replace("{python}", q(cfg.python))).returncode for c in p["cmds"]):
+                undo()
+                continue
+            files = sh(f"{g} diff --name-only").stdout.split()
+            ok = bool(files) and not (untracked() - had) and (p["allowed"] is None or all(f in p["allowed"] if isinstance(p["allowed"], tuple) else p["allowed"].search(f) for f in files))
+            if not ok:
+                undo()  # anything outside the class is undone and the red goes to the worker
+                continue
+            msg = "chore(autofix): " + p["class"] + " (" + p["rung"] + ")"
+            sh(f"{g} add -u && {g} commit -q -m {q(msg)} -m {q(written)}")
+        after = head()
+        if after != before:
+            rows.append({"class": p["class"], "rung": p["rung"], "before": before, "after": after, "files": sorted(files)})
+            journal.append("autofix", lane=a.name, step=step, **rows[-1])
+    return {"rows": rows, "ask": ask and not rows}
 
 
 def do_export(a, branch: str) -> int:
@@ -346,6 +451,47 @@ def green_before_approve(ladder: str, since: str, head: str, pinned) -> dict:
     return green
 
 
+SECURITY_INPUTS = ("osv-scanner.toml", ".gitleaks.toml", "scripts/bandit_baseline.json", "scripts/gitleaks_baseline.json",
+                   "scripts/security_scan_run.py", "scripts/install_security_tools.sh")
+
+
+def fix_reuse(repo: str, ladder: str, since: str, head: str, pinned) -> dict:
+    """local.check.fix-round-reuses-verdicts: the green rungs of this lane's last ladder that a fix commit cannot change, for a head that
+    descends from the one that ladder judged, on the same base and the same pinned copy; each row carries `reused` (the judged head).
+    A rung is kept only when no path the new commits change is one of its inputs: red-on-base (the changed tests, `[check].red_paths`,
+    `conftest.py`), guards (every guard has declared inputs, none touched, no guard script touched), build (`[check].build_paths`),
+    contract-current (`[check].contract_paths` and its guards), since-guards (each guard's prefixes and script), security (its scanned
+    dirs, its config, baselines and scan scripts). A red rung, the instant rungs and the rest always run. {} = run the whole ladder."""
+    try:
+        prev = json.loads(Path(ladder).read_text())
+    except (OSError, ValueError):
+        return {}
+    old = prev.get("head") or ""
+    if (prev.get("since"), prev.get("pinned")) != (since, str(pinned)) or not old or old == head or \
+            _git(repo, "merge-base", "--is-ancestor", old, head).returncode:
+        return {}
+    fix = _git(repo, "diff", "--name-only", old, head).stdout.split()
+    cfg = check_tool.load(pinned)
+    tree = Path(pinned)
+    guards = sorted(tree.glob(cfg.guard_glob)) if cfg.guard_glob else []
+
+    def is_test(f: str) -> bool:
+        return any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)
+    keep = {
+        "red-on-base": not any(is_test(f) or Path(f).name == "conftest.py" or (cfg.red_paths and f.startswith(tuple(cfg.red_paths))) for f in fix)
+        and bool(cfg.red_paths),
+        "guards": bool(guards) and len(check_tool.untouched_guards(guards, tree, cfg, fix)) == len(guards),
+        "build": bool(cfg.build_paths) and not any(f.startswith(tuple(cfg.build_paths)) for f in fix),
+        "contract-current": bool(cfg.contract_paths) and not any(f.startswith(tuple(cfg.contract_paths)) or f in cfg.contract_guards for f in fix),
+        "since-guards": bool(cfg.since_guards) and not any(
+            f in cfg.since_guards or f.startswith(tuple(p for v in cfg.since_guards.values() for p in ([v] if isinstance(v, str) else v))) for f in fix),
+        "security": bool(cfg.security) and not any(
+            f.startswith(tuple(cfg.security.get("dirs") or ("",))) or f in SECURITY_INPUTS for f in fix),
+    }
+    return {row["name"]: {**row, "reused": old} for row in prev.get("rungs") or []
+            if row.get("ok") and not row.get("skipped") and keep.get(row.get("name"), False)}
+
+
 def kept_rows(ladder: str, old_base: str, old_head: str, pinned) -> dict:
     """The rung rows of a GREEN ladder file for exactly this old head, base and pinned copy ({} otherwise): what a kept rebase leaves standing."""
     try:
@@ -361,7 +507,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name.
     `partial` = (rows that stand, rungs to run again, the kept row's words): a kept rebase; the rest of the ladder is reused, red-on-base
     runs its head-green half only, never the base run."""
-    since = land_tool.resolve_branch(repo, branch)
+    since = check_since(a, repo, branch)
     if not since:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
@@ -375,14 +521,21 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str, partial: tuple |
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path
     guard_data = tuple(getattr(a, "guard_data", ()) or ())
     approved = maintainer or approve or bool(red_ok) or pin_new or bool(guard_data) or bool(getattr(a, "retry", False))  # a retry resumes at the failed rung too (2026-11-11)
-    check_tool.REUSE[0] = partial[0] if partial else green_before_approve(ladder, since, head, a.pinned) if approved else None
+    check_tool.REUSE[0] = (partial[0] if partial else green_before_approve(ladder, since, head, a.pinned) if approved
+                           else (fix_reuse(repo, ladder, since, head, a.pinned) or None) if check_tool.load(a.pinned).reuse_fix_verdicts else None)
     check_tool.HEAD_GREEN_ONLY[0] = bool(partial)
+    check_tool.SKIP_RUNGS[0] = ("build", "ui") if getattr(a, "train", False) else ()  # a merge train runs them once for many steps
+    check_tool.SCANS_OWED[0] = bool(getattr(a, "owe_scans", False))  # [train].security_perf (local.train.security-and-perf-once)
+    check_tool.OWE_WHOLE[0] = bool(getattr(a, "owe_whole", False))  # [train].whole_tests: so are the whole-tests dirs (local.check.red-on-base-changed-tests-only)
     try:
         r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                                    approve_pinned_new=pin_new, guard_data=guard_data)
     finally:
         check_tool.REUSE[0] = None
         check_tool.HEAD_GREEN_ONLY[0] = False
+        check_tool.SKIP_RUNGS[0] = ()
+        check_tool.OWE_WHOLE[0] = False
+        check_tool.SCANS_OWED[0] = False
     Path(ladder).write_text(json.dumps({**r, "head": head, "since": since, "pinned": str(a.pinned)}, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                    **({"kept": partial[2], "reran": list(partial[1])} if partial else {}))
@@ -570,16 +723,30 @@ GENERATED_CLASH_FREE = frozenset({
 })
 
 
+def train_enabled(root) -> bool:
+    """`[train].enabled` of the rules at `root` (the pinned copy): the merge train judges steps that share a file together."""
+    from fichero_builder import train
+    try:
+        return train.load(tomllib.loads((Path(root) / "harness.toml").read_text())).enabled
+    except (OSError, ValueError):
+        return False
+
+
+SLOTS: list = [0]  # local.flow.check-slots-from-runners: the loop's count from the runners this tick; 0 = [check].parallel
+
+
 @contextlib.contextmanager
-def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
+def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: bool = True):
     """Speed 3 (manager 2026-11-02): up to n ladders at once ([check].parallel), never two whose batches share a file (an
     unknown file list shares every file). The slot's files sit beside its lock while it runs; a slot whose lock is free is
-    not running, whatever file it left. A wait over Lock.WARN_S is one row, like the single lock's."""
+    not running, whatever file it left. A wait over Lock.WARN_S is one row, like the single lock's.
+    `by_file=False` (local.check.no-same-file-wait: the train is on, and its candidate merge and rungs judge two steps that share a
+    file together): any free slot is taken, whatever files the running ladders hold."""
     t0, said, clashed, state = time.time(), False, False, Path(journal.STATE)
     while True:
         with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
             free, clash, shared = None, "", set()
-            for slot in journal.ladder_slots(n):
+            for slot in journal.ladder_slots(SLOTS[0] or n):
                 lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
                 try:
                     lk.__enter__()
@@ -589,7 +756,7 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
                         o = json.loads(other.read_text())
                     except (OSError, ValueError):
                         o = {"name": "?", "files": []}
-                    if not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE):
+                    if by_file and (not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE)):
                         clash, shared = o["name"], (both if files and o["files"] else {"(an unknown file list)"})
                     continue
                 if free is None:
@@ -637,6 +804,24 @@ def pick_reviewer(a, repo: str, branch: str, head: str, full: str) -> str:
 
 
 EARLY_AFTER = "since-guards"  # the rung after which the review starts: the last before the build (check_tool.RUNGS)
+BESIDE_AFTER = "diff-bound"  # local.review.beside-the-ladder: with [review].beside_ladder, the review starts after the instant rungs
+
+
+def beside_ladder(pinned) -> bool:
+    """`[review].beside_ladder` of the pinned rules (default false: the review starts after the cheap rungs, as before)."""
+    try:
+        return bool(tomllib.loads((Path(pinned) / "harness.toml").read_text()).get("review", {}).get("beside_ladder", False))
+    except (OSError, ValueError):
+        return False
+
+
+def red_and_not_ready(red: dict, ok: bool, text: str) -> dict:
+    """A red ladder and a NOT READY at one head: one fix round holding both, each under its own heading (local.review.beside-the-ladder).
+    A READY beside a red ladder changes nothing: the red goes back as before."""
+    if ok:
+        return red
+    return {**red, "why": red["why"] + " and the review is NOT READY",
+            "findings": f"## The check is red\n{red['findings']}\n\n## The review: NOT READY\n{text}"}
 
 
 def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
@@ -657,13 +842,16 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
     moved = 0
     carry = None  # (base, files, head) of a green check whose base moved before its review
     green = state / f"green-{a.name}.json"  # the last READY's range: a later chain of the lane (its result lost, or not landed) keeps it
+    stacked = getattr(a, "stack_base", "")  # local.step.stacks-on-a-waiting-step: checked from the head under it; the lane's green is that step's
     with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
-        g = json.loads(green.read_text())
-        carry = (g["base"], list(g["files"]), g["head"])
-    green.unlink(missing_ok=True)  # read once: a later READY writes it again
+        if not stacked:
+            g = json.loads(green.read_text())
+            carry = (g["base"], list(g["files"]), g["head"])
+    if not stacked:
+        green.unlink(missing_ok=True)  # read once: a later READY writes it again
     while True:  # dev-workflows.run.loop-chain: a ready range whose base moved is rebased and re-checked
-        why = do_rebase(a, branch)
-        if not step("rebase", not why, why.split(REBASE_CONFLICT)[0] if why else f"on top of origin/{branch}"):
+        why = "" if stacked else do_rebase(a, branch)
+        if not step("rebase", not why, why.split(REBASE_CONFLICT)[0] if why else f"stacked on {stacked[:9]}: not rebased" if stacked else f"on top of origin/{branch}"):
             if REBASE_CONFLICT in why:  # the lane's worker gets a fix round (run.rebase-conflict-fix-round)
                 head_line, text = why.split(REBASE_CONFLICT, 1)
                 return no("conflict", head_line, findings=text)
@@ -674,8 +862,10 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         head = do_fetch(a, repo, branch)
         if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
             return no("error", f"could not fetch the worktree's branch into {repo}")
+        if getattr(a, "after_fetch", None):  # the queue's premerge against the steps waiting for the train (local.check.conflict-told-at-done)
+            a.after_fetch(head)
         try:
-            since_now = r_since(repo, branch)
+            since_now = stacked or r_since(repo, branch)
             files = lane_diff(repo, since_now, head, "--name-only").split()
         except (RuntimeError, OSError):
             since_now, files = "", []  # unknown: shares every file, so it runs alone
@@ -683,17 +873,20 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         held = kept_rows(ladder, carry[0], carry[2], a.pinned) if kept else {}  # the old ladder's rows: without them the whole ladder runs
         carry = None
         # nothing to run again: no file-overlap hold to wait behind (2026-11-25, seg-inspector waited on seg-hang's shared test file)
-        slot = contextlib.nullcontext() if kept and held and not rerun else ladder_slot(a.name, files, check_tool.load(a.pinned).parallel)
+        slot = contextlib.nullcontext() if kept and held and not rerun else ladder_slot(a.name, files, check_tool.load(a.pinned).parallel,
+                                                                                         by_file=not train_enabled(a.pinned))
         with slot:  # speed 3: [check].parallel ladders, disjoint batches only
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
             stage("checking")
+            beside = beside_ladder(a.pinned)
+            trigger = BESIDE_AFTER if beside else EARLY_AFTER
             early: dict = {}  # speed 2: the review starts once every cheap rung is green, beside the build
 
             def on_rung(name, ok, rungs):
                 # after the last rung before the build (manager 2026-11-04: reviews 199, 207, 263, 275 started after red-on-base, read a
                 # ladder with no guard results, and answered 'no guards ran'): the reviewer sees every guard's result; only the build runs beside it
-                if name == EARLY_AFTER and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
+                if name == trigger and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
                     partial = f"{ladder}.partial"
                     # the rungs still to come are named, so the reviewer never reads them as missing (reviews 199 and 207, 2026-11-03)
                     pending = [n for n in check_tool.RUNGS if n not in {x["name"] for x in rungs}]
@@ -712,6 +905,12 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 return no("error", f"the check could not run: {e}")
             finally:
                 check_tool.ON_RUNG[0] = None
+            if not r.get("ok") and beside and early.get("fut"):  # beside the ladder: the review ends too, and a NOT READY rides the red's round
+                ok_review, review_text = early.pop("fut").result()
+                early.pop("proc", None)
+                red_review = (ok_review, review_text)
+            else:
+                red_review = None
             if not r.get("ok") and early.get("proc"):  # a later rung went red: the early review is cancelled, its verdict never written
                 early["proc"].kill()
                 journal.append("activity", kind="review", key=f"review {head[:9]}", state="end", ok=False, failed="cancelled: a later rung red")
@@ -764,9 +963,10 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 fixes = hints(r, repo, head, check_tool.load(a.pinned))  # the exact command for a mechanical red (2026-11-14)
                 fix = ("\nFix: " + "\nFix: ".join(fixes)) if fixes else ""
                 also = r.get("also_failed") or []
-                return no("red", f"the check is red at {head[:9]} (failed: {', '.join([r.get('failed') or '?', *also])}); ladder in {ladder}{fix}",
-                          f"failed rung{'s' if also else ''}: {', '.join([r.get('failed') or '?', *also])}\n{_tail(r)}{fix}", ladder)
-            if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
+                red = no("red", f"the check is red at {head[:9]} (failed: {', '.join([r.get('failed') or '?', *also])}); ladder in {ladder}{fix}",
+                         f"failed rung{'s' if also else ''}: {', '.join([r.get('failed') or '?', *also])}\n{_tail(r)}{fix}", ladder)
+                return red_and_not_ready(red, *red_review) if red_review else red
+            if moved < MOVES and since_now and not stacked and _base_moved(a, branch, head):  # never review a range that cannot land
                 moved += 1
                 if early.get("proc"):
                     early["proc"].kill()
@@ -795,7 +995,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             if not step("review", ok, last):
                 (state / f"review-{a.name}.txt").write_text(text)
                 return no("not-ready", f"the review is not READY: {blocking(text, last)}", text, str(state / f"review-{a.name}.txt"))
-            ok, out = do_land(a, repo, head, verdicts, log)
+            # a stacked step's range lands after the step under it, so its gate is the one `builder landed` runs then
+            ok, out = (True, f"stacked on {stacked[:9]}: gated when it lands") if stacked else do_land(a, repo, head, verdicts, log)
             if not step("land", ok, out[-300:]):
                 if moved < MOVES and _base_moved(a, branch, head):
                     moved += 1  # another lane landed after our rebase: rebase and judge the new range, never a person's hand step
@@ -803,9 +1004,9 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     step("rebase", True, f"origin/{branch} moved under {head[:9]}: rebased and checked again ({moved}/{MOVES})")
                     continue
                 return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
-        if since_now:
+        if since_now and not stacked:
             green.write_text(json.dumps({"base": since_now, "files": files, "head": head}))
-        return {"ok": True, "head": head, "out": out}
+        return {"ok": True, "head": head, "out": out, "owed": list(r.get("owed") or [])}
 
 
 def main(a) -> int:

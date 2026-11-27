@@ -56,6 +56,7 @@ extension AddProviderSheet {
             return
         }
         isAdding = true
+        addError = nil
 
         Task { @MainActor in
             do {
@@ -83,6 +84,7 @@ extension AddProviderSheet {
                 }
             } catch {
                 addProviderLogger.error("Add failed: \(String(describing: error))")
+                addError = error.localizedDescription
                 isAdding = false
             }
         }

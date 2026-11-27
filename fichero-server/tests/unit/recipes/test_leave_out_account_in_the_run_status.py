@@ -112,8 +112,9 @@ def test_a_run_in_the_old_shape_is_resumed_after_a_quit_and_finishes(client, db,
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     db.execute("UPDATE jobs SET state = 'running' WHERE id = ? AND state IN ('running', 'failed')", [job_id])
     jobs.resume(db)
-    r = client.post(f"/api/activity/jobs/{job_id}/retry")
-    assert r.status_code in (200, 409), r.text
+    assert jobs.row_state(db, job_id) == "paused", "the open holds the run; nothing runs until the person chooses"
+    r = client.post("/api/activity/stopped-at-quit/continue", json={"ids": [job_id]})  # the launch alert's Continue
+    assert r.status_code == 200 and job_id in r.json()["continued_ids"], r.text
     run = _finished(client, job_id)
 
     assert run["state"] == "done", run

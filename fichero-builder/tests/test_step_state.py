@@ -71,3 +71,9 @@ def test_a_block_that_is_a_question_is_blocked_and_a_failed_check_after_the_fix_
     assert run(Fake(chains={"1.1": [dict(bad), dict(bad), dict(bad)]})) == 0
     s = steps()["1.1"]
     assert s["state"] == "blocked" and queue.state_view(queue.load()[0], s)["state"] == "red"
+
+
+def test_a_step_green_on_the_cheap_rungs_waits_in_the_train_state(state):  # noqa: F811
+    s = {"step": "1.1", "state": "train", "why": "green on the cheap rungs at abc; waits for a merge train", "entered_at": 50.0}
+    v = queue.state_view({"paused": False}, s, now=80.0)
+    assert v["state"] == "train" and v["state"] in queue.STATES and v["age_s"] == 30.0

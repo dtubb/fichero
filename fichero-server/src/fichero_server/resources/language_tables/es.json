@@ -1,0 +1,8 @@
+{
+  "language": "es",
+  "and": "y",
+  "at": "en",
+  "times": "veces",
+  "prepositions": ["a", "al", "de", "del", "en", "por", "para", "con", "ante", "desde", "hasta", "sobre"],
+  "contractions": {"de el": "del", "a el": "al"}
+}

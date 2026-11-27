@@ -131,6 +131,8 @@ def main(argv=None) -> int:
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
     ld.add_argument("--keep-worktree", action="store_true", help="leave the worktree the work rows name: the queue's session is still open in it")
     ld.add_argument("--lane", default="", help="the lane the landing is for: named on its spec-ok-proposed rows")
+    ld.add_argument("--train", default="", help="a merge train's id: the train's green is the verdict and the check; sha is merged onto the land branch")
+    ld.add_argument("--train-step", default="", help="with --train: the lane/step key the train's row must list as landed")
     ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
     tr = sub.add_parser("triage", help="clean up the repo's GitHub metadata directly by the rules in harness.toml [triage]; --dry reads only")
     tr.add_argument("--labels", action="store_true", help="the closed label set only (step, type, priority, phase, needs-*, status:blocked); any other label is reported, never deleted, and its issues get what [triage.labels] maps it to")
@@ -228,6 +230,8 @@ def main(argv=None) -> int:
     pf.add_argument("--workload", default="logs"), pf.add_argument("--group-by", default="", help="comma-separated PERF context keys that split a span row")
     rs = sub.add_parser("rung-stats", help="per-rung duration (mean, p90, max, total) from the journal's rung rows")
     rs.add_argument("--since", default="", help="an ISO timestamp or date: only rows from then on"), rs.add_argument("--state")
+    rs.add_argument("--flow", action="store_true", help="the check flow's targets (local.flow.report): one line each, ok or over; exit 1 when any is over")
+    rs.add_argument("--root", default=".", help="where harness.toml's [flow] targets are read")
     mc = sub.add_parser("machines", help="test machines: `sync <name>` installs the test plugins at the jail venv's exact pins into the machine's gate venv")
     mc.add_argument("action", choices=["sync"]), mc.add_argument("machine"), mc.add_argument("--root", default=str(Path.cwd())), mc.add_argument("--state")
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
@@ -311,7 +315,7 @@ def main(argv=None) -> int:
         base = a.base or resolve(a.repo_dir, "origin/" + rules_doc.get("land", {}).get("branch", ""))
         rules = rules_doc.get("brief", {}).get("rules", "")
         written = milestone.write_briefs(planned, out=a.out, repo_dir=a.repo_dir, base=base, rules=rules,
-                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster_for(a.repo_dir),
+                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster_for(a.repo_dir, need_tests="check" in rules_doc),
                                          spec_path=a.spec, binary=codemap.owner_binary(a.repo_dir), lane=queue.slug(a.name) if a.enqueue else "")
         for c, p in zip(planned["clusters"], written):
             print(f"Step {c['step']}: {', '.join('#%d' % i['number'] for i in c['issues'])} -> {p}")

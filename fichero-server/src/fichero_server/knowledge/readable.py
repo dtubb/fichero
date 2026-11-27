@@ -25,11 +25,13 @@ See docs/contributor_manual/specs/kg-readable-representation.md for the pipeline
 """
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Sequence
 
 from fichero_server.knowledge._common import STATEMENT_ROLE_ORDER, order_statement_parts
@@ -141,23 +143,6 @@ def _fold(text: str) -> str:
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
 
 
-# Leading prepositions, by language, that mark an object slot's role as
-# non-neutral: a recipient ("to Pedro Mosquera" / "a Pedro Mosquera") or a
-# place/instrument, never a plain patient. Beside the conjunction table
-# (`_REALISATION`) for the same reason: both are the small, closed,
-# per-language tables this module's realisation stage is built from.
-_LEADING_PREPOSITIONS = {
-    "en": {
-        "to", "from", "in", "at", "on", "by", "with", "for", "of", "into",
-        "before", "after",
-    },
-    "es": {
-        "a", "al", "de", "del", "en", "por", "para", "con", "ante", "desde",
-        "hasta", "sobre",
-    },
-}
-
-
 def _is_prepositional_object(obj: str | None, language: str | None) -> bool:
     """True when `obj`'s first word is a leading preposition in ITS OWN
     declared language (#4836).
@@ -184,13 +169,13 @@ def _is_prepositional_object(obj: str | None, language: str | None) -> bool:
     """
     if not obj or not language:
         return False
-    table = _LEADING_PREPOSITIONS.get(language)
+    table = _TABLES.get(language)
     if table is None:
         return False
     first_word = obj.strip().split(" ", 1)[0]
     if not first_word:
         return False
-    return _fold(first_word) in table
+    return _fold(first_word) in table["prepositions"]
 
 
 def _is_solo_claim(claim: KnowledgeClaim) -> bool:
@@ -215,7 +200,7 @@ def _is_solo_claim(claim: KnowledgeClaim) -> bool:
     # The same holds for a DECLARED language with no glue table ("fr"): it
     # would merge and take English "and" inside a French sentence. A language
     # this module cannot join in, it does not join. One test covers both.
-    if _claim_language(claim) not in _REALISATION:
+    if _claim_language(claim) not in _TABLES:
         return True
     if _is_prepositional_object(_claim_object(claim), _claim_language(claim)):
         return True
@@ -308,16 +293,42 @@ def referring_expression(full_name: str, *, first_mention: bool) -> str:
     return tokens[-1] if len(tokens) > 1 else name
 
 
-# Stage 6 — realisation. ponytail: a minimal per-language phrase table for the
-# count/place scaffolding ONLY. The verb + objects come from the claim's own SVO
-# (already in the source's language — we never translate); this table supplies the
-# language-specific glue ("N veces", "en X y Y" / "N times", "at X and Y"). Add a
-# language by adding a row. Escalate to Grammatical Framework (the Abstract
-# Wikipedia path) only when morphology outgrows this.
-_REALISATION = {
-    "es": {"times": "veces", "at": "en", "and": "y"},
-    "en": {"times": "times", "at": "at", "and": "and"},
-}
+# Stage 6 — realisation. A language's words are one JSON file in `resources/language_tables/`
+# (`<language>.json`), read once at import and validated: joining word, place word, count word,
+# leading prepositions and contractions. The verb + objects come from the claim's own SVO (already
+# in the source's language — we never translate). Add a language by adding a file; a language with
+# no file is never joined (`_is_solo_claim`) and takes no word from another language.
+LANGUAGE_TABLES_DIR = Path(__file__).resolve().parent.parent / "resources" / "language_tables"
+_TABLE_STRINGS = ("and", "at", "times")
+
+
+def load_language_tables(directory: Path) -> dict[str, dict]:
+    """Every `<language>.json` in `directory`, keyed by language; a file with a missing or mistyped
+    key, or named for a language other than its own `language` field, raises ValueError."""
+    tables: dict[str, dict] = {}
+    for path in sorted(Path(directory).glob("*.json")):
+        table = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(table, dict) or table.get("language") != path.stem:
+            raise ValueError(f"{path.name}: `language` must be {path.stem!r}")
+        if not all(isinstance(table.get(k), str) and table[k] for k in _TABLE_STRINGS):
+            raise ValueError(f"{path.name}: {', '.join(_TABLE_STRINGS)} must be non-empty strings")
+        prepositions = table.get("prepositions")
+        if not isinstance(prepositions, list) or not all(isinstance(w, str) and w for w in prepositions):
+            raise ValueError(f"{path.name}: prepositions must be a list of words")
+        contractions = table.get("contractions")
+        if not isinstance(contractions, dict) or not all(
+            isinstance(k, str) and len(k.split()) == 2 and isinstance(v, str) and v for k, v in contractions.items()
+        ):
+            raise ValueError(f"{path.name}: contractions must map two words to one")
+        tables[path.stem] = {
+            **table,
+            "prepositions": {_fold(w) for w in prepositions},
+            "contractions": {_fold(k): v for k, v in contractions.items()},
+        }
+    return tables
+
+
+_TABLES = load_language_tables(LANGUAGE_TABLES_DIR)
 
 
 def _join_list(items: list[str], conjunction: str) -> str:
@@ -337,12 +348,30 @@ def _without_repeated_preposition(verb: str | None, obj: str, language: str | No
     word that is a preposition, never any other text (an English "a" is not in `en`'s table)."""
     if not verb or not obj:
         return obj
-    table = _LEADING_PREPOSITIONS.get(language or "", set())
+    table = _TABLES.get(language or "", {}).get("prepositions", set())
     last = _fold(verb.split()[-1]) if verb.split() else ""
     first, _, rest = obj.strip().partition(" ")
     if rest and last in table and _fold(first) == last:
         return rest.strip()
     return obj
+
+
+def _seam(verb: str, obj: str, language: str | None, *, contract: bool) -> tuple[str, str | None, str, str]:
+    """The seam of a verb and its object in `language`'s table: (verb, contraction, object, contraction
+    key). A preposition ending the verb and starting the object is said once (the object's copy is
+    dropped); with `contract`, a verb ending in a table's first word and an object starting with its
+    second ("de" + "el") become the table's contraction ("del") with both words dropped from their
+    pieces. Each returned piece is a part of the stored text, left whole when the table has no say."""
+    table = _TABLES.get(language or "")
+    verb_words, obj_words = verb.split(), obj.split()
+    if table is None or not verb_words or len(obj_words) < 2:
+        return verb, None, obj, ""
+    last, first = _fold(verb_words[-1]), _fold(obj_words[0])
+    if contract and len(verb_words) > 1 and f"{last} {first}" in table["contractions"]:
+        return " ".join(verb_words[:-1]), table["contractions"][f"{last} {first}"], " ".join(obj_words[1:]), f"{last} {first}"
+    if last in table["prepositions"] and first == last:
+        return verb, None, " ".join(obj_words[1:]), ""
+    return verb, None, obj, ""
 
 
 def render_aggregation(agg: "Aggregation", language: str) -> str:
@@ -362,12 +391,12 @@ def render_aggregation(agg: "Aggregation", language: str) -> str:
     #4649 fix: this used to print a bare COUNT ("witnessed 2 times") instead
     of the objects whenever count > 1 -- accurate but useless, since "2
     times" says nothing about WHAT. The objects are always listed now,
-    joined by the language's own conjunction (`_REALISATION`); the count
+    joined by the language's own conjunction (`_TABLES`); the count
     itself is redundant once every distinct object is named (the reader can
     count the list), so it is dropped rather than kept as decoration that
     could drift from the list beside it.
     """
-    glue = _REALISATION.get(language, _REALISATION["en"])
+    glue = _TABLES.get(language, _TABLES["en"])
     head = " ".join(part for part in (agg.subject, agg.verb) if part).strip()
     if agg.objects:
         objects = [_without_repeated_preposition(agg.verb, agg.objects[0], language), *agg.objects[1:]]
@@ -454,7 +483,7 @@ def _render_group_sentence(agg: "Aggregation", representative: KnowledgeClaim) -
     no behavior change for the common, unmerged case, and the fallback to
     the claim's own stored `text` when it has no complete S-V-O triple
     still applies. A group of MORE than one lists every distinct object,
-    joined by the group's own language's conjunction (`_REALISATION`;
+    joined by the group's own language's conjunction (`_TABLES`;
     unknown language falls back to the English glue table, same fallback
     `render_aggregation` already uses) -- never a bare count (#4649: a count
     is exactly what used to replace the objects), and never reworded: each
@@ -463,7 +492,7 @@ def _render_group_sentence(agg: "Aggregation", representative: KnowledgeClaim) -
     if agg.count == 1:
         return _claim_sentence(representative)
 
-    glue = _REALISATION.get(agg.language or "", _REALISATION["en"])
+    glue = _TABLES.get(agg.language or "", _TABLES["en"])
     joined_objects = _join_list(agg.objects, glue["and"])
     parts = order_statement_parts(agg.subject, agg.verb, joined_objects)
     if len(parts) >= 2:
@@ -489,18 +518,35 @@ def _role_field(claim: KnowledgeClaim, role: str) -> str:
 def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
     """`_claim_sentence` as (text, origin) pieces joined by single spaces, a "." piece last when added.
 
-    A piece's text is the stored field with whitespace collapsed, so it equals the field up to whitespace.
+    A piece's text is the stored field with whitespace collapsed, or a part of it where the language's
+    table fixes the seam of verb and object (`_seam`). A statement in a language with no table keeps
+    the year of its start date, in digits and brackets, after the object.
     """
     values = {
         "subject": _claim_subject(claim),
         "verb": _claim_verb(claim),
         "object": _claim_object(claim),
     }
-    pieces = [(values[r], f"claim:{claim.id}:{_role_field(claim, r)}") for r in STATEMENT_ROLE_ORDER if values[r]]
+    lang = _claim_language(claim)
+    pieces: list[tuple[str, str]] = []
+    if values["verb"] and values["object"]:
+        verb, contraction, obj, key = _seam(values["verb"], values["object"], lang, contract=True)
+        values = {**values, "verb": verb, "object": obj}
+        contraction_piece = [(contraction, f"table:{lang}:{key}")] if contraction else []
+    else:
+        contraction_piece = []
+    for role in STATEMENT_ROLE_ORDER:
+        if values[role]:
+            pieces.append((values[role], f"claim:{claim.id}:{_role_field(claim, role)}"))
+            if role == "verb":
+                pieces.extend(contraction_piece)
     if len(pieces) < 2:
         text = " ".join(claim.text.split())
         if text:
             pieces = [(text, f"claim:{claim.id}:text")]
+    year = (claim.time_start or "")[:4]
+    if pieces and lang not in _TABLES and year.isdigit():
+        pieces.append((f"({year})", f"claim:{claim.id}:time_start"))
     if pieces and not pieces[-1][0].endswith((".", "!", "?")):
         pieces.append((".", "punctuation"))
     return pieces
@@ -539,7 +585,7 @@ def _merged_pieces(
     piece, claims) per distinct object; None when the group has no complete statement."""
     ids = list(agg.claim_ids)
     first = group_claims[0]
-    lang = agg.language if agg.language in _REALISATION else "en"
+    lang = agg.language if agg.language in _TABLES else "en"
     objects = [(obj, [c for c in group_claims if _claim_object(c) == obj]) for obj in agg.objects]
     if objects:
         objects[0][1].extend(c for c in group_claims if not _claim_object(c))
@@ -552,11 +598,18 @@ def _merged_pieces(
         return None
     marks: list[tuple[int, list[KnowledgeClaim]]] = []
     for i, (obj, members) in enumerate(objects):
+        if agg.verb:
+            verb, contraction, shown, key = _seam(agg.verb, obj, lang, contract=i == 0)
+            if i == 0 and contraction:
+                pieces[-1] = (verb, pieces[-1][1], ids)
+                pieces.append((contraction, f"table:{lang}:{key}", ids))
+        else:
+            shown = obj
         if i == len(objects) - 1 and i:
-            pieces.append((_REALISATION[lang]["and"], f"table:{lang}:and", ids))
+            pieces.append((_TABLES[lang]["and"], f"table:{lang}:and", ids))
         elif i:
             pieces.append((",", "punctuation", ids))
-        pieces.append((obj, f"claim:{members[0].id}:{_role_field(members[0], 'object')}", [m.id for m in members]))
+        pieces.append((shown, f"claim:{members[0].id}:{_role_field(members[0], 'object')}", [m.id for m in members]))
         marks.append((len(pieces) - 1, members))
     if not pieces[-1][0].endswith((".", "!", "?")):
         pieces.append((".", "punctuation", ids))

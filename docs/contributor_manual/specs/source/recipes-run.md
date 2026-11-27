@@ -239,6 +239,12 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   `jobs.resume`, then presses Retry on the run's row, and the run stays paused, "Stopped when Fichero quit". They were
   written for the resume-by-itself rule; either Retry on a row the open paused must let it go, as Continue does, or the
   tests press Continue. Until one is done these two pins of this section do not hold.
+  *Changed 2026-11-21 (#6732, owner: interrupted runs resume from the launch alert; replaces ruling 2's "at once"):* the
+  open holds the recipe run and its step run paused, starts nothing, and the launch alert lists the recipe run once;
+  its Continue lets the recipe's row go, and the recipe adopts the held step run (`awaiting`) and resumes it from its
+  checkpoint, so the same run ends done and no page is read twice. A step run whose resume fails ends failed, and the
+  recipe does not wait on it. *Test:* `fichero-server/tests/unit/recipes/test_held_recipe_continues_from_the_alert_6732.py`,
+  `fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`.
 - `recipes-run.journey.run-again-on-what-was-missed` — **[PARTIAL]** (#6170; `source.recipe.run-again-on-what-was-missed` (P)
   owns it) after a restart, a crash or a Stop the recipe says what it did not finish and offers one action,
   Run again on what was missed, which runs only what is not done. *Built (engine):* a finished run's summary carries
@@ -504,6 +510,10 @@ replaces the Kraken figure before #6212 is coded.
   restart: one page at a time for a minute"; a person who wants it stopped presses Stop. The minute starts when an open
   finds rows a dead engine left running (`jobs.resuming_gently`); an open with nothing interrupted is not gentle.
   Test: fichero-server/tests/unit/jobs/test_resume_gently_after_restart.py.
+  *Changed 2026-11-21 (#6732, owner: interrupted runs resume from the launch alert):* "by itself" is withdrawn: the open
+  holds the interrupted run paused and nothing runs until the person presses Continue in the launch alert
+  (`activity.launch.nothing-starts-one-alert`). The gentle minute still starts at that open, so a Continue within it
+  reads one page at a time.
 - `recipes-run.restart.retry-reaches-a-kind-row` — **[OK]** (#6203) Retry on a kind row (`waiting:thumbnail`)
   requeues that kind's set-aside and dead claims for the project; today it answers 404 (the kind row is not
   a job id), so there was no way from Activity to restart the thumbnail work. Test:
@@ -717,6 +727,11 @@ The behaviours:
   first page not done; the rate-limit path still resumes by itself. Tests:
   `fichero-server/tests/unit/workflows/test_credit_stop_6675.py`, `fichero/Tests/Unit/general/Models/CreditPausePromptTests.swift`.
   Built: `llm/retry.py` `_pause_the_run_for_credit`, `ProviderCreditStopError`, `ActivityStore.askAboutCredit`.
+  Built (#7039): each of OpenRouter's, Anthropic's, OpenAI's, Google's and Mistral's own out-of-credit answer holds the run once;
+  the held run's failure carries the provider's billing page (`failure.BILLING_URLS`, in its fix text) and offers a model on this Mac
+  (`choose-model`, `open-settings` on the local models). Not built: a button that opens the billing link (the link is text in the
+  fix; an `open-url` action would change the generated API schema), a choice limited to installed local models.
+  Tests: `fichero-server/tests/unit/workflows/test_credit_alert_7039.py`.
 
 ### 14. Measured on real pages (review 2026-11-20): what a run says must match what it did
 
@@ -1149,6 +1164,8 @@ follows (paraphrased; each is a rule, not a proposal):
    the first minute after an engine start (`recipes-run.restart.resumes-at-once-gently`, #6216).
    **Superseded in its "by itself" half** (owner 2026-11-13, #6584; ruled again 2026-11-21): an interrupted run is
    held at open and offered in the launch alert; Continue there starts it, and the gentle first minute stands.
+   *Replaced 2026-11-21 (#6732, owner):* an interrupted run is held at the open and resumes from the launch alert;
+   only the gentle minute stands.
 3. **Show the gate:** the run's grey line says how many pages read at once and why, from the engine, no
    setting (`recipes-run.memory.gate-shown`, #6217).
 4. **Its own milestone:** the spec is APPROVED under `recipes-run`, created on approval; #6212, #6213,

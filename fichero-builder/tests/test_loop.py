@@ -1726,6 +1726,62 @@ def test_a_new_lane_does_not_start_under_the_disk_floor_and_the_row_says_why(sta
     assert fake.starts, "above the floor it starts"
 
 
+def _thin_setup(state, monkeypatch, after):
+    lane(state)
+    fake = Fake()
+    free, asked = [12.0], []
+    fake.procs.free_gb = lambda: free[0]
+
+    def thin(nbytes):
+        asked.append(nbytes)
+        free[0] = after
+        return ""
+    fake.procs.thin = thin
+    monkeypatch.setattr(queue, "DISK_FLOOR_GB", [30.0])
+    monkeypatch.setattr(queue, "THINNED_AT", [0.0])
+    monkeypatch.setattr(queue, "THIN_EPISODE", [False])
+    return fake, free, asked
+
+
+def test_a_thin_that_frees_space_starts_the_lane_with_one_disk_thinned_row(state, monkeypatch):
+    fake, free, asked = _thin_setup(state, monkeypatch, 40.0)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.starts and asked == [8_000_000_000]
+    (r,) = [r for r in journal.read() if r.get("state") == "disk-thinned"]
+    assert "12 GB free before, 40 GB after" in r["detail"] and not [r for r in journal.read() if r.get("state") == "disk-hold"]
+
+
+def test_a_thin_that_frees_nothing_holds_and_the_same_low_disk_episode_never_thins_again(state, monkeypatch):
+    fake, free, asked = _thin_setup(state, monkeypatch, 12.0)
+    tick = lambda: queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    tick()
+    assert fake.starts == [] and len(asked) == 1
+    assert len([r for r in journal.read() if r.get("state") == "disk-thinned"]) == 1 and len([r for r in journal.read() if r.get("state") == "disk-hold"]) == 1
+    later = time.time() + 3601
+    monkeypatch.setattr(queue, "_now", lambda: later)
+    tick()
+    assert len(asked) == 1, "an hour on, the same episode does not thin again"
+    free[0] = 80.0  # the floor is met: the episode ends
+    tick()
+    free[0] = 12.0
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    monkeypatch.setattr(queue, "THINNED_AT", [later - 60])  # a thin a minute ago, in the earlier episode
+    tick()
+    assert len(asked) == 1, "a new episode within the hour of the last thin waits"
+    monkeypatch.setattr(queue, "_now", lambda: later + 3600)
+    tick()
+    assert len(asked) == 2, "a new episode an hour on thins"
+
+
+def test_a_thin_that_fails_is_a_row_and_the_hold_goes_on(state, monkeypatch):
+    fake, free, asked = _thin_setup(state, monkeypatch, 12.0)
+    fake.procs.thin = lambda nbytes: "tmutil: not found"
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    (r,) = [r for r in journal.read() if r.get("state") == "disk-thinned"]
+    assert "thinning failed: tmutil: not found" in r["detail"] and fake.starts == []
+
+
 def test_a_falling_disk_holds_every_lane_with_one_alert_and_clearing_raises_one_more(state, monkeypatch):
     """#6852: the figure moving under the floor is no new reason: one hold row a lane, one alert for the loop, one when it clears."""
     lane(state)
@@ -2154,3 +2210,217 @@ def test_a_fix_round_and_a_send_back_name_the_interpreter_that_has_pytest(state,
     assert any("/Users/Shared/w/venv/bin/python -m pytest" in t for t in fake.sent)
     monkeypatch.setattr(queue, "TEST_PYTHON", [""])
     assert "Run tests with" not in queue.fix_text("1.1", "red", "x"), "no [check].python: nothing is said"
+
+
+def _quiet_sent(state, session_live):
+    """A lane whose step is `sent`, whose watcher lives and which has no row yet; `session_live` is the window check."""
+    queue.add("m1", "/w/m1", "1.1", str(state / "b1.1"), [7])
+    fake = Fake()
+    fake.procs.session_live = session_live
+    handles = {}
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # sent
+    fake.seqs.clear()  # the worker has said nothing
+    return fake, handles
+
+
+def test_a_sent_step_whose_window_runs_a_shell_is_queued_again_after_two_ticks_with_one_row(state):
+    fake, handles = _quiet_sent(state, lambda lane: False)
+    tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    assert steps()["1.1"]["state"] == "sent", "one failed check is not enough"
+    tick()
+    assert [r["state"] for r in journal.read() if r.get("state") == "sent-no-session"] == ["sent-no-session"]
+    assert steps()["1.1"]["state"] == "queued" and steps()["1.1"]["restarts"] == 1 and "m1" in fake.stops
+
+
+def test_a_sent_step_with_a_live_session_is_never_queued_again_and_a_check_that_passes_resets_the_count(state):
+    live = [False]
+    fake, handles = _quiet_sent(state, lambda lane: live[0])
+    tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    live[0] = True
+    tick()
+    live[0] = False
+    tick()
+    assert steps()["1.1"]["state"] == "sent" and not [r for r in journal.read() if r.get("state") == "sent-no-session"]
+
+
+def test_a_failed_check_of_one_step_is_not_carried_to_the_next_time_a_step_is_sent(state):
+    fake, handles = _quiet_sent(state, lambda lane: False)
+    tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
+    tick()
+    (lane,) = queue.load()
+    assert lane["sent_misses"] == 1
+    lane["steps"][lane["cursor"]]["state"] = "queued"  # the step left `sent` some other way
+    queue.store(lane)
+    tick()
+    assert steps()["1.1"]["state"] == "sent" and "sent_misses" not in queue.load()[0]
+
+
+def test_a_quiet_sent_step_past_the_hours_limit_alerts_once_with_retry_and_park(state, monkeypatch):
+    fake, handles = _quiet_sent(state, lambda lane: True)
+    now = time.time() + 3 * 3600 + 60
+    monkeypatch.setattr(queue, "_now", lambda: now)
+    for _ in range(3):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    (a,) = [r for r in journal.read() if r["event"] == "alert"]
+    assert a["actions"] == ["retry", "park"] and "m1" in a["lane"] and steps()["1.1"]["state"] == "sent"
+
+
+def test_a_window_list_that_could_not_be_read_is_unknown_and_never_ends_a_live_session(state, monkeypatch):
+    class J:
+        user, sudo = "w", "sudo"
+    lane = {"id": "m1"}
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")  # sudo refused, timeout, or non-zero exit
+    assert queue.session_live(J, lane) is None and queue.session_live(None, lane) is None
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "@1\tm1\tzsh\n@2\tother\tnode\n")
+    assert queue.session_live(J, lane) is False
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "@1\tm1\tnode\n")
+    assert queue.session_live(J, lane) is True
+    fake, handles = _quiet_sent(state, lambda lane: None)
+    for _ in range(4):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "sent" and not fake.stops and not [r for r in journal.read() if r.get("state") == "sent-no-session"]
+
+
+def test_a_landed_lanes_branch_fully_on_the_land_branch_is_deleted_on_origin_and_one_with_its_own_commit_stays(state, tmp_path):
+    """local.landed.prune-branch (2026-11-26: 54 merged branches on origin): the lane's branch on origin goes once `git cherry` shows
+    no '+' against the land branch (a rebased copy counts); one with a commit of its own stays, with a row."""
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
+    g(wt, "push", "-q", "origin", "w1")
+    g(repo, "branch", "-q", "w2", "origin/integration")
+    (repo / "x").write_text("x")
+    g(repo, "checkout", "-q", "w2"), g(repo, "add", "."), g(repo, "commit", "-qm", "own"), g(repo, "push", "-q", "origin", "w2"), g(repo, "checkout", "-q", "--detach")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    heads = g(tmp_path / "origin.git", "branch", "--format=%(refname:short)").split()
+    assert "w1" not in heads and "w2" in heads and not wt.exists()
+    assert any(r["state"] == "removed" and r["path"] == "origin/w1" for r in _cleanup_rows())
+    queue.prune_remote({"id": "w2"}, str(repo / ".git"), "origin/integration", "w2")
+    assert "w2" in g(tmp_path / "origin.git", "branch", "--format=%(refname:short)").split()
+    assert _cleanup_rows()[-1]["state"] == "kept" and "not on origin/integration" in _cleanup_rows()[-1]["detail"]
+    queue.prune_remote({"id": "w3"}, str(repo / ".git"), "origin/integration", "nope")  # not on origin: nothing, no row
+    assert _cleanup_rows()[-1]["path"] == "origin/w2"
+
+
+def _review_world(tmp_path, replies):
+    """A repo with one commit over landbr, a fake reviewer that answers `replies` in turn and keeps each prompt, and the state dir."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path as P
+    script = P(__file__).resolve().parents[1] / "fichero_builder" / "scripts" / "harness_review.py"
+    r = tmp_path / "r"
+    r.mkdir()
+
+    def g(*a):
+        return subprocess.run(["git", "-C", str(r), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout
+    (r / "a.py").write_text("x = 1\n")
+    g("init", "-q", "-b", "main"), g("add", "."), g("commit", "-q", "-m", "base"), g("branch", "landbr")
+    (r / "a.py").write_text("x = 2\n")
+    g("commit", "-qam", "change")
+    (tmp_path / "replies").write_text("\n".join(replies) + "\n")
+    b = tmp_path / "bin"
+    b.mkdir()
+    (b / "claude").write_text(f"#!/bin/sh\nn=$(($(cat {tmp_path}/calls 2>/dev/null || echo 0) + 1)); echo $n > {tmp_path}/calls\n"
+                              f"cat > {tmp_path}/prompt$n\nsed -n ${{n}}p {tmp_path}/replies\n")
+    (b / "claude").chmod(0o755)
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n[models]\nproviders = ["claude-code"]\n'
+                                                 'reviewer = { provider = "claude-code", model = "opus", context = 200000 }\n')
+    (tmp_path / "own").mkdir(mode=0o700)
+    state = tmp_path / "st"
+    state.mkdir()
+    env = {**os.environ, "PATH": f"{b}:{os.environ['PATH']}", "FICHERO_BUILDER_STATE": str(state)}
+
+    def review():
+        return subprocess.run([sys.executable, str(script), str(r), "HEAD", "--pinned", str(tmp_path / "p"), "--verdicts", str(tmp_path / "own" / "v.json")],
+                              env=env, capture_output=True, text=True)
+    return g, review, state
+
+
+def test_a_fix_round_review_gets_the_earlier_findings_and_only_the_fix_diff(tmp_path):
+    """local.review.fix-round-reads-the-fix: the second review gets the first one's finding and the diff since the reviewed head
+    only, and must answer each earlier finding FIXED or NOT FIXED; READY needs every one fixed."""
+    g, review, _state = _review_world(tmp_path, ["NOT READY: x must be 3", "READY"])
+    assert review().returncode == 1
+    (tmp_path / "r" / "b.py").write_text("y = 3\n")
+    g("add", "."), g("commit", "-q", "-m", "fix: x is 3")
+    r = review()
+    assert r.returncode == 0, r.stdout + r.stderr
+    p = (tmp_path / "prompt2").read_text()
+    assert "x must be 3" in p and "`FIXED: <finding>` or `NOT FIXED: <finding>`" in p and "READY needs every earlier finding FIXED" in p
+    diff = p.split("DIFF:", 1)[1]
+    assert "+y = 3" in diff and "+x = 2" not in diff, "only the fix diff"
+
+
+def test_a_rebased_head_is_reviewed_whole_with_a_row(tmp_path):
+    g, review, state = _review_world(tmp_path, ["NOT READY: x must be 3", "READY"])
+    assert review().returncode == 1
+    (tmp_path / "r" / "a.py").write_text("x = 3\n")
+    g("commit", "-q", "-a", "--amend", "-m", "change, amended")
+    assert review().returncode == 0
+    p = (tmp_path / "prompt2").read_text()
+    assert "DELTA REVIEW" not in p and "+x = 3" in p.split("DIFF:", 1)[1]
+    rows = [json.loads(x) for x in (state / "journal.jsonl").read_text().splitlines()]
+    assert [x["state"] for x in rows if x.get("event") == "review"] == ["whole-again"]
+
+
+def test_a_red_with_a_class_fix_is_checked_again_with_no_message_to_the_worker_and_the_same_red_at_that_head_goes_to_the_worker(state):
+    """local.autofix.loop-applies-the-printed-fix: the loop's fix is a commit, the step goes back to the check, nothing is sent; a class
+    is tried once for a head (the head it made counts), an external lane is never committed to."""
+    lane(state)
+    red = {"ok": False, "kind": "red", "why": "ladder red", "findings": "FAIL: scripts/x.py"}
+    fake = Fake(chains={"1.1": [dict(red), dict(red)]})
+    heads, calls = ["h0", "h1", "h1"], []
+
+    def autofix(lane_, step, findings, skip):
+        calls.append(skip)
+        return {"rows": [{"class": "known-gaps-now-clean"}] if "known-gaps-now-clean" not in skip else [], "ask": False}
+    fake.procs.autofix, fake.procs.head_of = autofix, lambda lane_: heads.pop(0) if len(heads) > 1 else heads[0]
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert calls[:2] == [(), ("known-gaps-now-clean",)], "the second red at the fixed head skips the class"
+    assert "1.1" not in [s for s in fake.sent if s.startswith("fix")] and steps()["1.1"]["rounds"] == 1, "the second red went to the worker"
+    assert any("autofix known-gaps-now-clean" in r.get("detail", "") for r in journal.read() if r["event"] == "queue")
+
+
+def test_a_red_whose_fix_needs_a_question_is_a_block_alert_and_no_fix_brief_goes_to_the_worker(state):
+    """local.autofix.classes: a class that asks (`ask: True`) skips the fix brief; the step blocks with an alert."""
+    lane(state)
+    red = {"ok": False, "kind": "red", "why": "ladder red", "findings": "FAIL: scripts/x.py"}
+    fake = Fake(chains={"1.1": [dict(red)]})
+    fake.procs.autofix, fake.procs.head_of = (lambda *a: {"rows": [], "ask": True}), (lambda lane_: "h0")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked" and steps()["1.1"]["rounds"] == 0
+    assert not [m for m in fake.sent if m.startswith("fix")]
+    assert [r for r in journal.read() if r["event"] == "alert"], "the manager is asked"
+
+
+def test_an_external_lane_is_never_autofixed(state):
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    asked = []
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "FAIL: scripts/x.py", "evidence": "/l.json"}]})
+    fake.procs.autofix = lambda *a: asked.append(a) or {"rows": [{"class": "x"}], "ask": False}
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert asked == [] and steps()["1.1"]["state"] == "blocked"
+
+
+def test_a_retry_takes_the_worktrees_head_now_never_the_stale_stored_sha(state, monkeypatch):
+    """2026-11-26: `retry` on a rebase-conflict alert said "retried at a84451832 from the failed rung" (the stale stored sha) and
+    replayed the same conflict within a second. The tree moved since: its head is judged, as a new head, the whole chain."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "ladder red", "findings": "t", "head": "a84451832"}] * (queue.ROUNDS + 1)})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked"
+    monkeypatch.setattr(queue, "tree_head", lambda ln: "c0ffee1234" + "0" * 30)
+    assert queue.answer(_alerts()[-1]["id"], "retry")[0] == 0
+    s = steps()["1.1"]
+    assert s["state"] == "done" and s["head"].startswith("c0ffee1234") and "retry_rungs" not in s
+    assert "the tree's head c0ffee123 (the stored a84451832 is stale)" in [r["detail"] for r in journal.read() if r.get("state") == "retry"][-1]
+    monkeypatch.setattr(queue, "tree_head", lambda ln: "a84451832" + "0" * 31)
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", head="a84451832")
+    queue.save(lanes)
+    journal.append("alert", id="m1-1.1-x", lane="m1", step="1.1", what="x", actions=["retry"])
+    assert queue.answer("m1-1.1-x", "retry")[0] == 0 and steps()["1.1"].get("retry_rungs") is True, "an unmoved tree: from the failed rung, as before"

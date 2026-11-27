@@ -59,10 +59,13 @@ pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
 # synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
 # rung and the guards that call git stay on the Pro
-remote = ["imac:~/fichero-gate", "imac:~/fichero-gate2", "air:~/fichero-gate", "localhost:~/fichero-gate"]  # owner 2026-11-25 20:40: all three Macs available; the Pro last (only when the others are busy); the Air over Tailscale; earlier:# 2026-11-25 18:15: the M1 Air unreachable since 17:00 (checks fell back to the Pro); add "air:~/fichero-gate" back first when it answers; 2026-11-25 14:30: the Pro dropped (load 260, 12 GB swap, the owner working on it); 2026-11-25 10:55: the Pro last (load 180 with Swift builds and checks at once); it keeps build_remote  # owner 2026-11-25: the Pro first while the iMac is nearly full;  # owner 2026-11-23: the M4 Air is away; the iMac takes two checks (gate2 shares its venv)
+remote = ["air:~/fichero-gate", "imac:~/fichero-gate", "imac:~/fichero-gate2"]  # owner 2026-11-26: testing on the Air and the iMac; the Pro stays light
 # manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
 # or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
 remote_guards = "auto"
+guards_by_diff = true  # owner 2026-11-26: a step runs only the guards its diff can affect; the train and the nightly run all
+swift_test_target = "FicheroTests"  # the train runs only the Swift suites its diff can affect (the nightly runs the whole plan)
+swift_test_dir = "fichero/Tests/Unit"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
 build_remote = "imac:~/fichero-gate"  # 2026-11-25 12:25: back to the iMac (27 GB free); the Pro swapped 14 GB running Swift builds beside the owner's work
@@ -298,6 +301,7 @@ check_applescript_coverage = ["fichero/fichero", "scripts"]
 check_appsource_paths = ["fichero/Tests", "scripts"]
 check_artifact_type_contract = ["fichero-server/src", "fichero/fichero", "scripts"]
 check_canonical_renderers = ["fichero/fichero", "scripts"]
+check_blind_hands_manifest = ["scripts"]
 check_capability_reference_current = ["docs/reference_manual", "fichero-server/src", "mkdocs.yml", "scripts"]
 check_capability_scrapes = ["fichero/Tests", "scripts"]
 check_change_consumers_registered = ["fichero/fichero", "scripts"]
@@ -491,6 +495,13 @@ m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air:
 # owner 2026-11-14 (#6590): two at once
 workers = 2
 
+[train]
+# The merge train (local.train.*): a step green on the cheap rungs waits; the build, Swift tests, UI pass and unit tier run once
+# on the merge of all waiting steps. enabled = false keeps per-step landing. Owner 2026-11-25: more things can land.
+enabled = true
+min_steps = 4        # a train starts when this many steps wait
+max_wait_min = 45    # or when the oldest has waited this long
+
 [brief]
 # Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.
 rules = """
@@ -593,3 +604,17 @@ w10 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = [
 # GUI session for xctrace. sudo lists the tools the owner allowed without a password through one narrow sudoers line (py-spy, the M4 only).
 tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]
 sudo = ["py-spy"]
+
+[flow]
+# local.flow.report: `builder rung-stats --flow` measures each target from the journal (ok or over; exit 1 when one is over).
+# Read by nothing else: the owner's 2026-11-26 targets for the check flow.
+ladder_median_min = 4
+ladder_p90_min = 10
+shared_file_wait_s = 0
+done_per_landed = 2.5
+last_done_median_min = 25
+last_done_p90_min = 45
+first_done_median_min = 90
+first_done_p90_min = 240
+train_p90_min = 30
+ready_reds = 0

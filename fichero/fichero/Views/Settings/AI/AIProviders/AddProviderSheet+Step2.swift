@@ -82,6 +82,12 @@ extension AddProviderSheet {
             Divider()
 
             // Footer with buttons
+            if let addError {
+                Text("Couldn't add the provider: \(addError)")
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 20)
+            }
             HStack {
                 Button("Back") {
                     step = 1

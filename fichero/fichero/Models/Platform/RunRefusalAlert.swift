@@ -14,7 +14,7 @@ enum RunRefusalAlert {
     }
 
     @MainActor
-    static func show(_ words: String) {
+    static func show(_ words: String, title: String = title) {
         #if canImport(AppKit)
         presentPlatformAlert(title: title, message: words, buttons: [(title: "OK", destructive: false)]) { _ in }
         #endif

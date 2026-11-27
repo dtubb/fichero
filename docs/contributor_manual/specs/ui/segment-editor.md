@@ -218,6 +218,20 @@ targets are at least 44 pt.
   kept one is lit, not the first. *Tests:*
   `fichero/Tests/Unit/general/Views/Source/SegmentJoinSelectionTests.swift` (`joinedSelectsTheKept`,
   `undoneSelectsTheRestored`, `zeroRectBoxesAreToldApartByTheirId`).
+- `segment-editor.join-lines-in-the-same-row` — **[OK]** (→ #7071; engine + app) Edit › Segments ▸ Join Lines in the Same
+  Row (⌥⇧⌘J), the Preview's context menu and the line verb menu join the lines that share a row into one line each: the
+  selection's lines, or the page's when none is selected. A row is lines of one region (the same parent) whose heights
+  (widths for vertical text) overlap by at least half of the shorter, chained; the first line in reading order keeps its
+  id. The engine's `GET /api/segments/document/{doc_id}/join-rows-preview` names the rows and the lines left alone, and
+  one `segment.join_rows` (`POST /api/segments/join-rows`) joins every row in one undo step (`segment.unmerge_rows` is its inverse). *Tests:*
+  `fichero-server/tests/unit/api/test_segment_join_rows.py`,
+  `fichero/Tests/Unit/general/Models/SegmentJoinRowsTests.swift`.
+- `segment-editor.join-rows-keeps-parts-as-words` — **[OK]** (→ #7071; engine) the words of the joined lines become the
+  kept line's words, in page order. *Tests:* `fichero-server/tests/unit/api/test_segment_join_rows.py` (`TestPartsAsWords`).
+- `segment-editor.join-rows-says-what-it-will-do` — **[OK]** (→ #7071; app) before it joins, the page's notice says how
+  many lines go into how many rows and how many lines are left alone; once done it says what it did; when no two lines
+  share a row it says so and sends nothing (`SegmentEdit.joinRowsWillSay`, `joinRowsDone`, `joinRowsNothing`). *Tests:*
+  `fichero/Tests/Unit/general/Models/SegmentJoinRowsTests.swift`.
 - `segment-editor.merge-regions` — **[PARTIAL]** (→ #4941; engine) two or more selected regions and ⌥⌘J become one region
   whose outline is the union; their lines become the kept region's lines, interleaved into its
   order by page position (`layout_order`), with the result shown before it lands as a
@@ -360,14 +374,14 @@ targets are at least 44 pt.
 - `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
   (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
   union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
-  the region takes the lines' own parent, so lines inside a region make a region nested in it; lines under different
-  parents are refused with the reason). **Ungroup Region** (the same menus, no chord: ⇧⌘G shows or hides Items) sends a
+  the region takes the lines' own parent, so lines inside a region that keeps other lines make a region nested in it; when the
+  selected lines are every line of their region, that region is left empty and is deleted in the same edit and the new region
+  takes its place, with no question asked; lines under different parents are refused with the reason). **Ungroup Region** (the same menus, no chord: ⇧⌘G shows or hides Items) sends a
   region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
-  each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
-  same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
-  *Tests:* `test_segment_group_lines.py`; `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
-  *Not built:* the new region open for its type; the "replace the old region when every line of it
-  is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
+  each is the other's undo: undoing a group deletes the region (and brings back the region it emptied), undoing an ungroup
+  brings the same region back with the same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
+  *Tests:* `test_segment_group_lines.py` (including the emptied region's delete, undo and redo); `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
+  *Not built:* the new region open for its type; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
 - `segment-editor.make-region-in-every-menu` — **[OK]** (#6737, #7070; app) Make Region from Lines (two or more selected
   segments) and Ungroup Region (a selected region) are in every menu that lists the verbs: the Segment menu, the page's
@@ -557,8 +571,8 @@ targets are at least 44 pt.
 - `source.editor.inspector-form-keyboard-and-voiceover` — **[PARTIAL]** (→ #7074; app) every row is reachable by Tab in the
   engine's order and reads as its label, its value and how it stands ("Mixed: a, b", "inherited from page", "Not set").
   Each row carries the identifier `inspector.form.<key>`, the form `inspector.form`. *Built:* `InspectorForm.Row.accessibilityValue`
-  and the identifiers in `InspectorFormView`. *Not built:* the chords ⌥⇧⌘J (row join) and ⌥ArrowKeys / ⌃⌥ArrowKeys (edges),
-  which no menu uses and no step builds yet; a window never seen. *Tests:* `SegmentInspectorFormTests.swift`.
+  and the identifiers in `InspectorFormView`. *Not built:* the chords ⌥ArrowKeys / ⌃⌥ArrowKeys (edges),
+  which no menu uses and no step builds yet (the row-join chord ⌥⇧⌘J is built by `segment-editor.join-lines-in-the-same-row`); a window never seen. *Tests:* `SegmentInspectorFormTests.swift`.
 
 #### What the person sees: the Inspector form
 
@@ -797,17 +811,17 @@ See section 7.2 below for what exists. The design:
   Needs an on-screen check.
 - `segment-editor.convert-level` — **[PARTIAL]** (#6740; app + engine; owner 2026-11-19) a region can become a line and a line a
   region. Convert to Line on a region keeps its shape, text and order position and computes a baseline (or draws one from its
-  box, the lower third, editable); a region with child lines asks whether to merge their text into the one line, in order, or
-  refuses and says why. Convert to Region on a line keeps its shape, and its text stays as the region's text, or by option the
-  line stays as the one child line of the new region. Both are in the Segment menu, the context menu and the segment list's row
+  box, the lower third, editable); a region that holds lines is refused with the notice "This region holds N lines; move or
+  delete them first" (no merge of their text, no question). Convert to Region on a line keeps its shape and text; the line does
+  not stay as a child line (ruled by the manager). Both are in the Segment menu, the context menu and the segment list's row
   menu; they work on many at once; each is a new version, undoable; readings and ids are kept where the level allows. Tests:
-  each direction keeps shape, text and order; a region with children asks; undo restores.
+  each direction keeps shape, text and order; a region with children is refused; undo restores.
   *Built 2026-11-20:* the engine half: `segment.convert_level` (region to line with a baseline along the lower third; line to
   region; a region holding lines is refused with the reason; one undo; `fichero-server/tests/unit/api/test_segment_convert_level.py`).
   *Built note (#6740):* Convert to Line and Convert to Region (Edit › Segments ▸, the page's context menu, and the segment
   list's row menu) send one `segment.convert_level` for the selection's segments not already at that level; a selection of
-  only those is refused with the reason (`SegmentConvertLevelTests.swift`). *Not built:* the merge-their-text choice, the
-  one-child-line option and an editable baseline prompt. Needs an on-screen check.
+  only those is refused with the reason (`SegmentConvertLevelTests.swift`); the engine's refusal of a region that holds lines
+  carries the notice above (`test_segment_convert_level.py`). *Not built:* an editable baseline prompt. Needs an on-screen check.
 - `segment-editor.list-drag-reorder` — **[PARTIAL]** (#6739; app + engine; owner 2026-11-19; extends
   `segment-editor.reassign-by-drag`, which covers dropping into a region) in the segment list, dragging also reorders, as in a
   Finder or Mail outline. Dropping between rows shows a thin insertion line with a circle at its left end, indented to the
@@ -979,6 +993,7 @@ Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across t
 | Lasso | ⌥-drag on empty page |
 | Select all (level) / same kind | ⌘A / ⌘⇧A |
 | Merge (Join) | ⌥⌘J |
+| Join Lines in the Same Row | ⌥⇧⌘J |
 | Split under pointer | ⌘⇧K |
 | Redraw Outline from Baseline | ⌘⇧R |
 | Simplify outline | ⌘⌥S |
@@ -1347,6 +1362,7 @@ hand, so the cut marks on such a line are the fallback's and say so.
 |---|---|---|---|---|
 | `segment-editor.tool.knife` | Knife | Cut every line the stroke crosses (K; hold for one stroke) | `segmentEditor.tool.knife` | [MISSING] |
 | `segment-editor.verb.merge` | Join | Join the selected lines into one (⌥⌘J) | `segmentEditor.verb.merge` | [MISSING] |
+| `segment-editor.verb.join-rows` | Join Lines in the Same Row | Join the lines that share a row, one line per row (⌥⇧⌘J) | `segmentEditor.verb.joinRows` | [MISSING] |
 | `segment-editor.verb.redraw` | Redraw Outline | Draw the outline again from the baseline (⌘⇧R) | `segmentEditor.verb.redraw` | [MISSING] |
 | `segment-editor.verb.cut-words` | Cut Words | Make word boxes from the reading's character positions (⌘⇧W) | `segmentEditor.verb.cutWords` | [MISSING] |
 | (every other control above) | its name | its one-line rule above with its key | `segmentEditor.*` | [MISSING] |

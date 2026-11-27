@@ -156,3 +156,42 @@ def simple_outline(polygon: list[Point]) -> tuple[list[Point], bool]:
     hull = cv2.convexHull(np.concatenate(contours)) if len(contours) > 1 else max(contours, key=cv2.contourArea)
     traced = cv2.approxPolyDP(hull, _TRACE_TOLERANCE, True).reshape(-1, 2) + origin
     return [[round(float(x) / _GRID, 6), round(float(y) / _GRID, 6)] for x, y in traced], True
+
+
+def _vertical_text(direction: str | None) -> bool:
+    return direction in ("ttb", "btt")
+
+
+def row_groups(outlines: list[list[Point]], direction: str | None) -> list[list[int]]:
+    """`segment-editor.join-lines-in-the-same-row`: the lines that sit in one row, as indexes into ``outlines``.
+
+    Two lines are in one row when, across the way the lines run (their heights, or their widths for vertical
+    text), they overlap by at least half of the shorter one; a row chains through a middle line. Each group
+    is in the page's reading order and has two or more lines, the groups follow the page's reading order, and
+    a line with no neighbour is in no group.
+
+    ponytail: the overlap test ignores the distance along the row, so two columns of one region that share
+    a height are one row; the caller keeps a row inside one region.
+    """
+    axis = 0 if _vertical_text(direction) else 1
+    spans = [(bounds(o)[axis], bounds(o)[axis + 2]) for o in outlines]
+    parent = list(range(len(outlines)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, (lo_i, hi_i) in enumerate(spans):
+        for j in range(i + 1, len(spans)):
+            lo_j, hi_j = spans[j]
+            if min(hi_i, hi_j) - max(lo_i, lo_j) >= 0.5 * min(hi_i - lo_i, hi_j - lo_j) > 0:
+                parent[find(i)] = find(j)
+    members: dict[int, list[int]] = {}
+    for i in range(len(outlines)):
+        members.setdefault(find(i), []).append(i)
+    reading = join_order(outlines, direction) if outlines else []
+    place = {index: position for position, index in enumerate(reading)}
+    groups = [sorted(group, key=place.__getitem__) for group in members.values() if len(group) > 1]
+    return sorted(groups, key=lambda group: place[group[0]])

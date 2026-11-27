@@ -401,6 +401,11 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 ### F. The model loop, per recipe step
 
+- `models.loop.drawn-in-training` — **[GAP]** (#6588, #5941; manager default 2026-11-26, owner to confirm) the loop's rows,
+  verbs and verdict below are drawn in the Training window (`ui/training-window.md`,
+  `training-window.models.recipe-steps-opens-training`); this window keeps models, places and cards, and its Recipe
+  steps item shows each step's model and opens that step in Training. The ids below and their tests stay.
+  *Test (to write):* TrainingWindowTests.swift.
 - `models.loop.steps-are-rows` — **[GAP]** (#5941, #6588) with a project open, Recipe steps lists each step of its
   recipe as a row drawn from the engine's one answer (`distill.loop.one-answer-per-step`): the step; its model and place
   now; its teacher, if one ran; its ground truth in the step's unit ("312 pages of lines corrected, 40 since the last
@@ -529,7 +534,7 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 ### Stage 5 — The model loop and run settings (written 2026-11-19; after `compute/distillation.md` Stage 2, Step 2.3)
 
 #### Step 5.1 — Recipe steps as rows with their loop state and verbs (#5941)
-- Behaviours: `models.loop.steps-are-rows`, `models.loop.verbs`, `models.loop.verdict-in-the-inspector`, `models.loop.published-state`
+- Behaviours: `models.loop.steps-are-rows`, `models.loop.verbs`, `models.loop.verdict-in-the-inspector`, `models.loop.published-state`, `models.loop.drawn-in-training`
 - Tests: ModelLoopRowTests.swift (not yet written)
 - Depends on: 4.1
 - Size: M

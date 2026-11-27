@@ -5,11 +5,14 @@ name: Tests
 # but blocks nothing. One job per tier (the unit tier one per shard), so a red names its tier. A push to a lane-* branch
 # runs the Python tiers only: the Macs own Swift for lane checks; the Swift job runs on pull requests, integration pushes
 # and by hand.
+# A merge train's candidate (local.ci.train-candidate-on-a-branch) is pushed to train/<id>: there each tier runs only when the
+# candidate's diff from the land branch touches its paths (the changes job), a red is red (no continue-on-error), and the one
+# train-gate job, which the builder reads, is green when every tier was green or skipped.
 on:
   pull_request:
     branches: ['integration']
   push:
-    branches: ['lane-*', 'integration']
+    branches: ['lane-*', 'integration', 'train/**']
   workflow_dispatch:
 
 permissions:
@@ -20,6 +23,31 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/integration' }}  # integration: a running pass finishes (the engine takes ~25 min, pushes come faster); only the newest waiting run is kept
 
 jobs:
+  changes:
+    name: Tiers the diff touches
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      engine: ${{ steps.tiers.outputs.engine }}
+      builder: ${{ steps.tiers.outputs.builder }}
+      swift: ${{ steps.tiers.outputs.swift }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: tiers
+        run: |
+          # every tier, except on a train branch, whose candidate runs only the tiers its diff from the land branch touches
+          all=true files=""
+          if [[ "$GITHUB_REF" == refs/heads/train/* ]] && base="$(git merge-base HEAD origin/integration 2>/dev/null)"; then
+            files="$(git diff --name-only "$base" HEAD)" && all=false
+          fi
+          tier() { if $all || grep -qE "$1" <<< "$files"; then echo "$2=true"; else echo "$2=false"; fi; }
+          tier '^(fichero-server/|scripts/|docs/|\.github/workflows/)' engine >> "$GITHUB_OUTPUT"
+          tier '^(fichero-builder/|scripts/harness_|harness\.toml|\.github/workflows/)' builder >> "$GITHUB_OUTPUT"
+          tier '^(fichero/|\.github/workflows/)' swift >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
   # The Python tiers run on Linux (ci.python-tiers): Apple-only dependencies carry a darwin marker, so the same uv.lock
   # syncs here, and a test that needs macOS itself is marked macos_only, skipped here with its reason and run by
   # engine-macos. The engine unit tier is split into eight jobs by test file, weighed by test count
@@ -31,7 +59,9 @@ jobs:
     name: engine (${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/heads/train/') }}  # a train's red is red: train-gate reads it
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +110,9 @@ jobs:
     name: engine-macos (macos_only tests)
     runs-on: macos-26
     timeout-minutes: 45
-    continue-on-error: true
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/heads/train/') }}  # a train's red is red: train-gate reads it
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -111,7 +143,9 @@ jobs:
     name: Engine contract tier
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/heads/train/') }}  # a train's red is red: train-gate reads it
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -139,7 +173,9 @@ jobs:
     name: Builder's own suite
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: true
+    needs: changes
+    if: needs.changes.outputs.builder == 'true'
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/heads/train/') }}  # a train's red is red: train-gate reads it
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -154,10 +190,11 @@ jobs:
 
   swift:
     name: Swift build and unit tests
-    if: github.event_name != 'push' || github.ref == 'refs/heads/integration'
+    needs: changes
+    if: needs.changes.outputs.swift == 'true' && (github.event_name != 'push' || github.ref == 'refs/heads/integration' || startsWith(github.ref, 'refs/heads/train/'))
     runs-on: macos-26
     timeout-minutes: 90
-    continue-on-error: true
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/heads/train/') }}  # a train's red is red: train-gate reads it
     env:
       XCODE_MAJOR: '27'  # the project's LastUpgradeCheck and deployment targets are 27: an older Xcode cannot build it
       DERIVED: ${{ github.workspace }}/.ci/DerivedData
@@ -200,3 +237,16 @@ jobs:
           xcodebuild test-without-building -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" -testPlan fichero \
             -only-testing:FicheroTests -destination 'platform=macOS' -derivedDataPath "$DERIVED" \
             -clonedSourcePackagesDirPath "$PACKAGES" CODE_SIGNING_ALLOWED=NO | tail -n 200
+
+  train-gate:
+    name: train-gate
+    needs: [engine, engine-macos, contracts, builder, swift]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEEDS: ${{ toJSON(needs) }}
+    steps:
+      - name: Every tier green or skipped
+        run: |
+          python3 -c "import json, os, sys; n = json.loads(os.environ['NEEDS']); bad = {k: v['result'] for k, v in n.items() if v['result'] not in ('success', 'skipped')}; print(bad or 'every tier green or skipped'); sys.exit(1 if bad else 0)"

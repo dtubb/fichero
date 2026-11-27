@@ -9,6 +9,7 @@ result, never a raise.
 from __future__ import annotations
 
 import ast
+import contextlib
 from concurrent.futures import ThreadPoolExecutor
 import difflib
 import fcntl
@@ -77,6 +78,7 @@ class Config:
     generated: tuple = ()               # generated files a rebase may re-bake itself (the contract identity): never hand-merged
     rebake: tuple = ()                  # argv run in the worktree to re-bake them from the merged sources ("{python}" = [check].python)
     rebake_issue: str = ""              # the issue a re-bake commit cites, e.g. "#4705"
+    autofix: tuple = ()                 # rule classes the loop applies itself to a managed lane's red (autofix.CLASSES), each one `autofix` row
     regen: tuple = ()                   # shell lines that regenerate every generated file (contracts, embed list), run after each rebase
                                         # that moved the lane and committed when they changed a tracked file ("{python}" = [check].python)
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then the next in `remotes`, then here
@@ -85,14 +87,23 @@ class Config:
     guard_inputs: dict = field(default_factory=dict)  # {guard stem: [path prefixes it reads]}: its cache key (speed 5); undeclared = the whole tree
     remote_guards: bool | str = False   # the guards too (they call git, and the shipped tree has no .git: off by default); "auto": a guard
                                         # that names git, subprocess, swiftlint or xcodebuild stays here, the rest go to the runners
+    guards_by_diff: bool = False        # a lane's guards rung skips a guard whose [check.guard_inputs] the batch does not touch: the nightly
+                                        # runs every guard (2026-11-26, owner: per step only what changed); off = every guard, as before
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
+    reuse_fix_verdicts: bool = False    # local.check.fix-round-reuses-verdicts: a fix commit keeps the green rungs it cannot change; off = every rung runs
+    slots_from_runners: bool = False    # local.flow.check-slots-from-runners: count the ladder slots each tick from the runners' rows, `parallel` a ceiling; off = `parallel`
+    slots_per_runner: int = 1           # the slots one [check].remote entry gives while it is fit
+    runner_max_load: float = 1.0        # 1-minute load per core above this: the runner gives no slot
+    runner_min_free_ram_gb: float = 4   # less free memory than this: the runner gives no slot
     perf: dict = field(default_factory=dict)      # [check.perf] (#6600): the engine perf rung: enforce, tests, timeout_s, dirs, declared
     security: dict = field(default_factory=dict)  # [check.security] (#6600): the security rung: enforce, where, pins, timeout_s, dirs
     always_tests: tuple = ()            # test files the unit rung always runs (contract tests, smoke set); () = no unit rung (speed-tests-1)
     ui_tests: tuple = ()                # -only-testing ids of the segment editor's UI tests; () = no ui rung
     ui_runner: str = ""                 # "host:dir" with a logged-in GUI session; "" = build_remote
     ui: dict = field(default_factory=dict)  # [check.ui]: enforce (report-only until three green runs)
+    swift_test_target: str = ""         # the Swift unit-test target ("" = the train runs the whole suite): with it, `swift_affected` picks
+    swift_test_dir: str = ""            # the suites under this dir the train's Swift diff can affect, as -only-testing:<target>/<suite>
     swift_tests: tuple = ()             # the build tool's argv up to the action (project, scheme, destination, -testPlan fichero): `swift_tests()` appends build-for-testing, then test-without-building
     rungs: tuple = ()                   # [check].rungs: the rungs to run, in this order, by name (RUNGS and the [[check.rung]] names); () = every RUNGS rung
     rung: tuple = ()                    # [[check.rung]]: {name, argv, timeout_s}: a rung that runs argv in the scratch tree, green on exit 0
@@ -136,6 +147,9 @@ def load(root) -> Config:
         raise ValueError("harness.toml [brief]: rules must be text")
     if c.get("regen") and not c.get("python"):  # review: a regen line must never run whatever python3 is on the PATH
         raise ValueError("harness.toml [check]: regen needs [check].python (the interpreter `{python}` names)")
+    from fichero_builder import autofix
+    if bad := [x for x in c.get("autofix", ()) if x not in autofix.CLASSES]:
+        raise ValueError(f"harness.toml [check]: unknown autofix classes {bad}; known: {list(autofix.CLASSES)}")
     d = Config()
     return Config(
         python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),
@@ -148,13 +162,15 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
-        always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), autofix=tuple(c.get("autofix", d.autofix)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
+        always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())), swift_test_target=c.get("swift_test_target", d.swift_test_target), swift_test_dir=c.get("swift_test_dir", d.swift_test_dir),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
-        remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
+        remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), guards_by_diff=bool(c.get("guards_by_diff", d.guards_by_diff)), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
         rungs=tuple(c.get("rungs", d.rungs)), rung=tuple(dict(x) for x in c.get("rung", d.rung)),
-        parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())))
+        parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())),
+        reuse_fix_verdicts=bool(c.get("reuse_fix_verdicts", d.reuse_fix_verdicts)), slots_from_runners=bool(c.get("slots_from_runners", d.slots_from_runners)), slots_per_runner=int(c.get("slots_per_runner", d.slots_per_runner)),
+        runner_max_load=float(c.get("runner_max_load", d.runner_max_load)), runner_min_free_ram_gb=float(c.get("runner_min_free_ram_gb", d.runner_min_free_ram_gb)))
 
 
 # speed batch 1 (manager 2026-11-03): narrow rule classes the ladder resolves without a person, each opted in by name in
@@ -191,7 +207,34 @@ def _auto_rules(names) -> tuple:
     return tuple(names)
 
 
-KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly"}
+KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf", "harness", "nightly", "train", "flow", "review", "ci"}
+
+
+def live_vs_pinned(root, base: str) -> list[str]:
+    """local.rules.which-file: the loop reads [loop], [queue], [train], [nightly], [models] and [land] from its own checkout's
+    harness.toml, but every ladder and train rung reads [check] from the pinned copy of the land branch's commit. Each [check] key
+    whose live value differs from the pinned one at `base` (a hand edit the rungs never see), as one line; [] = none or no pinned copy.
+    2026-11-26: swift_test_target was set live and every train still ran the whole Swift suite."""
+    try:
+        live = tomllib.loads((Path(root) / "harness.toml").read_text())
+        pinned = Path(live["land"]["pinned_dir"]) / f"pinned-{base[:7]}" / "harness.toml"
+        ours, theirs = live.get("check", {}), tomllib.loads(pinned.read_text()).get("check", {})
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return [f"[check].{k} differs from the pinned {pinned.parent.name}: live {json.dumps(ours.get(k))[:120]}, pinned {json.dumps(theirs.get(k))[:120]}"
+            " (the rungs read the pinned one: commit the change)" for k in sorted(set(ours) | set(theirs)) if ours.get(k) != theirs.get(k)]
+
+
+def pinned_root(root) -> Path:
+    """The pinned copy of the land branch's commit that the rungs read [check] from (local.rules.which-file); `root` when there is none."""
+    from . import land_tool
+    try:
+        live = tomllib.loads((Path(root) / "harness.toml").read_text())
+        base = land_tool.resolve_branch(live["check"]["engine_repo"], live["land"]["branch"])
+        p = Path(live["land"]["pinned_dir"]) / f"pinned-{base[:7]}"
+        return p if (p / "harness.toml").is_file() else Path(root)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError):
+        return Path(root)
 
 
 def rules_warnings(root) -> list[str]:
@@ -251,6 +294,12 @@ def rules_problems(root) -> list[str]:
         out.append(f"harness.toml [land]: unknown keys {unknown}")
     if not land.get("branch"):
         out.append("harness.toml [land].branch is not declared")
+    try:  # local.ci.caps-and-fallback: hosted CI with no Xcode Cloud cap, or `required` before report rows earned it
+        from . import ci as _ci
+        cic = _ci.load(tomllib.loads(f.read_text()))
+        out += _ci.problems(cic, journal.read() if cic.train == "required" and journal.path().exists() else [])  # the journal only when it decides
+    except ValueError as e:
+        out.append(str(e))
     if "boundary" in land and not land["boundary"]:  # left out = today's patterns (land_tool.DEFAULT_BOUNDARY); declared empty = no boundary, refused
         out.append("harness.toml [land].boundary is empty: leave it out for the default patterns, never turn the boundary off")
     return out
@@ -452,6 +501,47 @@ def _runners_for_base(cfg: Config) -> tuple:
     on the next one; with one runner they wait on it."""
     r = _runners(cfg)
     return r[1:] + r[:1]
+
+
+PROBE = r"""sysctl -n hw.ncpu; sysctl -n vm.loadavg | tr -d '{}' | awk '{print $1}'
+vm_stat | awk '/page size/ {ps=$8} /Pages (free|inactive|speculative)/ {sub(/\./, "", $NF); n+=$NF} END {printf "%.1f\n", n*ps/1073741824}'
+df -g BASE /tmp | awk 'NR>1 {print $4}' | sort -n | head -1"""
+
+
+def probe_runner(remote: str) -> dict:
+    """One `runner` row's facts for a [check].remote entry: reachable, cores, 1-minute load, free memory and free disk (GiB), one ssh."""
+    host, _, base = remote.partition(":")
+    r = _ssh(host, PROBE.replace("BASE", base or "."), 30)
+    vals = r.stdout.decode(errors="replace").split()
+    try:
+        cores, load, ram, disk = int(vals[0]), float(vals[1]), float(vals[2]), float(vals[3])
+    except (IndexError, ValueError):
+        return {"runner": remote, "reachable": False, "detail": (r.stderr.decode(errors="replace").strip() or "no answer")[-200:]}
+    return {"runner": remote, "reachable": True, "cores": cores, "load": load, "free_ram_gb": ram, "free_gb": disk}
+
+
+def runner_slots(rows: dict, cfg: Config, now: float, tick_s: float) -> tuple[int, dict]:
+    """local.flow.check-slots-from-runners: the ladders that may run at once, from each runner's latest row (`rows`: runner -> row
+    with `at`), and why each counts or not. A runner gives `slots_per_runner` while its row is under three ticks old, reachable, its
+    load per core at most `runner_max_load`, free memory at least `runner_min_free_ram_gb` and free disk at least `remote_min_free_gb`.
+    `parallel` is a ceiling; no runner counted is one ladder on the loop's machine."""
+    why = {}
+    for name in _runners(cfg):
+        r = rows.get(name)
+        if r is None or now - r.get("at", 0) >= 3 * tick_s:
+            why[name] = "no row in three ticks"
+        elif not r.get("reachable"):
+            why[name] = f"unreachable: {r.get('detail', '')}"
+        elif r["load"] / max(1, r["cores"]) > cfg.runner_max_load:
+            why[name] = f"load {r['load']:g} on {r['cores']} cores is over {cfg.runner_max_load:g} a core"
+        elif r["free_ram_gb"] < cfg.runner_min_free_ram_gb:
+            why[name] = f"{r['free_ram_gb']:g} GiB free memory, under {cfg.runner_min_free_ram_gb:g}"
+        elif r["free_gb"] < cfg.remote_min_free_gb:
+            why[name] = f"{r['free_gb']:g} GiB free disk, under {cfg.remote_min_free_gb:g}"
+        else:
+            why[name] = f"counts {cfg.slots_per_runner}"
+    n = sum(cfg.slots_per_runner for w in why.values() if w.startswith("counts"))
+    return max(1, min(n, cfg.parallel)), why
 
 
 def _ssh(host: str, script: str, timeout_s: float, stdin=None) -> subprocess.CompletedProcess:
@@ -772,11 +862,12 @@ def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
     return [_py(cfg), "-I", "-c", code]
 
 
-def guards(root, cfg: Config) -> dict:
-    """The guards rung under its OWN lock (speed batch 3, manager 2026-11-03): one guards rung at a time, but never behind the
-    machine's heavy lock, where it waited 65 min for a dev build; the guards are light (about 4 min of one core)."""
-    with journal.Lock("guards", what="the guards rung"):
-        return _guards(root, cfg)
+def guards(root, cfg: Config, changed: list[str] | None = None) -> dict:
+    """The guards rung: the guards that run HERE under their OWN lock (speed batch 3, manager 2026-11-03: never behind the machine's
+    heavy lock, where it waited 65 min for a dev build). The ones sent to a runner go outside it (2026-11-26: the lock held across the
+    remote batch made every lane's guards wait on one another, 2 h of waits a day with three runners free). `changed`: the batch's
+    paths, for `[check].guards_by_diff`; None (verify, the nightly) = every guard."""
+    return _guards(root, cfg, changed)
 
 
 STALE_ENTRY = re.compile(r"no longer occur", re.I)  # a shrink-only allowlist's red: an entry the tree no longer has
@@ -787,7 +878,9 @@ def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tre
     "no longer occurs" and the lane's base is older than the pinned copy's (integration now), the guards run again over head merged with
     that tip: integration's allowlist names code the old base never had, so the merge is what lands and what is judged. Green there =
     green, with the reason said; a conflict or a red there keeps the first red."""
-    r = guards(tree, cfg)
+    changed = _lines(root, "diff", "--name-only", "--no-renames", f"{since}...{head}") if cfg.guards_by_diff else None
+    by = (changed,) if changed is not None else ()
+    r = guards(tree, cfg, *by)
     reds = [x for x in r.get("results") or [] if not x.get("ok")]
     if r["ok"] or not reds or not all(STALE_ENTRY.search(f"{x.get('stdout_tail', '')}\n{x.get('stderr_tail', '')}") for x in reds):
         return r
@@ -801,7 +894,7 @@ def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tre
         return {**r, "reason": (r.get("reason") or "") + f" (head does not merge cleanly with {tip[:9]}: the stale-base re-run was not possible)"}
     mtree = _scratch_tree(root, merged, pinned, cfg, **scratch)
     try:
-        again = guards(mtree, cfg)
+        again = guards(mtree, cfg, *by)
     finally:
         drop_tree(root, mtree)
     if not again["ok"]:
@@ -812,7 +905,22 @@ def guards_on_current_base(root, since: str, head: str, pinned, cfg: Config, tre
                                f"the current base {tip[:9]} every guard is green (the current base still needs those entries)", "stale_base": True}
 
 
-def _guards(root, cfg: Config) -> dict:
+def untouched_guards(found: list[Path], root: Path, cfg: Config, changed: list[str]) -> set[Path]:
+    """The guards with declared inputs (`[check.guard_inputs]`) that no changed path is under, and whose own script did not change:
+    their verdict is base's, which the nightly's full gate judges. A guard with no declared inputs reads the whole tree: it runs."""
+    def under(n: str, p: str) -> bool:
+        p = p.rstrip("/")
+        return n == p or n.startswith(p + "/")
+    out = set()
+    for s in found:
+        ins = cfg.guard_inputs.get(s.stem)
+        own = str(s.relative_to(root)) if s.is_relative_to(root) else str(s)
+        if ins and own not in changed and not any(under(n, p) for n in changed for p in ins):
+            out.add(s)
+    return out
+
+
+def _guards(root, cfg: Config, changed: list[str] | None = None) -> dict:
     """Every guard script matching the project's glob and not in its skip list. Fewer than `min_guards` found =
     blind = not green."""
     root = Path(root)
@@ -823,11 +931,26 @@ def _guards(root, cfg: Config) -> dict:
         return {"ok": False, "reason": f"fewer than {cfg.min_guards} guards to run ({len(found)}): blind is not green",
                 "results": []}
     results = []
+    skip = untouched_guards(found, root, cfg, changed) if cfg.guards_by_diff and changed is not None else set()
+    if skip:
+        journal.append("check", state="guards-by-diff", rung="guards", skipped=len(skip), ran=len(found) - len(skip),
+                       detail="guards whose declared inputs the batch does not touch: base's verdict, the nightly runs them")
     cache = _guard_cache_load()
-    keys = {s: _guard_key(root, s, cfg) if GUARD_CACHE[0] else "" for s in found}
-    away = [s for s in found if not (keys[s] and keys[s] in cache) and _guard_away(s, cfg)]
+    keys = {s: _guard_key(root, s, cfg) if GUARD_CACHE[0] else "" for s in found if s not in skip}
+    away = [s for s in keys if not (keys[s] and keys[s] in cache) and _guard_away(s, cfg)]
     there = _remote_guard_batch(away, root, cfg) if away else None  # ONE ssh for all of them; None = no runner: they run here
+    with journal.Lock("guards", what="the guards rung"):  # only the ones run here; the remote batch above ran outside it
+        _guards_here(found, skip, keys, cache, there, results, root, cfg)
+    _guard_cache_save(cache)
+    return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
+
+
+def _guards_here(found, skip, keys, cache, there, results, root, cfg) -> None:
     for s in found:
+        if s in skip:
+            results.append({"name": s.stem, "argv": [str(s)], "ok": True, "seconds": 0, "exit_code": 0, "skipped": "inputs untouched",
+                            "stdout_tail": "", "stderr_tail": ""})
+            continue
         key = keys[s]
         if key and key in cache:  # the same guard, the same inputs, the same tools: its green is reused (speed 5)
             results.append({**cache[key], "name": s.stem, "argv": [str(s)], "seconds": 0, "cached": True})
@@ -843,8 +966,6 @@ def _guards(root, cfg: Config) -> dict:
         results.append(r)
         if key and r["ok"]:  # only a green is kept: a red always runs again
             cache[key] = {k: r[k] for k in ("exit_code", "ok", "timed_out", "stdout_tail", "stderr_tail")}
-    _guard_cache_save(cache)
-    return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
 
 
 _HERE_ONLY = re.compile(r"\b(subprocess|git|swiftlint|xcodebuild)\b")
@@ -1011,7 +1132,18 @@ BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is no
 
 SHARED_DERIVED = ("build", "test", "ui")  # these share the runner's one `<gate>/derived`, kept between checks so a build is incremental
 STALE_CACHE = re.compile(r"No such module '|module '[^']+' not found|PCM|precompiled module|was compiled with module cache path|module file '[^']+' is out of date")
-TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed")  # a failing test is the code's red, not the runner's
+TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed|^Failing tests:[ \t]*\n[ \t]+\S|✘ Test run with \d+ tests?|^[ \t]+\S+\(\)[ \t]*\n\s*\*\* TEST EXECUTE FAILED \*\*", re.M)
+# a failing test is the code's red, not the runner's: XCTest's lines, Swift Testing's run line and xcodebuild's `Failing tests:` list,
+# which end in "** TEST EXECUTE FAILED **" (2026-11-26, the train: 14 failing cases were labelled "the runner could not run the tests")
+FAILING_LIST = re.compile(r"^Failing tests:[ \t]*\n((?:[ \t]+\S.*(?:\n|$))+)", re.M)
+
+
+def failing_cases(out: str) -> list[str]:
+    """The failing test cases a Swift test run names: XCTest's `Test Case '...' failed` and xcodebuild's `Failing tests:` list."""
+    names = set(re.findall(r"Test [Cc]ase '([^']+)' failed", out))
+    for block in FAILING_LIST.findall(out):
+        names |= {ln.strip() for ln in block.splitlines() if ln.strip()}
+    return sorted(names)
 WARNING_PLATFORMS = {"build": "mac", "ios-sim": "ios"}  # the remote build rung holds the mac count, the iOS daily build the iOS count (the Swift test target holds none; iPad waits for a scheme that carries the iPad plan)
 RATCHET_SCRIPT = client.scripts_dir() / "check_xcode_warning_ratchet.py"  # the harness's own copy judges: a batch's own script never runs, jailed or not
 
@@ -1105,17 +1237,8 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
     if name == "security" and not _security_push(root, host, rbase):  # local prep, before the lock
         return None
     # one build at a time over the stable tree here and the one there: a second ladder's rsync must never rewrite a tree mid-build
-    lock = None
-    if cfg.build_lock:
-        lp = Path(os.path.expanduser(cfg.build_lock))
-        lp.parent.mkdir(parents=True, exist_ok=True)
-        lock = open(lp, "a")
-        fcntl.flock(lock, fcntl.LOCK_EX)
-    try:
+    with build_lock(cfg):
         return _remote_build_locked(root, cfg, host, rbase, cmd, name, reuse, timeout_s)
-    finally:
-        if lock is not None:
-            lock.close()
 
 
 def _security_push(root, host: str, rbase: str) -> bool:
@@ -1218,16 +1341,72 @@ def daily_builds(root, cfg: Config) -> list[tuple[str, dict | None]]:
         out.append((name, None if r and r.get("remote_env_red") else r))  # could not run there: as before
     return out
 
+BUILD_YIELD_S = 2.0  # a lane's build rung that took the build lock while a train waits for it lets go and tries again this much later
+
+
+def _train_waiting(lp: Path) -> bool:
+    """A train of a live process waits for the build lock (its `<lock>.train-<pid>-<thread>` file); a dead process's file is removed."""
+    for w in lp.parent.glob(lp.name + ".train-*"):
+        try:
+            os.kill(int(w.name.rsplit(".train-", 1)[1].split("-")[0]), 0)
+            return True
+        except (ValueError, ProcessLookupError):
+            w.unlink(missing_ok=True)
+        except PermissionError:
+            return True
+    return False
+
+
+@contextlib.contextmanager
+def build_lock(cfg: Config, train: bool | None = None):
+    """local.train.build-lock-first: `[check].build_lock` held for one build. A merge train's build (its rung key starts `train `) says it
+    waits first, so a lane's build rung that gets the lock meanwhile lets go at once and tries again: the train takes the next turn."""
+    if not cfg.build_lock:
+        yield
+        return
+    lp = Path(os.path.expanduser(cfg.build_lock))
+    lp.parent.mkdir(parents=True, exist_ok=True)
+    train = str(_KEY[0]).startswith("train ") if train is None else train
+    with open(lp, "a") as f:
+        if train:
+            want = lp.with_name(f"{lp.name}.train-{os.getpid()}-{threading.get_ident()}")
+            want.write_text(str(_KEY[0]))
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX)
+            finally:
+                want.unlink(missing_ok=True)
+        else:
+            said = False
+            while True:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                if not _train_waiting(lp):
+                    break
+                fcntl.flock(f, fcntl.LOCK_UN)
+                if not said:
+                    said = True
+                    journal.append("check", state="build-lock-yield", rung="build", detail="a merge train waits for the build lock: it builds first")
+                time.sleep(BUILD_YIELD_S)
+        yield
+
+
+def build_lock_free(cfg: Config) -> bool:
+    """No build holds `[check].build_lock` now (local.train.second-train-on-the-first: a second train starts only then)."""
+    if not cfg.build_lock:
+        return True
+    lp = Path(os.path.expanduser(cfg.build_lock))
+    if not lp.exists():
+        return True
+    with open(lp, "a") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return False
+    return not _train_waiting(lp)
+
+
 @_heavy("xcodebuild (the build rung)")
 def _build_locked(root, changed: list[str], cfg: Config) -> dict:
-    lock = None
-    if cfg.build_lock:  # ~ = the owner's own state dir (review 1 N3); the owner's process takes it, the build itself runs jailed
-        lp = Path(os.path.expanduser(cfg.build_lock))
-        lp.parent.mkdir(parents=True, exist_ok=True)
-        lock = open(lp, "a")
-    try:
-        if lock is not None:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+    with build_lock(cfg):  # ~ = the owner's own state dir (review 1 N3); the owner's process takes it, the build itself runs jailed
         src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
         key = _build_key(src, cfg)
         if key and (hit := _build_results().get(key)):  # the same fichero/ tree, command and Xcode built green before: reused
@@ -1248,9 +1427,6 @@ def _build_locked(root, changed: list[str], cfg: Config) -> dict:
             r = {**_run("build", cfg.build, src, cfg.build_timeout_s, cfg, log=log.with_suffix(".clean.log")), "retried": "clean"}
         if r["ok"] and key:
             _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])
-    finally:
-        if lock is not None:
-            lock.close()
     return {"ok": r["ok"], "skipped": False, "results": [r]}
 
 
@@ -1578,7 +1754,7 @@ def _in_thread(shipped: set, key: str, fn, *a):
     return fn(*a)
 
 
-def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
+def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 1800,  # noqa: B008
                 head_tree=None, also_green: tuple = (), approve_red: bool | tuple = False) -> dict:
     """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
     own, and all must PASS at `head`. A test that passes on base proves nothing."""
@@ -1699,6 +1875,7 @@ class _PerThread(threading.local):
 
 
 HEAD_GREEN_ONLY = _PerThread(False)  # a kept rebase: red-on-base runs only its head-green half (the base run stood on the old base)
+SKIP_RUNGS = _PerThread(())  # rung names this thread's ladder does not run: the merge train runs them once per train (work.do_check sets it)
 ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
 BASE_RUN = _PerThread(False)  # this thread runs red-on-base's base tests: _run takes the runners after the head run's
@@ -1837,16 +2014,18 @@ def _perf_swift(root, cfg: Config) -> dict:
     return _report_only("perf", cfg.perf, True, [line], {"results": [row]})
 
 
-def unit(root, changed: list[str], cfg: Config, tests_run_elsewhere: bool = True) -> dict:
+def unit(root, changed: list[str], cfg: Config, tests_run_elsewhere: bool = True, everything: bool = False) -> dict:
     """The unit rung (speed-tests-1): the tests this batch can affect (`affected.select`: the importers of every changed source file, the
     changed tests, `[check].always_tests`), or the whole suite when a change cannot be placed. A changed test file already ran in
     red-on-base (`tests_run_elsewhere`) and is not run twice, unless the whole suite runs. The nightly `verify-all --full` runs everything.
-    Journals how many test files ran, how many tests passed, and why. Off with no `[check].always_tests`."""
+    Journals how many test files ran, how many tests passed, and why. Off with no `[check].always_tests`. `everything`: the whole suite
+    (the merge train's unit tier, once per train)."""
     from . import affected
     if not cfg.always_tests:
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].always_tests", "results": []}
     blobs = {row.partition("\t")[2]: row.split()[1] for row in _lines(root, "ls-files", "-s", "*.py") or []}  # "<mode> <blob> <stage>\t<path>"
-    sel = affected.select(root, changed, blobs, cfg.test_globs, cfg.python_path, cfg.always_tests, journal.STATE)
+    sel = ({"whole": "the merge train runs the full unit tier", "tests": [], "changed_tests": [], "always": []} if everything
+           else affected.select(root, changed, blobs, cfg.test_globs, cfg.python_path, cfg.always_tests, journal.STATE))
     if sel["whole"]:
         whole = tuple(sorted({v for v in cfg.whole_tests.values() if isinstance(v, str)}))
         dirs = sorted(f"{p.parent.name}/tests" for p in Path(root).glob("*/tests") if p.is_dir() and f"{p.parent.name}/tests" not in whole)
@@ -1926,7 +2105,122 @@ def ui(root, changed: list[str], cfg: Config) -> dict:
     return {"ok": r["ok"] or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines), "stderr_tail": "", "results": [row]}
 
 
-def swift_tests(root, cfg: Config) -> dict:
+# 2026-11-26 journal: 296 suites (1006 tests) took 921 and 858 s, the whole plan (5077 tests) 786 to 1246 s, 58 tests 181 s: about
+# 140 s + 2.6 s a suite, so near 300 suites -only-testing costs what the whole plan does. ponytail: a fixed 150, from one day's runs;
+# the `swift-tests` check rows now carry `suites`, so it can be set again from more of them.
+SWIFT_SELECT_MAX = 150  # more suites than this: the whole plan runs
+SWIFT_NEUTRAL = (".pbxproj", ".xcfilelist", ".md")  # project bookkeeping: the Swift files the change adds carry the selection
+_SUITE = re.compile(r"^(?:@Suite\b[^\n]*\n)?(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:final|public|internal)\s+)*(?:struct|class|actor|enum)\s+(\w+)([^{\n]*)", re.M)
+
+
+def _suites(text: str) -> list[str]:
+    """The test suites a Swift test file declares at top level: a type named ...Test(s), an XCTestCase, or one marked @Suite."""
+    out = []
+    for m in _SUITE.finditer(text):
+        name, rest = m.group(1), m.group(2)
+        if name.endswith(("Tests", "Test")) or "XCTestCase" in rest or m.group(0).startswith("@Suite"):
+            out.append(name)
+    return out
+
+
+def swift_affected(root, changed: list[str], cfg: Config, contract_types: set | None = None) -> list[str] | None:
+    """The `<target>/<suite>` ids of the Swift test suites a diff can affect, the way `affected.select` picks Python tests: a changed
+    test file's own suites; for any other changed Swift file, the suites of the test files named after its type or that name it.
+    None = run the whole suite: no `[check].swift_test_target`, a changed non-Swift build input (a resource, a setting, a package
+    pin), or more suites than SWIFT_SELECT_MAX. The nightly always runs the whole suite (owner 2026-11-26)."""
+    if swift_whole_why(changed, cfg, contract_types is not None):
+        return None
+    built = _swift_built(changed, cfg)
+    tests = {str(p.relative_to(root)): p for p in Path(root, cfg.swift_test_dir).rglob("*.swift")}
+    texts: dict = {}
+
+    def text(f: str) -> str:
+        if f not in texts:
+            try:
+                texts[f] = tests[f].read_text(errors="replace")
+            except OSError:
+                texts[f] = ""
+        return texts[f]
+    picked: set[str] = set()
+    for f in (x for x in built if x.endswith(".swift")):
+        if f in tests:
+            picked.add(f)
+            continue
+        stem = Path(f).stem.split("+")[0]
+        word = re.compile(rf"\b{re.escape(stem)}\b")
+        picked |= {t for t, p in tests.items() if p.stem.startswith(stem) or word.search(text(t))}
+    if contract_types:  # an openapi.json change: the tests that name a type it changed (generated, so no Swift file of it is in the diff)
+        words = re.compile(r"\b(" + "|".join(map(re.escape, sorted(contract_types))) + r")\b")
+        picked |= {t for t in tests if words.search(text(t))}
+    suites = sorted({f"{cfg.swift_test_target}/{n}" for t in picked for n in _suites(text(t))})
+    return None if len(suites) > SWIFT_SELECT_MAX else suites
+
+
+def _swift_built(changed: list[str], cfg: Config) -> list[str]:
+    """The changed files the Swift build reads; a test plan other than the one `[check].swift_tests` runs is not one of them
+    (2026-11-26: the iOS UI plan in a train's diff made its unit run the whole suite)."""
+    plan = cfg.swift_tests[list(cfg.swift_tests).index("-testPlan") + 1] if "-testPlan" in cfg.swift_tests[:-1] else ""
+    built = [f for f in changed if f.startswith(tuple(cfg.build_paths))] if cfg.build_paths else changed
+    return [f for f in built if not (f.endswith(".xctestplan") and Path(f).stem != plan)]
+
+
+CONTRACT_FILE = "openapi.json"  # the API client's generator input: mapped to the suites naming its changed types (contract_types)
+
+
+def contract_types(repo, base: str, head: str, changed: list[str]) -> set | None:
+    """The schema and operation names an `openapi.json` in `changed` adds, drops or changes between base and head: the generated
+    client's types (Components.Schemas.<Name>, Operations.<operationId>). None = no contract file changed, or one cannot be read."""
+    from . import land_tool
+    files = [f for f in changed if Path(f).name == CONTRACT_FILE]
+    if not files:
+        return None
+    names: set = set()
+    for f in files:
+        try:
+            docs = [json.loads(subprocess.run([land_tool.GIT, "-C", str(repo), "show", f"{rev}:{f}"], capture_output=True, text=True).stdout or "{}")
+                    for rev in (base, head)]
+        except ValueError:
+            return None
+        old, new = (d.get("components", {}).get("schemas", {}) for d in docs)
+        names |= {n for n in set(old) | set(new) if old.get(n) != new.get(n)}
+        ops = [{o.get("operationId"): o for p in d.get("paths", {}).values() for o in p.values() if isinstance(o, dict) and o.get("operationId")}
+               for d in docs]
+        names |= {n for n in set(ops[0]) | set(ops[1]) if ops[0].get(n) != ops[1].get(n)}
+    return names
+
+
+def other_runner(cfg: Config) -> str:
+    """Another build runner than [check].build_remote, for one retry (a `[check].remote` entry); the same one when there is no other."""
+    return next((r for r in _runners(cfg) if r != cfg.build_remote), cfg.build_remote)
+
+
+def swift_whole_why(changed: list[str], cfg: Config, contract: bool = False) -> str:
+    """Why the train's Swift run is the whole suite ('' = a selection may be made): what the train row says beside the rung.
+    `contract`: an openapi.json is mapped to suites (contract_types), never the whole plan; the generator's Package and config still are."""
+    if not cfg.swift_test_target or not cfg.swift_test_dir:
+        return "no [check].swift_test_target and swift_test_dir in the pinned rules"
+    other = [f for f in _swift_built(changed, cfg) if not f.endswith((".swift", *SWIFT_NEUTRAL)) and not (contract and Path(f).name == CONTRACT_FILE)]
+    return f"a non-Swift build input changed: {', '.join(other[:3])}" if other else ""
+
+
+def swift_selectors(names, target: str) -> list[str]:
+    """Every `-only-testing` value as `<target>/<Suite>` (train-20261126-210725: a case name `Suite.case()` went to -only-testing
+    raw and xcodebuild refused it on both runners). Reads `<target>/<Suite>[/case]`, `Suite/case()`, `Suite.case()`, `Target.Suite.case()`
+    and `-[Target.Suite case]`; a name none of these reads is dropped. Sorted, each once."""
+    out = set()
+    for f in names:
+        f = str(f).strip()
+        m = (re.fullmatch(rf"{re.escape(target)}/(\w+)(?:/.*)?", f) or re.fullmatch(r"-\[(?:\w+\.)?(\w+) \w+\]", f)
+             or re.fullmatch(r"(\w+)/\w+\(.*\)", f) or re.fullmatch(r"(?:\w+\.)?(\w+)\.\w+\(.*\)", f) or re.fullmatch(r"(\w+)", f))
+        if m:
+            out.add(f"{target}/{m.group(1)}")
+    return sorted(out)
+
+
+NOT_IN_PLAN = re.compile(r"isn.t a member of the specified test plan or scheme")  # xcodebuild refusing a selector: the builder's error, not a runner's
+
+
+def swift_tests(root, cfg: Config, only: list[str] | tuple = (), timeout_s: float | None = None) -> dict:
     """The Swift unit tests (not a per-step rung; the merge train runs it once per train): `[check].swift_tests` with build-for-testing,
     then test-without-building, on `[check].build_remote` in the runner's one kept DerivedData. A test target that does not compile
     is RED with the compiler errors; failing tests are RED naming them. No runner, or one that cannot run it, is a not-run row (never green)."""
@@ -1938,9 +2232,13 @@ def swift_tests(root, cfg: Config) -> dict:
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: no [check].swift_tests", "results": []}
     if not cfg.build_remote:
         return not_run("no [check].build_remote: the Swift tests never run on the manager's Mac")
+    if only and cfg.swift_test_target:
+        asked, only = list(only), swift_selectors(only, cfg.swift_test_target)
+        if not only:  # never the whole plan for a selection no name of which reads as a suite
+            return not_run("no -only-testing selector could be read from the names", ", ".join(asked)[:300])
     t0 = time.time()
     base = cfg.swift_tests if "-derivedDataPath" in cfg.swift_tests else (*cfg.swift_tests, "-derivedDataPath", "derived")  # the runner's kept dir is put in by _remote_build
-    b = _remote_build(root, cfg, (*base, "build-for-testing"), "test", reuse=False)
+    b = _remote_build(root, cfg, (*base, "build-for-testing"), "test", reuse=False, timeout_s=timeout_s)
     if b is None:
         return not_run("the build runner is unreachable")
     if b.get("remote_env_red"):
@@ -1949,22 +2247,34 @@ def swift_tests(root, cfg: Config) -> dict:
         row = b["results"][0]
         return {"ok": False, "skipped": False, "stdout_tail": "RED: the test target does not compile\n" + (row.get("errors") or row.get("stdout_tail") or "")[-3000:],
                 "stderr_tail": row.get("stderr_tail") or "", "results": [row]}
-    t = _remote_build(root, cfg, (*base, "test-without-building"), "test", reuse=False)
+    left = None if timeout_s is None else max(60.0, timeout_s - (time.time() - t0))
+    t = _remote_build(root, cfg, (*base, *(f"-only-testing:{x}" for x in only), "test-without-building"), "test", reuse=False, timeout_s=left)
     if t is None:
         return not_run("the build runner became unreachable")
+    said = "\n".join((x.get("stderr_tail") or "") + (x.get("stdout_tail") or "") for x in t.get("results") or [])
+    if NOT_IN_PLAN.search(said):  # no runner can run what the builder asked for: one alert, never a retry on another runner
+        what = next((ln for ln in said.splitlines() if NOT_IN_PLAN.search(ln)), "")[-300:]
+        _rung_alert("swift-tests", f"builder error: xcodebuild refused an -only-testing selector: {what}")
+        return {"ok": False, "skipped": False, "builder_error": True, "stdout_tail": f"BUILDER ERROR: an -only-testing selector the test plan lacks\n{what}",
+                "stderr_tail": "", "results": t.get("results") or []}
     if t.get("remote_env_red"):
         return not_run("the runner could not run the tests (not a test failure)", t["results"][0].get("stderr_tail") or "")
     row = t["results"][0]
     out = (row.get("stdout_tail") or "")
+    try:  # the names from the whole log: the tail cut the top of a long `Failing tests:` list (2026-11-26 14:16: 0 names read of 40)
+        full = Path(row["log"]).read_text(errors="replace") if row.get("log") and Path(row["log"]).is_file() else out
+    except OSError:
+        full = out
     ran = re.findall(r"Executed (\d+) tests?, with (\d+) failures?", out)
-    count, failed = (int(ran[-1][0]), int(ran[-1][1])) if ran else (0, 0)
-    names = sorted(set(re.findall(r"Test [Cc]ase '([^']+)' failed", out)))
+    names = failing_cases(full)
+    count, failed = (int(ran[-1][0]), int(ran[-1][1])) if ran else (int((re.findall(r"Test run with (\d+) tests?", out) or ["0"])[-1]), len(names))
     secs = round(time.time() - t0, 1)
-    journal.append("check", state="swift-tests", rung="swift-tests", ok=t["ok"], seconds=secs, tests=count, failures=failed)
+    journal.append("check", state="swift-tests", rung="swift-tests", ok=t["ok"], seconds=secs, tests=count, failures=failed,
+                   suites=len(only) if only else "whole")  # the selection's size beside its time: SWIFT_SELECT_MAX is set from these
     head = f"swift-tests: {count} tests, {failed} failed, {secs} s"
     if not t["ok"]:
         return {"ok": False, "skipped": False, "stdout_tail": f"RED: {head}\nfailing: {', '.join(names) or '(no test name read)'}\n" + out[-2000:],
-                "stderr_tail": row.get("stderr_tail") or "", "results": [row]}
+                "stderr_tail": row.get("stderr_tail") or "", "results": [row], "failing": names, "failures": failed}
     return {"ok": True, "skipped": False, "stdout_tail": head, "stderr_tail": "", "results": [row]}
 
 
@@ -1972,6 +2282,8 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
     """The perf rung: the engine half, and, when a changed path is under `fichero/`, the Swift half. ok = both ok; a Swift-only batch is
     never "not required"."""
     from . import perf_rung
+    if SCANS_OWED[0]:
+        return {"ok": True, "skipped": True, "stdout_tail": "owed to the train: perf runs once on its candidate", "stderr_tail": "", "results": []}
     eng = _perf_engine(root, since, changed, cfg)
     if not cfg.perf or not any(f.startswith(perf_rung.APP_PATHS) for f in changed):
         return eng
@@ -2045,6 +2357,9 @@ def security_lints(root, since: str, head: str, approved=None, dirs: tuple[str, 
     return out
 
 
+SCANS_OWED = _PerThread(False)  # local.train.security-and-perf-once: the scanners and perf are the train's (work.do_check sets it)
+
+
 def security(root, since: str, head: str, changed: list[str], cfg: Config) -> dict:
     """The security rung: the waiver lints, then `scripts/security_scan_run.py` over the batch (bandit with its baseline, semgrep with
     --baseline-commit, gitleaks over the batch's commits; osv-scanner only when `[check.security].osv` is on), reading only what is NEW.
@@ -2057,6 +2372,8 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     if not [f for f in changed if (dirs and f.startswith(dirs)) or f in ("osv-scanner.toml", ".gitleaks.toml")]:
         return {"ok": True, "skipped": True, "stdout_tail": "not required: no changed path is under a scanned directory", "stderr_tail": "", "results": []}
     problems = security_lints(root, since, head, dirs=dirs)
+    if SCANS_OWED[0]:  # the added-line lints only; the scanners run once on the train's candidate
+        return _report_only("security", cfg.security, not problems, [*problems, "the scanners are owed to the train"])
     pins = dict(cfg.security.get("pins") or {})
     osv_on = bool(cfg.security.get("osv", False))
     if not cfg.build_remote:
@@ -2106,8 +2423,13 @@ def ladder(rungs: list) -> dict:
     for name, fn in rungs:
         if reds and name not in CHEAP_RUNGS:
             continue
+        if name in SKIP_RUNGS[0]:
+            out.append({"name": name, "ok": True, "skipped": True, "stdout_tail": "skipped: the merge train runs it once per train", "results": []})
+            continue
         if (prior := (REUSE[0] or {}).get(name)) is not None:  # green before the approve, for this exact head: not run again (dev-workflows.run.loop-needs-maintainer)
             out.append({**prior, "name": name, "cached": True})
+            if prior.get("reused"):  # local.check.fix-round-reuses-verdicts: one rung row naming the head it was judged at
+                ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=True, reused=prior["reused"])
             continue
         ACTIVITY(kind="check", key=_KEY[0], state="rung-start", rung=name, load=_load())
         t0 = time.time()
@@ -2439,9 +2761,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         out = ladder(pick_rungs([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
-            ("red-on-base", lambda: (green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)) if green_only
-             else red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
-             else _no_red_row(own, whole, cfg)),
+            ("red-on-base", lambda: red_on_base_rung(root, since, head, names, tests, whole, cfg, own, approve_red, green_only)),
             ("unit", lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg)),
             ("guards", lambda: guards_on_current_base(root, since, head, pinned, cfg, tree, data_from_head=tuple(guard_data), stricter_from_head=stricter)),
             ("security", lambda: security(tree, since, head, names, cfg)),
@@ -2454,7 +2774,28 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     finally:
         drop_tree(root, tree)
         drop_tree(root, own)
-    return {**out, "rungs": [ok_pin, *unpinned_rows(cfg), *out["rungs"]]}
+    owed = next((x.get("owed") for x in out["rungs"] if x.get("name") == "red-on-base" and x.get("owed")), [])
+    return {**out, "rungs": [ok_pin, *unpinned_rows(cfg), *out["rungs"]], **({"owed": owed} if owed else {})}
+
+
+OWE_WHOLE = _PerThread(False)  # local.check.red-on-base-changed-tests-only: with the train on, the whole-tests dirs are the train's (work.do_check sets it)
+
+
+def red_on_base_rung(root, since: str, head: str, names: list[str], tests: list[str], whole: tuple, cfg: Config, own, approve_red=False,
+                     green_only: bool = False) -> dict:
+    """The red-on-base rung. With the train on (OWE_WHOLE) it runs the changed test files only, on the base and on the head; the
+    `[check.whole_tests]` dirs of the diff are not run here, and the row lists them as `owed` to the train, which runs them once on its
+    candidate (local.train.whole-tests-against-base). With the train off the head run takes them, as before."""
+    owed, whole = (whole, ()) if OWE_WHOLE[0] else ((), whole)
+    if green_only:
+        r = green_runs(own, tests, whole, cfg, 1800) if tests or whole else _no_red_row(own, whole, cfg)
+    elif _needs_red(names, tests, cfg):
+        r = red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red)
+    else:
+        r = _no_red_row(own, whole, cfg)
+    if owed:
+        r = {**r, "owed": list(owed), "stdout_tail": f"owed to the train: {', '.join(owed)}\n" + (r.get("stdout_tail") or "")}
+    return r
 
 
 def unpinned_rows(cfg: Config) -> list[dict]:

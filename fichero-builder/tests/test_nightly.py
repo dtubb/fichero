@@ -138,6 +138,8 @@ def test_each_part_has_one_fixed_clone_dir_and_a_machines_dir_is_used(monkeypatc
     check, dmg, smoke = (x[1] for x in seen)
     assert check.startswith('rm -rf "$HOME"/code/fichero-worktrees/nightly/check &&') and "fichero-nightly-" not in check
     assert dmg.startswith(f"rm -rf {tmp_path}/s/nightly/dmg &&") and f"cd {tmp_path}/s/nightly/dmg &&" in smoke, "the smoke runs in the DMG's tree"
+    assert f"APP_SRC={tmp_path}/s/nightly/dmg/'fichero/build/xcode/Products/Dev Embedded/Fichero.app'" in smoke, \
+        "2026-11-26 03:53: the smoke looked in Products/Release; a --dev build is the Dev Embedded configuration's"
 
 
 def test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over(monkeypatch, tmp_path):
@@ -148,8 +150,10 @@ def test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over
     nightly.real_runners(tmp_path, cfg, "integration", tmp_path / "s").smoke("c" * 40)
     (m1, s1), (m2, s2), (m3, s3) = seen
     assert (m1, m2, m3) == ("m4", "local", "m4") and f"checkout -q {'c' * 40}" in s1
-    assert s2.startswith("rsync -a --delete") and "Fichero.app/ m4:fichero-nightly/smoke/fichero/build/xcode/Products/Release/Fichero.app/" in s2
-    assert "scripts/smoke-release-embedded-backend.sh" in s3
+    # 2026-11-26: the copy sat inside the clone that `_clean_tree` wipes, so each night re-sent 3.7 GB (past the hour); it lives beside it
+    assert s2.startswith("rsync -a --delete") and "/Products/Dev Embedded/Fichero.app'/ m4:fichero-nightly/smoke-app/Fichero.app/" in s2
+    assert 'rm -rf "$HOME"/fichero-nightly/smoke &&' in s1 and 'mkdir -p "$HOME"/fichero-nightly/smoke-app/Fichero.app' in s1, "the wipe spares the copy"
+    assert 'APP_SRC="$HOME"/fichero-nightly/smoke-app/Fichero.app scripts/smoke-release-embedded-backend.sh' in s3
     with pytest.raises(ValueError, match="needs a local build_machine"):
         nightly.real_runners(tmp_path, nightly.Cfg((22, 0), (0, 0), "m4", "imac", "m4", "dev", 1), "integration", tmp_path)
 
@@ -339,3 +343,37 @@ def test_the_preflight_names_each_red_of_that_night_before_any_build(monkeypatch
     assert no_toml[0].startswith("the project venv's python")
     no_ssh = nightly.preflight(tmp_path, tonight, rules, which=lambda s: (255, "ssh: connect to host imac: Operation timed out") if "ssh" in s else (0, ""))
     assert no_ssh[0].startswith("imac is not reachable")
+
+
+def _ci_night(plan):
+    from fichero_builder import ci
+    from test_ci_train import Clock, FakeHosted
+    n, h, clock = Night(), FakeHosted(plan), Clock()
+    cfg = ci.Cfg(nightly=True, xcode_cloud_hours_month=25, xcode_workflow="Fichero Full Plan")
+    n.runners.ci = lambda sha, night: ci.nightly_part(cfg, h, sha, night, n.alerts.append, clock=clock, sleep=clock.sleep)
+    return n, h
+
+
+def test_the_nightly_dispatches_ci_on_the_frozen_sha_and_verify_waits_for_its_checks(state):
+    from test_ci_train import check
+    sha = "a" * 40
+    n, h = _ci_night({sha: [[check("train-gate", status="in_progress", conclusion="")],
+                            [check("train-gate", seconds=1500, cid=2), check("Fichero Full Plan | Test", seconds=1200, cid=3)]]})
+    assert nightly.run_night(CFG, n.runners, sha, "2026-11-26", n.alerts.append) is True
+    assert ("push", sha, "nightly/2026-11-26") in h.calls and ("dispatch", "nightly/2026-11-26", None) in h.calls
+    assert not any(c[0] == "push" and "train/" in c[2] for c in h.calls)
+    (row,) = [r for r in journal.read() if r.get("state") == "ci-green"]
+    assert "train-gate success 25 min" in row["detail"] and "Fichero Full Plan | Test success 20 min" in row["detail"]
+    assert "train-gate success 25 min" in n.texts[0], "the report lists each check with its minutes"
+
+
+@pytest.mark.parametrize("ci_says", ["red", "missing"])
+def test_a_red_or_missing_nightly_check_publishes_nothing(state, ci_says):
+    from test_ci_train import check
+    sha = "a" * 40
+    plan = ({sha: [[check("train-gate", "failure"), check("Fichero Full Plan | Test", cid=3)]]} if ci_says == "red"
+            else {sha: [[check("engine (1/8)", status="in_progress", conclusion="")]]})
+    n, h = _ci_night(plan)
+    assert nightly.run_night(CFG, n.runners, sha, "2026-11-26", n.alerts.append) is False
+    assert "publish" not in [c[0] for c in n.calls] and n.texts == []
+    assert any("red at ci" in a for a in n.alerts)

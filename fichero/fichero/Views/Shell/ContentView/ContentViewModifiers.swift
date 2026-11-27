@@ -132,7 +132,7 @@ struct DropTargetModifiers: ViewModifier {
             // toolbar's ActivityStatusToolbarItem (#4036), keeping the
             // sidebar visible the whole time. The drop-target highlight stays
             // on the per-row sidebar state.
-            .alert("Import Error", isPresented: .constant(importError != nil)) {
+            .alert(RunStartWords.alertTitle(for: importError), isPresented: .constant(importError != nil)) {
                 Button("OK") {
                     importError = nil
                 }
