@@ -26,7 +26,7 @@ from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.llm.local_model_facts import GIB
 from fichero_server.llm.refusal import CloudRefusal
-from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows
+from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows, write_check
 # Imported, never redefined: one schema component for every route's refusal sentence (#5094).
 from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
 from fichero_server.db import Database
@@ -3532,10 +3532,15 @@ async def reread_edited_segments(
     request: RereadEditedRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
+    library_path: str = Depends(require_library_path),
+    http: Request = None,
 ) -> RereadEditedResponse:
     """`segment-actions.automatic-rerun-after-an-edit`: read each edited line again on its own, with the local model that
     read it; a line a paid cloud model read is reported as `stale` and never run."""
     from fichero_server.recipes.reread import reread_edited
+
+    # a write to the pages these lines are on: the body names them, the dependency never sees them (#6320)
+    await write_check(http, library_path, db, request.segment_ids, deep=False)
 
     return RereadEditedResponse(**await asyncio.to_thread(reread_edited, db, request.segment_ids, started_by=started_by_for(ctx)))
 

@@ -417,7 +417,8 @@ def test_a_new_knowledge_route_must_filter_its_rows_or_refuse_a_caller_with_a_de
     from tests.route_inventory import served_routes
 
     filters = {("GET", "/api/entities"), ("GET", "/api/entities/{entity_id}"), ("GET", "/api/claims"), ("GET", "/api/claims/{claim_id}"),
-               ("GET", "/api/kg/search"), ("GET", "/api/kg/graph/neighborhood/{entity_id}"), ("GET", "/api/claim-links/{link_id}")}
+               ("GET", "/api/kg/search"), ("GET", "/api/kg/graph/neighborhood/{entity_id}"), ("GET", "/api/claim-links/{link_id}"),
+               ("GET", "/api/kg/comments")}  # the comments list leaves out a node the caller may not read (`_anchor_visible`)
 
     def deps(d):
         for x in d.dependencies:
@@ -893,3 +894,21 @@ def test_item7_activitys_retry_of_a_run_is_checked_like_read_again(project, four
             continue
         got = client.post(f"/api/activity/jobs/{thread}/retry{decoy}")
         assert got.status_code == 403, (name, got.status_code, got.text)
+
+
+def test_a_reread_of_edited_lines_is_refused_for_a_caller_denied_the_page(project, four):
+    """`POST /api/recipes/project/reread-edited` names its lines in the body: a line on a page the caller is denied is refused."""
+    from fichero_server.models.anchors import SourceAnchor
+    from fichero_server.models.knowledge import ProvenanceKind
+    from fichero_server.models.segments import Segment, SegmentPass, bbox_and_tile_from_anchor
+
+    db = db_manager.get_database(project.harness.library)
+    document_id = project.ids["b1"]
+    pass_row = SegmentPass(document_id=document_id, name="p", provenance_kind=ProvenanceKind.workflow)
+    db.save(pass_row)
+    anchor = SourceAnchor(document_id=document_id, rect=[0.1, 0.1, 0.1, 0.1])
+    x, y, w, h, tile = bbox_and_tile_from_anchor(anchor)
+    line = Segment(document_id=document_id, pass_id=pass_row.id, kind="word", anchor=anchor, bbox_x=x, bbox_y=y, bbox_w=w, bbox_h=h,
+                   tile=tile, doc_kind=f"{document_id}:word", provenance_kind=ProvenanceKind.workflow)
+    db.save(line)
+    assert _all_refused(four, "POST", "/api/recipes/project/reread-edited", {"segment_ids": [line.id]}, who=("alice", "bob"))

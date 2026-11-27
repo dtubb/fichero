@@ -51,6 +51,9 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     **{name: (RECORD, _SEGMENT) for name in (
         "segment_id", "segment_ids", "parent_segment_id", "keep_id", "from_segment_id", "to_segment_id",
         "source_segment_id", "picture_segment_id", "new_segment_ids", "mask_id",
+        # reading_order.move/sequence: the line a moved run goes after; segment.move_cut: the two words a cut lies
+        # between; segment.group_lines / ungroup_region: the region gathered or dissolved and the one it replaced.
+        "after_segment_id", "first_id", "second_id", "region_id", "replaced_region_id", "restore_region_id",
     )},
     "pass_id": (RECORD, ("SegmentPass",)),
     **{name: (RECORD, ("Artifact",)) for name in ("artifact_id", "source_artifact_id", "derived_from_artifact_id")},
@@ -72,6 +75,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "derived_from_representation_id", "read_id", "written_id",
         # check.verdict (#5404): a corrected reading's new reading, which names the one checked.
         "replacement_id",
+        # try.unadopt: the readings a cloud try's adoption made, retracted by id.
+        "reading_ids",
     )},
     "order_id": (RECORD, ("ReadingOrder",)),
     **{name: (RECORD, ("ReadingOrderEntry",)) for name in ("entry_id", "after_entry_id", "parent_entry_id")},
@@ -88,6 +93,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "citation_id": (RECORD, ("DocumentCitation",)),
     # Ends of a typed link, and generic targets: any id at all, each resolved by its own kind.
     **{name: (RECORD, ("*",)) for name in ("from_id", "to_id", "end_id", "target_id", "source_id", "source_ids", "id", "remove_ids", "reorder_ids", "bookmark_id")},
+    # kg.comment.add: a claim, entity, source or segment, each resolved by its own kind.
+    "anchor_id": (RECORD, ("*",)),
     # --- rights (#5177: archive's semantics) ---------------------------------------------------------
     "record_ids": (RECORD, ("RightsRecord",)),  # the Inspector's multi-selection (#6082)
     "record_id": (RECORD, ("RightsRecord",)),   # agent audit records are app-database rows, checked by their own route
@@ -102,6 +109,7 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "pattern_id", "framework_id", "value_id", "review_id", "pair_id", "reference_id",
         "authority_id", "property_id", "linked_structure_node_id", "linked_source_ids",
         "focus_id", "state_id",
+        "comment_id",
     )},
     "allograph_id": (LIBRARY, "an allograph of the project's letterform list: its DESCRIPTIONS on characters are resolved (description_id)"),
     "hand_id": (LIBRARY, "a hand of the project's hand list: the ATTRIBUTION of a hand to a segment is resolved (attribution_id)"),
