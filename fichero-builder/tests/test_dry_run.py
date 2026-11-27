@@ -1,6 +1,7 @@
 """dev-workflows.rollout.dry-run: the loop runs against fakes; a cap parks and stops the worker, a gone worker ends with a cost row."""
 from __future__ import annotations
 
+import json
 import types
 
 from pathlib import Path
@@ -653,3 +654,34 @@ def test_a_feed_run_registers_its_feed_for_the_stop_hook(root):
     run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=root / "inbox")
     reg = json.loads((root / "reg" / "w.json").read_text())
     assert reg["feed"] == str(root / "inbox") and reg["turn_file"] == str(root / "reg" / "w.turn.json"), "the hook writes where the worker can: the registry folder, not the owner's feed"
+
+
+def _effort_rules(root, effort, provider="claude-code"):
+    row = {"provider": provider, "model": "sonnet", **({"effort": effort} if effort else {})}
+    f = root / "effort-rules.json"
+    f.write_text(json.dumps({"spend": {"session_usd": 1, "day_usd": 5, "window": 1000, "prices": {"sonnet": [3, 15]}},
+                             "models": {"providers": ["claude-code", "pi"], "builder": row}}))
+    return f
+
+
+def test_a_role_rows_effort_reaches_every_start_and_the_worker_row_and_no_effort_adds_nothing(root):
+    (root / "wt").mkdir()
+    ready = {**HEALTHY, "idle": True, "context": 900, "tokens": 900, "fresh": 900, "last_text": "HANDOFF READY"}
+    for effort in ("low", None):
+        journal.read()
+        fake = Fake([HEALTHY, ready, HEALTHY, {**HEALTHY, "idle": True, "moved": True, "last_text": "DONE bbbb222"}])
+        calls = []
+        real_start = fake.start
+        fake.procs.start = lambda *a, **k: calls.append(k) or real_start(*a)
+        run.run(root, root / "wt", root / "b.txt", name=f"w-{effort}", procs=fake.procs, out=lambda s: None, role="builder", rules=_effort_rules(root, effort))
+        assert calls == ([{"effort": "low"}] * 2 if effort else [{}, {}])  # the first start and the handoff successor
+        workers = [e for e in journal.read() if e["event"] == "worker" and e["task"] == f"w-{effort}"]
+        assert [e.get("effort") for e in workers] == ([effort] * 2 if effort else [None, None])
+
+
+def test_a_non_claude_session_with_an_effort_row_refuses_the_start(root):
+    fake = Fake([HEALTHY])
+    said = []
+    assert run.run(root, root / "wt", root / "b.txt", name="w", kind="pi", procs=fake.procs, out=said.append, role="builder", provider="pi",
+                   rules=_effort_rules(root, "low", "pi")) == "refused"
+    assert any("effort 'low'" in s for s in said) and not hasattr(fake, "started")

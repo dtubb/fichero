@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import types
 
 import pytest
 
@@ -107,3 +108,29 @@ def test_an_effort_goes_in_the_settings_file_and_no_row_leaves_the_command_uncha
     argv, settings = _prepare(tmp_path, "s2", effort="low")
     assert settings["effortLevel"] == "low"
     assert [x.replace("s2", "s1") for x in argv] == plain and "--effort" not in argv  # the flag and the variable win over the file, so the builder sets neither
+
+
+def test_harness_start_effort_flag_writes_the_settings_level(tmp_path, monkeypatch):
+    """`harness_start.py --print --effort low` (the path `run._start` takes) writes effortLevel; no flag writes none."""
+    import sys
+    from fichero_builder import jail
+
+    write_rules(tmp_path, '[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
+    (tmp_path / "wt").mkdir()
+    subprocess.run(["git", "-C", str(tmp_path / "wt"), "init", "-q"], check=True)
+    (tmp_path / "b.txt").write_text("brief")
+    script = start_tool.Path(start_tool.__file__).parent / "scripts" / "harness_start.py"
+    monkeypatch.setattr(start_tool, "refusals", lambda *a: [])
+    monkeypatch.setattr(jail, "note_unjailed", lambda *a, **k: None)
+    monkeypatch.setattr(start_tool, "find_claude", lambda *a: "claude")
+    monkeypatch.setattr(sys, "argv", ["harness_start.py"])
+    import runpy
+    for effort in ("low", None):
+        monkeypatch.setattr(sys, "argv", ["harness_start.py", "--root", str(tmp_path), "--worktree", str(tmp_path / "wt"), "--brief", str(tmp_path / "b.txt"),
+                                          "--name", f"n-{effort}", "--print", *(["--effort", effort] if effort else [])])
+        monkeypatch.setattr(jail, "load", lambda root: types.SimpleNamespace(workroot=str(tmp_path / "work"), user="x"))
+        with pytest.raises(SystemExit) as e:
+            runpy.run_path(str(script), run_name="__main__")
+        assert e.value.code == 0
+        s = json.loads((tmp_path / "work" / f"n-{effort}" / "settings.json").read_text())
+        assert s.get("effortLevel") == effort
