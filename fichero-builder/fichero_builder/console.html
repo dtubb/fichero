@@ -154,7 +154,7 @@ function Lanes({ lanes: all }) {
           <button class="btn" onClick=${() => confirm(`Stop ${l.lane}? The worker commits what is green and its session ends; the tree is kept.`) && act("stop", { lane: l.lane })}>${I.stop} Stop</button>
           ${!l.paused && ["blocked", "parked", "idle", "queued"].includes(l.state) && html`<button class="btn" title="a blocked step goes again as queued; the loop starts its session" onClick=${() => act("start", { lane: l.lane })}>${I.play} Start</button>`}
           ${l.kind === "external" && l.head && l.waiting > 0 && !["checking", "reviewing", "landing"].includes(l.state) && html`<button class="btn" title="builder done <lane> <HEAD>: its commits go through the check, review and landing as one batch (#6501)" onClick=${() => confirm(`Land ${l.lane} at ${l.head.slice(0, 9)}? Its ${l.waiting} commit(s) go through the check, the review and the landing as one batch.`) && act("done", { lane: l.lane, sha: l.head })}>Land now</button>`}
-        </div></td>
+        </div>${l.last_action && html`<div class="muted" style="font-size:11px;text-align:right" title=${l.last_action.detail}>${l.last_action.verb}: ${l.last_action.state === "ended" ? (l.last_action.ok ? "done" : `exit ${l.last_action.rc}: ${l.last_action.detail}`) : l.last_action.state} · <${Ago} ts=${l.last_action.ts} /></div>`}</td>
       </tr>
       ${open[l.lane] && html`
         ${l.steps.map((s, i) => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span></td><td><${Pill} state=${s.state} /></td>
@@ -428,6 +428,19 @@ function Review() {
       return g.length ? html`<h2>${n} <span class="muted" style="font-weight:400">${g.length}</span></h2>${g.map(i => html`<${ReviewCard} key=${i.id + i.status} item=${i} save=${save} />`)}` : ""; })}`;
 }
 
+// builder-console.actions.beside-what-they-act-on: the journal's last events and the console's own rows, one page
+function Log({ st }) {
+  return html`
+      ${(st.events || []).length > 0 && html`<h2>Last events</h2>
+      <div class="wrap"><table><tbody>${[...st.events].reverse().map(r => html`<tr><td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.event}</td><td><b>${r.lane || ""}</b> <span class="mono">${r.step || ""}</span></td>
+        <td>${r.state || ""}</td><td class="muted">${r.detail || ""}</td></tr>`)}</tbody></table></div>`}
+      <h2>Console actions</h2>
+      <div class="wrap"><table><tbody>${[...st.console].reverse().map(r => html`<tr>
+        <td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.who}</td><td>${r.verb}</td>
+        <td>${r.state === "ended" ? html`<span class=${"pill " + (r.ok ? "green" : "red")}>${r.ok ? "done" : `exit ${r.rc}`}</span>` : html`<span class=${"pill " + (r.state === "refused" ? "red" : "blue")}>${r.state}</span>`}</td>
+        <td><pre>${r.detail || ""}</pre></td></tr>`)}</tbody></table></div>`;
+}
+
 function App() {
   const st = useStatus();
   const [msg, setMsg] = useState("");
@@ -442,7 +455,7 @@ function App() {
   return html`
     <div class="toolbar">
       <h1>Builder</h1>
-      <div class="seg">${[["lanes", "Lanes"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"]].map(([t, n]) =>
+      <div class="seg">${[["lanes", "Lanes"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["log", "Log"]].map(([t, n]) =>
         html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}${t === "alerts" && st.alerts.count ? html` <span class=${"pill " + (st.alerts.owner_count ? "orange" : "")} title=${`${st.alerts.count} open alert(s) under a day old, ${st.alerts.owner_count} yours`}>${st.alerts.count}</span>` : ""}</button>`)}</div>
       <span class="spacer"></span>
       ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
@@ -471,17 +484,9 @@ function App() {
         return (q || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${q ? `${q} lane(s) with a question` : ""}
           ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>` : ""; })()}
       ${(st.open_questions || []).length > 0 && html`<h2>Questions</h2><div class="alerts">${st.open_questions.map(q => html`<div class="alert"><div><b class="mono">${q.lane} ${q.step}</b></div><div class="what">${q.question}</div></div>`)}</div>`}
-      ${{ alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
-        ? html`<${{ alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
+      ${{ log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
+        ? html`<${{ log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
         : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
-      ${(st.events || []).length > 0 && html`<h2>Last events</h2>
-      <div class="wrap"><table><tbody>${[...st.events].reverse().map(r => html`<tr><td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.event}</td><td><b>${r.lane || ""}</b> <span class="mono">${r.step || ""}</span></td>
-        <td>${r.state || ""}</td><td class="muted">${r.detail || ""}</td></tr>`)}</tbody></table></div>`}
-      <h2>Console actions</h2>
-      <div class="wrap"><table><tbody>${[...st.console].reverse().map(r => html`<tr>
-        <td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.who}</td><td>${r.verb}</td>
-        <td>${r.state === "ended" ? html`<span class=${"pill " + (r.ok ? "green" : "red")}>${r.ok ? "done" : `exit ${r.rc}`}</span>` : html`<span class=${"pill " + (r.state === "refused" ? "red" : "blue")}>${r.state}</span>`}</td>
-        <td><pre>${r.detail || ""}</pre></td></tr>`)}</tbody></table></div>
     </main>`;
 }
 render(html`<${App} />`, document.getElementById("app"));

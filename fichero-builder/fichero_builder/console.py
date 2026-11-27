@@ -225,12 +225,13 @@ def act(verb: str, args: dict, who: str) -> dict:
     except ValueError as e:
         journal.append("console", who=who, verb=verb, ok=False, state="refused", detail=str(e))
         return {"ok": False, "error": str(e)}
-    journal.append("console", who=who, verb=verb, state="started", args={k: v for k, v in args.items() if k in VERBS[verb][0]})
+    named = {k: v for k, v in args.items() if k in VERBS[verb][0]}
+    journal.append("console", who=who, verb=verb, state="started", args=named)
 
     def go():
         rc, out = run_verb(argv)
         _TREES.clear()  # a Clean up (or any action) shows at once
-        journal.append("console", who=who, verb=verb, state="ended", ok=rc == 0, rc=rc, detail=out[-500:])
+        journal.append("console", who=who, verb=verb, state="ended", ok=rc == 0, rc=rc, detail=out[-500:], args=named)  # args: the row finds its lane (last_action)
     t = threading.Thread(target=go, daemon=True)
     t.start()
     return {"ok": True, "started": verb, "thread": t}
@@ -447,6 +448,9 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         shown = steps_on_origin(x, (st.get("last_land_git") or {}).get("sha", ""))
         if row["state"] == "done" and cur is None and shown and shown[-1]["state"] != "landed":  # a lane through its steps reads `done` (review 96)
             row["state"] = NOT_LANDED  # the lane is through its steps; the last one is not on origin/integration
+        did = next((r for r in reversed(rows) if r.get("event") == "console" and (r.get("args") or {}).get("lane") == x["id"]), None)
+        # builder-console.actions.beside-what-they-act-on: the lane's newest action and how it ended, shown beside its buttons
+        row["last_action"] = {**{k: did.get(k) for k in ("verb", "state", "ok", "rc", "ts")}, "detail": (str(did.get("detail") or "").strip().splitlines() or [""])[-1][:200]} if did else None
         row.update(  # #6467: why the lane waits, in a line, and the batches queued behind its cursor
             why=("paused" if x.get("paused") else "held" if x.get("hold") else "finished" if cur is None
                  else "done, waiting for the check" if cur["state"] == "done" and not cur.get("why", "").strip()  # #6504: mid-lane, never the finished-lane label

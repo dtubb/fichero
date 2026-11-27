@@ -108,3 +108,27 @@ def test_alerts_are_a_badge_count_and_a_page_grouped_by_kind_with_old_ones_folde
     assert '["alerts", "Alerts"]' in page and "st.alerts.count" in page, "a tab and a badge"
     app = page[page.index("function App()"):]
     assert "<${Alerts}" not in app.replace("alerts: Alerts", "") and "Resolved" not in app, "no page opens with the alert cards"
+
+
+def _lane(i, steps, **kw):
+    return {"id": i, "worktree": "/nonexistent/" + i, "cursor": 0, "paused": False, "kind": "worker",
+            "steps": [{"step": s, "state": st, "issues": [7], "why": "", "brief": "/nonexistent/brief", "entered_at": 0.0} for s, st in steps], **kw}
+
+
+def test_a_lanes_last_action_sits_in_its_row_and_the_action_log_is_one_page(live, monkeypatch):
+    """builder-console.actions.beside-what-they-act-on: the console actions sat at the bottom of every page."""
+    url, ran = live
+    monkeypatch.setattr(console.queue, "load", lambda: [_lane("a", [("s1", "queued")]), _lane("b", [("s2", "queued")])])
+    monkeypatch.setattr(console, "run_verb", lambda argv: ran.append(argv) or (1, "first line\nREFUSED: no lane"))
+    assert _post(url, "/api/action", {"verb": "pause", "args": {"lane": "a"}}, console.TOKEN)[0] == 200
+    assert _wait(lambda: any(r.get("state") == "ended" for r in journal.read()))
+    monkeypatch.setattr(console, "_STATUS", {"at": 0.0, "data": None})
+    a, b = _get(url, "/api/status")["lanes"]
+    assert {k: a["last_action"][k] for k in ("verb", "state", "ok", "rc", "detail")} == {"verb": "pause", "state": "ended", "ok": False, "rc": 1, "detail": "REFUSED: no lane"}
+    assert a["last_action"]["ts"] and b["last_action"] is None, "the newest console row whose args name that lane"
+    page = _page()
+    app, lanes, log = page[page.index("function App()"):], page[page.index("function Lanes("):page.index("function DevBuilds(")], page[page.index("function Log("):page.index("function App()")]
+    assert "l.last_action" in lanes, "the result beside the lane's buttons"
+    assert "Console actions" in log and "Last events" in log and '["log", "Log"]' in app
+    assert "Console actions" not in app and "Last events" not in app, "no other page ends with them"
+    assert 'act("build")' in app and 'act("loop-stop")' in app, "the whole-harness actions stay in the toolbar"
