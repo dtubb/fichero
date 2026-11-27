@@ -129,12 +129,13 @@ def test_a_confirmed_statement_is_never_hedged():
 
 
 def test_a_hedge_is_served_by_the_route(client, db):
-    entity = KnowledgeEntity(canonical_name="Ana")
-    db.save(entity)
-    claim = KnowledgeClaim(text="Ana vendió una casa", svo_subject="Ana", svo_verb="vendió", svo_object="una casa",
-                           subject_entity_id=entity.id, entity_ids=[entity.id], source_languages=["es"],
-                           source_document_id="doc-1", epistemic_status=EpistemicStatus.tentative)
-    db.save(claim)
+    with db.defer_embeddings():
+        entity = KnowledgeEntity(canonical_name="Ana")
+        db.save(entity)
+        db.save(KnowledgeClaim(
+            text="Ana vendió una casa", svo_subject="Ana", svo_verb="vendió", svo_object="una casa",
+            subject_entity_id=entity.id, entity_ids=[entity.id], source_languages=["es"],
+            source_document_id="doc-1", epistemic_status=EpistemicStatus.tentative))
     body = client.get(f"/api/kg/entities/{entity.id}/readable").json()
     assert body["paragraph"] == "Ana, al parecer, vendió una casa (una sola fuente)."
     assert body["sentences"][0]["clauses"][0]["doubt"] == "one_source_unsure"
@@ -177,15 +178,16 @@ def test_a_confirmed_statement_in_a_dispute_is_said_plainly():
 
 
 def test_a_dispute_is_served_by_the_route(client, db):
-    entity = KnowledgeEntity(canonical_name="Ana")
-    db.save(entity)
-    rows = [KnowledgeClaim(text="Ana nació en Quibdó", svo_subject="Ana", svo_verb="nació en", svo_object=obj,
-                           subject_entity_id=entity.id, entity_ids=[entity.id], source_languages=["es"],
-                           source_document_id=doc)
-            for obj, doc in (("Quibdó", "doc-1"), ("Nóvita", "doc-2"))]
-    for row in rows:
-        db.save(row)
-    db.save(_contradicts(rows[1].id, rows[0].id))
+    with db.defer_embeddings():
+        entity = KnowledgeEntity(canonical_name="Ana")
+        db.save(entity)
+        rows = [KnowledgeClaim(text="Ana nació en Quibdó", svo_subject="Ana", svo_verb="nació en", svo_object=obj,
+                               subject_entity_id=entity.id, entity_ids=[entity.id], source_languages=["es"],
+                               source_document_id=doc)
+                for obj, doc in (("Quibdó", "doc-1"), ("Nóvita", "doc-2"))]
+        for row in rows:
+            db.save(row)
+        db.save(_contradicts(rows[1].id, rows[0].id))
     body = client.get(f"/api/kg/entities/{entity.id}/readable").json()
     assert body["paragraph"] == "Ana nació en Quibdó según una fuente y Nóvita según otra."
     assert [c["doubt"] for c in body["sentences"][0]["clauses"]] == ["disputed", "disputed"]
