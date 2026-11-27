@@ -903,7 +903,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   nothing; a `tree-moved` row excuses its tree; a dirty or off-origin jail root is one alert for three steps.
   Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.autofix.loop-applies-the-printed-fix` [GAP] (#6589) — where a check prints the exact fix, the loop applies it
+- `local.autofix.loop-applies-the-printed-fix` [OK] (#6589) — where a check prints the exact fix, the loop applies it
   to a managed lane, commits and checks again; no worker is asked. The classes are opted in by name in
   `[check].autofix` (an unknown name refuses the rules file). The fix runs in the lane's worktree as the worker, the
   commit carries the lane's trailers and may touch only the files its class names (anything else is undone and the
@@ -917,7 +917,8 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   message to the worker; a class not named, a second red at the fixed head, and an external lane each go the old
   way. Serves: builds Fichero, reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.autofix.classes` [GAP] (#6589) — the four first classes, each decided by the check's own output and nothing
+  Built: `queue.py` calls `Procs.autofix` (`work.autofix`) on a red of a managed lane before a fix brief; it commits with the lane's trailers, writes one `autofix` row and moves the step back to `done`; `s["autofix_tried"]` holds `head:class` for the head and the head the fix made. Tests `fichero-builder/tests/test_autofix.py::test_a_known_gaps_red_is_one_commit_with_the_lane_trailers_one_autofix_row_and_only_the_named_entries_gone`, `fichero-builder/tests/test_autofix.py::test_a_fix_that_changes_a_file_outside_its_class_is_undone_and_changes_nothing`, `fichero-builder/tests/test_autofix.py::test_a_class_not_named_in_the_rules_is_never_tried_and_an_unknown_class_refuses_the_rules_file`, `fichero-builder/tests/test_loop.py::test_a_red_with_a_class_fix_is_checked_again_with_no_message_to_the_worker_and_the_same_red_at_that_head_goes_to_the_worker`, `fichero-builder/tests/test_loop.py::test_an_external_lane_is_never_autofixed`.
+- `local.autofix.classes` [OK] (#6589) — the four first classes, each decided by the check's own output and nothing
   else. `known-gaps-now-clean`: `scripts/check_endpoint_coverage_matrix.py` says entries of its known-gaps list are now
   clean; the loop removes exactly those entries. `ratchet-baseline-lower`: a ratchet prints a count below its baseline;
   the loop writes the lower number and never a higher one. `openapi-regen`: a contract guard says a generated copy is
@@ -928,6 +929,7 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `test_autofix.py`, one fixture red for each class gives the expected one-file commit; a baseline that would rise, an
   entry the check did not name, and an acceptance red with no line in the brief change nothing. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+  Built: `autofix.plan` decides each class from the guard's output; `known-gaps-now-clean` drops the printed keys from `<guard>_known_gaps.json`, `ratchet-baseline-lower` runs the guard's `--update-baseline` when it prints a count below its baseline (only `.json` files may change), `openapi-regen` runs `[check].regen`, `spec-change-trailer` amends the head with the brief's `Spec-change:` line and returns a question for the manager when the brief has none. Tests `fichero-builder/tests/test_autofix.py::test_a_ratchet_that_prints_a_lower_count_is_lowered_and_one_that_would_rise_is_left`, `fichero-builder/tests/test_autofix.py::test_a_spec_change_red_gets_the_briefs_line_word_for_word_and_none_without_one_is_a_question`, `fichero-builder/tests/test_autofix.py::test_an_openapi_regen_red_runs_the_regen_lines_and_commits_the_tracked_files_they_changed`.
 - `local.models.effort-per-role` [GAP] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
   and the worker, reviewer or spec writer started on that role runs at that level: low for lint and mechanical
   batches, medium for workers, high for reviewers and spec writers. The adapter passes it in the form its harness

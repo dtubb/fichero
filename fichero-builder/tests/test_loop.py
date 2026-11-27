@@ -2363,3 +2363,44 @@ def test_a_rebased_head_is_reviewed_whole_with_a_row(tmp_path):
     assert "DELTA REVIEW" not in p and "+x = 3" in p.split("DIFF:", 1)[1]
     rows = [json.loads(x) for x in (state / "journal.jsonl").read_text().splitlines()]
     assert [x["state"] for x in rows if x.get("event") == "review"] == ["whole-again"]
+
+
+def test_a_red_with_a_class_fix_is_checked_again_with_no_message_to_the_worker_and_the_same_red_at_that_head_goes_to_the_worker(state):
+    """local.autofix.loop-applies-the-printed-fix: the loop's fix is a commit, the step goes back to the check, nothing is sent; a class
+    is tried once for a head (the head it made counts), an external lane is never committed to."""
+    lane(state)
+    red = {"ok": False, "kind": "red", "why": "ladder red", "findings": "FAIL: scripts/x.py"}
+    fake = Fake(chains={"1.1": [dict(red), dict(red)]})
+    heads, calls = ["h0", "h1", "h1"], []
+
+    def autofix(lane_, step, findings, skip):
+        calls.append(skip)
+        return {"rows": [{"class": "known-gaps-now-clean"}] if "known-gaps-now-clean" not in skip else [], "ask": False}
+    fake.procs.autofix, fake.procs.head_of = autofix, lambda lane_: heads.pop(0) if len(heads) > 1 else heads[0]
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert calls[:2] == [(), ("known-gaps-now-clean",)], "the second red at the fixed head skips the class"
+    assert "1.1" not in [s for s in fake.sent if s.startswith("fix")] and steps()["1.1"]["rounds"] == 1, "the second red went to the worker"
+    assert any("autofix known-gaps-now-clean" in r.get("detail", "") for r in journal.read() if r["event"] == "queue")
+
+
+def test_a_red_whose_fix_needs_a_question_is_a_block_alert_and_no_fix_brief_goes_to_the_worker(state):
+    """local.autofix.classes: a class that asks (`ask: True`) skips the fix brief; the step blocks with an alert."""
+    lane(state)
+    red = {"ok": False, "kind": "red", "why": "ladder red", "findings": "FAIL: scripts/x.py"}
+    fake = Fake(chains={"1.1": [dict(red)]})
+    fake.procs.autofix, fake.procs.head_of = (lambda *a: {"rows": [], "ask": True}), (lambda lane_: "h0")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked" and steps()["1.1"]["rounds"] == 0
+    assert not [m for m in fake.sent if m.startswith("fix")]
+    assert [r for r in journal.read() if r["event"] == "alert"], "the manager is asked"
+
+
+def test_an_external_lane_is_never_autofixed(state):
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    asked = []
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "FAIL: scripts/x.py", "evidence": "/l.json"}]})
+    fake.procs.autofix = lambda *a: asked.append(a) or {"rows": [{"class": "x"}], "ask": False}
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert asked == [] and steps()["1.1"]["state"] == "blocked"
