@@ -134,3 +134,27 @@ def test_harness_start_effort_flag_writes_the_settings_level(tmp_path, monkeypat
         assert e.value.code == 0
         s = json.loads((tmp_path / "work" / f"n-{effort}" / "settings.json").read_text())
         assert s.get("effortLevel") == effort
+
+
+def test_harness_start_refuses_a_jail_with_no_workroot(tmp_path, monkeypatch, capsys):
+    """With no workroot the script wrote settings.json (the policy hook) into a folder named by `--name` under the shared temp
+    directory, a name any user can make first. It refuses instead, and writes nothing."""
+    import runpy
+    import sys
+    from fichero_builder import jail
+
+    write_rules(tmp_path, '[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
+    (tmp_path / "wt").mkdir()
+    (tmp_path / "b.txt").write_text("brief")
+    script = start_tool.Path(start_tool.__file__).parent / "scripts" / "harness_start.py"
+    wrote = []
+    monkeypatch.setattr(start_tool, "refusals", lambda *a: [])
+    monkeypatch.setattr(jail, "note_unjailed", lambda *a, **k: None)
+    monkeypatch.setattr(start_tool, "find_claude", lambda *a: "claude")
+    monkeypatch.setattr(start_tool, "prepare", lambda *a, **k: wrote.append(a) or [])
+    monkeypatch.setattr(jail, "load", lambda root: types.SimpleNamespace(workroot="", user="x"))
+    monkeypatch.setattr(sys, "argv", ["harness_start.py", "--root", str(tmp_path), "--worktree", str(tmp_path / "wt"), "--brief", str(tmp_path / "b.txt"), "--print"])
+    with pytest.raises(SystemExit) as e:
+        runpy.run_path(str(script), run_name="__main__")
+    assert e.value.code == 1 and not wrote
+    assert "workroot" in capsys.readouterr().err
