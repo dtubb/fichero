@@ -94,11 +94,6 @@ extension WorkflowListView {
         }
     }
 
-    func executeWorkflow(_ workflow: WorkflowSidebarItem) {
-        // Execution is handled by WorkflowDetailView which has direct access to workflowStore
-        logger.info("Execute requested for workflow: \(workflow.name)")
-    }
-
     func importWorkflow() {
         isImporting = true
         Task {

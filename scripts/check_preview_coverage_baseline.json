@@ -249,7 +249,6 @@
   "Workflow/Library/WorkflowChainListViewParts/NewChainSheet.swift": "declares a View, no #Preview",
   "Workflow/Library/WorkflowLibraryView.swift": "declares a View, no #Preview",
   "Workflow/Library/WorkflowLibraryViewParts/NewWorkflowSheet.swift": "declares a View, no #Preview",
-  "Workflow/Library/WorkflowLibraryViewParts/WorkflowDetailView.swift": "declares a View, no #Preview",
   "Workflow/Library/WorkflowLibraryViewParts/WorkflowLibraryRow.swift": "declares a View, no #Preview",
   "Workflow/Library/WorkflowLibraryViewParts/WorkflowMiniPreview.swift": "declares a View, no #Preview",
   "Workflow/Library/WorkflowLibraryViewParts/WorkflowThumbnailView.swift": "declares a View, no #Preview",

@@ -206,5 +206,4 @@ struct WorkflowListView: View {
 // - WorkflowLibraryRow.swift
 // - WorkflowThumbnailView.swift
 // - WorkflowMiniPreview.swift
-// - WorkflowDetailView.swift (includes StatView)
 // - NewWorkflowSheet.swift
