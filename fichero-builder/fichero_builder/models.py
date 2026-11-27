@@ -10,6 +10,9 @@ from pathlib import Path
 ROLES = ("builder", "reviewer", "spec-writer", "helper", "researcher", "manager")  # manager: reads and answers the loop's alerts
 
 
+EFFORTS = ("low", "medium", "high")
+
+
 class Question(Exception):
     """Something a person must answer before the role can run."""
 
@@ -19,6 +22,7 @@ class Model:
     provider: str
     model: str
     context: int = 200_000
+    effort: str | None = None  # low | medium | high; None starts the harness's own default
 
 
 def load(root) -> dict:
@@ -45,4 +49,7 @@ def _for_role(cfg: dict, role: str) -> Model:
     known = cfg.get("providers") or []
     if row["provider"] not in known:
         raise Question(f"harness.toml [models].{role} uses provider {row['provider']!r}, not among providers {known}: set it up or change the role")
-    return Model(row["provider"], row["model"], int(row.get("context", Model.context)))
+    effort = row.get("effort")
+    if effort is not None and effort not in EFFORTS:
+        raise Question(f"harness.toml [models].{role} effort {effort!r} must be one of {list(EFFORTS)}")
+    return Model(row["provider"], row["model"], int(row.get("context", Model.context)), effort)

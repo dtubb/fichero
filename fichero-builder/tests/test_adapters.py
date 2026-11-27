@@ -89,3 +89,21 @@ def test_the_workers_tmpdir_and_pytest_basetemp_reach_the_session_command_not_th
     monkeypatch.setenv("PYTEST_ADDOPTS", "--basetemp=/w/work-a/tmp/pytest")
     argv = start_tool.prepare(tmp_path, wt, "do it", tmp_path / "scratch", claude_bin="claude")
     assert argv[6:10] == ["env", "TMPDIR=/w/work-a/tmp", "PYTEST_ADDOPTS=--basetemp=/w/work-a/tmp/pytest", "claude"]
+
+
+def _prepare(tmp_path, scratch, **kw):
+    argv = start_tool.prepare(tmp_path, tmp_path / "wt", "do it", tmp_path / scratch, **kw)
+    return argv, json.loads((tmp_path / scratch / "settings.json").read_text())
+
+
+def test_an_effort_goes_in_the_settings_file_and_no_row_leaves_the_command_unchanged(tmp_path, monkeypatch):
+    write_rules(tmp_path, '[models.display]\nsonnet = "Claude Sonnet 5.5"\n')
+    (tmp_path / "wt").mkdir()
+    subprocess.run(["git", "-C", str(tmp_path / "wt"), "init", "-q"], check=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "h"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
+    plain, settings = _prepare(tmp_path, "s1")
+    assert "effortLevel" not in settings
+    argv, settings = _prepare(tmp_path, "s2", effort="low")
+    assert settings["effortLevel"] == "low"
+    assert [x.replace("s2", "s1") for x in argv] == plain and "--effort" not in argv  # the flag and the variable win over the file, so the builder sets neither

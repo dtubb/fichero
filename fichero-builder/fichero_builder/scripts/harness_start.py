@@ -25,6 +25,7 @@ ap.add_argument("--root", default=str(ROOT))
 ap.add_argument("--session", default="harness")
 ap.add_argument("--name", default=f"worker-{int(time.time())}")
 ap.add_argument("--model", default="sonnet")
+ap.add_argument("--effort", default=None, choices=["low", "medium", "high"])
 ap.add_argument("--print", dest="dry", action="store_true")
 a = ap.parse_args()
 
@@ -47,7 +48,7 @@ if tokfile.exists():
         sys.exit(1)
     tok = f'export CLAUDE_CODE_OAUTH_TOKEN="$(cat {shlex.quote(str(tokfile))})" && '
 scratch = Path(jail.workroot or "/tmp") / a.name
-argv = S.prepare(a.root, a.worktree, S.brief_prompt(a.brief), scratch, model=a.model, claude_bin=claude)  # never the text on tmux's line
+argv = S.prepare(a.root, a.worktree, S.brief_prompt(a.brief), scratch, model=a.model, claude_bin=claude, effort=a.effort)  # never the text on tmux's line
 if a.dry:
     print(json.dumps(argv))
     sys.exit(0)
