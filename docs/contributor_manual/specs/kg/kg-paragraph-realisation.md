@@ -332,26 +332,44 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 | 5 | one document, and it is tentative or its measured band is low | ", al parecer," / ", apparently," and "(una sola fuente)" / "(one source only)" | `one_source_unsure` |
 | 6 | anything else | said plainly | `none` |
 
-- `kg.para.doubt-is-attribution` — **[GAP]** (#4751, → #6839) rule 5: a single-source statement
+- `kg.para.doubt-is-attribution` — **[OK]** (#4751, → #6839) rule 5: a single-source statement
   that is tentative, or whose confidence has the source `measured` and falls in the engine's
   low band, is never said as plain fact; it takes the table's hedge and its one-source words.
-  Test (to write): `test_a_single_unsure_statement_is_hedged_and_attributed`.
-- `kg.para.no-figure-no-hedge` — **[GAP]** (#4751, → #6839) a confidence that was not measured
+  Test: `test_a_single_unsure_statement_is_hedged_and_attributed`.
+  Built: the low band is below 0.4, the low edge of `ConfidenceBand.band(for:)` (the engine has no
+  band of its own); the hedge follows the subject (or closes a statement said as its stored text)
+  and the one-source words follow the object; in a merged group an unsure object is a sentence of
+  its own. Tests: `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_a_single_unsure_statement_is_hedged_and_attributed`,
+  `test_an_unsure_object_is_not_joined_into_a_plain_sentence`, `test_a_hedge_is_served_by_the_route`.
+- `kg.para.no-figure-no-hedge` — **[OK]** (#4751, → #6839) a confidence that was not measured
   (no source, or `default`) changes no word: the stored 0.5 a statement is born with is not a
-  doubt (`kg.confidence.no-made-up-figure`). No number is ever printed. Test (to write):
+  doubt (`kg.confidence.no-made-up-figure`). No number is ever printed. Test:
   `test_an_unmeasured_figure_changes_no_word`.
-- `kg.para.sources-are-counted-in-words` — **[GAP]** (#4751, → #6839) rule 4: the count is of
+  Built: a confidence whose source is anything but `measured` is not read. Test:
+  `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_an_unmeasured_figure_changes_no_word`.
+- `kg.para.sources-are-counted-in-words` — **[OK]** (#4751, → #6839) rule 4: the count is of
   distinct source documents, in words from the table up to twelve, and `sources` holds the
-  number. Test (to write): `test_two_documents_read_as_two_sources`.
-- `kg.para.dispute-states-both` — **[GAP]** (#4751, → #6839) rule 3: two statements joined by
+  number. Test: `test_two_documents_read_as_two_sources`.
+  Built: the count follows the object in the table's `sources` words, in digits past twelve; in a
+  joined sentence each object counts its own documents. Test:
+  `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_two_documents_read_as_two_sources`.
+- `kg.para.dispute-states-both` — **[OK]** (#4751, → #6839) rule 3: two statements joined by
   a `contradicts` link are one sentence that says what they share once and what differs twice,
   each with the table's attribution, in source order ("… el 14 de marzo de 1702 según una
   fuente y en 1704 según otra"); neither is dropped or preferred. Only a stored link makes a
-  dispute; the renderer never infers one. Test (to write):
+  dispute; the renderer never infers one. Test:
   `test_a_dispute_is_one_sentence_with_both_readings`.
-- `kg.para.person-decision-is-plain` — **[GAP]** (#4751, → #6839) rule 2 outranks 3 to 5: a
-  statement a person confirmed carries no hedge whatever its figure. Test (to write):
+  Built: the pieces both readings open with (subject, verb, object, place, date, in that order)
+  are said once and the rest of each follows with the table's attribution; each statement is its
+  own clause with `doubt` `disputed`; a statement a person decided, or two in a language with no
+  doubt words, makes no dispute. Tests: `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_a_dispute_is_one_sentence_with_both_readings`,
+  `test_a_confirmed_statement_in_a_dispute_is_said_plainly`, `test_a_dispute_is_served_by_the_route`.
+- `kg.para.person-decision-is-plain` — **[OK]** (#4751, → #6839) rule 2 outranks 3 to 5: a
+  statement a person confirmed carries no hedge whatever its figure. Test:
   `test_a_confirmed_statement_is_never_hedged`.
+  Built: a statement curated, or with `epistemic_status` confirmed, takes no hedge and no count.
+  Tests: `fichero-server/tests/unit/knowledge/test_paragraph_doubt.py::test_a_confirmed_statement_is_never_hedged`,
+  `test_a_confirmed_statement_in_a_dispute_is_said_plainly`.
 
 ### F. Fewer, better sentences
 
@@ -392,8 +410,7 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   Built: `fichero-server/src/fichero_server/resources/language_tables/<language>.json`
   holds the joining, place and count words, the leading prepositions and the contractions, and
   `load_language_tables` refuses a file with a missing key or a name other than its language.
-  Not built: date patterns, month names, doubt words, number words and frames are not in the
-  files. Test: `test_a_language_is_added_by_a_file_alone` in `fichero-server/tests/unit/knowledge/test_paragraph_tables.py`.
+  Not built: frames are not in the files. Test: `test_a_language_is_added_by_a_file_alone` in `fichero-server/tests/unit/knowledge/test_paragraph_tables.py`.
 - `kg.para.no-table-is-verbatim` — **[OK]** (#4650, → #6842) a sentence in a language
   with no table is the statement's stored subject, verb and object and nothing else, with its
   year in digits in brackets; it joins nothing and takes no word from another language. Built:
@@ -574,7 +591,7 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 #### Step 2.4 — Doubt as attribution, sources in words, disputes in one sentence (#6839)
 - Behaviours: `kg.para.doubt-is-attribution`, `kg.para.no-figure-no-hedge`, `kg.para.sources-are-counted-in-words`, `kg.para.dispute-states-both`, `kg.para.person-decision-is-plain`
-- Tests: to write: `test_paragraph_doubt.py` in fichero-server/tests/unit/knowledge/
+- Tests: `test_paragraph_doubt.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
 - Size: M
 
