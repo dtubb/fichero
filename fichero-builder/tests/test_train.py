@@ -543,3 +543,39 @@ def test_two_steps_that_both_regenerate_the_identity_ride_one_train_with_the_ide
     g("checkout", "-q", "integration")
     assert hc in train.git_merge(str(r), base, [ha, hc], "refs/train/t-2", (gen,), rebake, "t")[1]
     assert hb in train.git_merge(str(r), base, [ha, hb], "refs/train/t-3", (gen,), lambda m: None, "t")[1]
+
+
+def test_a_single_step_train_red_on_new_cases_that_pass_alone_and_on_a_rerun_lands_with_one_flaky_row(tmp_path, monkeypatch):
+    """train-20261127-082731: ios-nav/nav-3 alone was green on the 8 new cases and the train ended 'unresolved', 25 minutes for
+    nothing, and the same flake next train. Green again on the full candidate: flaky; the train lands, one `flaky` row."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    calls = []
+
+    def rung(name, cand, only=()):
+        calls.append((name, cand, tuple(only)))
+        if name == "swift-tests" and not only and len([c for c in calls if c[0] == "swift-tests"]) == 1:
+            return False, "RED: 1 case(s) fail on the candidate and pass on the base b1\nfailing: NavTests.testBack()\n"
+        return True, "ok"
+    r = train.run_train([{"key": "ios-nav/nav-3", "head": "n3"}], merge=lambda hs: ("+".join(hs), {}), rung=rung,
+                        rungs_for=lambda hs: ["build", "swift-tests"], tid="t1", touches_swift=lambda h: True)
+    assert r.result == "green" and r.landed == ["ios-nav/nav-3"] and not r.back
+    assert [c for c in calls if c[2]] == [("swift-tests", "n3", ("NavTests.testBack()",))] * 2, "alone, then once more on the candidate"
+    rows = [x for x in journal.read() if x.get("event") == "flaky"]
+    assert len(rows) == 1 and rows[0]["cases"] == ["NavTests.testBack()"] and rows[0]["train"] == "t1"
+    assert "NavTests.testBack()" in train.flaky_seen([]), "listed: counted like a base red in later trains"
+    for t in range(3):
+        train.flaky_passed(float("inf"))
+    assert train.flaky_seen([]) == set(), "three trains in a row without it failing: off the list"
+
+
+def test_new_cases_red_alone_green_but_red_again_on_the_candidate_stay_unresolved(tmp_path, monkeypatch):
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+
+    def rung(name, cand, only=()):
+        bad = name == "swift-tests" and "+" in cand  # only the two together fail
+        return (not bad), ("RED: 1 case(s)\nfailing: NavTests.testBack()\n" if bad else "ok")
+    r = train.run_train([{"key": "l/a", "head": "a"}, {"key": "l/b", "head": "b"}], merge=lambda hs: ("+".join(hs), {}), rung=rung,
+                        rungs_for=lambda hs: ["swift-tests"], tid="t2", touches_swift=lambda h: True)
+    assert r.result == "unresolved" and not r.landed and not [x for x in journal.read() if x.get("event") == "flaky"]

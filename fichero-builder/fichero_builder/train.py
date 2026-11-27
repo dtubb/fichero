@@ -106,8 +106,12 @@ def run_train(steps: list[dict], *, merge: Callable, rung: Callable, rungs_for: 
     a swift-tests red that names new cases looks for its step among the Swift steps only, newest first, never by prefixes.
     `on_candidate(sha)` hears the candidate before any rung runs (local.ci.train-candidate-on-a-branch pushes it). `touches(rung, head,
     names)`: a whole-tests or guards red naming cases or guards is searched among the steps whose diff touches them (red-goes-to-its-step)."""
+    t0 = time.time()
     try:
-        return _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate, touches, side_by_side)
+        res = _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swift, on_candidate, touches, side_by_side)
+        if any(r.get("name") == "swift-tests" and r.get("phase") == "train" for r in res.rungs):
+            flaky_passed(t0)
+        return res
     except OutOfTime as e:
         res = e.args[0]
         res.again, res.result = [s["key"] for s in steps if s["key"] not in res.back], "timeout" if len(e.args) < 3 else "cancelled"
@@ -257,6 +261,19 @@ def _swift_search(res, keep, new, tail, rest_names, merge, rung, tid, clock, dea
         if not ok:
             culprit = s
             break
+    if culprit is None and name == "swift-tests" and new and res.candidate:
+        # local.train.flaky-cases: every step alone is green on the new cases (train-20261127-082731: 25 minutes, nothing landed, the
+        # same flake next train). Once more on the full candidate: green there means they are flaky; the train lands
+        _stop(res, t_start, deadline, clock)
+        res.extra_runs += 1
+        t0 = clock()
+        ok, out = rung(name, res.candidate, only=sorted(new))
+        res.rungs.append(_row(rung, name, ok, out, round(clock() - t0, 1), "flaky", res.candidate))
+        res.bisect.append(f"the {len(new)} new case(s) again on the full candidate: {'green: flaky' if ok else 'red'}")
+        if ok:
+            flaky_add(sorted(new), tid)
+            res.landed, res.result = [s["key"] for s in keep], "green"
+            return res
     if culprit is None and (name == "swift-tests" or not touching):
         res.bisect.append(f"no {'Swift ' if name == 'swift-tests' else ''}step alone fails the new {'cases' if name != 'guards' else 'guard reds'}: "
                           "they come from the steps together; none is sent back")
@@ -345,6 +362,64 @@ def suites_of(failing: list[str], target: str) -> list[str] | None:
     return sorted(out)
 
 
+FLAKY = "flaky.json"  # {case: {"passes": trains in a row it did not fail, "failed_at": time it last failed}}
+FLAKY_CLEAR = 3
+
+
+def _flaky_file():
+    from fichero_builder import journal
+    return journal.STATE / FLAKY
+
+
+def _flaky() -> dict:
+    import json
+    try:
+        return json.loads(_flaky_file().read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _flaky_save(d: dict) -> None:
+    import json
+    _flaky_file().parent.mkdir(parents=True, exist_ok=True)
+    _flaky_file().write_text(json.dumps(d, indent=1))
+
+
+def flaky_add(cases: list[str], tid: str) -> None:
+    """local.train.flaky-cases: red on the candidate, green alone and green again on it: one `flaky` row, the cases listed."""
+    from fichero_builder import journal
+    d = _flaky()
+    for c in cases:
+        d[c] = {"passes": 0, "failed_at": time.time()}
+    _flaky_save(d)
+    journal.append("flaky", train=tid, cases=cases, detail=f"{len(cases)} case(s) red on {tid}'s candidate, green alone and on a rerun: "
+                   f"counted as base reds until they pass {FLAKY_CLEAR} trains in a row: {', '.join(cases)}"[:600])
+
+
+def flaky_seen(failing) -> set:
+    """The listed flaky cases; those failing now start their streak again."""
+    d = _flaky()
+    hit = [c for c in failing if c in d]
+    for c in hit:
+        d[c] = {"passes": 0, "failed_at": time.time()}
+    if hit:
+        _flaky_save(d)
+    return set(d)
+
+
+def flaky_passed(since: float) -> None:
+    """After a train that ran swift-tests: each listed case that did not fail since `since` passed one more train; FLAKY_CLEAR leaves the list."""
+    d = _flaky()
+    if not d:
+        return
+    for c in list(d):
+        if d[c].get("failed_at", 0) < since:
+            d[c]["passes"] = d[c].get("passes", 0) + 1
+            if d[c]["passes"] >= FLAKY_CLEAR:
+                del d[c]
+    _flaky_save(d)
+
+
 def swift_judge(r: dict, out: str, base: str, target: str, run_base: Callable[[list[str]], dict]) -> tuple[bool, str, dict]:
     """A red swift-tests run on the candidate, judged on the base over the failing cases' suites ONLY (train-20261126-161601: no
     suite read from the names, the base re-ran the candidate's 296 suites for 865 s and the train timed out). No name read, a name
@@ -378,6 +453,7 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
     import hashlib
     sel = hashlib.sha256("\n".join(sorted(only)).encode()).hexdigest()[:12] if only else "all"  # the base runs the same selection
     f = journal.STATE / f"{'swift' if label == 'swift-tests' else label}-base-{base}-{sel}.json"
+    flaky = flaky_seen(failing)  # local.train.flaky-cases: counted like the base's own reds
     try:
         known = json.loads(f.read_text())["failing"]
     except (OSError, ValueError, KeyError):
@@ -387,6 +463,7 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
         known = [] if b.get("ok") else b["failing"]
         journal.STATE.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps({"failing": known}))
+    known = sorted(set(known) | flaky)
     new = sorted(set(failing) - set(known))
     if not new:
         journal.append("train", state="base-reds", base=base, detail=f"{len(failing)} failing case(s), every one failing on the base too")
