@@ -385,7 +385,6 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
     code: int | None = None
     timed_out = False
     try:
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- argv is a rung's command from the pinned harness.toml, run as a list with no shell; the environment supplies only PATH (#7100)
         p = subprocess.Popen(argv, cwd=str(cwd), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              text=True, start_new_session=True)
     except OSError as e:

@@ -55,7 +55,6 @@ except models.Question as e:
     sys.exit(f"QUESTION: {e}")
 base = land_tool.resolve_branch(a.repo, branch)
 a.head = land_tool._git(a.repo, "rev-parse", "--verify", f"{a.head}^{{commit}}").strip()  # one sha for the whole run
-# nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- git run as a list with no shell; the repo is the operator's argument and both revisions were resolved to shas above (#7100)
 if subprocess.run([land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", base, a.head], capture_output=True).returncode:
     sys.exit(f"REFUSED: {branch} is not an ancestor of {a.head}")
 try:
@@ -72,7 +71,6 @@ except (OSError, ValueError):
     record = {}
 prev = record.get(base)
 if not a.full and (prev is None and record or prev is not None and prev["head"] != a.head and subprocess.run(
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- git run as a list with no shell; the earlier head is a sha from the owner-owned verdicts record (#7100)
         [land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", prev["head"], a.head], capture_output=True).returncode):
     # local.review.fix-round-reads-the-fix: a head that does not descend from the one reviewed (a rebase, an amend, a moved base) is
     # reviewed whole: no earlier finding can be paired with a fix diff. One row says so.
@@ -103,7 +101,6 @@ def prefix_key(gbase: str) -> str:
 
 
 if prev and not a.full and prev["head"] != a.head and not subprocess.run(
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- the same ancestor question as above, for the delta review: a list, no shell, two shas (#7100)
         [land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", prev["head"], a.head], capture_output=True).returncode:
     kept = [g for g in prev["groups"] if g["verdict"] == "READY"]
     blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
@@ -152,7 +149,6 @@ def security_scan(path) -> str:
 # verifies that cited tests and spec bullets exist. Its cwd stays the EMPTY dir, so a CLAUDE.md or settings in the tree are
 # never obeyed (claude reads instructions from the cwd and its ancestors, not from a path it is pointed at).
 tree = tempfile.mkdtemp(prefix="review-tree-", dir=scratch_dir)
-# nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- git worktree add run as a list with no shell, into a folder mkdtemp made, at a resolved sha (#7100)
 if (w := subprocess.run([land_tool.GIT, "-C", a.repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, a.head],
                         capture_output=True, text=True)).returncode:  # no repo hook runs as the owner here
     shutil.rmtree(tree, ignore_errors=True)
@@ -187,7 +183,6 @@ def prompt_for(i: int, gbase: str, gtip: str) -> str:
 
 
 def drop_tree():
-    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- git worktree remove run as a list with no shell, on the folder this script made with mkdtemp (#7100)
     subprocess.run([land_tool.GIT, "-C", a.repo, "worktree", "remove", "--force", tree], capture_output=True)
     shutil.rmtree(tree, ignore_errors=True)
 
@@ -205,7 +200,6 @@ try:
     for i, (gbase, gtip) in enumerate(groups, 1):  # every group runs, so all findings go back at once; READY = every group READY
         cwd = tempfile.mkdtemp(prefix="review-", dir=scratch_dir)  # fresh, empty, mode 700, never under ~: no CLAUDE.md or settings to obey
         try:
-            # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- claude run as a list with no shell; the model is the pinned config's or the operator's flag, the prompt goes in on stdin (#7100)
             r = subprocess.run(argv, input=prompt_for(i, gbase, gtip), capture_output=True, text=True, cwd=cwd)
         finally:
             shutil.rmtree(cwd, ignore_errors=True)

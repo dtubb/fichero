@@ -64,7 +64,6 @@ def _tmux(jail: Any, *args: str) -> subprocess.CompletedProcess[str]:
     argv = ["tmux", *args]
     if jail is not None:
         argv = jail.argv(argv, env={"PATH": os.environ.get("PATH", "")})
-    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- tmux run as a list with no shell; callers shell-quote every word of a pane's command, and the environment supplies only PATH (#7100)
     return subprocess.run(argv, capture_output=True, text=True)
 
 
