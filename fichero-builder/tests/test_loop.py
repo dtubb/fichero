@@ -2516,3 +2516,37 @@ def test_the_session_output_reads_only_this_starts_lines_so_an_old_park_or_refus
     assert "17:26:00" in tail and "300.47" not in tail and queue._refusal(tail) == ""
     (tmp_path / "run-m1.log").write_text(old)  # a log from before the marks: read whole, as before
     assert "300.47" in queue.session_output(j, {"id": "m1", "seq": 5})
+
+
+def test_the_lane_that_waited_longest_for_a_chain_worker_takes_the_next_free_one(state, monkeypatch):
+    """2026-11-27: canvas-organize, code-audit, console and perf-optimize waited 1-2 h for a chain worker while lanes ready later took
+    each freed one; and after the re-execs no row said they waited (the old head's row was kept in the queue file)."""
+    import threading
+    for name, sha in (("early", "a" * 40), ("late", "b" * 40)):
+        queue.add(name, f"/w/{name}", "1.1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "early", "a" * 40, "--state", str(journal.STATE)]) == 0
+    fake = Fake()
+    release = threading.Event()
+    fake.procs.chain = lambda lane_, step, stage: release.wait(5) and {"ok": True, "head": step["head"], "why": "", "findings": ""}
+    pool = queue.ThreadPoolExecutor(max_workers=1)
+    blocker = pool.submit(release.wait, 5)
+    chains = {"pool": pool, "other": blocker}
+    try:
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)  # early waits
+        assert [r["lane"] for r in journal.read() if r.get("state") == "waiting-for-worker"] == ["early"]
+        assert cli.main(["done", "late", "b" * 40, "--state", str(journal.STATE)]) == 0
+        monkeypatch.setattr(queue, "_green_first", lambda ln: (0 if ln["id"] == "late" else 1, ln["id"]))  # late sorts first in the tick
+        del chains["other"]  # the worker is free now
+        release.set()
+        blocker.result()
+        release.clear()
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert "early" in chains and "late" not in chains, "the lane that waited longest went first, whatever the tick's order"
+        late = next(r for r in journal.read() if r.get("state") == "waiting-for-worker" and r["lane"] == "late")
+        assert "1 waited longer: early" in late["detail"] or "running: early" in late["detail"]
+        queue.WAIT_TOLD.clear()  # a restarted loop: the wait is said again
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert len([r for r in journal.read() if r.get("state") == "waiting-for-worker" and r["lane"] == "late"]) == 2
+    finally:
+        release.set()
+        pool.shutdown(wait=True, cancel_futures=True)

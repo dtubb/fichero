@@ -305,3 +305,35 @@ def test_said_done_on_a_blocked_step_is_taken_for_a_new_sha_and_refused_for_the_
     assert "blocked" in queue.said_done("m1", "1.1", "a84451832", old), "the sha it was blocked at: refused"
     new = lambda ln: "bbbbbbbbbb" + "0" * 30  # noqa: E731
     assert queue.said_done("m1", "1.1", "bbbbbbbbbb", new) == "" and steps()["1.1"]["state"] == "done"
+
+
+def test_run_alive_finds_a_watcher_whose_command_line_holds_the_feed(tmp_path):
+    """2026-11-27: `pgrep -f "--feed <dir>"` read the pattern as an option ("illegal option -- -", exit 2), so no watcher was ever
+    found: a restarted loop never adopted, and attached a second and a third watcher to kg-readable-representation's one window."""
+    import getpass
+    import subprocess
+    import sys
+    feed = str(tmp_path / "inbox-x-1")
+    j = types.SimpleNamespace(user=getpass.getuser(), sudo="sudo")
+    p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "--feed", feed])
+    try:
+        assert queue.run_alive(j, feed) is True
+        assert queue.run_alive(j, feed + "-other") is False
+    finally:
+        p.kill()
+        p.wait()
+    assert queue.run_alive(j, "") is False
+
+
+def test_a_restarted_loop_never_attaches_a_second_watcher_to_a_session_one_already_watches(state):
+    lane(state)
+    fake = Fake()
+    fake.procs.live_windows = lambda ln: ["@4"]
+    attached = []
+    fake.procs.attach = lambda ln, s, w: attached.append(w) or "h"
+    s = {"step": "1.1"}
+    fake.procs.watched = lambda ln: True
+    assert queue.attach_live({"id": "m1"}, s, fake.procs, "a restarted loop found the session with no watcher") is None and attached == []
+    assert [r["state"] for r in journal.read() if r.get("state") == "attach-refused"] == ["attach-refused"]
+    fake.procs.watched = lambda ln: False
+    assert queue.attach_live({"id": "m1"}, s, fake.procs, "its watcher ended") == "h" and attached == ["@4"]

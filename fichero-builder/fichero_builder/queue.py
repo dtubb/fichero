@@ -381,6 +381,7 @@ class Procs:
     gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
     gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
+    watched: Callable[[dict], bool] = lambda lane: False  # lane -> a `builder run` watches its feed now (run_alive)
     builder_moved: Callable[[dict], str] = lambda lane: ""  # lane -> why its session's pinned builder code is behind the land branch's; "" = it is not
     premerge: Callable[[dict, str], list] | None = None  # (lane, head) -> [(waiting step key, [files])] its head conflicts with (merge-tree)
     # local.step.stacks-on-a-waiting-step: (lane, step, under head) -> '' or why: the step's work as commits under stack/<lane>/<step>
@@ -1099,14 +1100,26 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 journal.append("queue", lane=lane["id"], step=s["step"], state="held", detail=f"waits for the heavy-lock hold ({hold[:80]}): its batch builds Swift")
                 store(lane, expect=(s["step"], s.get("head", "")))  # review 116: a newer `builder done` saved meanwhile wins
             return True
-        if running := [k for k, f in chains.items() if k not in ("pool", lane["id"]) and not f.done()]:
-            if len(running) >= chains["pool"]._max_workers:  # #6506: held HERE (one row per head), never queued FIFO in the pool: the next free slot goes to the tick's first ready lane (green-first)
-                if lane.get("waiting_head") != s.get("head"):
-                    lane["waiting_head"] = s.get("head")
-                    journal.append("queue", lane=lane["id"], step=s["step"], state="waiting-for-worker",
-                                   detail=f"waiting for a chain worker ({len(running)} running: {', '.join(sorted(running))}; [loop].lanes = {chains['pool']._max_workers})")
-                    store(lane, expect=(s["step"], s.get("head", "")))
-                return True
+        running = [k for k, f in chains.items() if k not in ("pool", lane["id"]) and not f.done()]
+        free = chains["pool"]._max_workers - len(running)
+        # 2026-11-27: canvas-organize, code-audit, console and perf-optimize waited 1-2 h for a chain worker while lanes that became ready
+        # later took each freed one (green-first order); the lanes waiting longest now go first
+        mine = lane.get("waiting_since") or _now()
+        older = [x["id"] for x in load() if x["id"] != lane["id"] and x["id"] not in running and x.get("waiting_since") and x["waiting_since"] < mine
+                 and not x.get("paused") and x["cursor"] < len(x["steps"]) and x["steps"][x["cursor"]]["state"] in ("done", "checking", "reviewing")
+                 and not x["steps"][x["cursor"]].get("retry_of")]  # #6506 still: an alert's retry never goes before a fresh done
+        if free <= 0 or len(older) >= free:  # #6506: held HERE (one row per head), never queued FIFO in the pool
+            if (told := (str(journal.STATE), lane["id"], s.get("head", ""))) not in WAIT_TOLD:  # one row per head and process: a restarted loop says it again
+                WAIT_TOLD.add(told)
+                journal.append("queue", lane=lane["id"], step=s["step"], state="waiting-for-worker",
+                               detail=f"waiting for a chain worker ({len(running)} running: {', '.join(sorted(running))}; [loop].lanes = {chains['pool']._max_workers}"
+                                      + (f"; {len(older)} waited longer: {', '.join(sorted(older))}" if older else "") + ")")
+            if not lane.get("waiting_since"):
+                lane["waiting_since"] = mine
+                store(lane, expect=(s["step"], s.get("head", "")))
+            return True
+        if lane.pop("waiting_since", None) is not None:
+            store(lane, expect=(s["step"], s.get("head", "")))
         s.pop("retry_of", None)
         chains[lane["id"]] = chains["pool"].submit(chain)
         chains[lane["id"]].head = s.get("head", "")
@@ -2917,6 +2930,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
 DRAIN: list = [False]
 DRAIN_MAX_S = 15 * 60  # 2026-11-11: a live worker session held the re-exec off 5 h; every other lane's check waited, silently, for a hand restart
 DRAIN_SINCE: list = [0.0]
+WAIT_TOLD: set = set()  # (lane, head) whose `waiting-for-worker` row this process wrote
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
@@ -3515,7 +3529,10 @@ def run_alive(j, feed: str) -> bool:
     """Is a `builder run` still watching this feed? (pgrep as the owner sees the jail user's processes.) The seam the tests replace."""
     if not feed:
         return False
-    r = subprocess.run(["pgrep", "-u", j.user, "-f", f"--feed {feed}"], capture_output=True, text=True)
+    # `--` ends pgrep's options: the pattern starts with `--feed`, which pgrep read as an option and refused ("illegal option -- -",
+    # exit 2), so this said no watcher for every lane; a restarted loop never adopted, and attached a second and third watcher to
+    # kg-readable-representation's one window (2026-11-27 18:14, 18:20)
+    r = subprocess.run(["pgrep", "-u", j.user, "-f", "--", f"--feed {feed}"], capture_output=True, text=True)
     return r.returncode == 0
 
 
@@ -3634,6 +3651,9 @@ def attach_live(lane: dict, s: dict, procs, why: str):
     --attach` on the same feed, which reads a DONE already on screen. A handle, or None when there is no live window or no attach."""
     wins = procs.live_windows(lane)
     if not wins:
+        return None
+    if procs.watched(lane):  # a `builder run` already watches its feed: a second one would type each message twice (kg, 18:14 and 18:20)
+        journal.append("queue", lane=lane["id"], step=s["step"], state="attach-refused", detail=f"{why}: a watcher already runs on its feed; no second one")
         return None
     hh = procs.attach(lane, s, wins[0])
     if hh is not None:
@@ -3979,7 +3999,8 @@ def real_procs(root) -> Procs:
         finally:  # the candidate refs are only kept while the train runs: a ref pins its commits against gc
             train.drop_refs(repo, tid)
 
-    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, builder_moved=builder_moved, thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
+    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, builder_moved=builder_moved,
+                 watched=lambda lane: run_alive(jail.load(root), lane.get("feed", "")), thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, worker_cli=worker_cli_job(root, rules, mdl), rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  stack_hold=lambda lane, step, under: work.stack_hold(ns(lane), step["step"], under),
                  build_free=lambda: check_tool.build_lock_free(check_tool.load(root)),
