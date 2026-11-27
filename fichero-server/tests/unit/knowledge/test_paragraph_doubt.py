@@ -1,7 +1,8 @@
-"""Doubt in the paragraph: a person's decision, sources in words, a single unsure source (#6839).
+"""Doubt in the paragraph: a person's decision, a dispute, sources in words, a single unsure source (#6839).
 
 spec: kg-paragraph-realisation (`kg.para.doubt-is-attribution`, `kg.para.no-figure-no-hedge`,
-`kg.para.sources-are-counted-in-words`, `kg.para.person-decision-is-plain`)
+`kg.para.sources-are-counted-in-words`,
+`kg.para.dispute-states-both`, `kg.para.person-decision-is-plain`)
 """
 from __future__ import annotations
 
@@ -10,8 +11,10 @@ import re
 from fichero_server.knowledge.readable import render_entry_with_mentions
 from fichero_server.models.knowledge import (
     ClaimCurationState,
+    ClaimRelationType,
     EpistemicStatus,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
 )
 
@@ -135,3 +138,54 @@ def test_a_hedge_is_served_by_the_route(client, db):
     body = client.get(f"/api/kg/entities/{entity.id}/readable").json()
     assert body["paragraph"] == "Ana, al parecer, vendió una casa (una sola fuente)."
     assert body["sentences"][0]["clauses"][0]["doubt"] == "one_source_unsure"
+
+
+def _born(cid, start, end, precision, doc, offset=0, **kw):
+    return _claim(cid, "nació en", "Villa Arenal", "es", docs=(doc,), time_start=start, time_end=end,
+                  time_precision=precision, source_char_start=offset, **kw)
+
+
+def _contradicts(a, b):
+    return KnowledgeClaimLink(claim_id=a, related_claim_id=b, relation_type=ClaimRelationType.contradicts)
+
+
+def test_a_dispute_is_one_sentence_with_both_readings():
+    a = _born("c1", "1702-03-14", "1702-03-14", "day", "doc-a")
+    b = _born("c2", "1704-01-01", "1704-12-31", "year", "doc-b")
+    expected = "Inés Valcárcel nació en Villa Arenal el 14 de marzo de 1702 según una fuente y en 1704 según otra."
+    for claims, link in (([a, b], _contradicts("c1", "c2")), ([b, a], _contradicts("c2", "c1"))):
+        sentences = _read(claims, [link])
+        assert [s["text"] for s in sentences] == [expected]  # one sentence, in source order whichever way
+        assert sentences[0]["claim_ids"] == ["c1", "c2"]
+        assert [(c["claim_ids"], c["doubt"]) for c in sentences[0]["clauses"]] == [(["c1"], "disputed"), (["c2"], "disputed")]
+        origins = [g["origin"] for g in sentences[0]["segments"]]
+        assert "table:es:according_one" in origins and "table:es:according_other" in origins
+    # only a stored link makes a dispute: without one the two are said apart
+    apart = _read([a, b])
+    assert all("según" not in s["text"] for s in apart)
+    # a link of another kind is no dispute
+    assert all("según" not in s["text"] for s in _read([a, b], [KnowledgeClaimLink(
+        claim_id="c1", related_claim_id="c2", relation_type=ClaimRelationType.supports)]))
+
+
+def test_a_confirmed_statement_in_a_dispute_is_said_plainly():
+    a = _born("c1", "1702-03-14", "1702-03-14", "day", "doc-a", curation_state=ClaimCurationState.curated)
+    b = _born("c2", "1704-01-01", "1704-12-31", "year", "doc-b")
+    sentences = _read([a, b], [_contradicts("c1", "c2")])
+    assert all("según" not in s["text"] for s in sentences)
+    assert _clause(sentences, "c1")["doubt"] == "none"
+
+
+def test_a_dispute_is_served_by_the_route(client, db):
+    entity = KnowledgeEntity(canonical_name="Ana")
+    db.save(entity)
+    rows = [KnowledgeClaim(text="Ana nació en Quibdó", svo_subject="Ana", svo_verb="nació en", svo_object=obj,
+                           subject_entity_id=entity.id, entity_ids=[entity.id], source_languages=["es"],
+                           source_document_id=doc)
+            for obj, doc in (("Quibdó", "doc-1"), ("Nóvita", "doc-2"))]
+    for row in rows:
+        db.save(row)
+    db.save(_contradicts(rows[1].id, rows[0].id))
+    body = client.get(f"/api/kg/entities/{entity.id}/readable").json()
+    assert body["paragraph"] == "Ana nació en Quibdó según una fuente y Nóvita según otra."
+    assert [c["doubt"] for c in body["sentences"][0]["clauses"]] == ["disputed", "disputed"]

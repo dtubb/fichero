@@ -15,7 +15,9 @@
     "hedge": ", apparently,",
     "one_source": "(one source only)",
     "sources": "({count} sources)",
-    "numbers": ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+    "numbers": ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"],
+    "according_one": "according to one source",
+    "according_other": "according to another"
   },
   "dates": {
     "day": "on {day} {month} {year}",
