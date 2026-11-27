@@ -255,6 +255,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend), feed=feed)
     gen = 1
     base = base_sha or procs.head()
+    if feed is not None and (Path(feed) / "stop").exists():  # stopped while this run was getting ready: never open a session only to end it
+        journal.append("watch", task=name, what="lane-done: the feed was stopped before the session started")
+        out(f"{name}: lane-done before the start")
+        return "lane-done"
     pane = attach or procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session, **xs)
     journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label, **({"attached": True} if attach else {}))
     started = last_change = procs.now()

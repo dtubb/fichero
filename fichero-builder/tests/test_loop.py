@@ -2212,19 +2212,36 @@ def test_a_fix_round_and_a_send_back_name_the_interpreter_that_has_pytest(state,
     assert "Run tests with" not in queue.fix_text("1.1", "red", "x"), "no [check].python: nothing is said"
 
 
-def _quiet_sent(state, session_live):
-    """A lane whose step is `sent`, whose watcher lives and which has no row yet; `session_live` is the window check."""
+def _quiet_sent(state, session_live, monkeypatch=None):
+    """A lane whose step is `sent`, whose watcher lives and which has no row yet; `session_live` is the window check. With
+    `monkeypatch` the clock then stands past the start-up grace (queue.START_GRACE_S), so a missing window counts."""
     queue.add("m1", "/w/m1", "1.1", str(state / "b1.1"), [7])
     fake = Fake()
     fake.procs.session_live = session_live
     handles = {}
     queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # sent
     fake.seqs.clear()  # the worker has said nothing
+    if monkeypatch is not None:
+        later = queue._now() + queue.START_GRACE_S + 1
+        monkeypatch.setattr(queue, "_now", lambda: later)
     return fake, handles
 
 
-def test_a_sent_step_whose_window_runs_a_shell_is_queued_again_after_two_ticks_with_one_row(state):
+def test_a_young_sent_step_whose_run_is_still_opening_its_window_is_never_stopped(state, monkeypatch):
+    """2026-11-27 spec-retag: the run opened its window ~2 min after the send; two misses had already stopped it, six times."""
     fake, handles = _quiet_sent(state, lambda lane: False)
+    for _ in range(4):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "sent" and not fake.stops and not [r for r in journal.read() if r.get("state") == "sent-no-session"]
+    later = queue._now() + queue.START_GRACE_S + 1
+    monkeypatch.setattr(queue, "_now", lambda: later)
+    for _ in range(2):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "queued" and "m1" in fake.stops, "past the grace a window that never came is no session"
+
+
+def test_a_sent_step_whose_window_runs_a_shell_is_queued_again_after_two_ticks_with_one_row(state, monkeypatch):
+    fake, handles = _quiet_sent(state, lambda lane: False, monkeypatch)
     tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
     tick()
     assert steps()["1.1"]["state"] == "sent", "one failed check is not enough"
@@ -2245,8 +2262,8 @@ def test_a_sent_step_with_a_live_session_is_never_queued_again_and_a_check_that_
     assert steps()["1.1"]["state"] == "sent" and not [r for r in journal.read() if r.get("state") == "sent-no-session"]
 
 
-def test_a_failed_check_of_one_step_is_not_carried_to_the_next_time_a_step_is_sent(state):
-    fake, handles = _quiet_sent(state, lambda lane: False)
+def test_a_failed_check_of_one_step_is_not_carried_to_the_next_time_a_step_is_sent(state, monkeypatch):
+    fake, handles = _quiet_sent(state, lambda lane: False, monkeypatch)
     tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
     tick()
     (lane,) = queue.load()
@@ -2431,7 +2448,7 @@ def test_a_session_whose_start_was_refused_blocks_at_once_with_its_output_and_ev
     three times each, then blocked, with nothing said. Their run logs held the cause: `builder run refuses: harness.toml
     [spend].prices has no price for 'claude-fable-5-2[1m]'`. The refusal now blocks at once, naming it; rows carry the tail."""
     out = "--- run log ---\nm1: step 3 sent\nbuilder run refuses: harness.toml [spend].prices has no price for 'claude-fable-5-2[1m]': unknown price, no start"
-    fake, handles = _quiet_sent(state, lambda lane: False)
+    fake, handles = _quiet_sent(state, lambda lane: False, monkeypatch)
     fake.procs.last_output = lambda lane: out
     tick = lambda: queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)  # noqa: E731
     tick()

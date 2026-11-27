@@ -685,3 +685,16 @@ def test_a_non_claude_session_with_an_effort_row_refuses_the_start(root):
     assert run.run(root, root / "wt", root / "b.txt", name="w", kind="pi", procs=fake.procs, out=said.append, role="builder", provider="pi",
                    rules=_effort_rules(root, "low", "pi")) == "refused"
     assert any("effort 'low'" in s for s in said) and not hasattr(fake, "started")
+
+
+def test_a_feed_stopped_before_the_session_starts_opens_no_session(root):
+    """2026-11-27 spec-retag: the loop had stopped the feed while its run was still getting ready (~2 min); the run then opened a
+    window and ended it at the first tick as lane-done, six times. A stopped feed now ends the run before any start."""
+    feed = root / "inbox"
+    feed.mkdir()
+    (feed / "stop").write_text("")
+    fake = Fake([HEALTHY])
+    starts = []
+    fake.procs.start = lambda *a, **k: starts.append(a) or "%9"
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed) == "lane-done"
+    assert starts == []

@@ -891,7 +891,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 alert(lane["id"], s["step"], f"a live session runs in tmux window {', '.join(wins)} and this loop cannot watch it (no `builder run` on its feed): "
                       "it is left running; `builder queue stop` ends it, then retry", str(journal.STATE / "journal.jsonl"), ["retry", "park"])
             return True
-        if s["state"] == "sent" and _now() - s.get("entered_at", 0) < START_GRACE_S:
+        if not mismatch and s["state"] == "sent" and _now() - s.get("entered_at", 0) < START_GRACE_S:  # a mismatch is never a slow start
             # 2026-11-27 12:14:52: a re-exec came 40-90 s after seg-tools, training and perf-optimize were sent; their sessions had no
             # window, process id or watcher yet, and the restarted loop stopped all three as lost. A session this young is still
             # starting: wait for it to show (one row), and judge it once the grace is over.
@@ -990,6 +990,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         row = procs.row(lane)
         if row is None:
             live = procs.session_live(lane)  # True, False, or None when the window list could not be read: unknown counts nothing
+            if live is False and _now() - s.get("entered_at", 0) < START_GRACE_S and not _refusal(procs.last_output(lane)):
+                # 2026-11-27 spec-retag: its `builder run` took ~2 min to open the window (sent 14:39:06, window 14:41:23); two misses
+                # had already stopped it (14:41:00), so the run opened the window and ended it at once as lane-done, six times. A run that
+                # refused its start says so in its output and blocks below at once; with no refusal, a young step's missing window is a slow start.
+                return True
             if live is False:  # local.run.sent-needs-a-live-session: a shell in the window is no session
                 lane["sent_misses"] = lane.get("sent_misses", 0) + 1
                 if lane["sent_misses"] < 2:
