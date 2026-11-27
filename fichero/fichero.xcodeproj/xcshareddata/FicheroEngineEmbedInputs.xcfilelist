@@ -173,6 +173,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/migrations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/prepare_images.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/projects.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/recipe_cloud_cap.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/recipe_start_models.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/recipes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/registries.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/settings.py
