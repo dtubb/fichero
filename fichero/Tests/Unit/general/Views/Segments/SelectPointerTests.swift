@@ -95,26 +95,26 @@ final class SelectPointerTests: XCTestCase {
         XCTAssertEqual(removed.indices, [0], "⌘-click on a selected box takes it out")
     }
 
-    /// A loop round line c (0.6-0.9 across, 0.7-0.8 down), pressed on empty page.
-    private func loopRoundC(option: Bool, control: Bool) -> [PreviewPointerEvent] {
+    /// A loop round line c (0.6-0.9 across, 0.7-0.8 down), pressed on empty page. The lasso releases on its last corner;
+    /// the box draw releases away from the press on both axes, because a box with no width is no box.
+    private func loopRoundC(option: Bool, control: Bool, release: (Double, Double)) -> [PreviewPointerEvent] {
         let corners = [(0.55, 0.65), (0.95, 0.65), (0.95, 0.85), (0.55, 0.85)]
         var steps = [event(.pressed, 0.55, 0.65, option: option, control: control)]
         for corner in corners.dropFirst() { steps.append(event(.dragged, corner.0, corner.1, option: option, control: control)) }
-        // Released away from the press on both axes: a box with no width is no box.
-        steps.append(event(.released, 0.95, 0.85, option: option, control: control))
+        steps.append(event(.released, release.0, release.1, option: option, control: control))
         return steps
     }
 
     /// Owner ruling 2026-11-26: the lasso is ⌃-drag.
     func testControlDragIsTheLasso() async throws {
-        let selection = try await play(loopRoundC(option: false, control: true))
+        let selection = try await play(loopRoundC(option: false, control: true, release: (0.55, 0.85)))
         XCTAssertEqual(selection.indices, [2], "the loop held line c")
     }
 
     /// Owner ruling 2026-11-26: ⌥-drag in Select draws a new box, it does not lasso.
     func testOptionDragDrawsABoxAndSelectsNothing() async throws {
         var drawn: [[Double]] = []
-        let selection = try await play(loopRoundC(option: true, control: false), onDrawBox: { drawn.append($0) })
+        let selection = try await play(loopRoundC(option: true, control: false, release: (0.95, 0.85)), onDrawBox: { drawn.append($0) })
         XCTAssertEqual(drawn.count, 1, "one box is drawn")
         XCTAssertTrue(selection.indices.isEmpty, "and nothing is lassoed")
     }
