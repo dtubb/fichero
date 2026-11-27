@@ -899,7 +899,7 @@ See section 7.2 below for what exists. The design:
   for the prepared one, the transform, since ALTO and PAGE have no place for it. *Built:*
   storage in the upright frame; the carry for Kraken, YOLO and crops. *Not built:* the app
   naming the shown rendition on a create or update; the export choice and its loss-report line.
-- `segment-editor.corrections-train` — **[PARTIAL]** (→ #4947; engine; ties to `../compute/training-and-evaluation.md`)
+- `segment-editor.corrections-train` — **[OK]** (→ #4947; engine; ties to `../compute/training-and-evaluation.md`)
   a corrected page's working pass, with its lines, baselines, outlines, regions and order, is
   what the Kraken training set writes (`training/kraken_set.py`); word and character cuts made
   or confirmed by a person are included as PAGE `Word` / `Glyph` so a recogniser trained on
@@ -909,8 +909,11 @@ See section 7.2 below for what exists. The design:
   *Built 2026-11-21:* the set (a full PAGE export) carries regions, words and glyphs; a word or glyph whose `custom`
   names a machine's cut (`cut {source:ctc|ink-gap}`) is left out (`kraken_set.drop_flagged_lines`), a person's cut
   and a word no cut made stay (`fichero-server/tests/unit/training/test_training_set_keeps_a_persons_cuts.py`).
-  *Not built:* an option to include a machine's cuts, the manifest counting the cuts left out, the YOLO label from
-  corrected regions.
+  *Built under `prep.yolo.fine-tune-from-corrected-regions`:* the YOLO label from corrected regions (`persons_regions`;
+  `fichero-server/tests/unit/training/test_yolo_regions_training.py::test_a_persons_regions_become_labels_and_a_models_do_not`).
+  *Left, now `segment-editor.corrections-train-machine-cuts`:* an option to include a machine's cuts, the manifest counting the cuts left out.
+- `segment-editor.corrections-train-machine-cuts` — **[GAP]** (→ #4947; engine; split from `segment-editor.corrections-train`,
+  manager 2026-11-27 retag) what that line left: an option to include a machine's cuts, the manifest counting the cuts left out. Not built.
 - `segment-editor.provenance-on-every-segment` — **[PARTIAL]** (→ #4923; engine) every segment says who made it
   (`created_by`, `provenance_kind`: model and run, or person, set by the engine from the
   action's context, never from the client) and every change is a version with who and when
