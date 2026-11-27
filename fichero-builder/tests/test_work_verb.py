@@ -610,7 +610,7 @@ def _early_chain(chain, monkeypatch, later_red: bool):
         chain.calls.append(("check", since, head))
         work.check_tool.ON_RUNG[0]("red-on-base", True, [{"name": "ready", "ok": True}, {"name": "red-on-base", "ok": True}])
         assert not (Path(ladder).parent / (Path(ladder).name + ".partial")).exists(), "not after red-on-base: no guard has run yet (reviews 199, 207, 263, 275)"
-        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base", "unit")] + [
+        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base")] + [
             {"name": "guards", "ok": True, "results": [{"name": "check_a", "ok": True}, {"name": "check_b", "ok": True}]},
             {"name": "unit", "ok": True}, {"name": "security", "ok": True}, {"name": "contract-current", "ok": True}, {"name": "since-guards", "ok": True}]
         work.check_tool.ON_RUNG[0]("since-guards", True, cheap)
