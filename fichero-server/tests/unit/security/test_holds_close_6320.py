@@ -19,6 +19,15 @@ from tests.unit.transport.test_person_bound_invite_5910 import _as
 from tests.unit.transport.test_share_scope_5967 import _person, project  # noqa: F401
 
 
+@pytest.fixture(autouse=True)
+def _no_embedding_on_save(monkeypatch):
+    """These tests check who may read and write; none reads a vector. A saved claim or entity is not embedded, so no
+    test loads the embedding model (on a Mac without it the loader makes a download folder in the embedding cache)."""
+    from fichero_server.db.embeddings import DatabaseEmbeddingMixin
+
+    monkeypatch.setattr(DatabaseEmbeddingMixin, "_schedule_embedding_task", lambda *a, **k: None)
+
+
 @pytest.fixture
 def four(project):
     lib = authz.normalize_library_path(project.library)
