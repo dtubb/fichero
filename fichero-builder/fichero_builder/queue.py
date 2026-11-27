@@ -36,7 +36,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
-from fichero_builder import stale, brief_tool, check_tool, ci, client, codemap, jail, journal, land_tool, models, nightly, train, watcher, work
+from fichero_builder import stale, brief_tool, check_tool, ci, client, codemap, jail, journal, land_tool, models, nightly, train, watcher, work, worker_cli
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -353,6 +353,7 @@ class Procs:
     live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
+    worker_cli: Callable[[], None] | None = None  # local.run.worker-cli-current: the worker's claude synced, its models probed; None = off
     deps: Callable[[], int] | None = None  # `builder deps` once (local.deps.weekly); None = [deps] off
     deps_cfg: object = None  # its deps.Cfg: the day and hour it runs
     gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
@@ -829,6 +830,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             if end == "parked":
                 PARKED.append(lane["id"])
                 return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
+            if s["state"] == "sent" and end == "gone" and _now() - s.get("entered_at", 0) < QUICK_GONE_S:
+                WORKER_CLI_AT[0] = 0.0  # gone at once: the next tick probes the worker's CLI (a revoked sign-in holds every lane)
             if s["state"] == "sent":
                 s["restarts"] += 1
                 if s["restarts"] > RESTARTS:
@@ -890,6 +893,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                     after = procs.free_gb()
                     journal.append("queue", lane=lane["id"], step=s["step"], state="disk-thinned",
                                    detail=f"{free:.0f} GB free before, {after:.0f} GB after" + (f"; thinning failed: {err}"[:200] if err else ""))
+                if worker_cli.HELD[0]:  # local.run.worker-cli-current: a revoked sign-in would end every session 'gone' at once
+                    if not s.get("auth_held"):
+                        s["auth_held"] = True
+                        store(lane)
+                        journal.append("queue", lane=lane["id"], step=s["step"], state="auth-hold",
+                                       detail="the worker's Claude sign-in is revoked: no new session until a probe passes")
+                    return False
+                s.pop("auth_held", None)
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0]:
                     why = f"{free:.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts"
                     DISK_HELD.append(lane["id"])
@@ -2141,6 +2152,49 @@ def uv_prune_when_due(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+WORKER_CLI_S = 3600
+WORKER_CLI_HELD_S = 300
+QUICK_GONE_S = 60  # a session that ends 'gone' this soon is probed for a revoked sign-in at the next tick
+WORKER_CLI_AT = [0.0]  # in memory: so the first tick after a start checks
+
+
+def worker_cli_when_due(procs: Procs, chains: dict | None) -> None:
+    """local.run.worker-cli-current: at start and hourly, the worker's claude matches the manager's and takes every lane's model."""
+    from fichero_builder import worker_cli
+    every = WORKER_CLI_HELD_S if worker_cli.HELD[0] else WORKER_CLI_S  # held: probed every few minutes, so a new sign-in frees it soon
+    if procs.worker_cli is None or any(t.name == "worker-cli" and t.is_alive() for t in BUILDS) or time.time() - WORKER_CLI_AT[0] < every:
+        return
+    WORKER_CLI_AT[0] = time.time()
+    if chains is None:
+        procs.worker_cli()
+        return
+    t = threading.Thread(target=procs.worker_cli, name="worker-cli", daemon=True)
+    BUILDS.append(t)
+    t.start()
+
+
+def worker_cli_job(root, rules: dict, mdl: dict):
+    """The real check: <workroot>/bin/claude against the manager's, with the Claude Code models of the builder and every lane's role."""
+    from fichero_builder import start_tool, worker_cli
+
+    work_root = rules.get("jail", {}).get("workroot")
+    manager = start_tool.find_claude()
+    if not (rules.get("jail", {}).get("user") and work_root and manager):
+        return None
+    worker = Path(work_root) / "bin" / "claude"
+
+    def wanted():
+        roles = {"builder"} | {x["role"] for x in load() if x.get("role")}
+        return {models.for_role(mdl, r).model for r in roles if r in mdl or r == "builder"
+                if models.for_role(mdl, r).provider == "claude-code"}
+
+    def say(_model, _ver, what, why):
+        alert("-", "worker-cli", what, why, ["retry"])
+    j = jail.load(root)
+    as_user = (j.sudo, "-n", "-H", "-u", j.user) if j and j.user and j.enabled else ()
+    return lambda: worker_cli.check(worker, manager, wanted(), say, as_user, user=rules["jail"]["user"])
+
+
 DEPS_LAST = "deps.last"  # the date `builder deps` last ran from the loop
 
 
@@ -2789,6 +2843,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
             journal.append("loop", state="watchdog-error", detail=traceback.format_exc()[-1500:])
     reconcile_when_due(procs, chains)
     uv_prune_when_due(procs, chains)
+    worker_cli_when_due(procs, chains)
     deps_when_due(procs, chains)
     gh_watch_when_due(procs, chains)
     if not busy:
@@ -3753,7 +3808,7 @@ def real_procs(root) -> Procs:
             train.drop_refs(repo, tid)
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
-                 drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
+                 drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, worker_cli=worker_cli_job(root, rules, mdl), rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  stack_hold=lambda lane, step, under: work.stack_hold(ns(lane), step["step"], under),
                  build_free=lambda: check_tool.build_lock_free(check_tool.load(root)),
                  stack_resume=lambda lane, step, under: work.stack_resume(ns(lane), step["step"], under),
