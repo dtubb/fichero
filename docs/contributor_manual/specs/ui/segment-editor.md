@@ -383,8 +383,8 @@ targets are at least 44 pt.
   *Tests:* `fichero-server/tests/unit/api/test_segment_group_lines.py` (including the emptied region's delete, undo and redo); `fichero-server/tests/unit/api/test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `fichero/Tests/Unit/general/Views/Preview/SegmentGroupLinesTests.swift`.
   *Left, now `segment-editor.make-region-opens-for-its-type`:* the new region open for its type; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
-- `segment-editor.make-region-opens-for-its-type` — **[GAP]** (#6737; app + engine; split from `segment-editor.make-region-from-lines`,
-  manager 2026-11-27 retag) what that line left: the new region open for its type; the region in orders other than `as-written`. Not built.
+- `segment-editor.make-region-opens-for-its-type` — **[GAP]** (#6737; app + engine) split from `segment-editor.make-region-from-lines`
+  (manager 2026-11-27 retag); what that line left: the new region open for its type; the region in orders other than `as-written`. Not built.
 - `segment-editor.make-region-in-every-menu` — **[OK]** (#6737, #7070; app) Make Region from Lines (two or more selected
   segments) and Ungroup Region (a selected region) are in every menu that lists the verbs: the Segment menu, the page's
   context menu and `SegmentVerbMenu` (the Order list's row menu and the Reader's line menu); a verb that cannot apply is
@@ -604,8 +604,8 @@ See section 7.2 below for what exists. The design:
   its box (trimmed with the text), and converting the result into a pass puts them on the line's reading when there
   is one per character (`fichero-server/tests/unit/llm/test_full_page_read_keeps_char_positions.py`).
   *Left:* `segment-editor.char-positions-on-the-reading-model`. *Tests:* `fichero-server/tests/unit/llm/test_kraken_char_positions.py`.
-- `segment-editor.char-positions-on-the-reading-model` — **[GAP]** (→ #5154; app; split from `segment-editor.char-positions-kept`,
-  manager 2026-11-27 retag) what that line left: the app's `Reading` model. Not built: no Swift file names `char_positions`.
+- `segment-editor.char-positions-on-the-reading-model` — **[GAP]** (→ #5154; app) split from `segment-editor.char-positions-kept`
+  (manager 2026-11-27 retag); what that line left: the app's `Reading` model. Not built: no Swift file names `char_positions`.
 - `segment-editor.cut-words-from-positions` — **[PARTIAL]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
   a page, derives word segments from the counting reading: each space in the text is a gap
   between two characters; the cut is the point on the baseline midway between the end of the
@@ -912,8 +912,8 @@ See section 7.2 below for what exists. The design:
   *Built under `prep.yolo.fine-tune-from-corrected-regions`:* the YOLO label from corrected regions (`persons_regions`;
   `fichero-server/tests/unit/training/test_yolo_regions_training.py::test_a_persons_regions_become_labels_and_a_models_do_not`).
   *Left, now `segment-editor.corrections-train-machine-cuts`:* an option to include a machine's cuts, the manifest counting the cuts left out.
-- `segment-editor.corrections-train-machine-cuts` — **[GAP]** (→ #4947; engine; split from `segment-editor.corrections-train`,
-  manager 2026-11-27 retag) what that line left: an option to include a machine's cuts, the manifest counting the cuts left out. Not built.
+- `segment-editor.corrections-train-machine-cuts` — **[GAP]** (→ #4947; engine) split from `segment-editor.corrections-train`
+  (manager 2026-11-27 retag); what that line left: an option to include a machine's cuts, the manifest counting the cuts left out. Not built.
 - `segment-editor.provenance-on-every-segment` — **[PARTIAL]** (→ #4923; engine) every segment says who made it
   (`created_by`, `provenance_kind`: model and run, or person, set by the engine from the
   action's context, never from the client) and every change is a version with who and when
