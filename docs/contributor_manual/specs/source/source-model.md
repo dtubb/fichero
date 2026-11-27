@@ -475,8 +475,8 @@ level it was made for.
   `source.extract.date-run-artifacts-taken-back`: the run's `dates`
   artifacts are still saved bare and stay after a take-back; taking a whole run back as one step
   is #5245.*
-- `source.extract.date-run-artifacts-taken-back` — **[GAP]** (#5597; split from
-  `source.extract.date-run-taken-back`, manager 2026-11-27 retag) what that line left: the run's `dates`
+- `source.extract.date-run-artifacts-taken-back` — **[GAP]** (#5597) split from
+  `source.extract.date-run-taken-back` (manager 2026-11-27 retag); what that line left: the run's `dates`
   artifacts are still saved bare and stay after a take-back; taking a whole run back as one step is #5245.
 - `source.extract.entries-are-units` — **[PARTIAL]** (#5467; #5601) *Built: entry nodes with a
   date, a region and a prototype. Built (#5601): on a page tied to its lines, the one splitter
