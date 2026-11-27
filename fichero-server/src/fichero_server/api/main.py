@@ -966,10 +966,6 @@ async def lifespan(app: FastAPI):
     from fichero_server.core import loop_lag
 
     _loop_watch = loop_lag.start(asyncio.get_running_loop())  # a held-up loop is logged with its stack (#5843)
-    # The Vision bundle load (seconds, PyObjC) happens here, off the loop, so a route that asks later reads a cache.
-    from fichero_server.workflows.tools import vision_base as _vision_base
-
-    threading.Thread(target=_vision_base.warm_supported_locales, name="vision-locales-warm", daemon=True).start()
     # The keys of the providers the person has set up (the app's own record: enabled, not on-device), read from the
     # Keychain once on a thread, so a route on the loop finds them cached. Never every provider type: each unread legacy
     # item can raise a Keychain dialog for a rebuilt/bundled python (#4534).
@@ -1122,6 +1118,12 @@ async def lifespan(app: FastAPI):
             from fichero_server.workflows.registry import _ensure_tools_loaded
 
             _ensure_tools_loaded()
+
+            # The Vision bundle load (seconds, PyObjC), so a route that asks later reads a cache. Here and not before the
+            # lifespan yields (#7105): importing `vision_base` there imported the whole tools package on the event loop.
+            from fichero_server.workflows.tools import vision_base
+
+            vision_base.warm_supported_locales()
 
             # Also warm the langgraph execution stack. It used to ride in for
             # free because MCP's manager imported langchain_mcp_adapters at

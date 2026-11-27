@@ -179,6 +179,45 @@ def test_module_count_budget_at_app_import() -> None:
     )
 
 
+@pytest.mark.parametrize("late", ["defusedxml", "fichero_server.workflows.tools"])
+def test_module_absent_until_the_app_is_ready(late: str) -> None:
+    """#7105: a second after the lifespan yields, with no readiness signal, the workflow tools package and the
+    defusedxml it imports are not loaded. The MCP sync used to import both on the event loop at start."""
+    out = _run(
+        f"""
+        import asyncio, sys
+        from fichero_server.api import main
+
+        async def go():
+            async with main.lifespan(main.app):
+                await asyncio.sleep(1.0)
+                print("PRESENT" if {late!r} in sys.modules else "ABSENT")
+
+        asyncio.run(go())
+        """
+    )
+    assert out.splitlines()[-1] == "ABSENT", f"{late} was imported before the app was ready (#7105)"
+
+
+def test_a_quit_before_the_warm_up_imports_no_langgraph() -> None:
+    """#7105: with the tool stack no longer loaded before the lifespan yields, the shutdown's pause of live runs must not
+    import the checkpointer (langgraph) when no run is live; that import ran into the 10 s quit deadline."""
+    out = _run(
+        """
+        import asyncio, sys
+        from fichero_server.api import main
+
+        async def go():
+            async with main.lifespan(main.app):
+                await asyncio.sleep(1.0)
+
+        asyncio.run(go())
+        print("PRESENT" if "langgraph" in sys.modules else "ABSENT")
+        """
+    )
+    assert out.splitlines()[-1] == "ABSENT", "the shutdown imported langgraph with no run live (#7105)"
+
+
 def test_fastapi_app_still_builds_without_heavy_deps() -> None:
     """Laziness is worthless if the app doesn't work. Routes must still exist."""
     out = _run(
