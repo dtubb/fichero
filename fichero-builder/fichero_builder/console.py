@@ -699,6 +699,7 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
     except (OSError, ValueError):
         branch = "integration"
     branches, landing, unreleased = reads(root, list(held.values()), branch) if reads else git_reads(root, list(held.values()), branch)
+    url = repo_url(root)  # builder-console.milestones.issue-links: "" with no origin remote, and then no link
     out = []
     for sec in SECTIONS:
         body = next((part.split("\n", 1)[1] for part in text.split("\n## ")[1:] if part.startswith(sec)), "")
@@ -737,7 +738,8 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                                        "issues": [i["number"] for i in c["issues"]] if c else []})
                 m["questions"] = planned["questions"]
                 m["issues"] = [{"number": i["number"], "title": i["title"], "labels": [lb.get("name", "") for lb in i.get("labels") or []],
-                                "step": ms.step_of(i, slug) or "", "status": status[i["number"]][0], "where": status[i["number"]][1]} for i in issues]
+                                "step": ms.step_of(i, slug) or "", "status": status[i["number"]][0], "where": status[i["number"]][1],
+                                "url": f"{url}/issues/{i['number']}" if url else ""} for i in issues]
                 m["counts"] = {k: sum(1 for v in status.values() if v[0] == k) for k in RANK}
                 if not m["lane"]:  # a lane named otherwise holds it when its commits cite the milestone's issues
                     m["lane"] = next((w.split()[0] for st_, w in status.values() if st_ in RANK[1:3] and w.split()[0] in held), "")
@@ -746,7 +748,7 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
             out.append(m)
     stems = {Path(m["spec"]).stem for m in out if m["spec"]}
     out = [m for m in out if not (m["open"] is None and m["name"] in stems)]  # the spec's empty twin of a GitHub milestone: one row
-    return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0}
+    return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0, "repo": url}
 
 
 def _closed_issues(name: str, gh: str, cwd=None) -> list[dict]:

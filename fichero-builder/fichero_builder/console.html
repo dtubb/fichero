@@ -227,6 +227,7 @@ function Milestones({ st }) {
   const picked = Object.keys(pick).filter(k => pick[k]);
   const start = names => names.slice(0, room).forEach(n => act("start-milestone", { milestone: n }));
   const byName = Object.fromEntries(data.milestones.map(m => [m.name, m]));
+  const issueLink = n => data.repo ? html`<a href=${`${data.repo}/issues/${n}`} target="_blank" style="margin-right:6px">#${n}</a>` : html`<span style="margin-right:6px">#${n}</span>`;  // builder-console.milestones.issue-links
   const base = { order: data.milestones.filter(m => m.section !== "Parked").map(m => m.name), parked: data.milestones.filter(m => m.section === "Parked").map(m => m.name) };
   const cur = ord || base;
   const order = cur.order, parked = cur.parked;
@@ -251,9 +252,9 @@ function Milestones({ st }) {
         </tr>
         ${open[m.name] && html`
           ${m.steps.map(s => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span> ${s.title}</td><td colspan="2">${s.state}</td>
-            <td><span class=${"dot " + (STATUS_DOT[s.status] || "")}></span> ${s.status || html`<span class="muted">no issues</span>`}</td><td colspan="2">${s.issues.map(n => "#" + n).join(", ")}</td></tr>`)}
+            <td><span class=${"dot " + (STATUS_DOT[s.status] || "")}></span> ${s.status || html`<span class="muted">no issues</span>`}</td><td colspan="2">${s.issues.map(n => issueLink(n))}</td></tr>`)}
           ${m.questions.map(q => html`<tr class="sub"><td></td><td></td><td colspan="6" class="note">${q}</td></tr>`)}
-          ${m.issues.map(i => html`<tr class="sub"><td></td><td>${i.status === "open" ? html`<input type="checkbox" checked=${!!iss[i.number]} onChange=${e => setIss({ ...iss, [i.number]: e.target.checked })} />` : ""}</td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td>
+          ${m.issues.map(i => html`<tr class="sub"><td></td><td>${i.status === "open" ? html`<input type="checkbox" checked=${!!iss[i.number]} onChange=${e => setIss({ ...iss, [i.number]: e.target.checked })} />` : ""}</td><td>${i.url ? html`<a href=${i.url} target="_blank">#${i.number}</a>` : `#${i.number}`} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td>
             <td><span class=${"dot " + (STATUS_DOT[i.status] || "")}></span> ${i.status} <span class="muted mono">${i.where}</span></td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}`}`;
   const table = (names, sec) => html`<div class="wrap"><table>
       <thead><tr><th></th><th></th><th>Milestone</th><th>Open</th><th>Closed</th><th>Status</th><th>Steps</th><th></th></tr></thead>

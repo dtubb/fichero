@@ -132,3 +132,27 @@ def test_a_lanes_last_action_sits_in_its_row_and_the_action_log_is_one_page(live
     assert "Console actions" in log and "Last events" in log and '["log", "Log"]' in app
     assert "Console actions" not in app and "Last events" not in app, "no other page ends with them"
     assert 'act("build")' in app and 'act("loop-stop")' in app, "the whole-harness actions stay in the toolbar"
+
+
+def test_every_milestone_issue_and_step_issue_number_is_a_link_to_the_issue(tmp_path, monkeypatch):
+    """builder-console.milestones.issue-links: clicking Milestones, then an issue, changed nothing."""
+    from fichero_builder import milestone as ms
+    spec_dir = tmp_path / "docs" / "contributor_manual" / "specs"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "build-order.md").write_text("# Build order\n\n## In order\n\n1. `Alpha` Spec: alpha.md\n")
+    (spec_dir / "alpha.md").write_text("> Milestone: alpha\n")
+    gh = tmp_path / "gh"
+    gh.write_text("#!/bin/sh\necho '[{\"title\":\"Alpha\",\"open_issues\":1,\"closed_issues\":0}]'\n")
+    gh.chmod(0o755)
+    monkeypatch.setattr(ms, "list_issues", lambda name, gh="gh", **k: [{"number": 11, "title": "alpha Step 1.1: a", "body": "", "labels": [{"name": "step:1.1"}]}])
+    monkeypatch.setattr(ms, "build_order", lambda p: [{"number": "1.1", "title": "a", "depends_on": []}])
+    read = lambda: console.milestones(tmp_path, gh=str(gh), lanes=[], reads=lambda root, ls, br: ({}, "", set()), closed=lambda name: [])  # noqa: E731
+    monkeypatch.setattr(console, "repo_url", lambda root: "https://example.test/o/r")
+    d = read()
+    assert d["repo"] == "https://example.test/o/r" and d["milestones"][0]["issues"][0]["url"] == "https://example.test/o/r/issues/11"
+    monkeypatch.setattr(console, "repo_url", lambda root: "")
+    d = read()
+    assert d["repo"] == "" and d["milestones"][0]["issues"][0]["url"] == "", "no origin remote: no link"
+    page = _page()
+    ms_js = page[page.index("function Milestones("):page.index("function Worktrees(")]
+    assert "href=${i.url}" in ms_js and "issueLink(n)" in ms_js and "data.repo" in ms_js, "the issue rows and the steps' numbers link out"
