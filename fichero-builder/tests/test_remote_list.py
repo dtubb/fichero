@@ -71,7 +71,7 @@ def test_a_red_after_a_runner_change_is_retried_once_on_the_runner_that_is_back_
     check_tool._DEAD.clear()
     state["remote_res"] = {"air:~/g": RED}  # the Air runs it red; the iMac is back
     state["down"] = set()
-    check_tool._DEAD.update({"imac:~/g"})
+    check_tool._DEAD.update({"imac:~/g": __import__("time").time()})
     ran.clear()
     res = check_tool._run("pytest", ["x"], tmp_path, 5, CFG, remote=True)
     assert res["ok"] is True and res["remote"] == "imac:~/g" and ran == ["air:~/g", "imac:~/g"]
@@ -94,3 +94,48 @@ def test_one_alert_per_outage_across_ladders_and_the_runner_back_answers_it(worl
     check_tool._DOWN.clear(), check_tool._DEAD.clear(), check_tool._ALERTED.clear()
     check_tool._run("pytest", ["x"], tmp_path, 5, CFG, remote=True)
     assert len(alerts) == 2, "the next outage alerts anew"
+
+
+FOUR = Config(remote="air:~/g", remotes=("air:~/g", "imac:~/g", "imac:~/g2", "m4:~/g"))
+
+
+def test_each_ladder_slot_starts_at_its_own_runner_and_the_base_runs_at_the_next(world, tmp_path):
+    """2026-11-27 14:00-16:10: four ladder slots, four runners, and every remote run named the iMac: each ladder tried the list
+    in the same order, so all queued behind the first runner's heavy lock while imac:~/g2 and m4 ran nothing."""
+    ran, alerts, state = world
+    firsts = []
+    for i in range(4):
+        check_tool.SLOT[0] = i
+        firsts.append(check_tool._run("pytest", ["x"], tmp_path, 5, FOUR, remote=True)["remote"])
+    assert firsts == ["air:~/g", "imac:~/g", "imac:~/g2", "m4:~/g"]
+    check_tool.SLOT[0] = 3
+    assert check_tool._runners_for_base(FOUR)[0] == "air:~/g", "the base runs: the runner after the slot's own"
+    state["down"] = {"m4:~/g"}
+    assert check_tool._run("pytest", ["x"], tmp_path, 5, FOUR, remote=True)["remote"] == "air:~/g", "its runner down: the next in the ring"
+    check_tool.SLOT[0] = 0
+
+
+def test_a_down_mark_expires_so_a_runner_that_blipped_is_tried_again_while_other_ladders_run(world, tmp_path, monkeypatch):
+    """2026-11-27: the Air blipped at 12:52 and answered at 12:53, but the mark was cleared only when no ladder ran; it ran nothing after."""
+    ran, alerts, state = world
+    state["down"] = {"air:~/g"}
+    check_tool.SLOT[0] = 0
+    assert check_tool._run("pytest", ["x"], tmp_path, 5, FOUR, remote=True)["remote"] == "imac:~/g"
+    state["down"] = set()
+    assert check_tool._run("pytest", ["x"], tmp_path, 5, FOUR, remote=True)["remote"] == "imac:~/g", "within DEAD_S: still skipped"
+    later = __import__("time").time() + check_tool.DEAD_S + 1
+    monkeypatch.setattr(check_tool.time, "time", lambda: later)
+    assert check_tool._run("pytest", ["x"], tmp_path, 5, FOUR, remote=True)["remote"] == "air:~/g", "the mark expired: back in the ring"
+
+
+def test_ladder_slot_tells_the_ladder_which_slot_it_holds(tmp_path, monkeypatch):
+    from fichero_builder import work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    monkeypatch.setattr(work, "SLOTS", [0])
+    with work.ladder_slot("a", ["x.py"], 4, by_file=False) as s1:
+        assert s1 == "ladder" and check_tool.SLOT[0] == 0
+        with work.ladder_slot("b", ["y.py"], 4, by_file=False) as s2:
+            assert s2 == "ladder-2" and check_tool.SLOT[0] == 1
+        assert check_tool.SLOT[0] == 0
+    assert check_tool.SLOT[0] == 0

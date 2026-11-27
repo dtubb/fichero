@@ -488,7 +488,17 @@ def _skipped(name: str) -> dict:
 _SHIPPED: dict = {}  # local tree -> its copy on [check].remote; removed by the ladder that shipped it at its end (_drop_remote)
 _MINE = threading.local()  # the local trees THIS thread's ladder shipped: two ladders run at once (speed 3) and one's end must not delete the other's copy
 _DOWN: list = []  # a remote failed in this ladder (one alert per runner); with every runner down the runs are here
-_DEAD: set = set()  # the runners that failed in this ladder: not tried again until a retry finds one back
+_DEAD: dict = {}  # runner -> when it failed: not tried again for DEAD_S, or until a retry finds it back
+DEAD_S = 300  # 2026-11-27: the set was cleared only when no ladder ran; with ladders always running, the Air stayed out from 12:52 on
+
+
+def _dead(rem: str) -> bool:
+    """Is this runner marked down? A mark older than DEAD_S has expired: the runner is tried again."""
+    t = _DEAD.get(rem)
+    if t is not None and time.time() - t >= DEAD_S:
+        _DEAD.pop(rem, None)
+        return False
+    return t is not None
 _ALERTED: set = set()  # the runners already alerted in this ladder: one alert each, even when a retry finds one back and it fails again
 
 
@@ -496,10 +506,19 @@ def _runners(cfg: Config) -> tuple:
     return cfg.remotes or ((cfg.remote,) if cfg.remote else ())
 
 
+def _runners_for_slot(cfg: Config) -> tuple:
+    """The runners in the order THIS thread's ladder tries them: started at its ladder slot's own runner (slot i, runner i mod n).
+    2026-11-27: every ladder tried [check].remote in the same order, so all four slots queued on the first runner that answered
+    (the iMac's first gate dir, behind its heavy lock) while imac:~/fichero-gate2 and m4 had no run all day."""
+    r = _runners(cfg)
+    i = SLOT[0] % len(r) if r else 0
+    return r[i:] + r[:i]
+
+
 def _runners_for_base(cfg: Config) -> tuple:
     """The runners in order for red-on-base's base runs: the first one holds the head run (its heavy lock), so the base runs start
     on the next one; with one runner they wait on it."""
-    r = _runners(cfg)
+    r = _runners_for_slot(cfg)
     return r[1:] + r[:1]
 
 
@@ -637,7 +656,7 @@ def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cw
     if r["exit_code"] == 255:  # ssh's own failure, never pytest's
         return _remote_down(cfg, r["stderr_tail"][-200:], remote)
     _remote_back(remote)
-    return {**r, "remote": host}
+    return {**r, "remote": host, "runner": remote}  # the gate dir too: imac:~/fichero-gate and ~/fichero-gate2 read apart
 
 
 def _outages() -> Path:
@@ -659,8 +678,8 @@ def _remote_down(cfg: Config, why: str, remote: str = "") -> None:
     from . import queue
     remote = remote or cfg.remote
     _DOWN.append(why)
-    _DEAD.add(remote)
-    left = [r for r in _runners(cfg) if r not in _DEAD]
+    _DEAD[remote] = time.time()
+    left = [r for r in _runners(cfg) if not _dead(r)]
     if remote in _ALERTED:
         return None
     _ALERTED.add(remote)
@@ -685,10 +704,10 @@ def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cw
     (manager 2026-11-03: the iMac was off and the tests went red on the jail user's own home); nothing is told to a lane about it."""
     if not remote:
         return _local(name, argv, root, timeout_s, cfg, extra, cwd, log)
-    runners = _runners_for_base(cfg) if BASE_RUN[0] else _runners(cfg)
+    runners = _runners_for_base(cfg) if BASE_RUN[0] else _runners_for_slot(cfg)
     res, used = None, ""
     for rem in runners:
-        if rem not in _DEAD and (res := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
+        if not _dead(rem) and (res := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
             used = rem
             break
     if res is None:
@@ -697,9 +716,9 @@ def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cw
         for rem in runners:
             if rem == used:
                 continue
-            if rem in _DEAD and _ssh(rem.partition(":")[0], "true", 15).returncode == 0:
-                _DEAD.discard(rem)  # it is back
-            if rem not in _DEAD and (again := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
+            if _dead(rem) and _ssh(rem.partition(":")[0], "true", 15).returncode == 0:
+                _DEAD.pop(rem, None)  # it is back
+            if not _dead(rem) and (again := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
                 journal.append("runner-retry", rung=name, first=used or "here", retried=rem, ok=bool(again.get("ok")))
                 return again if again.get("ok") else res
     return res
@@ -1008,8 +1027,8 @@ def _remote_guard_batch(scripts: list, root, cfg: Config) -> dict | None:
     """{guard name: result} for `scripts`, all run in ONE ssh on the first reachable [check].remote over the shipped tree, each with
     its own timeout and base dir, under no heavy lock there (guards are light; behind a pytest run they would time out). None when no
     runner is reachable: the caller runs them here."""
-    for rem in _runners(cfg):
-        if rem in _DEAD:
+    for rem in _runners_for_slot(cfg):
+        if _dead(rem):
             continue
         host = rem.partition(":")[0]
         try:
@@ -1747,10 +1766,11 @@ def _MINE_ROOTS() -> set:
     return _MINE.roots
 
 
-def _in_thread(shipped: set, key: str, fn, *a):
+def _in_thread(shipped: set, key: str, fn, *a, slot: int = 0):
     """`fn` in a helper thread: the remote copies it ships are recorded in `shipped`, for the calling ladder's thread to drop."""
     _MINE.roots = shipped
     _KEY[0] = key  # the ladder's key: cancel_requested() reads it, so a superseded check stops this run too
+    SLOT[0] = slot  # the ladder's runner order
     return fn(*a)
 
 
@@ -1784,7 +1804,7 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
     # The pool's exit waits for the head run, so a refusal returns with no run left going.
     shipped = _MINE_ROOTS()  # the head thread records its remote copies here: this thread's set, dropped when the ladder ends
     pool = ThreadPoolExecutor(max_workers=1)
-    here_f = pool.submit(_in_thread, shipped, _KEY[0], green_runs, head_tree or root, files, also_green, cfg, timeout_s) if files or also_green else None
+    here_f = pool.submit(_in_thread, shipped, _KEY[0], green_runs, head_tree or root, files, also_green, cfg, timeout_s, slot=SLOT[0]) if files or also_green else None
     try:
         r0 = _git(root, "worktree", "add", "--detach", "-q", base, since, timeout_s=SCRATCH_CHECKOUT_S)
         if not r0["ok"]:  # infra, never a code verdict: an approve would skip the proof (manager 2026-11-07, alert 416)
@@ -1880,6 +1900,7 @@ ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chai
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
 BASE_RUN = _PerThread(False)  # this thread runs red-on-base's base tests: _run takes the runners after the head run's
 _KEY = _PerThread("")  # the running ladder's key, for its rung rows
+SLOT = _PerThread(0)  # this thread's ladder slot (0 = `ladder`, 1 = `ladder-2`, ...): its first runner (_runners_for_slot); work.ladder_slot sets it
 REUSE = _PerThread(None)  # {rung name: its green row} from the SAME head, base and pinned copy: an approve resumes there, it does not start over
 
 

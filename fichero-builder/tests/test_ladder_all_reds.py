@@ -148,7 +148,7 @@ def test_the_head_run_and_the_base_runs_start_on_different_runners_at_the_same_t
     monkeypatch.setattr(check_tool, "already_built_files", lambda *a, **k: set())
     monkeypatch.setattr(check_tool, "data_only", lambda *a, **k: False)
     monkeypatch.setattr(check_tool, "_mkdtemp", lambda *a, **k: str(base_tree))
-    monkeypatch.setattr(check_tool, "_DEAD", set())
+    monkeypatch.setattr(check_tool, "_DEAD", {})
     r = check_tool.red_on_base(tmp_path, "s" * 40, "h" * 40, ["t_test.py"], cfg, head_tree=head_tree)
     assert r["ok"]
     assert set(started.values()) == {"imac:~/g", "air:~/g"} and started["pytest-head"] != started["pytest-base"]
