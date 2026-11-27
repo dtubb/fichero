@@ -43,7 +43,6 @@ def lane_label(nodeid: str) -> str:
 
 def failures(junit_path: str) -> list[tuple[str, str]]:
     """Return [(nodeid, short_message)] for each failing/erroring testcase."""
-    # nosemgrep: python.lang.security.use-defused-xml-parse.use-defused-xml-parse -- parses the junit report pytest wrote, named by the developer on the command line; scripts/ runs on the standard library alone (#7100)
     root = ET.parse(junit_path).getroot()
     out: list[tuple[str, str]] = []
     for tc in root.iter("testcase"):
