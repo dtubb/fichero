@@ -753,3 +753,42 @@ class TestShutdown:
         shutdown()
         shutdown()
         shutdown()
+
+
+class TestSipsOutputIsClaimedBeforeSipsRuns:
+    """bandit B306 (perf-optimize security follow-up, 2026-11-27): `tempfile.mktemp` only invents a name, so another
+    process could create that file between the naming and sips writing it. The output file is made first (`mkstemp`),
+    and a failed conversion leaves no file behind."""
+
+    def test_the_output_file_exists_when_sips_is_called_and_is_removed_on_failure(self, tmp_path, monkeypatch):
+        from fichero_server.db.storage import _sips_convert
+
+        source = tmp_path / "bad.jpg"
+        source.write_bytes(b"not really a jpeg")
+        seen: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            out = Path(argv[argv.index("--out") + 1])
+            seen["existed"] = out.exists()
+            seen["out"] = out
+            return subprocess.CompletedProcess(argv, 1, stdout=b"", stderr=b"Error: no")
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        assert _sips_convert(source) is None
+        assert seen["existed"] is True, "the output name was not claimed before sips ran"
+        assert not seen["out"].exists(), "a failed conversion left its empty output file behind"
+
+    def test_a_converted_file_is_returned(self, tmp_path, monkeypatch):
+        from fichero_server.db.storage import _sips_convert
+
+        source = tmp_path / "ok.jpg"
+        source.write_bytes(b"jpeg bytes")
+
+        def fake_run(argv, **kwargs):
+            Path(argv[argv.index("--out") + 1]).write_bytes(b"converted")
+            return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        out = _sips_convert(source)
+        assert out is not None and out.read_bytes() == b"converted"
+        out.unlink()
