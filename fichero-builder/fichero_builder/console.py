@@ -368,8 +368,11 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     acquired = {(r.get("pid"), r.get("name")) for r in rows if r.get("event") == "lock" and r.get("state") == "acquired"}
     # a waiter that died (tmux crash 2026-11-08) never wrote `acquired`: its row is not a wait. flock is released by the kernel when
     # its holder dies, so a dead holder never blocks anyone; only a live waiter's row shows
-    st["lock_waits"] = [r for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired
+    st["lock_waits"] = [dict(r) for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired
                         and _alive(r.get("pid"))][-5:]
+    for w in st["lock_waits"]:  # builder-console.lock.holder-named: a ladder row that says `?` reads the slots' lock files now
+        if w.get("holder") == "?" and w.get("name") == "ladder":
+            w["holder"] = journal.holders(journal.ladder_slots_known()) or "?"
     acts = activity(rows)["running"]
     running = {a["lane"]: a for a in acts if a.get("lane")}
     st["check_running"] = next(({"lane": a["lane"], "now": a["now"], "started": a["started"]} for a in acts if a["kind"] == "check"), None)
