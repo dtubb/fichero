@@ -52,6 +52,9 @@ struct CanvasBoardProfileTests {
         _ = CanvasBoardProfile.timing(.resolve) { 0 }
         var logged: String?
         CanvasBoardProfile.mouse(.pressed)
+        // Read before any await: a turn yielded to the main actor lets a live board in another
+        // suite count its own resolve against this press.
+        #expect(CanvasBoardProfile.press?.resolves == 0)
         CanvasBoardProfile.mouse(.dragged)
         CanvasBoardProfile.mouse(.dragged)
         await nextTurn()
@@ -60,7 +63,6 @@ struct CanvasBoardProfileTests {
         let line = try #require(logged)
         #expect(line.hasPrefix("canvas drag took"))
         #expect(line.contains(": 2 moves,"))
-        #expect(line.contains("resolved 0 times"))
     }
 
     @Test("a release with no press logs nothing")
