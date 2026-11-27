@@ -135,7 +135,7 @@ struct LocateOriginalsPresenter: ViewModifier {
                 isPresented: Binding(get: { store?.isOffering ?? false }, set: { if !$0 { store?.declineOffer() } })
             ) {
                 Button("Locate…") { store?.locateFromOffer() }
-                Button("Not Now", role: .cancel) { store?.declineOffer() }
+                Button("Not Now", role: .cancel) {}
             } message: {
                 Text(store?.projectMissing?.sentence ?? "")
             }
