@@ -2119,12 +2119,12 @@ def _suites(text: str) -> list[str]:
     return out
 
 
-def swift_affected(root, changed: list[str], cfg: Config) -> list[str] | None:
+def swift_affected(root, changed: list[str], cfg: Config, contract_types: set | None = None) -> list[str] | None:
     """The `<target>/<suite>` ids of the Swift test suites a diff can affect, the way `affected.select` picks Python tests: a changed
     test file's own suites; for any other changed Swift file, the suites of the test files named after its type or that name it.
     None = run the whole suite: no `[check].swift_test_target`, a changed non-Swift build input (a resource, a setting, a package
     pin), or more suites than SWIFT_SELECT_MAX. The nightly always runs the whole suite (owner 2026-11-26)."""
-    if swift_whole_why(changed, cfg):
+    if swift_whole_why(changed, cfg, contract_types is not None):
         return None
     built = _swift_built(changed, cfg)
     tests = {str(p.relative_to(root)): p for p in Path(root, cfg.swift_test_dir).rglob("*.swift")}
@@ -2145,6 +2145,9 @@ def swift_affected(root, changed: list[str], cfg: Config) -> list[str] | None:
         stem = Path(f).stem.split("+")[0]
         word = re.compile(rf"\b{re.escape(stem)}\b")
         picked |= {t for t, p in tests.items() if p.stem.startswith(stem) or word.search(text(t))}
+    if contract_types:  # an openapi.json change: the tests that name a type it changed (generated, so no Swift file of it is in the diff)
+        words = re.compile(r"\b(" + "|".join(map(re.escape, sorted(contract_types))) + r")\b")
+        picked |= {t for t in tests if words.search(text(t))}
     suites = sorted({f"{cfg.swift_test_target}/{n}" for t in picked for n in _suites(text(t))})
     return None if len(suites) > SWIFT_SELECT_MAX else suites
 
@@ -2157,11 +2160,42 @@ def _swift_built(changed: list[str], cfg: Config) -> list[str]:
     return [f for f in built if not (f.endswith(".xctestplan") and Path(f).stem != plan)]
 
 
-def swift_whole_why(changed: list[str], cfg: Config) -> str:
-    """Why the train's Swift run is the whole suite ('' = a selection may be made): what the train row says beside the rung."""
+CONTRACT_FILE = "openapi.json"  # the API client's generator input: mapped to the suites naming its changed types (contract_types)
+
+
+def contract_types(repo, base: str, head: str, changed: list[str]) -> set | None:
+    """The schema and operation names an `openapi.json` in `changed` adds, drops or changes between base and head: the generated
+    client's types (Components.Schemas.<Name>, Operations.<operationId>). None = no contract file changed, or one cannot be read."""
+    from . import land_tool
+    files = [f for f in changed if Path(f).name == CONTRACT_FILE]
+    if not files:
+        return None
+    names: set = set()
+    for f in files:
+        try:
+            docs = [json.loads(subprocess.run([land_tool.GIT, "-C", str(repo), "show", f"{rev}:{f}"], capture_output=True, text=True).stdout or "{}")
+                    for rev in (base, head)]
+        except ValueError:
+            return None
+        old, new = (d.get("components", {}).get("schemas", {}) for d in docs)
+        names |= {n for n in set(old) | set(new) if old.get(n) != new.get(n)}
+        ops = [{o.get("operationId"): o for p in d.get("paths", {}).values() for o in p.values() if isinstance(o, dict) and o.get("operationId")}
+               for d in docs]
+        names |= {n for n in set(ops[0]) | set(ops[1]) if ops[0].get(n) != ops[1].get(n)}
+    return names
+
+
+def other_runner(cfg: Config) -> str:
+    """Another build runner than [check].build_remote, for one retry (a `[check].remote` entry); the same one when there is no other."""
+    return next((r for r in _runners(cfg) if r != cfg.build_remote), cfg.build_remote)
+
+
+def swift_whole_why(changed: list[str], cfg: Config, contract: bool = False) -> str:
+    """Why the train's Swift run is the whole suite ('' = a selection may be made): what the train row says beside the rung.
+    `contract`: an openapi.json is mapped to suites (contract_types), never the whole plan; the generator's Package and config still are."""
     if not cfg.swift_test_target or not cfg.swift_test_dir:
         return "no [check].swift_test_target and swift_test_dir in the pinned rules"
-    other = [f for f in _swift_built(changed, cfg) if not f.endswith((".swift", *SWIFT_NEUTRAL))]
+    other = [f for f in _swift_built(changed, cfg) if not f.endswith((".swift", *SWIFT_NEUTRAL)) and not (contract and Path(f).name == CONTRACT_FILE)]
     return f"a non-Swift build input changed: {', '.join(other[:3])}" if other else ""
 
 

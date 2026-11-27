@@ -1458,6 +1458,11 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   `fichero-builder/tests/test_train.py::test_the_trains_swift_tests_are_red_only_for_cases_that_pass_on_the_base_which_runs_once_per_sha`,
   `::test_when_the_rest_is_red_on_the_same_cases_as_the_prefix_no_step_is_sent_back`,
   `fichero-builder/tests/test_speed_tests.py::test_test_execute_failed_with_failing_cases_is_a_test_failure_naming_them_never_not_run`.
+  A whole-plan run is judged the same way (train-20261126-192626: xcodebuild's `Failing tests:` list says `Suite.case()`, no suite
+  was read, and the base never ran); with no suite read the base is never run and the red says `no case names, see tail`; the
+  lines that name the new cases are never cut from the rung's output. Tests:
+  `fichero-builder/tests/test_train.py::test_a_whole_plan_swift_red_is_judged_on_the_bases_failing_suites_and_searched_never_bisected`,
+  `fichero-builder/tests/test_train.py::test_a_swift_red_with_no_suite_read_from_its_names_never_runs_the_base`.
 - `local.train.swift-search-not-bisect` [OK] (#6589; built 2026-11-26; owner 2026-11-26: an 88-minute merge is not acceptable) — a
   train red at swift-tests on cases that pass on its base is never bisected by prefixes: each step that touches Swift, newest
   first, runs alone on the land branch with only those cases (`-only-testing`), and the first that fails one is sent back naming
@@ -1467,10 +1472,14 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   `fichero-builder/tests/test_train.py::test_a_swift_red_on_new_cases_searches_the_swift_steps_newest_first_with_only_those_cases_never_by_prefix`,
   `::test_a_swift_red_no_single_step_reproduces_sends_none_back`,
   `fichero-builder/tests/test_speed_tests.py::test_the_failing_cases_come_from_the_whole_log_and_a_selection_runs_only_those_suites`.
+  Every Swift red is searched this way, never bisected by prefixes; with no case names each Swift step runs alone on the suites its
+  own diff affects. A run the runner could not run is tried once more on another runner. Tests:
+  `fichero-builder/tests/test_train.py::test_a_swift_red_with_no_case_names_searches_the_swift_steps_alone_on_their_own_suites`,
+  `fichero-builder/tests/test_train.py::test_a_swift_run_the_runner_could_not_run_is_tried_once_on_another_runner`.
 - `local.train.swift-affected-suites` [OK] (#6589; built 2026-11-26) — with `[check].swift_test_target` and `[check].swift_test_dir`
   set (unset: the whole suite, as before), the train's swift-tests run only the suites its Swift diff can affect: a changed test
   file's own suites, and for any other changed Swift file the test files named after its type or naming it; a changed non-Swift
-  build input (other than the project file, file lists, docs), or more than 300 suites, runs the whole suite; no affected suite is
+  build input (other than the project file, file lists, docs), or more than 150 suites (296 suites cost what the whole plan did), runs the whole suite; no affected suite is
   green with that said. The base judge runs the same selection, kept per selection. The nightly runs the whole suite. The build for
   testing stays incremental in the runner's one kept DerivedData (`<gate>/derived`, never wiped per tree). Tests:
   `fichero-builder/tests/test_speed_tests.py::test_swift_affected_picks_the_suites_a_changed_type_can_reach_and_falls_back_to_everything`,
@@ -1482,6 +1491,9 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   `base_seconds` and `base_selection`, and a red rung keeps its last lines as `tail`; the base judge runs only the suites of the
   failing cases. Tests: `fichero-builder/tests/test_train.py::test_the_train_row_says_the_swift_selection_the_base_runs_seconds_and_a_reds_tail`,
   `fichero-builder/tests/test_train.py::test_the_base_runs_only_the_suites_of_the_failing_cases`.
+  An `openapi.json` change selects the suites that name a schema or operation it changed, never the whole plan; the client's
+  Package or generator config still runs it whole. Tests:
+  `fichero-builder/tests/test_train.py::test_an_openapi_change_selects_the_suites_naming_its_changed_types_not_the_whole_plan`.
 - `local.train.time-limit` [OK] (#6589; built 2026-11-26) — a train never holds its steps longer than `[train].max_run_min`
   (default 30): no run starts past it and a Swift test run is cut at it; the train ends `timeout`, every step not sent back waits
   for the next train, and one alert says so (train-20261126-134056 ran 90 min with no result). Test:

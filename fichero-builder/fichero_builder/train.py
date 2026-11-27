@@ -170,7 +170,7 @@ def _run_train(steps, merge, rung, rungs_for, tid, clock, deadline, touches_swif
     rest_names = names[names.index(rung_name):]
     unresolved = [s["key"] for s in keep]
     new = cases(red[1])
-    if rung_name == "swift-tests" and touches_swift is not None and (new or "no case names" in red[1] or "names no suite" in red[1]):
+    if rung_name == "swift-tests" and touches_swift is not None:  # never a prefix bisect on Swift (train-20261126-192626)
         # with no names, each Swift step alone runs the suites its own diff can affect (the rung's selection over that step's files)
         return _swift_search(res, keep, new, red[1], rest_names, merge, rung, tid, clock, deadline, t_start, touches_swift, run)
     if rung_name == "security" and (heads := _named_heads(red[1])):  # local.train.security-and-perf-once: back to the step that added the line
@@ -335,7 +335,9 @@ def suites_of(failing: list[str], target: str) -> list[str] | None:
     only those suites; None when a name cannot be read (the base then runs the candidate's selection)."""
     out = set()
     for f in failing:
-        m = re.match(r"-\[(?:[\w]+\.)?(\w+) \w+\]$", f) or re.match(r"(?:([\w]+)/)?(\w+)/\w+", f)
+        # train-20261126-192626: xcodebuild's `Failing tests:` list says `Suite.case()`, which no pattern read, so the base never ran
+        m = (re.match(r"-\[(?:[\w]+\.)?(\w+) \w+\]$", f) or re.match(r"(?:([\w]+)/)?(\w+)/\w+", f)
+             or re.match(r"(?:([\w]+)\.)?(\w+)\.\w+\(", f))
         if not m:
             return None
         out.add(f"{target}/{m.group(1) if f.startswith('-[') else m.group(2)}")
@@ -352,7 +354,7 @@ def swift_judge(r: dict, out: str, base: str, target: str, run_base: Callable[[l
     suites = suites_of(failing, target) if failing and target else None
     if not suites:
         why = "no case names" if not failing else "no [check].swift_test_target" if not target else "a failing name names no suite"
-        return False, f"swift-tests: {why}, see tail: the base is not run\n{out}"[-3000:], facts
+        return False, f"swift-tests: {why}, see tail: the base is not run\n{out[-2800:]}", facts  # the first line survives: the search reads it
 
     def timed() -> dict:
         t0 = time.time()
@@ -388,8 +390,9 @@ def against_base(failing: list[str], out: str, base: str, run_base: Callable[[],
     if not new:
         journal.append("train", state="base-reds", base=base, detail=f"{len(failing)} failing case(s), every one failing on the base too")
         return True, f"{label}: green against the base {base[:9]}: its {len(failing)} failing case(s) fail on the base too (known reds)"
-    return False, (f"RED: {len(new)} case(s) fail on the candidate and pass on the base {base[:9]} ({len(set(failing) & set(known))} known base reds left out)\n"
-                   f"failing: {', '.join(new)}\n" + out)[-3000:]
+    head = (f"RED: {len(new)} case(s) fail on the candidate and pass on the base {base[:9]} ({len(set(failing) & set(known))} known base reds left out)\n"
+            f"failing: {', '.join(new)}\n")
+    return False, head + out[-max(500, 3000 - len(head)):]  # the head is never cut: the step search reads its `failing:` line (192626)
 
 
 def guards_against_base(cand: dict, run_base: Callable[[list[str]], dict]) -> tuple[bool, str]:
@@ -463,7 +466,7 @@ def drop_refs(repo, tid: str) -> None:
 def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | None = None, base: str = "", scans: bool = False):
     """(merge, rung, rungs_for) over the engine repo, as the ladder runs them: jailed, in a scratch tree of the candidate. `rung` carries
     `touches_swift(head)` for the Swift search; a swift-tests run is cut at `deadline`."""
-    from fichero_builder import check_tool, jail, land_tool
+    from fichero_builder import check_tool, jail, journal, land_tool
     cfg = check_tool.load(pinned)
     base = base or land_tool.resolve_branch(repo, branch)  # a second train's base is the first one's candidate
     n = [0]
@@ -504,13 +507,18 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
             if name == "guards":
                 return guards_against_base(check_tool.guards(tree, replace(cfg, guards_by_diff=True), files),
                                            lambda reds: guards_on(base, reds))
-            sel = list(only) or (check_tool.swift_affected(tree, files, cfg) if name == "swift-tests" else None)
+            types = check_tool.contract_types(repo, base, cand, files) if name == "swift-tests" else None
+            sel = list(only) or (check_tool.swift_affected(tree, files, cfg, types) if name == "swift-tests" else None)
             if name == "swift-tests":
-                rung.last = {"selection": f"{len(sel)} suite(s)" if sel else f"whole: {check_tool.swift_whole_why(files, cfg) or f'more than {check_tool.SWIFT_SELECT_MAX} suites'}"}
+                rung.last = {"selection": f"{len(sel)} suite(s)" if sel else f"whole: {check_tool.swift_whole_why(files, cfg, types is not None) or f'more than {check_tool.SWIFT_SELECT_MAX} suites'}"}
             if sel == []:
                 return True, "swift-tests: no Swift test suite the train's Swift diff can affect (the nightly runs the whole suite)"
             r = (check_tool.build(tree, files, cfg) if name == "build" else check_tool.swift_tests(tree, cfg, sel or (), left()) if name == "swift-tests"
                  else check_tool.ui(tree, files, cfg) if name == "ui" else check_tool.unit(tree, files, cfg, everything=True))
+            if name == "swift-tests" and r.get("not_run") and "could not run the tests" in (r.get("stdout_tail") or ""):
+                other = check_tool.other_runner(cfg)  # train-20261126-192626: one NOT RUN in the search ended the train; once more elsewhere
+                journal.append("train", id=tid, state="swift-not-run-retry", runner=other, detail=(r.get("stdout_tail") or "")[:200])
+                r = check_tool.swift_tests(tree, replace(cfg, build_remote=other), sel or (), left())
         finally:
             check_tool._jail_exit()
             if tree:

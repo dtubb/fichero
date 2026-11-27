@@ -431,3 +431,71 @@ def test_a_swift_red_with_no_case_names_searches_the_swift_steps_alone_on_their_
     assert set(r.back) == {"l/b"} and "no case names were read" in r.back["l/b"]["findings"]
     assert [c for n, c, _o in seen if n == "swift-tests"][1:3] == ["c", "b"], "the Swift steps alone, newest first, never a prefix"
     assert not any(c in ("a", "a+b") for _n, c, _o in seen)
+
+
+FIX_192626 = (__import__("pathlib").Path(__file__).parent / "fixtures" / "swift-train-20261126-192626-tail.log").read_text()
+
+
+def test_a_whole_plan_swift_red_is_judged_on_the_bases_failing_suites_and_searched_never_bisected(tmp_path, monkeypatch):
+    """train-20261126-192626: the whole plan (5075 tests, failures=59) was red; xcodebuild listed `Suite.case()`, no suite was read,
+    the base never ran (base_selection None), and the prefix bisect ran a second whole plan to the time limit."""
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    names = check_tool.failing_cases(FIX_192626)
+    assert "PaneMenuEntriesShapeTests.testCloseIsOnePath()" in names and len(names) > 20
+    suites = train.suites_of(names, "FicheroTests")
+    assert suites and "FicheroTests/PaneMenuEntriesShapeTests" in suites and len(suites) < len(names)
+    ran = []
+    known = [n for n in names if not n.startswith("PaneMenuEntriesShapeTests")]  # every red but one is the base's own
+
+    def base(s):
+        ran.append(s)
+        return {"ok": False, "failing": known}
+    ok, said, facts = train.swift_judge({"ok": False, "failing": names, "failures": 59}, FIX_192626, "b1", "FicheroTests", base)
+    assert ran == [suites] and facts["base_selection"] == f"{len(suites)} suite(s)" and facts["failures"] == 59
+    assert not ok and said.startswith("RED: 1 case(s)") and "failing: PaneMenuEntriesShapeTests.testCloseIsOnePath()" in said
+    assert train.swift_judge({"ok": False, "failing": names}, FIX_192626, "b1", "FicheroTests", base)[0] is False and len(ran) == 1, "the base's run is kept"
+    seen = []
+
+    def rung(name, cand, only=()):
+        seen.append((name, cand))
+        return (name != "swift-tests" or "b" not in cand.split("+")), "NOT RUN: the runner could not run the tests (not a test failure)"
+    r = train.run_train([{"key": f"l/{h}", "head": h} for h in "abc"], merge=lambda hs: ("+".join(hs), {}), rung=rung,
+                        rungs_for=lambda hs: ["build", "swift-tests"], tid="t", touches_swift=lambda h: True)
+    assert not any(c in ("a", "a+b") for _n, c in seen), "never a prefix bisect on Swift, whatever the red says"
+    assert set(r.back) == {"l/b"}, "the Swift step that fails alone goes back"
+
+
+def test_an_openapi_change_selects_the_suites_naming_its_changed_types_not_the_whole_plan(tmp_path):
+    import json as _json
+    import subprocess as sp
+    from fichero_builder import check_tool
+    g = lambda *a: sp.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    api = tmp_path / "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
+    api.parent.mkdir(parents=True)
+    doc = {"paths": {"/a": {"get": {"operationId": "listThings", "responses": {}}}}, "components": {"schemas": {"Thing": {"type": "object"}, "Other": {"type": "string"}}}}
+    api.write_text(_json.dumps(doc))
+    tests = tmp_path / "fichero/FicheroTests"
+    tests.mkdir(parents=True)
+    (tests / "ThingTests.swift").write_text("struct ThingTests { func a() { _ = Components.Schemas.Thing() } }\n")
+    (tests / "OtherTests.swift").write_text("struct OtherTests { func a() { _ = Components.Schemas.Other.self } }\n")
+    g("init", "-q"), g("add", "."), g("commit", "-qm", "base")
+    base = g("rev-parse", "HEAD")
+    doc["components"]["schemas"]["Thing"]["required"] = ["id"]
+    api.write_text(_json.dumps(doc))
+    g("commit", "-qam", "contract")
+    files = ["fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"]
+    types = check_tool.contract_types(str(tmp_path), base, g("rev-parse", "HEAD"), files)
+    assert types == {"Thing"}
+    cfg = check_tool.Config(swift_test_target="FicheroTests", swift_test_dir="fichero/FicheroTests", build_paths=("fichero/",))
+    assert check_tool.swift_affected(tmp_path, files, cfg, types) == ["FicheroTests/ThingTests"]
+    assert check_tool.swift_affected(tmp_path, files, cfg) is None, "unmapped (no types read): the whole plan, as before"
+    gen = [*files, "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi-generator-config.yaml"]
+    assert check_tool.swift_affected(tmp_path, gen, cfg, types) is None, "the generator's own config: the whole plan"
+    assert "openapi-generator-config.yaml" in check_tool.swift_whole_why(gen, cfg, True)
+
+
+def test_a_swift_run_the_runner_could_not_run_is_tried_once_on_another_runner():
+    from fichero_builder import check_tool
+    assert check_tool.other_runner(check_tool.Config(build_remote="imac:/g1", remotes=("imac:/g1", "air:/g"))) == "air:/g"
+    assert check_tool.other_runner(check_tool.Config(build_remote="imac:/g1")) == "imac:/g1", "no other: the same one, once more"
