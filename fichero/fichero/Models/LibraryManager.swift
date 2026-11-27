@@ -45,6 +45,9 @@ class LibraryManager {
     /// startup probe; firing document/workflow/search requests during that
     /// window creates noisy Network.framework path-check errors on launch (#1163).
     var backendIsReady = false
+    /// Saved library paths whose volume had not answered when restore went on without them (#7105). They stay in the
+    /// saved list, and each opens (or is reported missing) when its answer arrives.
+    var unansweredSavedLibraryPaths: [String] = []
     var loadedLibraryIds: Set<UUID> = []
     var loadingLibraryIds: Set<UUID> = []
     /// The order the open libraries load at launch, the front one first (`LibraryOpeningProgress`, #6430).

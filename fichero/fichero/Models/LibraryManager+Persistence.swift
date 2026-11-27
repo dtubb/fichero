@@ -29,7 +29,10 @@ extension LibraryManager {
         let paths = openLibraries
             .filter { $0.id != Self.globalLibraryId && !$0.pinnedToHost && !isTemporaryLibrary($0.url) }
             .map { $0.url.path.nfcNormalized }
-        EngineConfig.defaults.set(paths, forKey: Self.openLibraryPathsKey)
+        // A saved library whose volume has not answered yet is still saved (#7105): it is not open, so the list of
+        // open libraries alone would drop it.
+        let saved = paths + unansweredSavedLibraryPaths.filter { !paths.contains($0) }
+        EngineConfig.defaults.set(saved, forKey: Self.openLibraryPathsKey)
         // A pinned library's path is a path on ANOTHER Mac: kept apart, never restored as a local one.
         EngineConfig.defaults.set(
             openLibraries.filter(\.pinnedToHost).map { ["host": $0.host.url.absoluteString, "path": $0.url.path] },
@@ -132,8 +135,16 @@ extension LibraryManager {
         EngineConfig.defaults.array(forKey: pinnedLibrariesKey) as? [[String: String]] ?? []
     }
 
-    /// Restore libraries from saved paths
-    func restoreSavedLibraries() {
+    /// Restore libraries from saved paths.
+    ///
+    /// Whether each path exists is asked off the main thread, every path at once, and this waits `probeTimeout` for the
+    /// answers (#7105): a saved library on an unmounted, slow or iCloud volume held the main thread for as long as the
+    /// volume took. A path that has not answered is not opened and not pruned; `savedLibraryAnsweredLate` opens it
+    /// when its answer arrives. `exists` is the test seam for a volume that does not answer.
+    func restoreSavedLibraries(
+        probeTimeout: TimeInterval = SavedLibraryProbe.timeout,
+        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) {
         let pinned = Self.savedPinnedLibraries()
         // No backend-ready guard (launch-speed, #4036): materializing a
         // LibraryReference is purely local (UserDefaults paths + security
@@ -167,14 +178,21 @@ extension LibraryManager {
         // means an install stops carrying it after one launch.
         let globalKey = globalLibrary.map { Self.canonicalLibraryKey($0.url) }
 
-        for path in paths {
-            guard restorablePathIsValid(path, globalKey: globalKey) else {
-                prunedAnyPath = true
-                continue
-            }
+        let restorable = paths.filter { restorablePathIsValid($0) }
+        if restorable.count < paths.count { prunedAnyPath = true }
+        let answers = askSavedLibraries(restorable, probeTimeout: probeTimeout, exists: exists)
+
+        for path in restorable {
             let url = URL(fileURLWithPath: path)
 
-            if FileManager.default.fileExists(atPath: path) {
+            if unansweredSavedLibraryPaths.contains(path) {
+                noteSavedLibraryDidNotAnswer(path, within: probeTimeout)
+                validPaths.append(path)
+            } else if answers[path] == .present, let globalKey, Self.canonicalLibraryKey(url) == globalKey {
+                // Compared only once the path has answered: the canonical key resolves symlinks on its volume.
+                libraryManagerLogger.info("Skipping Global library in restore list (#4517)")
+                prunedAnyPath = true
+            } else if answers[path] == .present {
                 let perLibraryStart = Date()
                 let library = openLibrary(at: url)
                 let perLibraryMs = Date().timeIntervalSince(perLibraryStart) * 1000
@@ -201,6 +219,45 @@ extension LibraryManager {
         restorePinnedLibraries(saved: pinned)
     }
 
+    /// Asks whether each path exists, off the main thread, and records the ones that did not answer in time (#7105).
+    private func askSavedLibraries(
+        _ restorable: [String], probeTimeout: TimeInterval, exists: @escaping @Sendable (String) -> Bool
+    ) -> [String: SavedLibraryProbe.Answer] {
+        // A path still waiting from an earlier call is not asked again: its answer comes to `savedLibraryAnsweredLate`.
+        let waiting = unansweredSavedLibraryPaths
+        let answers = SavedLibraryProbe.answers(
+            for: restorable.filter { !waiting.contains($0) },
+            timeout: probeTimeout,
+            exists: exists,
+            late: { path, found in
+                Task { @MainActor in LibraryManager.shared.savedLibraryAnsweredLate(path: path, exists: found) }
+            }
+        )
+        // Set before any library opens: `openLibrary` saves the list, and these must be in it.
+        unansweredSavedLibraryPaths = restorable.filter { waiting.contains($0) || answers[$0] == .unanswered }
+        return answers
+    }
+
+    private func noteSavedLibraryDidNotAnswer(_ path: String, within timeout: TimeInterval) {
+        libraryManagerLogger.warning("Saved library did not answer within \(timeout)s, opening it when it does: \(path)")
+        LaunchProfile.milestone("saved library did not answer", detail: (path as NSString).lastPathComponent)
+    }
+
+    /// The answer for a saved library whose volume was slower than restore's timeout (#7105): it opens beside the others
+    /// without taking the window, or is reported missing as restore reports one.
+    func savedLibraryAnsweredLate(path: String, exists: Bool) {
+        guard unansweredSavedLibraryPaths.contains(path) else { return }
+        unansweredSavedLibraryPaths.removeAll { $0 == path }
+        if exists {
+            let library = openLibrary(at: URL(fileURLWithPath: path), makeCurrent: false)
+            LaunchProfile.milestone("restored library (late answer)", detail: library.displayName)
+        } else {
+            libraryManagerLogger.warning("Pruning missing saved library: \(path)")
+            MissingLibraryNotice.shared.report(path)
+            saveOpenLibraryPaths()
+        }
+    }
+
     /// True when `path` lies inside a Trash folder: a volume's `.Trashes` or the home `.Trash`
     /// (#6377). A library moved there is not one the person has open; the engine refuses it
     /// at every launch, so it leaves the reopen list.
@@ -210,8 +267,8 @@ extension LibraryManager {
     }
 
     /// A restore-list entry the loop should attempt: non-empty absolute
-    /// `.fichero` path with no traversal, and never the Global library (#4517).
-    private func restorablePathIsValid(_ path: String, globalKey: String?) -> Bool {
+    /// `.fichero` path with no traversal. Reads no file: the Global library (#4517) is told apart in the loop.
+    private func restorablePathIsValid(_ path: String) -> Bool {
         guard !path.isEmpty, !path.contains(".."), path.hasPrefix("/") else {
             libraryManagerLogger.warning("Skipping invalid library path: \(path)")
             return false
@@ -223,10 +280,6 @@ extension LibraryManager {
         }
         if Self.isInsideTrash(path) {
             libraryManagerLogger.info("Dropping saved library inside a Trash folder (#6377): \(path)")
-            return false
-        }
-        if let globalKey, Self.canonicalLibraryKey(url) == globalKey {
-            libraryManagerLogger.info("Skipping Global library in restore list (#4517)")
             return false
         }
         return true
