@@ -3391,6 +3391,11 @@ def real_procs(root) -> Procs:
             if cmd.lstrip("-") in SHELLS or not cmd:  # alert 540: an idle window (a shell, no session) is closed here, never a person's `queue stop`
                 tmux_as_worker(j, "kill-window", "-t", wid)
                 journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed", detail=f"an idle tmux window named {lane['id']} ({wid}, {cmd or 'no command'}) was closed before the start")
+            elif lane.get("session_step") and any(x["step"] == lane["session_step"] and x["state"] == "landed" for x in lane.get("steps", ())):
+                # 2026-11-26 20:24: a landed step's session (its watcher gone, or landed by train or by hand) is done: closed for this one
+                tmux_as_worker(j, "kill-window", "-t", wid)
+                journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed",
+                               detail=f"the landed step {lane['session_step']}'s session ({wid}, {cmd}) was closed: this step starts in a fresh one")
             elif lane.get("session_step") == step["step"]:
                 # 2026-11-25 21:03-21:06 (alerts 1933-1935): a red step's fix round "in a new session" met the step's OWN last session,
                 # still open after its DONE. It is this step's session, which the loop sent: closed for the fresh one, never an alert

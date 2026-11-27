@@ -207,3 +207,25 @@ def test_a_join_after_the_tick_marked_the_step_sent_becomes_a_new_step(state):
     add(state, "s2", "b", 9)
     assert [(s["step"], s["state"], s["issues"]) for s in steps()] == [("s1", "sent", [7]), ("s2", "queued", [9])]
     assert Path(steps()[0]["brief"]).read_text() == "brief a"
+
+
+
+def test_a_landed_steps_session_whose_watcher_ended_is_a_fresh_start_with_no_watcher_and_no_alert(state):
+    """2026-11-26 20:24, alert runner-soak-soak-5-2076: soak-4 landed past its DONE with its watcher ended. The session is gone for
+    the loop (a new watcher would read the old DONE on screen), so the next step starts fresh; its start closes the landed step's
+    window (test_lane_role), with no alert."""
+    two_steps(state)
+    fake = Fake()
+    orig = fake.chain
+    attached = []
+
+    def chain(lane, step, stage):
+        fake.alive_now = False
+        return orig(lane, step, stage)
+    fake.procs.chain = chain
+    fake.procs.live_windows = lambda lane: ["@56"]
+    fake.procs.attach = lambda lane, s, w: attached.append(w) or "watcher"
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    assert attached == [] and [s[1] for s in fake.starts] == ["s1", "s2"]
+    assert any(k == "session-fresh" and "gone" in d for _st, k, d in session_rows())
+    assert not [r for r in journal.read() if r.get("event") == "alert"]
