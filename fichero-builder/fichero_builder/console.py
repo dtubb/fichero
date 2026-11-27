@@ -519,11 +519,24 @@ def _cited(log: str) -> list[tuple[str, str, int]]:
     return out
 
 
-def statuses(open_ns: set, closed_ns: set, branches: dict, landing_log: str, unreleased: set) -> dict:
+BUILT_IN = re.compile(r"^Built in ([0-9a-f]{7,40}) ", re.M)  # the first line of a reconcile's close comment (issue_reconcile.built_in)
+
+
+def statuses(open_ns: set, closed_ns: set, branches: dict, landing_log: str, unreleased: set, built_in: dict | None = None) -> dict:
     """{issue: (status, where)}. `branches`: {lane: its unlanded log text}; `landing_log`: the land branch's log;
-    `unreleased`: the land branch's shas not on main. A closed issue is landed only when its Fixes commit is in the land branch's log (else
-    "done, not landed yet"), released when that commit is on main."""
+    `unreleased`: the land branch's shas not on main. A closed issue is landed when its Fixes commit is in the land branch's log, released
+    when that commit is on main. With no Fixes commit, a lane's unlanded commit citing it keeps it "done, not landed yet"; else it is landed
+    at the land branch's latest commit citing it anyhow (a `(#N)` subject, a `Part of`), or at the commit its close comment names
+    (`built_in`: {issue: the sha of its `Built in <sha>` line}) when that commit is in the land branch's log (2026-11-27: the train work
+    landed citing the umbrella #6589, so its closed step issues read not landed forever). Nothing on the land branch: not landed."""
     landing = {n: sha for sha, kind, n in _cited(landing_log) if kind in ("fixes", "closes")}
+    mentioned: dict = {}
+    shas = []
+    for rec in landing_log.split("\x1e"):
+        sha, _, body = rec.partition("\x00")
+        shas.append(sha.strip())
+        for n in {int(x) for x in re.findall(r"#(\d+)\b", body)}:
+            mentioned.setdefault(n, sha.strip())  # the log is newest first: the latest mention
     built: dict = {}
     for lane, log in branches.items():
         for sha, kind, n in _cited(log):
@@ -535,7 +548,15 @@ def statuses(open_ns: set, closed_ns: set, branches: dict, landing_log: str, unr
         out[n] = built.get(n, ("open", ""))
     for n in closed_ns:
         sha = landing.get(n, "")
-        out[n] = (NOT_LANDED if not sha else "released" if sha not in unreleased else "landed", sha[:9])  # landed = its Fixes commit is in the land branch's log
+        if not sha and n in built:  # a lane still holds its commit: not on origin yet
+            out[n] = (NOT_LANDED, built[n][1])
+            continue
+        said = (built_in or {}).get(n, "")
+        sha = sha or mentioned.get(n, "") or next((s for s in shas if said and s.startswith(said)), "")
+        if not sha:
+            out[n] = (NOT_LANDED, "")  # owner 2026-11-03: landed means a commit on the land branch
+            continue
+        out[n] = ("released" if sha not in unreleased else "landed", sha[:9])
     return out
 
 
@@ -556,9 +577,31 @@ def on_origin(worktree: str, head: str, tip: str) -> bool:
     return _ON_ORIGIN[key]
 
 
-def step_state(finished: bool, live: str | None, is_next: bool, low: str) -> str:
+NO_ISSUE = "no issue"  # a build-order step no issue is placed on: nothing says whether it is built (2026-11-27: Builder 11.9 read done)
+
+
+FOREIGN_TITLE = re.compile(r"^\s*([\w.-]+) Step \d+\.\d+\b")
+SPEC_LINE = re.compile(r"^Spec:\s*(\S+?\.md)\b", re.M)
+
+
+def own_steps(issue: dict, slug: str, spec: str) -> dict:
+    """The issue as this milestone's plan should read it: a step another spec gave it (its title `<other> Step N.M`, or a `Spec:` line
+    naming another spec file) is dropped, its `step:` label and its `Step:` body line both, so it sits on no step of this spec rather than
+    on the one of the same number (2026-11-27: agent-profiles Step 1.5, #6626, sat on Builder's own Step 1.5)."""
+    t, sp = FOREIGN_TITLE.match(issue.get("title") or ""), SPEC_LINE.search(issue.get("body") or "")
+    if not ((t and t.group(1) != slug) or (sp and not sp.group(1).endswith(spec))):
+        return issue
+    return {**issue, "labels": [lb for lb in issue.get("labels") or [] if not str(lb.get("name", "") if isinstance(lb, dict) else lb).startswith("step:")],
+            "body": re.sub(r"^Step:?\s+\d+\.\d+.*$", "", issue.get("body") or "", flags=re.M)}
+
+
+def step_state(finished: bool, live: str | None, is_next: bool, low: str, has_issues: bool = True) -> str:
     """A milestone step's state on the console: `finished` = no open issue left in it; `live` = its queue step's state; `low` = the
-    lowest status of its issues. A finished step whose issues are not all landed is `done, not landed yet` (owner 2026-11-03)."""
+    lowest status of its issues. A finished step whose issues are not all landed is `done, not landed yet` (owner 2026-11-03); a step
+    with no issue at all, open or closed, is `no issue`, never `done`, unless its queue step is live."""
+    if not has_issues and live in (None, "queued", "landed"):
+        return NO_ISSUE
+    finished = finished and has_issues  # with no issue, a live queue step says what it is doing
     state = ("done" if finished else "running" if live not in (None, "queued", "landed", "blocked")
              else "question" if live == "blocked" else "next" if is_next else "waiting")
     if state == "done" and low and RANK.index(low) < RANK.index("landed"):
@@ -633,6 +676,7 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                     shut = closed(name) if closed else _closed_issues(name, gh, cwd=str(root))
                     sp = Path(root) / triage.SPECS / m["spec"]
                     order, slug = ms.build_order(sp), ms.spec_slug(sp)
+                    issues, shut = [own_steps(i, slug, m["spec"]) for i in issues], [own_steps(i, slug, m["spec"]) for i in shut]
                     planned = ms.plan(issues, order, slug)
                     every = ms.plan(issues + shut, order, slug)  # closed ones too: a step's status needs all its issues
                 except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as e:
@@ -643,13 +687,15 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                 live = {s["step"]: s["state"] for s in lane["steps"]}
                 open_steps = {c["step"]: c for c in planned["clusters"]}
                 nxt = next((c["step"] for c in planned["clusters"] if not c["waits"] and live.get(c["step"]) in (None, "queued")), None)
-                status = statuses({i["number"] for i in issues}, {i["number"] for i in shut}, branches, landing, unreleased)
+                said = {i["number"]: m_.group(1) for i in shut for c in i.get("comments") or []
+                        if (m_ := BUILT_IN.search(c.get("body", "") if isinstance(c, dict) else str(c)))}
+                status = statuses({i["number"] for i in issues}, {i["number"] for i in shut}, branches, landing, unreleased, said)
                 all_steps = {c["step"]: c for c in every["clusters"]}
                 for st in order:
                     c = open_steps.get(st["number"])
                     ns = [i["number"] for i in all_steps[st["number"]]["issues"]] if st["number"] in all_steps else []
                     low = min((status[n][0] for n in ns), key=RANK.index, default="")
-                    state = step_state(c is None, live.get(st["number"]), st["number"] == nxt, low)
+                    state = step_state(c is None, live.get(st["number"]), st["number"] == nxt, low, has_issues=bool(ns))
                     m["steps"].append({"step": st["number"], "title": st["title"], "state": state, "status": low,
                                        "issues": [i["number"] for i in c["issues"]] if c else []})
                 m["questions"] = planned["questions"]
@@ -667,7 +713,7 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
 
 
 def _closed_issues(name: str, gh: str, cwd=None) -> list[dict]:
-    r = subprocess.run([gh, "issue", "list", "--milestone", name, "--state", "closed", "--limit", "500", "--json", "number,title,body,labels"],
+    r = subprocess.run([gh, "issue", "list", "--milestone", name, "--state", "closed", "--limit", "500", "--json", "number,title,body,labels,comments"],
                        capture_output=True, text=True, timeout=120, cwd=cwd)
     return json.loads(r.stdout) if r.returncode == 0 else []
 

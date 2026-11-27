@@ -221,7 +221,7 @@ def test_milestones_come_by_section_with_counts_steps_and_issues_and_start_calls
     assert [(m["name"], m["section"]) for m in d["milestones"]] == [("Alpha", "In order"), ("Beta", "In order"), ("Gamma", "Then"), ("Delta", "Parked")]
     a = by["Alpha"]
     assert (a["open"], a["closed"], a["lane"]) == (2, 5, "alpha") and by["Gamma"]["open"] == 1 and by["Delta"]["open"] is None
-    assert [(s["step"], s["state"]) for s in a["steps"]] == [("1.1", "done"), ("1.2", "running"), ("1.3", "waiting")]
+    assert [(s["step"], s["state"]) for s in a["steps"]] == [("1.1", "no issue"), ("1.2", "running"), ("1.3", "waiting")], "1.1 has no issue on it"
     assert {k: a["issues"][0][k] for k in ("number", "title", "labels", "step")} == {"number": 11, "title": "alpha Step 1.2: b", "labels": ["step:1.2", "bug"], "step": "1.2"}
     assert d["ts"] and d["gh_ok"]
     url, ran = live
@@ -257,7 +257,8 @@ def test_each_issue_and_step_has_one_status_from_git_and_gh_and_start_is_offered
     assert st[1] == ("in progress", "lane-a aaaaaaaaa") and st[2] == ("built, waiting to land", "lane-a bbbbbbbbb")
     assert st[3] == ("open", "") and st[4] == ("released", "ccccccccc") and st[5] == ("landed", "ddddddddd")
     assert [r for r in console.RANK] == ["open", "in progress", "built, waiting to land", "done, not landed yet", "landed", "released"], "lowest first: a step takes the lowest"
-    assert console.statuses(set(), {6}, {}, log(("c" * 40, "Fixes #4")), set())[6] == ("done, not landed yet", ""), "closed, but no Fixes commit on origin/integration: not landed"
+    assert console.statuses(set(), {6}, {}, log(("c" * 40, "Fixes #4")), set())[6] == ("done, not landed yet", ""), "closed, but no commit on origin/integration names it: not landed"
+    assert console.statuses(set(), {6}, {"lane-b": log(("e" * 40, "Part of #6"))}, "", set())[6] == ("done, not landed yet", "lane-b eeeeeeeee"), "a lane still holds it: not landed"
 
 
 def test_worktrees_lists_each_tree_and_clean_up_sweeps_only_a_landed_clean_one_with_a_patch(tmp_path, monkeypatch):
@@ -797,3 +798,34 @@ def test_since_your_last_build_lists_each_issue_closed_after_the_last_dev_build_
     assert console.since_build(repo, [], issue=lambda n: issues[n]) == {"build": None, "issues": [], "worked_on": []}, "no build recorded: nothing to list"
     page = (Path(console.__file__).parent / "console.html").read_text()
     assert "Since your last build" in page and "Copy release notes" in page and "navigator.clipboard.writeText" in page
+
+
+def test_a_step_with_no_issue_reads_no_issue_never_done():
+    """2026-11-27: every Builder step with no issue on it read `done`, 11.9 among them while #6895 was open and on no step."""
+    assert console.step_state(True, None, False, "", has_issues=False) == "no issue"
+    assert console.step_state(True, "checking", False, "", has_issues=False) == "running", "a live queue step still shows"
+    assert console.step_state(True, None, False, "landed") == "done"
+
+
+def test_a_closed_issue_is_landed_by_any_land_branch_commit_citing_it_or_its_close_comments_sha():
+    """2026-11-27: the train work landed citing the umbrella #6589, so the closed #6888/#6889 read `done, not landed yet` forever."""
+    land = "\x1eaaa111\x00feat: the train (#6589)\n\nPart of #6589\x1ebbb222\x00fix: x (#7001)\n"
+    branches = {"lane-a": "\x1eccc333\x00fix: y\n\nFixes #7002\n"}
+    st = console.statuses(set(), {6888, 7001, 7002, 6589}, branches, land, unreleased={"aaa111", "bbb222"})
+    assert st[6888] == ("done, not landed yet", ""), "nothing on the land branch names it: not landed (owner 2026-11-03)"
+    said = console.statuses(set(), {6888}, {}, land, set(), built_in={6888: "aaa111"})
+    assert said[6888] == ("released", "aaa111"), "its close comment's `Built in <sha>`, a land-branch commit, is where it landed"
+    assert console.statuses(set(), {6888}, {}, land, set(), built_in={6888: "fff999"})[6888][0] == "done, not landed yet"
+    assert st[7001] == ("landed", "bbb222"), "a `(#N)` subject on the land branch is where it landed"
+    assert st[6589][0] == "landed" and st[7002][0] == "done, not landed yet", "a lane's unlanded Fixes commit: not landed yet"
+
+
+def test_a_step_label_another_spec_gave_an_issue_does_not_place_it_on_this_specs_step():
+    """2026-11-27: agent-profiles Step 1.5 (#6626, label step:1.5) sat on the Builder spec's own Step 1.5."""
+    foreign = {"number": 6626, "title": "agent-profiles Step 1.5: Swift rungs", "labels": [{"name": "step:1.5"}, {"name": "type:feature"}],
+               "body": "Step: 1.5\nSpec: docs/contributor_manual/specs/harness/agent-profiles.md, Step 1.5\n"}
+    got = console.own_steps(foreign, "Builder", "harness/building-fichero-locally.md")
+    assert [lb["name"] for lb in got["labels"]] == ["type:feature"] and "Step: 1.5" not in got["body"]
+    mine = {"number": 6895, "title": "Builder scale: a model per step kind", "labels": [{"name": "step:11.9"}],
+            "body": "Spec: harness/building-fichero-locally.md 'Scale-out'"}
+    assert console.own_steps(mine, "Builder", "harness/building-fichero-locally.md") is mine
