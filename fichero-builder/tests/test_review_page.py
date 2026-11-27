@@ -17,9 +17,20 @@ ITEM = {"id": "activity-started-by", "title": "Activity: who started a run", "ar
         "status": "to-test", "note": "", "order": 90, "added": "2026-11-23"}
 
 
+class GH:
+    calls: list = []
+
+    @staticmethod
+    def call(*a):
+        GH.calls.append(a)
+        return 0, ""
+
+
 @pytest.fixture
 def state(tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path)
+    monkeypatch.setattr(review_page, "_gh", GH.call)  # never the real gh: a verdict comments on its issue
+    GH.calls.clear()
     review_page.path().write_text(json.dumps({"items": [ITEM, {**ITEM, "id": "b", "title": "B", "order": 209, "status": "works"}, {**ITEM, "id": "c", "title": "C", "order": 10}]}))
     return tmp_path
 
@@ -117,3 +128,21 @@ def test_post_review_needs_the_token_and_a_loopback_host_updates_one_item_and_wr
     assert _post(live, {"id": "c", "status": "nope"}, token=console.TOKEN)[0] == 400
     assert _post(live, {"id": "zz", "status": "works"}, token=console.TOKEN)[0] == 404
     assert _post(live, {"status": "works"}, token=console.TOKEN)[0] == 400
+
+
+def test_a_broken_verdict_or_a_note_reaches_the_issue_the_journal_and_the_manager(state):
+    """2026-11-27: a note only sat in review.json. Marked broken: the note as a comment on its issue and the issue reopened; a note
+    alone: the comment; each one `review-verdict` row and one alert carrying the note. Setting the same note again does nothing."""
+    review_page.set_item("activity-started-by", "bug", "the started-by line is empty")
+    url = ITEM["issue"]
+    assert GH.calls == [("issue", "comment", url, "--body", "Owner, on the review list (activity-started-by, build 2026.11.24 (43)): marked broken. "
+                         "the started-by line is empty"), ("issue", "reopen", url)]
+    review_page.set_item("b", None, "the icon is a bit small")
+    assert GH.calls[-1][:3] == ("issue", "comment", url) and len(GH.calls) == 3
+    review_page.set_item("b", "polish", "the icon is a bit small")
+    assert len(GH.calls) == 3, "the same note and no break: nothing new"
+    rows = journal.read()
+    verdicts = [r for r in rows if r.get("event") == "review-verdict"]
+    alerts = [r for r in rows if r.get("event") == "alert"]
+    assert [v["item"] for v in verdicts] == ["activity-started-by", "b"] and "reopened" in verdicts[0]["detail"]
+    assert len(alerts) == 2 and "the started-by line is empty" in json.dumps(alerts[0])

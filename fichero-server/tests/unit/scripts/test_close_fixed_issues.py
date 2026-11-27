@@ -63,3 +63,58 @@ def test_a_last_comment_that_says_what_is_left_keeps_the_issue_open(monkeypatch)
     assert not _mod.owes_more("Done and verified.") and not _mod.owes_more("")
     monkeypatch.setattr(_mod, "_run", lambda *a: __import__("json").dumps({"comments": [{"body": "old"}, {"body": "Residue: x"}]}))
     assert _mod.owes_more(_mod.last_comment(1))
+
+
+def _fake_gh(monkeypatch, issue: dict, releases: list, in_tag: set):
+    import json as _json
+    calls = []
+
+    def run(*a):
+        calls.append(a)
+        if a[:3] == ("gh", "issue", "view") and "comments" in a:
+            return _json.dumps({"comments": []})
+        if a[:3] == ("gh", "issue", "view"):
+            return _json.dumps(issue)
+        if a[:2] == ("gh", "api"):
+            return "[]"
+        if a[:3] == ("gh", "release", "list"):
+            return _json.dumps(releases)
+        if a[:2] == ("git", "show"):
+            return "MARKETING_VERSION = 2026.11.28\nCURRENT_PROJECT_VERSION = 412\n"
+        if a[:2] == ("git", "log"):
+            return "abc123\x1ffix: the thing\x1f2026-11-27T10:00:00Z\x1fFixes #7\x1e"
+        return ""
+    monkeypatch.setattr(_mod, "_run", run)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    def sub(argv, **k):
+        calls.append(tuple(argv))
+        return __import__("types").SimpleNamespace(returncode=0 if argv[-1] in in_tag else 1, stdout="added", stderr="")
+    monkeypatch.setattr(_mod.subprocess, "run", sub)
+    monkeypatch.setattr(sys, "argv", ["close_fixed_issues.py", "--range", "a..b", "--apply"])
+    assert _mod.main() == 0
+    return calls
+
+
+def test_a_closed_owner_bug_gets_owner_verify_and_names_the_first_release_that_carries_the_fix(monkeypatch):
+    issue = {"state": "OPEN", "labels": [{"name": "type:bug"}], "author": {"login": "dtubb"}, "title": "Back does nothing",
+             "url": "https://github.com/o/r/issues/7"}
+    rels = [{"tagName": "v2026.11.29", "isPrerelease": True, "createdAt": "2026-11-29T04:00:00Z"},
+            {"tagName": "v2026.11.28", "isPrerelease": True, "createdAt": "2026-11-28T04:00:00Z"}]
+    calls = _fake_gh(monkeypatch, issue, rels, {"v2026.11.28", "v2026.11.29"})
+    assert ("gh", "issue", "edit", "7", "--add-label", "owner-verify") in calls
+    assert ("gh", "issue", "comment", "7", "--body", "In dev release 2026.11.28 (build 412) — please check and reopen if not fixed.") in calls
+    assert [c[:3] for c in calls].index(("gh", "issue", "close")) < [c[:3] for c in calls].index(("gh", "issue", "edit"))
+    add = next(c for c in calls if "review" in c)
+    assert add[add.index("review"):add.index("review") + 3] == ("review", "add", "bug-7")
+    assert add[add.index("--build") + 1] == "dev release 2026.11.28 (build 412)" and add[add.index("--issue") + 1] == "https://github.com/o/r/issues/7"
+
+
+def test_an_owner_bug_with_no_release_yet_says_the_next_nightly_and_others_get_no_label(monkeypatch):
+    issue = {"state": "OPEN", "labels": [{"name": "type:bug"}], "author": {"login": "dtubb"}}
+    calls = _fake_gh(monkeypatch, issue, [], set())
+    assert ("gh", "issue", "comment", "7", "--body", "In the next nightly — please check and reopen if not fixed.") in calls
+    for other in ({"state": "OPEN", "labels": [{"name": "type:bug"}], "author": {"login": "someone"}},
+                  {"state": "OPEN", "labels": [{"name": "type:feature"}], "author": {"login": "dtubb"}}):
+        calls = _fake_gh(monkeypatch, other, [], set())
+        assert not [c for c in calls if c[:3] in (("gh", "issue", "edit"), ("gh", "issue", "comment")) or "review" in c]

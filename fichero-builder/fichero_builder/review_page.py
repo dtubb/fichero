@@ -78,13 +78,41 @@ def set_item(item_id: str, status: str | None = None, note: str | None = None, n
         raise ValueError(f"no review item {item_id}")
     if status is None and note is None:
         raise ValueError("set needs a status or a note")
+    broke = status == "bug" and item.get("status") != "bug"
+    noted = bool(note and str(note).strip() and str(note) != item.get("note", ""))
     if status is not None:
         item["status"] = status
     if note is not None:
         item["note"] = str(note)
     item["updatedAt"] = now or _now()
     _save(data)
+    if broke or noted:
+        act(item, broke)
     return item
+
+
+def _gh(*args: str) -> tuple[int, str]:
+    import subprocess
+    r = subprocess.run(["gh", *args], capture_output=True, text=True)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def act(item: dict, broke: bool) -> None:
+    """The owner's verdict reaches the work (2026-11-27: a note only sat in review.json): the note as a comment on the item's issue,
+    reopened when marked broken (`bug`); one `review-verdict` row; one manager alert carrying the note."""
+    note = item.get("note", "").strip()
+    said = []
+    if url := item.get("issue", ""):
+        text = f"Owner, on the review list ({item['id']}, build {item.get('build') or '-'}): " + ("marked broken. " if broke else "") + (note or "")
+        rc, out = _gh("issue", "comment", url, "--body", text.strip())
+        said.append("commented" if rc == 0 else f"comment failed: {out[-160:]}")
+        if broke:
+            rc, out = _gh("issue", "reopen", url)
+            said.append("reopened" if rc == 0 else f"reopen failed: {out[-160:]}")
+    journal.append("review-verdict", item=item["id"], status=item.get("status"), issue=url, detail=f"{'; '.join(said) or 'no issue'}: {note}"[:500])
+    from fichero_builder import queue
+    queue.alert("-", f"review-{item['id']}", f"owner review: {item['id']} {'marked broken' if broke else 'has a note'}" + (f": {note}" if note else ""),
+                url or str(path()), ["retry"])
 
 
 def listing(changed_since: str = "") -> list[dict]:
