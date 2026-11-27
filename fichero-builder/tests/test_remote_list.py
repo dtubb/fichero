@@ -139,3 +139,57 @@ def test_ladder_slot_tells_the_ladder_which_slot_it_holds(tmp_path, monkeypatch)
             assert s2 == "ladder-2" and check_tool.SLOT[0] == 1
         assert check_tool.SLOT[0] == 0
     assert check_tool.SLOT[0] == 0
+
+
+THREE = Config(remote="air:~/g", remotes=("air:~/g", "imac:~/g", "imac:~/g2"))
+
+
+def test_a_down_runners_slot_takes_the_next_free_gate_dir_not_one_another_slot_holds(world, tmp_path, monkeypatch):
+    """2026-11-27 18:17-18:57: the Air was down; its slot queued on imac:~/g behind slot 1's run while imac:~/g2 was idle."""
+    ran, alerts, state = world
+    monkeypatch.setattr(check_tool, "HELD", {0, 1})  # slot 1 holds imac:~/g
+    check_tool.SLOT[0] = 0
+    state["down"] = {"air:~/g"}
+    assert check_tool._run("pytest", ["x"], tmp_path, 5, THREE, remote=True)["remote"] == "imac:~/g2"
+    assert check_tool._runners_for_slot(THREE) == ("air:~/g", "imac:~/g2", "imac:~/g")
+    monkeypatch.setattr(check_tool, "HELD", {0})
+    assert check_tool._runners_for_slot(THREE) == ("air:~/g", "imac:~/g", "imac:~/g2"), "nothing else held: the ring as before"
+    check_tool._DEAD.clear()
+    assert check_tool._runners_for_slot(THREE)[0] == "air:~/g"
+
+
+def test_a_red_that_stood_on_a_second_gate_dir_is_not_retried_again_in_that_ladder(world, tmp_path, monkeypatch):
+    """2026-11-27 18:34-18:38: six runner-retry rows in four minutes, each red again on imac:~/fichero-gate2."""
+    ran, alerts, state = world
+    monkeypatch.setattr(check_tool, "RED_STOOD", set())
+    check_tool._KEY[0] = "check a..b"
+    check_tool.SLOT[0] = 0
+    state.update(down={"air:~/g"}, remote_res={"imac:~/g": RED, "imac:~/g2": RED})
+    for _ in range(3):
+        assert check_tool._run("pytest", ["x"], tmp_path, 5, THREE, remote=True)["ok"] is False
+    assert len([r for r in journal.read() if r["event"] == "runner-retry"]) == 1, "the first red is retried once; after it stood, none"
+    check_tool._KEY[0] = "check c..d"  # another ladder judges its runners afresh
+    check_tool._run("pytest", ["x"], tmp_path, 5, THREE, remote=True)
+    assert len([r for r in journal.read() if r["event"] == "runner-retry"]) == 2
+    check_tool._KEY[0] = ""
+
+
+def test_every_listed_gate_dir_gets_a_runner_row_even_with_the_slot_count_off(tmp_path, monkeypatch):
+    """2026-11-27: m4 ran nothing all day and no row said so; with slots_from_runners off there were no runner rows at all."""
+    from fichero_builder import queue, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    for k, v in (("RUNNERS", {}), ("PROBING", [None]), ("PROBED_AT", [0.0])):
+        monkeypatch.setattr(queue, k, v)
+    monkeypatch.setattr(work, "SLOTS", [0])
+    (tmp_path / "harness.toml").write_text('[check]\nparallel = 4\nremote = ["air:~/g", "imac:~/g", "imac:~/g2", "m4:~/g"]\n')
+    probed = []
+    probe = lambda n: probed.append(n) or ({"runner": n, "reachable": False, "detail": "no route"} if n.startswith("m4") else  # noqa: E731
+                                           {"runner": n, "reachable": True, "cores": 8, "load": 1.0, "free_ram_gb": 8.0, "free_gb": 50.0})
+    assert queue.count_slots(tmp_path, probe=probe, now=1000.0) == 0, "the count stays [check].parallel"
+    rows = [r for r in journal.read() if r["event"] == "runner"]
+    assert [r["runner"] for r in rows] == ["air:~/g", "imac:~/g", "imac:~/g2", "m4:~/g"] and probed == ["air:~/g", "imac:~/g", "m4:~/g"], "one ssh a host"
+    assert next(r for r in rows if r["runner"] == "m4:~/g")["reachable"] is False
+    queue.count_slots(tmp_path, probe=probe, now=1000.0 + 60)
+    assert len([r for r in journal.read() if r["event"] == "runner"]) == 4, "not again within RUNNER_ROW_S"
+    queue.count_slots(tmp_path, probe=probe, now=1000.0 + queue.RUNNER_ROW_S)
+    assert len([r for r in journal.read() if r["event"] == "runner"]) == 8

@@ -833,9 +833,11 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: 
     if said:
         journal.append("lock", state="acquired", name="ladder", what=f"the check of {name}", pid=os.getpid(), seconds=int(time.time() - t0))
     prev, check_tool.SLOT[0] = check_tool.SLOT[0], journal.ladder_slots(max(n, SLOTS[0] or n)).index(free[0])  # the slot's own runner first
+    check_tool.HELD.add(check_tool.SLOT[0])
     try:
         yield free[0]
     finally:
+        check_tool.HELD.discard(check_tool.SLOT[0])
         check_tool.SLOT[0] = prev
         (state / f"{free[0]}.files").unlink(missing_ok=True)
         free[1].__exit__()

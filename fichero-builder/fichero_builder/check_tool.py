@@ -511,8 +511,17 @@ def _runners_for_slot(cfg: Config) -> tuple:
     2026-11-27: every ladder tried [check].remote in the same order, so all four slots queued on the first runner that answered
     (the iMac's first gate dir, behind its heavy lock) while imac:~/fichero-gate2 and m4 had no run all day."""
     r = _runners(cfg)
-    i = SLOT[0] % len(r) if r else 0
-    return r[i:] + r[:i]
+    if not r:
+        return r
+    i = SLOT[0] % len(r)
+    ring = r[i:] + r[:i]
+    if not _dead(ring[0]):
+        return ring
+    # its own runner is down: the next FREE gate dir first, one no other held slot owns (2026-11-27 18:17-18:57: the Air was down and
+    # its slot queued on imac:~/fichero-gate behind slot 1's run while imac:~/fichero-gate2 was idle)
+    owned = {r[j % len(r)] for j in HELD if j != SLOT[0]}
+    rest = ring[1:]
+    return (ring[0], *[x for x in rest if x not in owned], *[x for x in rest if x in owned])
 
 
 def _runners_for_base(cfg: Config) -> tuple:
@@ -704,15 +713,16 @@ def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cw
     (manager 2026-11-03: the iMac was off and the tests went red on the jail user's own home); nothing is told to a lane about it."""
     if not remote:
         return _local(name, argv, root, timeout_s, cfg, extra, cwd, log)
-    runners = _runners_for_base(cfg) if BASE_RUN[0] else _runners_for_slot(cfg)
-    res, used = None, ""
-    for rem in runners:
-        if not _dead(rem) and (res := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
+    order = lambda: _runners_for_base(cfg) if BASE_RUN[0] else _runners_for_slot(cfg)  # noqa: E731
+    runners, res, used, tried = order(), None, "", set()
+    while (rem := next((x for x in order() if x not in tried and not _dead(x)), None)) is not None:  # re-read: a runner that just failed
+        tried.add(rem)  # moves its slot to the next free gate dir
+        if (res := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
             used = rem
             break
     if res is None:
         res = _local(name, argv, root, timeout_s, cfg, extra, cwd)
-    if runners and not res.get("ok") and used != runners[0]:  # the first choice did not run it
+    if runners and not res.get("ok") and used != runners[0] and _KEY[0] not in RED_STOOD:  # the first choice did not run it
         for rem in runners:
             if rem == used:
                 continue
@@ -720,6 +730,8 @@ def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cw
                 _DEAD.pop(rem, None)  # it is back
             if not _dead(rem) and (again := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
                 journal.append("runner-retry", rung=name, first=used or "here", retried=rem, ok=bool(again.get("ok")))
+                if not again.get("ok"):  # red on a second gate dir too: the runner was not the cause; this ladder retries no more
+                    RED_STOOD.add(_KEY[0])  # 2026-11-27 18:34-18:38: six retries in four minutes, every one red again
                 return again if again.get("ok") else res
     return res
 
@@ -1900,6 +1912,8 @@ ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chai
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
 BASE_RUN = _PerThread(False)  # this thread runs red-on-base's base tests: _run takes the runners after the head run's
 _KEY = _PerThread("")  # the running ladder's key, for its rung rows
+HELD: set = set()  # the ladder slots held in this process now (work.ladder_slot adds and removes them): whose runner is busy
+RED_STOOD: set = set()  # ladder keys whose retried red stood on another runner: the reds are the code's, so no more retries in that ladder
 SLOT = _PerThread(0)  # this thread's ladder slot (0 = `ladder`, 1 = `ladder-2`, ...): its first runner (_runners_for_slot); work.ladder_slot sets it
 REUSE = _PerThread(None)  # {rung name: its green row} from the SAME head, base and pinned copy: an approve resumes there, it does not start over
 
@@ -2715,6 +2729,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
     _jail_enter(j)
     _KEY[0] = f"check {since[:9]}..{str(head)[:9]}"
+    RED_STOOD.discard(_KEY[0])  # a new ladder over the range judges its runners afresh
     _jailmod.note_unjailed(j, "check", since=since, head=str(head))
     sweep_cancels()
     ACTIVITY(kind="check", key=_KEY[0], state="start")

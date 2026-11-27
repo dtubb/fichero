@@ -2941,6 +2941,8 @@ def code_mark(root="") -> tuple:
 
 
 RUNNERS: dict = {}  # runner -> its latest `runner` row (with `at`), written by the probe thread
+PROBED_AT: list = [0.0]
+RUNNER_ROW_S = 300  # with slots_from_runners off, the runners are probed for their rows this often, not every tick
 PROBING: list = [None]
 SLOT_WHY: list = [None]
 
@@ -2958,20 +2960,27 @@ def count_slots(root, tick_s: float = 30.0, probe=None, now=None) -> int:
             SLOT_WHY[0] = ("refused", str(e)[:200])
             journal.append("slots", state="slots-cfg-refused", slots=work.SLOTS[0], detail=f"[check] does not read: {e}"[:300])
         return work.SLOTS[0]
-    if not cfg.slots_from_runners:
-        work.SLOTS[0] = 0
-        return 0
     probe = probe or check_tool.probe_runner
+    t_now = now if now is not None else time.time()
 
     def run():
         hosts: dict = {}
         for name in check_tool._runners(cfg):
             hosts.setdefault(name.partition(":")[0], []).append(name)
         for names in hosts.values():
-            row = probe(names[0])
-            journal.append("runner", **{**row, "runner": names[0].partition(":")[0], "dirs": names})
-            for name in names:
+            row = probe(names[0])  # one ssh per host
+            for name in names:  # 2026-11-27: one row per listed gate dir, so a dir that runs nothing (m4 all day) is seen
+                journal.append("runner", **{**row, "runner": name, "host": name.partition(":")[0]})
                 RUNNERS[name] = {**row, "runner": name, "at": time.time()}
+    if not cfg.slots_from_runners:  # the count stays [check].parallel; the rows still come, every RUNNER_ROW_S
+        work.SLOTS[0] = 0
+        if t_now - PROBED_AT[0] >= RUNNER_ROW_S and (PROBING[0] is None or not PROBING[0].is_alive()):
+            PROBED_AT[0] = t_now
+            PROBING[0] = threading.Thread(target=run, daemon=True, name="runner-probe")
+            PROBING[0].start()
+            if probe is not check_tool.probe_runner:
+                PROBING[0].join()
+        return 0
     if PROBING[0] is None or not PROBING[0].is_alive():
         PROBING[0] = threading.Thread(target=run, daemon=True, name="runner-probe")
         PROBING[0].start()
