@@ -408,7 +408,7 @@ timeout_s = 360   # the 6-minute budget
 [check.security]
 # #6600 Step 2.30: the security rung (REPORT-ONLY). Reads only what is NEW in the batch. Runs in the scratch tree because semgrep
 # --baseline-commit and gitleaks need git history. osv-scanner stays OFF until lane deps-security clears the Dependabot alerts.
-enforce = true  # owner 2026-11-27: a NEW finding in a step's added lines is red and goes back to that step (was report-only)
+enforce = false  # manager 2026-11-27 11:55: off until bandit/semgrep/gitleaks are installed on every runner (train-111606 went red only on "not installed on the runner"); was true  # owner 2026-11-27: a NEW finding in a step's added lines is red and goes back to that step (was report-only)
 timeout_s = 720
 osv = false
 dirs = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero"]  # what the scanners and the waiver lints cover
