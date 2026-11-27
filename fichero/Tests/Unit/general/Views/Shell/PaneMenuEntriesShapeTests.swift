@@ -2,7 +2,7 @@
 import XCTest
 
 /// `panes.chrome.one-pane-menu` (#5435), first slice: the head's + and its right-click list the same
-/// entries (split, pin, close) from one view, and the X and the menu's Close run one close path.
+/// entries (split, pin, close) from one view, and the menu's Close and the right-click run one close path.
 /// Source-shape guard.
 @MainActor
 final class PaneMenuEntriesShapeTests: XCTestCase {
@@ -17,8 +17,8 @@ final class PaneMenuEntriesShapeTests: XCTestCase {
 
     func testCloseIsOnePath() throws {
         let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
-        XCTAssertEqual(head.components(separatedBy: "closePane()").count - 1, 4,
-                       "definition, the X, the + menu and the right-click each call closePane once")
+        XCTAssertEqual(head.components(separatedBy: "closePane()").count - 1, 3,
+                       "definition, the + menu and the right-click each call closePane once (the head's left X is gone, #6741)")
     }
 
     /// #6741: the forbidden leftovers of the old head and menu stay gone (an absence check).

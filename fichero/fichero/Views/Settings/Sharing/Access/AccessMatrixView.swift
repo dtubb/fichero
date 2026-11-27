@@ -20,7 +20,7 @@ struct AccessMatrixView: View {
 
     var body: some View {
         if matrix.libraries.isEmpty || matrix.people.isEmpty {
-            Text("No libraries to show access for yet.")
+            Text("No projects to show access for yet.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {

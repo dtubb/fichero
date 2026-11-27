@@ -50,7 +50,7 @@ extension UsersContent {
             }
 
             if let matrix = store.accessMatrix {
-                Section("Access across libraries") { AccessMatrixView(matrix: matrix) }
+                Section("Access across projects") { AccessMatrixView(matrix: matrix) }
             }
 
             rolesSection

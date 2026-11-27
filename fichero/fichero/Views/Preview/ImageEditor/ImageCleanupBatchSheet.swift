@@ -17,7 +17,7 @@ struct ImageCleanupBatchSheet: View {
                 ForEach(model.preview.samples) { page in
                     VStack {
                         pair(page)
-                        Text(page.name).font(.caption).lineLimit(1)
+                        Text(page.title).font(.caption).lineLimit(1)
                     }
                     .accessibilityIdentifier("imageCleanupBatch.preview")
                 }
@@ -50,7 +50,7 @@ struct ImageCleanupBatchSheet: View {
             ScrollView {
                 ForEach(model.appliedPages) { page in
                     HStack {
-                        Text(page.name).font(.callout).lineLimit(1)
+                        Text(page.title).font(.callout).lineLimit(1)
                         Spacer()
                         Button("Undo") {
                             Task { if await undoPage(page.id, batchId) { model.pageUndone(page.id); onChanged() } }

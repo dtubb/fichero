@@ -90,7 +90,7 @@ class LibraryManager {
     var hostLastAnswered: [String: Date] = [:]
     /// Per paired Mac, the libraries it has open now, once it has answered (#6556): its sidebar section lists only those.
     var hostOpenLibraries: [String: Set<String>] = [:]
-    /// File ▸ Connect to Library… and the machine rows set this; the app's window shows the connect sheet.
+    /// File ▸ Connect to Project… and the machine rows set this; the app's window shows the connect sheet.
     var connectToLibraryRequested = false
     /// Set by the app's window: opens a shared library by switching to its host (`SharedLibraryOpener`).
     var openSharedLibrary: (@MainActor (PairedMachine, String) async -> Void)?

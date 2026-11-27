@@ -55,7 +55,8 @@ struct BlankProposalsLine: View {
                     ForEach(proposed) { page in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
-                                Text(page.name).font(.callout).lineLimit(1)
+                                Text(DocumentTitle.displayName(for: page, parent: documents.first { $0.id == page.parentId }))
+                                    .font(.callout).lineLimit(1)
                                 Spacer()
                                 Button("Hide") { Task { await answer(page, blank: true) } }
                                     .controlSize(.small)

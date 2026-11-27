@@ -39,7 +39,7 @@ struct PairedMachinesGroupTests {
 
     @Test func noPairedMacIsNoRowsAndTheEmptyStateSaysHowToPair() {
         #expect(PairedMachineStore.load(from: freshDefaults()).isEmpty)
-        #expect(PairedMachinesEmptyView.sentence.contains("File › Connect to Library…"))
+        #expect(PairedMachinesEmptyView.sentence.contains("File › Connect to Project…"))
         #expect(PairedMachinesEmptyView.sentence.contains("pairing link"))
     }
 }

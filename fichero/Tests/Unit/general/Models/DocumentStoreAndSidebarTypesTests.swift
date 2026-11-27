@@ -568,7 +568,11 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // The pairing surface is ShareSettingsView's Add Device sheet: the QR, the code and when it expires, drawn from
         // AddDeviceSheetModel's words, beside the Devices list (`sharing.settings.add-device-sheet`, #5928). No scanner.
         // PairingCardView.swift keeps the card for the Project inspector's paired devices.
-        let shareSource = try Self.appSource("Views/Settings/Sharing/Share/ShareSettingsView.swift")
+        // The sheet is split over ShareSettingsView and its +Sections sibling.
+        let shareSource = try [
+            Self.appSource("Views/Settings/Sharing/Share/ShareSettingsView.swift"),
+            Self.appSource("Views/Settings/Sharing/Share/ShareSettingsView+Sections.swift")
+        ].joined(separator: "\n")
         let modelSource = try Self.appSource("Views/Settings/Sharing/Pairing/AddDeviceSheetModel.swift")
         let cardSource = try Self.appSource("Views/Settings/Sharing/Pairing/PairingCardView.swift")
 

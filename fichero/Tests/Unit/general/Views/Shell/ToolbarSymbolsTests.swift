@@ -89,7 +89,9 @@ struct ToolbarSymbolsTests {
     func toolbarTogglesAreNative() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         #expect(!source.contains("\"rectangle\""))
-        #expect(source.contains("SourcePane.hideLabel : SourcePane.showLabel"))
+        // The Source pane toggle left the toolbar (#6730); its word flips Show/Hide in View ▸ Preview, with a constant glyph.
+        let menu = try Self.appSource("App/Menus/ViewMenuSortAndModeSections.swift")
+        #expect(menu.contains("label: SourcePane.hideLabel,"))
         #expect(!source.contains("Toggle(isOn: $showDocumentCanvas"))
     }
 

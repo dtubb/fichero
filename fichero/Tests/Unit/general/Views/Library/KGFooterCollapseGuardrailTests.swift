@@ -24,19 +24,13 @@ final class KGFooterCollapseGuardrailTests: XCTestCase {
         )
     }
 
-    func testTheSameShowingKgFilterPopoverStateBacksBothCollapsedTriggers() throws {
-        let source = try source("Views/Library/LibraryView+BottomActionBar.swift")
-        // Both the condensed button and the overflow-menu row must set the SAME popover flag, and
-        // the popover itself must be attached once, at the bar's own outer container — not on
-        // either trigger individually, which would vanish along with whichever rung isn't
-        // currently rendered.
-        XCTAssertEqual(
-            source.components(separatedBy: "showingKgFilterPopover = true").count - 1, 2,
-            "exactly two triggers (condensed button, overflow row) should open the popover"
-        )
-        XCTAssertEqual(
-            source.components(separatedBy: ".popover(isPresented: $showingKgFilterPopover)").count - 1, 1,
-            "the popover itself must be presented exactly once, not per-trigger"
-        )
+    func testTheKgFilterIsOneInlineFieldNotAPopoverPerCollapsedTrigger() throws {
+        // `panes.chrome.one-filter-pattern`: the Entities/Claims filter is one `PaneFilterField` in the mini toolbar, which
+        // every rung of the footer's ladder mounts; there is no popover flag, no condensed button and no overflow row for it.
+        for path in ["Views/Library/LibraryView+BottomActionBar.swift", "Views/Library/LibraryView+MiniToolbar.swift"] {
+            XCTAssertFalse(try source(path).contains("showingKgFilterPopover"), "\(path) went back to a popover for the filter")
+        }
+        let bar = try source("Views/Library/LibraryView+MiniToolbar.swift")
+        XCTAssertEqual(bar.components(separatedBy: "accessibilityID: \"kgContentFilterField\"").count - 1, 1)
     }
 }

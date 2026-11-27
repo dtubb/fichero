@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 /// #5652 slice 4, group 5: a project's verbs (Rename Project…, Edit Document Types…, Share Project…, Show in Finder,
@@ -43,13 +43,15 @@ struct ProjectVerbsMenuTests {
         #expect(ProjectVerbs.showInFinderReason(always) == nil)
     }
 
-    @Test("a viewer reads only; sharing off says where to turn it on; no project says to show one")
+    @Test("a viewer reads only; Share is offered with multi-user off; no project says to show one")
     func viewerSharingAndNone() {
         let viewer = project(canWrite: false)
         #expect(ProjectVerbs.renameReason(viewer) == ProjectVerbs.readOnly)
         #expect(ProjectVerbs.deleteReason(viewer) == ProjectVerbs.readOnly)
         #expect(ProjectVerbs.showInFinderReason(viewer) == nil, "seeing where it is changes nothing")
-        #expect(ProjectVerbs.shareReason(project(multiuser: false)) == "Turn on sharing in Settings to share a project")
+        // Share… is offered in every mode (#6373, owner 2026-11-06): with multi-user off the sheet makes a link.
+        #expect(ProjectVerbs.shareReason(project(multiuser: false)) == nil)
+        #expect(ProjectVerbs.shareReason(project(canWrite: false)) == ProjectVerbs.readOnly)
         #expect(ProjectVerbs.renameReason(nil) == ProjectVerbs.noProject)
     }
 

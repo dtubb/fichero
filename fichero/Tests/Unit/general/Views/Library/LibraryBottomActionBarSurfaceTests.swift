@@ -38,20 +38,22 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         // The bar is rewrapped on the shared component, not a hand-rolled HStack.
         XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
         XCTAssertTrue(source.contains("overflowMenu: {"))
-        XCTAssertTrue(source.contains("bottomBarOverflowMenu"))
-        // Existing glass chrome + shared touch-target metrics preserved (#2474/#2550).
-        XCTAssertTrue(source.contains(".glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))"))
+        // The overflow menu is the bar's own `overflowMenu:` closure, carrying the sort menu and the row attributes.
+        XCTAssertTrue(source.contains("librarySortMenu(iconOnly: false)"))
+        // Flat on macOS (`panes.chrome.bars-flush-on-mac`): the shared pane-bar surface, with the shared touch-target metrics.
+        XCTAssertTrue(source.contains(".paneBarSurface()"))
         XCTAssertTrue(source.contains("bottomBarTouchTarget"))
     }
 
     func testOverflowMenuMirrorsSecondaryActions() throws {
         let source = try Self.appSources(inDirectory: "Views/Library")
-        // The overflow menu carries the secondary verbs as Labels with the SAME
-        // underlying actions as the inline buttons.
-        XCTAssertTrue(source.contains("Label(\"Export BibTeX\", systemImage: \"square.and.arrow.up\")"))
-        XCTAssertTrue(source.contains("Label(\"Run Workflow\", systemImage: \"bolt\")"))
-        XCTAssertTrue(source.contains("exportSelectedBibtex()"))
-        XCTAssertTrue(source.contains("showWorkflowPicker = true"))
+        // `panes.chrome.one-filter-pattern`: the bar holds Metadata · Sort · Filter; Export is File › Export and Run
+        // Workflow left the bar, so the overflow menu mirrors what the inline cluster holds.
+        XCTAssertTrue(source.contains("LibraryRowAttributesMenu(raw: $rowAttributesRaw, contentLines: $rowContentLinesRaw)"))
+        XCTAssertTrue(source.contains("DatasetFilterClusterMenu(store: datasetStore, documentStore: documentStore)"))
+        XCTAssertTrue(source.contains("CanvasControlStripMenu()"))
+        XCTAssertFalse(source.contains("Label(\"Export BibTeX\""))
+        XCTAssertFalse(source.contains("Label(\"Run Workflow\""))
     }
 
     func testWorkflowPickerUsesActiveLibraryWorkflows() throws {

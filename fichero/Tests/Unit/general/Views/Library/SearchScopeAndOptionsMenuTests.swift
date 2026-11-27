@@ -86,12 +86,12 @@ final class SearchScopeAndOptionsMenuTests: XCTestCase {
         XCTAssertTrue(source.contains("Toggle(option.title"))
     }
 
-    /// At the library root there is no second place to look, so the section
-    /// is absent rather than showing one dead option.
-    func testTheScopeSectionIsAbsentWithNoBrowsedContext() throws {
-        let source = try Self.appSource(Self.menuSource)
-
-        XCTAssertTrue(try Self.appSource("Views/Library/Search/SearchScope.swift").contains("case .folder: folder != nil"))
+    /// At the project root there is no second place to look, so the page, document and folder scopes are absent
+    /// rather than showing a dead option: the menu offers This Project and Everywhere (`SearchScopeTargets.offered`).
+    func testTheNodeScopesAreAbsentWithNoBrowsedContext() {
+        XCTAssertEqual(SearchScopeTargets().offered, [.project, .everywhere])
+        let browsing = SearchScopeTargets(folder: TransientSearchFolder(id: "f1", name: "1885"))
+        XCTAssertEqual(browsing.offered, [.folder, .project, .everywhere])
     }
 
     // MARK: - The row folded into the menu

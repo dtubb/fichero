@@ -225,7 +225,11 @@ struct LibraryMenuParityTests {
         // selection, so the verb and the thing it targets are the same in all
         // of them. Dataset was the exception — it owned a private @State.
         let bar = try code(at: "Views/Library/LibraryView+BottomActionBar.swift")
-        #expect(bar.contains("selectedDocumentIdsForBatch = Array(selection)"))
+        // Run Workflow left the bar (`panes.chrome.one-filter-pattern`); what the bar still does, Move to Trash, targets
+        // `selection`, and the run scope is the pane's `selection` joined with the sidebar-picked one.
+        #expect(bar.contains(".disabled(isShowingEntitiesCollection || selection.isEmpty)"))
+        let batch = try code(at: "Views/Library/LibraryView+BatchWorkflow.swift")
+        #expect(batch.contains("paneSelection: selection,"))
 
         let dataset = try code(at: "Views/Library/ViewModes/Dataset/DatasetModeView.swift")
         #expect(dataset.contains("@Binding var selection: Set<String>"),
