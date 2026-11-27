@@ -26,6 +26,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(queue, "TRAIN_SIZE", [0])
     monkeypatch.setattr(queue, "RECENT", [])
     monkeypatch.setattr(queue, "MEMORY_READ", [False])
+    monkeypatch.setattr(queue, "CYCLES_SEEN", set())
     return tmp_path, clock
 
 
@@ -414,3 +415,28 @@ def test_train_cleared_steps_land_the_trains_merge_with_no_new_ladder_or_review_
     s = states()
     assert s["l2"] == "landed" and s["l3"] == "landed", "the first one's conflict never holds the other two"
     assert s["l1"] != "landed" and any("merging h1 conflicts" in m for m in t.fake.sent), "the conflicting step goes back to its worker"
+
+
+def test_two_steps_that_conflict_both_ways_never_wait_on_each_other_and_the_older_rides_the_next_train(world):
+    """2026-11-26/27, 9 h: seg-tools/seg-batch-6 rode after seg-draw/seg-select-1 and seg-select-1 after seg-batch-6 (both touch
+    segment-editor.md and RegionInteractionLayer.swift); neither joined a train since 17:32 and 18:02."""
+    t = Trained(*world, ["1", "2"], cfg=train.Cfg(min_steps=1))
+    lanes = queue.load()  # the deadlock as the queue held it: each waiting, each after the other
+    for i, x in enumerate(lanes):
+        x["steps"][0].update(state="train", head="h" + x["steps"][0]["step"], train_since=100 + i,
+                             train_after=[f"{lanes[1 - i]['id']}/{lanes[1 - i]['steps'][0]['step']}"])
+    queue.save(lanes)
+    queue.train_when_due(t.fake.procs, None)
+    assert t.trains == [["l1/1"]], "the older one rides first; the newer waits for the next train"
+    rows = [r for r in journal.read() if r.get("state") == "train-after-cycle"]
+    assert len(rows) == 1 and rows[0]["lane"] == "l1"
+    # at the mark: the newer step meets the older one that already waits on it, and the older stops waiting
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="train", train_after=["l2/2"], train_since=100)
+    lanes[1]["steps"][0].update(state="done", train_since=None)
+    lanes[1]["steps"][0].pop("train_after", None)
+    queue.save(lanes)
+    l2 = queue.load()[1]
+    queue.mark_conflicts(l2, l2["steps"][0], "h2", [("l1/1", ["segment-editor.md"])])
+    s1, s2 = (x["steps"][0] for x in queue.load())
+    assert "train_after" not in s1 and s2["train_after"] == ["l1/1"], "only the newer waits"

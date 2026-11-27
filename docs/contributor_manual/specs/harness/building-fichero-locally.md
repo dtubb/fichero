@@ -1297,6 +1297,10 @@ turn green meanwhile ride the next one, so the batch grows with the load and an 
   train, in train order. A conflict with the land branch goes to the worker at once as the conflict fix round of
   section J. A conflict with a waiting step is one `queue` row `conflicts-with` naming that step and the files; the
   step is checked as usual and is held out of that step's train, so it merges after it. Tests: `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_the_land_branch_is_told_before_any_ladder_runs`, `fichero-builder/tests/test_train_queue.py::test_a_done_that_conflicts_with_a_waiting_step_rides_the_train_after_it`, `fichero-builder/tests/test_train_queue.py::test_a_worker_lanes_done_is_premerged_by_its_chain_right_after_the_fetch` (a worker lane's new head is in the engine repo only after the chain's fetch, so the chain asks there, before any ladder slot). Serves: reliable, fast.
+  A step never rides after a step that already rides after it: the older (lower `train_since`) goes first and only the newer
+  waits, and a cycle the queue holds anyway is broken when a train is formed, the oldest of it riding first, with one
+  `train-after-cycle` row (2026-11-26/27: seg-batch-6 and seg-select-1 each rode after the other and joined no train for 9 h).
+  Test: `fichero-builder/tests/test_train_queue.py::test_two_steps_that_conflict_both_ways_never_wait_on_each_other_and_the_older_rides_the_next_train`.
 - `local.step.small-commits-one-landing` [OK] (#6589; built 2026-11-26) — the common worker prompt says: commit each logical change by
   itself as the work goes; after the first DONE only add commits, never amend, squash or rebase (the loop rebases); a
   step lands whole. Nothing lands a part of a step. Tests: `fichero-builder/tests/test_profiles.py::test_the_common_prompt_says_small_commits_and_only_added_commits_after_done`. Serves: fast.

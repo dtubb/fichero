@@ -2466,6 +2466,47 @@ def disk_floor_alerts(procs: Procs) -> None:
             alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
 
 
+CYCLES_SEEN: set = set()
+
+
+def _after_no_cycle(waiting: list) -> dict:
+    """{key: the keys it rides after} among the waiting steps, with every train_after cycle broken: the oldest step of a cycle (lowest
+    train_since) rides first, one `train-after-cycle` row per cycle found."""
+    since = {f"{x['id']}/{s['step']}": s.get("train_since", 0) for x, s in waiting}
+    after = {k: set(s.get("train_after") or ()) & set(since) for (x, s), k in zip(waiting, since)}
+    while True:
+        cycle = _a_cycle(after)
+        if not cycle:
+            return after
+        oldest = min(cycle, key=lambda k: since[k])
+        after[oldest] -= set(cycle)
+        if frozenset(cycle) not in CYCLES_SEEN:
+            CYCLES_SEEN.add(frozenset(cycle))
+            journal.append("queue", lane=oldest.split("/")[0], step=oldest.split("/", 1)[1], state="train-after-cycle", other=", ".join(sorted(cycle)),
+                           detail=f"{' -> '.join(cycle)} each rode after the next: {oldest}, the oldest, rides first")
+
+
+def _a_cycle(after: dict) -> list:
+    """One cycle of the rides-after graph as a list of keys, or []."""
+    state: dict = {}
+
+    def visit(k, path):
+        state[k] = 1
+        path.append(k)
+        for n in sorted(after.get(k, ())):
+            if state.get(n) == 1:
+                return path[path.index(n):]
+            if not state.get(n) and (c := visit(n, path)):
+                return c
+        path.pop()
+        state[k] = 2
+        return []
+    for k in sorted(after):
+        if not state.get(k) and (c := visit(k, [])):
+            return c
+    return []
+
+
 def told_at_done(lane: dict, s: dict, procs: Procs) -> None:
     """local.check.conflict-told-at-done: before the step's ladder, its head is test-merged (in memory) onto each step waiting for the
     train; one `conflicts-with` row per conflict, and the step is held out of that step's train, so it merges after it. A conflict
@@ -2483,6 +2524,26 @@ def mark_conflicts(lane: dict, s: dict, head: str, hits: list | None) -> None:
         return
     s["premerged"] = head
     s.pop("train_after", None)
+    me, mine = f"{lane['id']}/{s['step']}", s.get("train_since") or float("inf")  # not waiting yet: the newer one
+    freed = []  # 2026-11-26/27: seg-batch-6 and seg-select-1 each rode after the other and joined no train for 9 h
+    with journal.Lock("queue"):
+        lanes = load()
+        for k, _f in list(hits):
+            o = next((st for x in lanes for st in x["steps"] if f"{x['id']}/{st['step']}" == k), None)
+            if o is None or me not in (o.get("train_after") or ()):
+                continue
+            if (o.get("train_since") or float("inf")) <= mine:  # the other is older: it goes first, so it stops waiting on this one
+                o["train_after"] = [x for x in o["train_after"] if x != me] or None
+                if o["train_after"] is None:
+                    o.pop("train_after")
+                freed.append(k)
+            else:  # this one is older: it never waits on a step that waits on it
+                hits = [h for h in hits if h[0] != k]
+        if freed:
+            save(lanes)
+    for k in freed:
+        journal.append("queue", lane=lane["id"], step=s["step"], state="train-after-cycle", other=k,
+                       detail=f"{k} waited on {me} and {me} on it: {k}, the older, rides first; only {me} waits")
     if hits:
         s["train_after"] = sorted(k for k, _f in hits)
     store(lane, expect=(s["step"], s.get("head", "")))  # the chain's outcome is claimed from the file: these fields must be in it first
@@ -2570,7 +2631,7 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
             save(lanes)
     waiting = _under_first([(x, s) for x, s in _waiting_for_train() if not s.get("train_id")])  # a step another train holds is not taken twice
     keys = {f"{x['id']}/{s['step']}" for x, s in waiting}
-    waiting = _under_first([(x, s) for x, s in waiting if not set(s.get("train_after") or ()) & keys])  # it merges after the step it conflicts with
+    waiting = _under_first([(x, s) for x, s in waiting if not set(_after_no_cycle(waiting).get(f"{x['id']}/{s['step']}", ())) & keys])  # it merges after the step it conflicts with
     if not train.due([s.get("train_since", 0) for _l, s in waiting], _now(), TRAIN[0]) or (base_tid and len(waiting) < TRAIN[0].min_steps):
         return
     size = min(TRAIN_SIZE[0] or TRAIN[0].max_steps, TRAIN[0].max_steps)
