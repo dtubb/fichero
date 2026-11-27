@@ -1,6 +1,7 @@
 """local.run.worker-cli-current: the worker's Claude Code kept at the manager's version and signed in; a model it refuses, a revoked
 sign-in and a sign-in about to end are each one alert."""
 import datetime as dt
+import json
 from pathlib import Path
 
 import pytest
@@ -86,3 +87,39 @@ def test_the_loop_checks_at_start_then_hourly_and_every_few_minutes_while_held(m
     clock[0] += 301
     queue.worker_cli_when_due(procs, None)
     assert ran == [1, 1, 1]
+
+
+def test_the_loops_job_probes_the_models_of_the_real_harness_toml_and_queue_roles_from_a_readable_dir_and_holds_on_a_revoked_sign_in(tmp_path, monkeypatch):
+    """2026-11-27 09:05: live, worker-cli.json said {"models": {"2.1.332": {}}}, nothing held, code-audit-1 'gone' 3 times. The probe ran
+    in the loop's cwd, unreadable to the worker ("Can't read the current directory (EACCES)"), and read as nothing."""
+    from fichero_builder import models, queue, start_tool
+    from fichero_builder import jail as jail_mod
+    repo = Path(__file__).resolve().parents[2]
+    mdl = models.load(repo)
+    roles = ["", "haiku-trial", "maintainer-fable", "qwen-trial", "no-such-role"]
+    want = worker_cli.wanted_models(mdl, roles)
+    assert {"sonnet", "haiku", models.for_role(mdl, "maintainer-fable").model} <= want
+    assert all(models.for_role(mdl, r).provider == "claude-code" for r in ("builder", "haiku-trial", "maintainer-fable"))
+    work_root = tmp_path / "wr"
+    (work_root / "bin").mkdir(parents=True)
+    calls = tmp_path / "calls"
+    worker = work_root / "bin" / "claude"
+    worker.write_text(f'#!/bin/sh\n[ "$1" = --version ] && {{ echo "2.1.332 (Claude Code)"; exit 0; }}\necho "$PWD $*" >> "{calls}"\n'
+                      '[ "$PWD" = /tmp ] || [ "$PWD" = /private/tmp ] || { echo "Can\'t read the current directory (EACCES)." >&2; exit 1; }\n'
+                      'echo "Failed to authenticate: OAuth token revoked" >&2; exit 1\n')
+    worker.chmod(0o755)
+    monkeypatch.setattr(start_tool, "find_claude", lambda *h: str(worker))
+    monkeypatch.setattr(jail_mod, "load", lambda root: None)
+    monkeypatch.setattr(queue, "load", lambda: [{"id": f"l{i}", "role": r, "steps": []} for i, r in enumerate(roles)])
+    job = queue.worker_cli_job(repo, {"jail": {"user": "fichero-worker", "workroot": str(work_root)}}, mdl)
+    job()
+    assert worker_cli.HELD[0], "a revoked sign-in holds new sessions"
+    alerts = [r for r in journal.read() if r.get("event") == "alert"]
+    assert len(alerts) == 1 and "sign-in is revoked" in json.dumps(alerts[0]) and f"sudo -u fichero-worker -H {worker} auth login" in json.dumps(alerts[0])
+    assert calls.read_text().split()[0] in ("/tmp", "/private/tmp") and "--model" in calls.read_text()
+
+
+def test_a_probe_that_is_neither_signed_in_nor_refused_is_a_row_never_silence(tmp_path):
+    worker = fake(tmp_path / "w" / "claude", "2.1.332", say="something else went wrong", rc=1)
+    worker_cli.check(worker, str(worker), {"sonnet"}, lambda *a: None)
+    assert [r["state"] for r in journal.read() if r.get("event") == "worker-cli"] == ["probe-failed"]

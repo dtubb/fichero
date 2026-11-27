@@ -2183,16 +2183,16 @@ def worker_cli_job(root, rules: dict, mdl: dict):
         return None
     worker = Path(work_root) / "bin" / "claude"
 
-    def wanted():
-        roles = {"builder"} | {x["role"] for x in load() if x.get("role")}
-        return {models.for_role(mdl, r).model for r in roles if r in mdl or r == "builder"
-                if models.for_role(mdl, r).provider == "claude-code"}
-
     def say(_model, _ver, what, why):
         alert("-", "worker-cli", what, why, ["retry"])
     j = jail.load(root)
     as_user = (j.sudo, "-n", "-H", "-u", j.user) if j and j.user and j.enabled else ()
-    return lambda: worker_cli.check(worker, manager, wanted(), say, as_user, user=rules["jail"]["user"])
+    def job():
+        try:
+            worker_cli.check(worker, manager, worker_cli.wanted_models(mdl, [x.get("role") for x in load()]), say, as_user, user=rules["jail"]["user"])
+        except Exception:  # noqa: BLE001 - never a silent thread: the probe's own failure is a row
+            journal.append("worker-cli", state="error", detail=traceback.format_exc()[-1500:])
+    return job
 
 
 DEPS_LAST = "deps.last"  # the date `builder deps` last ran from the loop

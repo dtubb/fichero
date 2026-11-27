@@ -53,7 +53,7 @@ def probe(worker: Path, model: str, as_user=()) -> tuple[str, str]:
     """("ok" | "auth" | "refused" | "unknown", the CLI's text), `claude -p --model <model>` run as the worker (`as_user` is the sudo prefix)."""
     try:
         r = subprocess.run([*as_user, str(worker), "-p", "--model", model, "--max-turns", "1", "Reply ok."], capture_output=True,
-                           text=True, timeout=180)
+                           text=True, timeout=180, cwd="/tmp")  # 2026-11-27 09:05: the loop's cwd is unreadable to the worker: EACCES, read as nothing
     except (OSError, subprocess.SubprocessError) as e:
         return "unknown", str(e)
     text = (r.stdout + r.stderr).strip()
@@ -81,6 +81,21 @@ def auth_text(text: str) -> bool:
     return bool(AUTH.search(text or ""))
 
 
+def wanted_models(mdl: dict, roles) -> set[str]:
+    """The Claude Code models of the builder and of each role a lane names, through harness.toml [models]; a role [models] cannot
+    resolve is skipped here (the lane's own start says why)."""
+    from fichero_builder import models
+    out = set()
+    for r in {"builder", *[r for r in roles if r]}:
+        try:
+            m = models.for_role(mdl, r)
+        except Exception:  # noqa: BLE001 - a Question for that lane, not for this probe
+            continue
+        if m.provider == "claude-code":
+            out.add(m.model)
+    return out
+
+
 def check(worker: Path, manager: str, wanted, alert, as_user=(), today: dt.date | None = None, user: str = "fichero-worker") -> None:
     """sync; one uncached probe for the sign-in (HELD while revoked, one alert); each wanted model probed once per (version, model);
     a refusal is one alert naming it; a "sign-in ends between X and Y" warning is one alert WARN_DAYS before X."""
@@ -101,6 +116,8 @@ def check(worker: Path, manager: str, wanted, alert, as_user=(), today: dt.date 
                 alert("", ver, f"the worker's Claude sign-in is revoked: run `{login}`; no new worker session starts until it passes", text[-300:])
         elif kind == "ok":
             HELD[0], cache["auth_alerted"] = False, False
+        else:  # neither signed in nor refused: never silence (a row each check; the hold stays as it was)
+            journal.append("worker-cli", state="probe-failed", detail=f"{wanted[0]}: {text[-300:]}")
         if (x := ends_at(text)) and (today or dt.date.today()) >= x - dt.timedelta(days=WARN_DAYS) and cache.get("ends_alerted") != str(x):
             cache["ends_alerted"] = str(x)
             alert("", ver, f"the worker's Claude sign-in ends from {x}: run `{login}` before then", text[-300:])
