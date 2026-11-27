@@ -17,7 +17,6 @@ from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal
-from xml.sax.saxutils import escape
 
 from fichero_server.db import Database
 from fichero_server.models import (
@@ -32,6 +31,14 @@ from fichero_server.db.storage import resolve_edited_source
 from fichero_server.core.naturalsort import natural_key
 
 logger = logging.getLogger(__name__)
+
+
+def escape(text: str, entities: dict[str, str] | None = None) -> str:
+    """`xml.sax.saxutils.escape`, imported when an export first writes XML: `xml.sax` is six modules of every app import (#7105)."""
+    from xml.sax.saxutils import escape as sax_escape
+
+    return sax_escape(text, entities or {})
+
 
 IMAGE_SUFFIXES = {
     ".jpg",
