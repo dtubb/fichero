@@ -33,6 +33,7 @@ pinned copy of the rules (`pinned-<sha7>`, made by `builder landed`) judges ever
 | `triage.py` | GitHub metadata by the rulings: labels, needs-spec, milestones, assignees, the build-order file | `Triage`, `first_open`, `build_order` | `test_triage_verb.py` |
 | `codemap.py` | jcodemunch where the jail worker can run it; the search behind a step's Where list | `provide`, `provide_all`, `index_prefix`, `search` | `test_codemap.py` |
 | `mcp_servers.py` | the MCP servers a worker gets: jcodemunch and jdocmunch always, then role × stack ∩ project | `delivered` | `test_mcp_servers.py` |
+| `mcp_server.py` | `builder mcp`: the builder's own MCP server on stdio; the console's reads and controls as tools | `serve`, `call`, `TOOLS` | `test_mcp_server.py` |
 | `build.py` | the dev DMG through the project's own script; a full release is refused | `main` | `test_build_verb.py` |
 | `journal.py`, `models.py` | the append-only JSONL journal and its locks; one model per role | `append`, `read`, `Lock`, `for_role` | `test_journal.py`, `test_model_config.py` |
 

@@ -1124,6 +1124,18 @@ def refresh(who: str) -> threading.Thread:
     return t
 
 
+def review_verdict(item_id: str, status, note, who: str) -> dict:
+    """One verdict on a review item, for the page's POST and the MCP tool: `review_page.set_item`, and one `console` row
+    `review <id> <status>`; a refused one is a row too, then the ValueError."""
+    try:
+        item = review_page.set_item(item_id, status, note)
+    except ValueError as e:
+        journal.append("console", who=who, verb=f"review {item_id} {status}", ok=False, state="refused", detail=str(e))
+        raise
+    journal.append("console", who=who, verb=f"review {item_id} {item['status']}", ok=True, state="ended", rc=0, detail=item.get("note", "")[-500:])
+    return item
+
+
 def _json(h, code: int, body) -> None:
     b = json.dumps(body, default=str).encode()
     h.send_response(code)
@@ -1270,13 +1282,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     raise KeyError("status")
             except (ValueError, KeyError, TypeError):
                 return _json(self, 400, {"ok": False, "error": "review needs {id, status, note}"})
-            who = f"{getpass.getuser()}@console"
             try:
-                item = review_page.set_item(item_id, status, note)
+                item = review_verdict(item_id, status, note, f"{getpass.getuser()}@console")
             except ValueError as e:
-                journal.append("console", who=who, verb=f"review {item_id} {status}", ok=False, state="refused", detail=str(e))
                 return _json(self, 404 if str(e).startswith("no review item") else 400, {"ok": False, "error": str(e)})
-            journal.append("console", who=who, verb=f"review {item_id} {item['status']}", ok=True, state="ended", rc=0, detail=item.get("note", "")[-500:])
             return _json(self, 200, {"ok": True, "item": item})
         if self.path.split("?")[0] == "/api/message":  # the owner's message to the manager
             try:
@@ -1330,10 +1339,11 @@ def server(host: str, port: int) -> http.server.ThreadingHTTPServer:
     return s
 
 
-def main(a) -> int:
+def configure(root) -> None:
+    """The checkout the verbs act on, and what its harness.toml gives the views; for the console and for `builder mcp`."""
     global ROOT
     global LOOP_LANES
-    ROOT = Path(a.root)
+    ROOT = Path(root)
     try:
         doc = tomllib.loads((ROOT / "harness.toml").read_text())
         LOOP_LANES = int(doc.get("loop", {}).get("lanes", 1))
@@ -1341,6 +1351,10 @@ def main(a) -> int:
         PRICES.update(doc.get("spend", {}).get("prices", {}))
     except (OSError, ValueError):
         pass
+
+
+def main(a) -> int:
+    configure(a.root)
     threading.Thread(target=_auto_refresh, daemon=True).start()
     srv = server("127.0.0.1", a.port)
     print(f"the builder console at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")

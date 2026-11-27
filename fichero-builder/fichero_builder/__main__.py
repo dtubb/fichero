@@ -264,6 +264,8 @@ def main(argv=None) -> int:
     cs = sub.add_parser("status", help="the owner's console on 127.0.0.1: lanes live, alerts with their actions, Build, loop start/stop; /api/status, /api/events, POST /api/action onto the existing verbs")
     cs.add_argument("--port", type=int, default=8766), cs.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     cs.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml the verbs read")
+    mcp = sub.add_parser("mcp", help="the builder's MCP server on stdio: the console's reads and controls as tools (status, lanes, alerts, now, review_list, thread; lane_pause, lane_resume, alert_answer, review_verdict, message_manager)")
+    mcp.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml the verbs read"), mcp.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     w = sub.add_parser("work", help="run, patches, fetch, check, review, land as one process; stops with QUESTION: (exit 2), never pushes")
     w.add_argument("--brief", required=True), w.add_argument("--worktree", required=True), w.add_argument("--name", required=True)
     w.add_argument("--kind", default="claude", choices=["claude"])
@@ -624,6 +626,10 @@ def main(argv=None) -> int:
         from fichero_builder import console
 
         return console.main(a)
+    if a.cmd == "mcp":
+        from fichero_builder import mcp_server
+
+        return mcp_server.main(a)
     if a.cmd == "review":
         from fichero_builder import review
 
