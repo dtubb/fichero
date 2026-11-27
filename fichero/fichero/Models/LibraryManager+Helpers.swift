@@ -370,6 +370,39 @@ extension LibraryManager {
         }
     }
 
+    /// Whether a window that sees the engine ready should ask for its library's load itself (#7078): the library is
+    /// neither loaded nor loading. A load the window's launch began before the engine was ready parks silently, and
+    /// the pane's spinner (engine ready, library not loaded) never clears unless something asks again.
+    nonisolated static func windowShouldAskForLoad(engineReady: Bool, loaded: Bool, loading: Bool) -> Bool {
+        engineReady && !loaded && !loading
+    }
+
+    /// The window's re-ask once the engine is ready (#7078). A grant gate still set is left alone: it may be a grant
+    /// in flight, and releasing it would let the load read the package before the sandbox grant lands (#3986-A, #3773).
+    /// A grant that failed clears its own gate (`grantDidFail`), so a gate that is set is never stale here.
+    func askForLoadOnEngineReady(_ library: LibraryReference, engineReady: Bool) async {
+        guard Self.windowShouldAskForLoad(
+            engineReady: engineReady,
+            loaded: loadedLibraryIds.contains(library.id),
+            loading: loadingLibraryIds.contains(library.id)
+        ) else { return }
+        await loadLibraryDataIfNeeded(for: library)
+    }
+
+    /// The same re-ask, started and not awaited: the caller goes on to start its streams while the load runs (#7078).
+    @discardableResult
+    func askForLoadOnEngineReadyInBackground(_ library: LibraryReference, engineReady: Bool) -> Task<Void, Never> {
+        Task { @MainActor in
+            await askForLoadOnEngineReady(library, engineReady: engineReady)
+        }
+    }
+
+    /// The open-time sandbox grant threw, so its engineWork leg will never clear the gate: clear it here, so the
+    /// window's re-ask loads the library and the load reports its own failure (#7078).
+    func grantDidFail(for library: LibraryReference) {
+        libraryIdsAwaitingGrant.remove(library.id)
+    }
+
     /// Initialize the backend database and load app data once per library.
     /// Re-entrant guards avoid duplicate startup tasks when the
     /// window, restore, and backend-ready paths all observe the same library.
