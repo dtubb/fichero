@@ -10,6 +10,7 @@ the loop uses."""
 from __future__ import annotations
 
 import math
+import os
 import re
 import shlex
 import shutil
@@ -626,7 +627,7 @@ def _rebaked(repo, wt: str, h: str, files: list[str], rebake: Callable, tid: str
     except Exception as e:  # noqa: BLE001 - a re-bake that cannot run is the conflict as before, never a lost train
         baked, why = None, f"{type(e).__name__}: {e}"
     else:
-        why = "the re-bake did not run"
+        why = getattr(rebake, "why", "") or "the re-bake did not run"
     if not baked:
         _git(repo, "reset", "-q", "--hard", "HEAD^1", cwd=wt)
         journal.append("rebake", train=tid, head=h, files=files, ok=False, detail=f"{why}: the conflict stands"[:300])
@@ -643,6 +644,16 @@ def drop_refs(repo, tid: str) -> None:
     """Delete the `refs/train/<tid>-*` refs git_merge wrote: a ref pins its commits against gc, and nothing reads one after the train."""
     for ref in _git(repo, "for-each-ref", "--format=%(refname)", f"refs/train/{tid}-*").stdout.split():
         _git(repo, "update-ref", "-d", ref)
+
+
+def _writable(tree) -> None:
+    """Every directory and file of a scratch tree writable by the jailed worker (the `.git` link file is left alone)."""
+    for d, dirs, files in os.walk(tree):
+        os.chmod(d, os.stat(d).st_mode | 0o777)
+        for f in files:
+            p = os.path.join(d, f)
+            if not os.path.islink(p) and f != ".git":
+                os.chmod(p, os.stat(p).st_mode | 0o666)
 
 
 def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | None = None, base: str = "", scans: bool = False):
@@ -671,13 +682,20 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         tree = None
         try:
             tree = check_tool._scratch_tree(repo, merged, pinned, cfg, overlay=False)
+            # 2026-11-27 10:46: the tree is the owner's checkout, read-only to the jailed worker; sync_openapi_schema.sh could not write
+            # tests/contracts/openapi.json, so the re-bake "did not run" and the conflict stood. This throwaway tree is the worker's to write
+            # ponytail: world-writable for the run's minutes; the files it yields are only generated ones, checked again by the train's rungs
+            _writable(tree)
             py = cfg.python or "python3"
             lines = [" ".join(shlex.quote(py if x == "{python}" else x) for x in cfg.rebake),
                      *(x.replace("{python}", shlex.quote(py)) for x in cfg.regen)]
             for i, line in enumerate(lines):
                 r = check_tool._run(f"rebake-{i}", ["bash", "-c", line], tree, 600, cfg, {"FICHERO_PYTHON_BIN": py})
                 if not r.get("ok"):
+                    rebake.why = (f"the re-bake's command {i + 1} failed (exit {r.get('exit_code')}): {line[:160]}: "
+                                  f"{(r.get('stderr_tail') or r.get('stdout_tail') or '').strip()[-400:]}")
                     return None
+            rebake.why = ""
             return {f: Path(tree, f).read_text() for f in cfg.generated if Path(tree, f).is_file()}
         finally:
             check_tool._jail_exit()

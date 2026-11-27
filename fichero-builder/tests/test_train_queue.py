@@ -491,3 +491,26 @@ def test_trains_of_one_take_each_waiting_step_in_turn_never_the_same_front_step_
         queue.tick(t.fake.procs, hs, workers_n=3, push=True, out=lambda s: None)
     firsts = [tr for tr in t.trains if len(tr) == 1][:3]
     assert sorted(k for tr in firsts for k in tr) == ["l1/1", "l2/2", "l3/3"], f"each step boards in turn: {t.trains}"
+
+
+def test_a_restart_mid_train_frees_its_steps_with_one_row_and_a_lane_with_no_paused_key_never_crashes_a_tick(world):
+    """2026-11-27 10:58: a kickstart mid-train left seg-batch-6, 0.3 and 1b holding train-20261127-104519 with no train running; and
+    two lanes with no `paused` key crashed every tick in idle_alert, before train_when_due could free them."""
+    t = Trained(*world, ["1", "2"], cfg=train.Cfg(min_steps=9))
+    hs: dict = {}
+    for _ in range(3):
+        queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
+    lanes = queue.load()
+    for x in lanes:
+        x["steps"][0].update(train_id="train-20261127-104519", train_pos=0)
+        x.pop("paused", None)
+    since = {x["id"]: x["steps"][0]["train_since"] for x in lanes}
+    queue.save(lanes)
+    assert queue.requeue_lost_trains() == ["train-20261127-104519"]
+    rows = [r for r in journal.read() if r.get("state") == "train-lost"]
+    assert len(rows) == 1 and rows[0]["steps"] == ["l1/1", "l2/2"] and "lost to a restart" in rows[0]["detail"]
+    after = queue.load()
+    assert all("train_id" not in x["steps"][0] and x["steps"][0]["train_since"] == since[x["id"]] for x in after)
+    assert all(x["paused"] is False for x in after)
+    queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
+    assert not [r for r in journal.read() if r.get("state") == "lane-error"]

@@ -616,3 +616,50 @@ def test_base_reds_are_named_kept_with_their_first_seen_time_alerted_once_after_
     assert set(_json.loads((journal.STATE / "base-reds.json").read_text())) == {"PaneTests.testClose()", "_alerted"}, "NavTests passed on b3: cleared"
     train.against_base(["X.y()"], out, "b4", lambda: {"ok": False, "failing": ["X.y()"]}, ["FicheroTests/X"])
     assert "PaneTests.testClose()" in _json.loads((journal.STATE / "base-reds.json").read_text()), "a base that did not run its suite clears nothing"
+
+
+def test_the_rebake_tree_is_writable_by_the_generators_and_a_failed_rebake_row_names_its_command(tmp_path, monkeypatch):
+    """2026-11-27 10:46 (train-20261127-104519, head 0529f382): `the re-bake did not run`. The scratch tree is the owner's checkout,
+    read-only to the jailed worker, so sync_openapi_schema.sh could not write tests/contracts/openapi.json; the row said nothing more."""
+    import os
+    import subprocess as sp
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    tree = tmp_path / "tree"
+    (tree / "fichero-server/tests/contracts").mkdir(parents=True)
+    spec = tree / "fichero-server/tests/contracts/openapi.json"
+    spec.write_text("{}")
+    for d, _dirs, files in os.walk(tree):  # what the jailed worker meets: nothing of it is its own to write
+        for f in files:
+            os.chmod(os.path.join(d, f), 0o444)
+    for d, _dirs, _files in sorted(os.walk(tree), reverse=True):
+        os.chmod(d, 0o555)
+    with pytest.raises(PermissionError):
+        spec.write_text('{"x": 1}')
+    train._writable(str(tree))
+    spec.write_text('{"x": 1}')
+    (spec.parent / "new.json").write_text("{}")
+    assert spec.read_text() == '{"x": 1}'
+    # a re-bake whose command fails says which and why in the row; the conflict stands
+    r = tmp_path / "r"
+    r.mkdir()
+    g = lambda *a: sp.run(["git", "-C", str(r), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    gen = "gen.py"
+    (r / gen).write_text("ID = 'base'\n")
+    g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base")
+    base = g("rev-parse", "HEAD")
+    heads = []
+    for name in ("sa", "sb"):
+        g("checkout", "-qb", name, base)
+        (r / gen).write_text(f"ID = '{name}'\n")
+        g("commit", "-qam", name)
+        heads.append(g("rev-parse", "HEAD"))
+    g("checkout", "-q", "integration")
+
+    def rebake(merged):
+        rebake.why = "the re-bake's command 2 failed (exit 1): bash sync_openapi_schema.sh: PermissionError: openapi.json"
+        return None
+    _cand, bad = train.git_merge(str(r), base, heads, "refs/train/t-9", (gen,), rebake, "t")
+    assert heads[1] in bad
+    row = [x for x in journal.read() if x.get("event") == "rebake"][-1]
+    assert not row["ok"] and "command 2 failed" in row["detail"] and "PermissionError" in row["detail"]

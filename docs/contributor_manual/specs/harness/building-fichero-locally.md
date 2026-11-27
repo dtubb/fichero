@@ -1473,6 +1473,19 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   row; a re-bake that cannot run leaves the conflict as before (2026-11-26/27: kg-store 3.1, kg-readable 2.3 and files-batch
   were each sent back for the identity alone). Test:
   `fichero-builder/tests/test_train.py::test_two_steps_that_both_regenerate_the_identity_ride_one_train_with_the_identity_re_baked_and_no_send_back`.
+  The re-bake's scratch tree is made writable for the jailed worker before the generators run (2026-11-27 10:46: the owner's
+  read-only checkout made `sync_openapi_schema.sh` fail on `tests/contracts/openapi.json`, and the row said only "did not run"); a
+  failed re-bake's row names the command that failed and its output. Test:
+  `fichero-builder/tests/test_train.py::test_the_rebake_tree_is_writable_by_the_generators_and_a_failed_rebake_row_names_its_command`.
+  At the loop's start a step still holding a train_id waits again (its wait kept), with one `train-lost` row per train; a lane
+  missing its `paused` key reads as not paused. Test:
+  `fichero-builder/tests/test_train_queue.py::test_a_restart_mid_train_frees_its_steps_with_one_row_and_a_lane_with_no_paused_key_never_crashes_a_tick`.
+  The scratch sweep also runs at the loop's start and then daily whether a lane is busy or not, over the scratch dirs a day old
+  that no running process names (`when_idle` never ran on a loop that is never idle). A lane whose new tree meets "a branch named
+  'lane-<id>' already exists" deletes that branch as the worker when origin's land branch holds it in full, with one
+  `merged-branch-deleted` row, and tries once more; an unmerged one fails as before. Tests:
+  `fichero-builder/tests/test_scratch_sweep.py::test_the_daily_sweep_runs_at_the_start_and_then_daily_whether_the_loop_is_busy_and_keeps_a_day_old_or_held_dir`,
+  `fichero-builder/tests/test_work_tree.py::test_a_lane_branch_left_from_an_old_batch_is_deleted_and_the_tree_made_when_it_is_merged_else_the_add_fails_as_before`.
   A step whose only failure in a train is a merge conflict with the train's earlier steps (not with origin) is not sent back:
   it is held to ride after them (`train_after`, one `train-conflict-held` row), out of every train until they have landed or
   left the train; then its chain rebases it onto origin and it rides the next train. Only a conflict in that rebase, or one

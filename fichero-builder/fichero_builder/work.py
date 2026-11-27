@@ -111,7 +111,16 @@ def ensure_worktree(a, new_branch: str) -> str:
     if bundle := getattr(a, "base_bundle", ""):  # #6466: a head the worker's origin lacks, fetched from the owner's bundle
         base = f"base-{new_branch}"
         pre = f"{g} -C {root} fetch -q --no-tags -- {q(bundle)} +refs/heads/{q(base)}:refs/heads/{q(base)} && "  # the bundle carries that one ref
-    r = as_worker(a, f"{g} -C {root} fetch -q origin {q(branch)} && {pre}{g} -C {root} worktree add -q -b {q(new_branch)} {q(str(a.worktree))} {q(base)}")
+    add = f"{g} -C {root} worktree add -q -b {q(new_branch)} {q(str(a.worktree))} {q(base)}"
+    r = as_worker(a, f"{g} -C {root} fetch -q origin {q(branch)} && {pre}{add}")
+    if r.returncode and f"a branch named '{new_branch}' already exists" in (r.stderr + r.stdout):
+        # 2026-11-27 11:17: runner-reliability's lane-runner-reliability from 11-16, fully merged, stopped the lane's new tree. A branch
+        # origin already holds is deleted (as the worker) and the add tried once more; an unmerged one is the alert as before
+        merged = as_worker(a, f"{g} -C {root} merge-base --is-ancestor {q(new_branch)} {q('origin/' + branch)}")
+        if merged.returncode == 0 and as_worker(a, f"{g} -C {root} branch -D {q(new_branch)}").returncode == 0:
+            journal.append("cleanup", lane=a.name, step="", state="merged-branch-deleted",
+                           detail=f"{new_branch} was fully merged into origin/{branch}: deleted so the lane's tree can be made")
+            r = as_worker(a, f"{pre}{add}")
     return "" if r.returncode == 0 else f"the worktree could not be made: {(r.stderr or r.stdout).strip()[-300:]}"
 
 

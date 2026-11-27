@@ -334,3 +334,37 @@ def test_a_head_holding_another_lanes_unlanded_commits_is_refused_before_its_che
     lanes[1]["steps"][0].update(state="train", head=training)
     queue.save(lanes)
     assert queue.other_heads("kg") == [("training/1b", training)] and queue.other_heads("training") == []
+
+
+@pytest.mark.parametrize("merged", [True, False])
+def test_a_lane_branch_left_from_an_old_batch_is_deleted_and_the_tree_made_when_it_is_merged_else_the_add_fails_as_before(tmp_path, monkeypatch, merged):
+    """2026-11-27 11:17: runner-reliability's new tree could not be made: "a branch named 'lane-runner-reliability' already exists",
+    a branch from 11-16 that origin/integration held in full; the manager deleted it by hand."""
+    import types
+
+    from fichero_builder import journal, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "pin").mkdir()
+    (tmp_path / "pin" / "harness.toml").write_text('[land]\nbranch = "integration"\n')
+    monkeypatch.setattr(work, "_jail", lambda a: types.SimpleNamespace(workroot=str(tmp_path / "wr")))
+    monkeypatch.setattr(work, "jail_git", lambda: "git")
+    adds, ran = [0], []
+
+    def as_worker(a, script):
+        ran.append(script)
+        if "worktree add" in script:
+            adds[0] += 1
+            if adds[0] == 1:
+                return types.SimpleNamespace(returncode=128, stdout="", stderr="fatal: a branch named 'lane-rr' already exists")
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        if "merge-base --is-ancestor" in script:
+            return types.SimpleNamespace(returncode=0 if merged else 1, stdout="", stderr="")
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+    monkeypatch.setattr(work, "as_worker", as_worker)
+    a = types.SimpleNamespace(worktree=str(tmp_path / "wt-rr"), pinned=str(tmp_path / "pin"), name="rr")
+    why = work.ensure_worktree(a, "lane-rr")
+    if merged:
+        assert why == "" and adds[0] == 2 and any("branch -D lane-rr" in s for s in ran)
+        assert [r["state"] for r in journal.read() if r.get("event") == "cleanup"] == ["merged-branch-deleted"]
+    else:
+        assert "already exists" in why and adds[0] == 1 and not any("branch -D" in s for s in ran)

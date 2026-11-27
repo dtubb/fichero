@@ -124,6 +124,23 @@ def main(a) -> int:
 
 
 EVERY_H = 6.0
+DAILY_H = 24.0  # manager 2026-11-27: at the loop's start and then daily, whether a lane is busy or not; a dir held by no check, a day old
+
+
+def daily(root, force: bool = False) -> None:
+    """when_idle never ran on a loop that is never idle (last 2026-11-25; 200 check-tree dirs by 11-27): the same two steps, at the
+    loop's start (`force`) and every DAILY_H hours, over the dirs older than DAILY_H no running process names."""
+    mark = journal.STATE / "scratch-sweep-daily.last"
+    if not force and mark.is_file() and time.time() - mark.stat().st_mtime < DAILY_H * 3600:
+        return
+    mark.parent.mkdir(parents=True, exist_ok=True)
+    mark.write_text(time.strftime("%Y-%m-%dT%H:%M:%S"))
+    try:
+        f, n, _kb = list_step(root, DAILY_H)
+        if n:
+            delete_step(root, f, DAILY_H)
+    except Exception as e:  # noqa: BLE001 - housekeeping never stops the loop
+        journal.append("sweep-scratch", state="error", detail=str(e)[-300:])
 
 
 def when_idle(root) -> None:

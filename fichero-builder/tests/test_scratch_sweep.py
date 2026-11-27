@@ -104,3 +104,19 @@ def test_the_review_dir_is_refused_when_it_is_open_to_others_or_a_symlink(world)
     d.symlink_to(journal.STATE / "elsewhere")
     with pytest.raises(RuntimeError, match="REFUSED"):
         scratch.review_dir()
+
+
+def test_the_daily_sweep_runs_at_the_start_and_then_daily_whether_the_loop_is_busy_and_keeps_a_day_old_or_held_dir(world, monkeypatch):
+    """manager 2026-11-27: when_idle never ran on a loop that is never idle (200 check-tree dirs by 11-27)."""
+    root, wr, repo, make = world
+    day = time.time() - 25 * 3600
+    old, young = make("check-tree-old11111", age=day, tree=True), make("check-tree-young222", age=time.time() - 7 * 3600)
+    held = make("check-tree-held3333", age=day)
+    monkeypatch.setattr(scratch, "_held", lambda: f"xcodebuild -derivedDataPath {held}/dd")
+    scratch.daily(root, force=True)
+    assert not old.exists() and young.exists() and held.exists(), "a day old and held by no check: only that one goes"
+    late = make("check-tree-late4444", age=day)
+    scratch.daily(root)
+    assert late.exists(), "within the day: no second sweep"
+    scratch.daily(root, force=True)
+    assert not late.exists(), "the loop's start sweeps whatever the mark says"

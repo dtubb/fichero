@@ -184,7 +184,28 @@ def path() -> Path:
 
 
 def load() -> list[dict]:
-    return json.loads(path().read_text())["lanes"] if path().is_file() else []
+    lanes = json.loads(path().read_text())["lanes"] if path().is_file() else []
+    for x in lanes:  # 2026-11-27 10:52-11:15: two lanes with no `paused` key crashed every tick in idle_alert, and launchd restarted the loop into it
+        x.setdefault("paused", False)
+    return lanes
+
+
+def requeue_lost_trains() -> list[str]:
+    """At the loop's start no train runs in this process: a step still holding a train_id (a restart mid-train, 2026-11-27 10:58,
+    train-20261127-104519) waits again, its train_since kept; one `train-lost` row per train."""
+    lost: dict = {}
+    with journal.Lock("queue"):
+        lanes = load()
+        for x in lanes:
+            for st in x["steps"]:
+                if st["state"] == "train" and "train_back" not in st and (tid := st.pop("train_id", None)):
+                    st.pop("train_pos", None)
+                    lost.setdefault(tid, []).append(f"{x['id']}/{st['step']}")
+        if lost:
+            save(lanes)
+    for tid, keys in lost.items():
+        journal.append("train", state="train-lost", id=tid, steps=keys, detail=f"train {tid} lost to a restart: {', '.join(keys)} wait for the next one")
+    return sorted(lost)
 
 
 def save(lanes: list[dict]) -> None:
@@ -2862,6 +2883,9 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
     worker_cli_when_due(procs, chains)
     deps_when_due(procs, chains)
     gh_watch_when_due(procs, chains)
+    if getattr(procs, "root", ""):
+        from fichero_builder import scratch
+        scratch.daily(procs.root)
     if not busy:
         verify_when_idle(procs, chains)
         if getattr(procs, "root", ""):  # housekeeping at a quiet tick: the ladders' old scratch dirs (run.scratch-sweep)
@@ -3032,6 +3056,10 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             sys.stdout.reconfigure(line_buffering=True)  # #6466: under launchd a block-buffered loop.log is hours behind
         journal.STATE.mkdir(parents=True, exist_ok=True)
         (journal.STATE / "loop.pid").write_text(f"{os.getpid()}\n")  # the watchdog's restart kills this pid; an exec keeps it
+        requeue_lost_trains()
+        if getattr(procs, "root", ""):  # the scratch sweep at the start, then daily in the tick (scratch.daily)
+            from fichero_builder import scratch
+            scratch.daily(procs.root, force=True)
         from fichero_builder import check_tool
         for w in check_tool.rules_warnings(getattr(procs, "root", "") or "."):
             journal.append("rules", state="warning", detail=w)
