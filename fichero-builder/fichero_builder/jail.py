@@ -108,6 +108,7 @@ class Jail:
                                capture_output=True)
             if r.returncode == 0:
                 bad.append(f"{p} is readable by {self.user}")
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- the shell text is a constant; the environment supplies only the PATH that gh is looked up on (#7100)
         gh = subprocess.run(self.argv(["/bin/sh", "-c", "command -v gh >/dev/null && gh auth status"], env={"PATH": os.environ.get("PATH", "")}),
                             capture_output=True)
         if gh.returncode == 0:

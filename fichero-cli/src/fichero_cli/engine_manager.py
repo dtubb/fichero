@@ -188,6 +188,7 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
             # (else respawn fails with EADDRINUSE).
             Path(uds_path).unlink(missing_ok=True)
             proc = subprocess.Popen(
+                # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- uvicorn started as a list with no shell; FICHERO_UDS_PATH is set by the person running the CLI and is passed as one argument (#7100)
                 [
                     sys.executable,
                     "-m",

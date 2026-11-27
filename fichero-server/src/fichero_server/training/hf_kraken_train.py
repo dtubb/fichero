@@ -44,4 +44,5 @@ command += ["train", "-f", "page", "-q", "early", "-N", "50", "--min-epochs", "5
             "--schedule", "constant", "-B", str(args.batch), "-p", "0.9", "-o", os.path.join(args.out, args.name)]
 if args.base:
     command += ["-i", os.path.join(args.data, "base", args.base), "--resize", "union"]
+# nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- ketos run as a list with no shell inside the training job; --name is one file name (refused otherwise by _TrainRequest) and --base is a copied file's own name (#7100)
 subprocess.run([*command, *pages], check=True)
