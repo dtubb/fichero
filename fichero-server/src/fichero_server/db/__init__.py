@@ -4106,15 +4106,18 @@ class Database(DatabaseEmbeddingMixin):
                 )
         return workflows
 
-    def query_page(self, model: Type[T], *, limit: int, offset: int = 0) -> list[T]:
-        """Return a stable, bounded page without hydrating the whole table."""
+    def query_page(self, model: Type[T], *, limit: int, offset: int = 0, order_by: str = "id") -> list[T]:
+        """Return a stable, bounded page without hydrating the whole table. `order_by` is one column (`rowid` is table
+        order, the order `all()` returns)."""
         if limit < 1 or offset < 0:
             raise ValueError("limit must be positive and offset must not be negative")
+        if not _VALID_IDENTIFIER.match(order_by):
+            raise ValueError(f"Invalid column name: {order_by}")
 
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
         rows, columns = self._execute_fetch_with_columns(
-            f"SELECT * FROM {sql_table} ORDER BY id LIMIT $limit OFFSET $offset",
+            f"SELECT * FROM {sql_table} ORDER BY {order_by} LIMIT $limit OFFSET $offset",
             {"limit": limit, "offset": offset},
         )
         return [
