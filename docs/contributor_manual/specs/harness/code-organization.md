@@ -235,7 +235,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   a few words). Wired through `harness.toml` `since_guards` on `fichero/` and `fichero-server/`
   (the `--since` shape of #6318), so it runs in the guards rung of every batch under the 60 s budget; the whole-tree
   question stays with `check_folder_organization.py`. A deleted or modified-in-place file is not judged (the tree's debt is
-  the nightly guard's). Built (#1944): `check_file_placement` with a `--self-test`
+  the nightly guard's). Built (#1944): the guard `check_file_placement` with a `--self-test`
   that stages a synthetic range holding one right and one wrong file per rule; a pytest under
   `fichero-server/tests/unit/scripts/` that runs it over a temp repo.
   Built (#6607): the Python and repo-root rules, wired on every diff (`since_guards` prefix ""); a new test also passes in a
