@@ -319,8 +319,12 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   fails after 6, retried, makes exactly 4 model calls and ends done with 10 results; a second recipe run over the same 10 pages with
   the same model makes 0 calls. **Built (2026-11-13 night):** the Retry half, pinned: a run of 10 pages whose model
   fails after 6, retried from its row, makes exactly 4 calls (`read_again` over the pages not done) and the new run
-  ends done with 4. Not pinned: a recipe re-run over pages already read with the same model making 0 calls. *Tests:*
+  ends done with 4. **Built (2026-11-27), pinned:** a second run over the same ten pages with the same model makes 0 calls
+  (the node cache; `::test_a_second_run_over_the_same_pages_with_the_same_model_makes_no_calls`), and a recipe started again
+  reads no page twice (`split_done`; `test_recipe_cards_to_spec.py::test_source_recipe_done_is_not_redone`). Not built: the
+  run's counts in words ("6 reused · 4 read"): a Retry is a new run over the pages not done, so its row counts 4. *Tests:*
   `fichero-server/tests/unit/jobs/test_continue_makes_only_the_missing_calls_6584.py`; the existing
+  `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`,
   `fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py`.
 - `activity.limits.one-cap-per-kind-across-everything` — **[PARTIAL]** (#6584, decision 16; built in part: the lanes `LANES` in
   `jobs.py` cap jobs per lane (`remote` 2, `network` 4, `local-ml` 1 with `LOCAL_READS_CEILING` 4 for the loaded local
