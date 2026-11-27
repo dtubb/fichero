@@ -312,7 +312,8 @@ def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "change")
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["ok"], r
-    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "security", "contract-current", "since-guards", "build", "perf"]
+    # the order is the tool's own RUNGS (a fixed list here went stale when `unit` and `ui` were added), after the pinned-copy check
+    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", *ct.RUNGS]
 
 
 def test_an_approved_guard_data_file_is_head_s_copy_under_the_pinned_guard_and_nothing_else_is(tmp_path):
