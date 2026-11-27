@@ -1323,5 +1323,5 @@ action record holding a researcher's words is ruled out.
   next statement and cannot open a second `Database` on the file for it to write through outside the transaction.
   `close_all` takes each `Database` out of the manager's table before it closes it, as `close_database` does. Tests:
   `fichero-server/tests/unit/db/test_a_closed_database_stays_closed_6238.py::test_a_statement_after_close_is_refused_and_opens_nothing`, `::test_a_library_closed_inside_a_transaction_opens_no_second_database`.
-- `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
+- `source.store.fresh-open-invariant` — **[OK]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists. *Built: the guard reads the catalog of a freshly opened library. Tests:* `fichero-server/tests/unit/db/test_fresh_open_invariant.py::test_no_registered_model_is_missing_its_table`, `::test_nothing_declared_is_missing`, `::test_opening_twice_keeps_every_declared_index`.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.
