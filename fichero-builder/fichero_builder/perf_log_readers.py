@@ -68,6 +68,39 @@ def read_app_log(lines) -> dict:
     return {"phases": phases, "status": "ok" if phases else "no-app-log"}
 
 
+#: The app's launch milestones the budgets are read from, by the name `LaunchProfile.milestone` logs (#7105).
+LAUNCH_MILESTONES = {
+    "will_finish": "applicationWillFinishLaunching — engine connect starts",
+    "connect": "connect() entry — main actor reached",
+    "first_on_appear": "LibraryWindow first onAppear",
+}
+#: ms. The first window within 3 s of process start; `connect()` on the main actor within 1 s of willFinishLaunching.
+LAUNCH_BUDGETS_MS = {"first_on_appear_ms": 3000, "connect_after_will_finish_ms": 1000}
+
+
+def launch_budgets(lines) -> dict:
+    """The first launch in `lines` (the app's `⏱ name @ N ms` lines) against LAUNCH_BUDGETS_MS. `ok` only when every milestone was
+    logged and every figure is inside its budget: a launch that logged no milestone was not measured, and that is a red."""
+    at: dict[str, float] = {}
+    last = None
+    for line in lines:
+        m = _LAUNCH.search(_message(line))
+        if not m:
+            continue
+        name, elapsed = _DETAIL.sub("", m.group(1)), float(m.group(2))
+        if last is not None and elapsed < last:
+            break  # a second launch starts again from zero
+        last = elapsed
+        at.setdefault(name, elapsed)
+    missing = [name for name in LAUNCH_MILESTONES.values() if name not in at]
+    figures = {}
+    if not missing:
+        figures = {"first_on_appear_ms": at[LAUNCH_MILESTONES["first_on_appear"]],
+                   "connect_after_will_finish_ms": round(at[LAUNCH_MILESTONES["connect"]] - at[LAUNCH_MILESTONES["will_finish"]], 3)}
+    over = [f"{name} {value} > {LAUNCH_BUDGETS_MS[name]}" for name, value in figures.items() if value > LAUNCH_BUDGETS_MS[name]]
+    return {"ok": not missing and not over, "figures": figures, "over": over, "missing": missing}
+
+
 def _kv(rest: str) -> dict:
     return dict(tok.split("=", 1) for tok in rest.split())
 
