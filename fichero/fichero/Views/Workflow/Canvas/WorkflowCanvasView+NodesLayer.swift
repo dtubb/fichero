@@ -129,11 +129,7 @@ extension WorkflowCanvasView {
         let previousWorkflow = workflow
         let nodeId = workflow.nodes[index].id
 
-        // Remove connected edges
-        workflow.edges.removeAll { $0.sourceNodeId == nodeId || $0.targetNodeId == nodeId }
-
-        // Remove node
-        workflow.nodes.remove(at: index)
+        workflow.removeNodes(ids: [nodeId])
         editingNodeId = nil
         selectedNodeIds.remove(nodeId)
         registerUndo(from: previousWorkflow, actionName: "Delete Node")

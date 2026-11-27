@@ -68,11 +68,8 @@ extension WorkflowCanvasView {
         let sourceNodeId = edge.sourceNodeId
         let sourcePortId = edge.sourcePortId
 
-        // Remove the edge
-        workflow.edges.remove(at: edgeIndex)
-
-        // Remove the input mapping from the target node
-        removeInputMapping(targetNodeId: targetNodeId, targetPortId: port.id)
+        // Remove the edge and the mapping that read it
+        workflow.removeEdge(id: edge.id)
 
         // Find the source node and port to start a new drag
         guard let sourceNode = workflow.nodes.first(where: { $0.id == sourceNodeId }),
@@ -213,13 +210,6 @@ extension WorkflowCanvasView {
                 transform: nil
             ))
         }
-    }
-
-    /// Remove an input mapping when an edge is disconnected
-    func removeInputMapping(targetNodeId: String, targetPortId: String) {
-        guard let nodeIndex = workflow.nodes.firstIndex(where: { $0.id == targetNodeId }) else { return }
-
-        workflow.nodes[nodeIndex].inputMappings.removeAll { $0.portId == targetPortId }
     }
 }
 
