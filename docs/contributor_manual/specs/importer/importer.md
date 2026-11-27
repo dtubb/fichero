@@ -570,6 +570,17 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   `OriginalsStore.isMissing`'s array search; a page the listing does not show still costs the full
   `original_is_there`. Test: `fichero-server/tests/unit/importers/test_missing_originals_is_bounded.py`.
 
+## What the person sees
+
+### Originals are missing (#7077, #5672)
+
+- **Opener.** The alert opens on the project window once per project open, after the remembered folder has been tried. File ▸ Locate Originals… and an item's menu open the Locate Originals sheet at any time; the Items pane keeps showing its count.
+- **What it shows.** Title "Originals are missing", the engine's one sentence naming how many pages, and two buttons: "Locate…" (opens the sheet) and "Not Now" (closes it; not asked again this open). No strip or banner is drawn above the rows.
+- **Empty.** No missing originals: no alert, nothing to dismiss.
+- **Loading.** Until the missing count has been read, nothing is offered; the alert never shows a guess.
+- **Error.** If the count cannot be read, no alert is shown and the sheet still opens from the menu, where its error names what failed.
+- **Acceptance.** Open a project with a missing original: the alert shows once with Locate… and Not Now; Not Now leaves the window clear and the alert does not return until the next open. Test: `fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift` (`offersOncePerOpen`, `locateFromTheAlert`).
+
 ## Build order
 
 From the review of 2026-11-20 ("Import and derivatives at scale" above), its ranked fixes in rank order, one step each.
