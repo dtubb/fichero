@@ -20,9 +20,7 @@ struct WorkflowEditor: View {
     @Environment(WindowState.self) var windowState
 
     @State var isRunning: Bool = false
-    @State var isSaving: Bool = false
     @State var saveError: String?
-    @State var showSaveSuccess: Bool = false
     @State private var autosaveTask: Task<Void, Never>?
 
     // Canvas state (passed to WorkflowCanvasView)
@@ -31,9 +29,6 @@ struct WorkflowEditor: View {
 
     // Diagram preview state
     @State var showDiagramPreview: Bool = false
-    @State var diagramImage: PlatformImage?
-    @State var diagramLoading: Bool = false
-    @State var diagramError: String?
 
     // Document picker state
     @State var showDocumentPicker: Bool = false
@@ -253,6 +248,12 @@ struct WorkflowEditor: View {
                 """
             )
         }
+        .onAppear {
+            let binding = $editingWorkflow
+            editorUndoProxy.apply = { restored in
+                binding.wrappedValue = restored
+            }
+        }
         // Debounced autosave on any editingWorkflow change (#780). Without
         // this, model/provider selections in the node inspector live
         // in-memory only — never persisted to the engine — and are lost
@@ -261,15 +262,6 @@ struct WorkflowEditor: View {
         // user feels safe. (Tightened from 600ms — the user reported
         // model still resetting on restart, faster save = less window
         // for losing edits via popover-close races.)
-        .task(id: editingWorkflow.id) {
-            // Reset debounce when the user switches to a different workflow.
-        }
-        .onAppear {
-            let binding = $editingWorkflow
-            editorUndoProxy.apply = { restored in
-                binding.wrappedValue = restored
-            }
-        }
         .onChange(of: editingWorkflow) { _, newValue in
             let firstNode = newValue.nodes.first
             actionsLogger.info("""
