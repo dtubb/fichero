@@ -33,6 +33,13 @@ enum PageSwipe {
         !isZoomedIn && abs(velocity.x) > abs(velocity.y)
     }
 
+    /// Whether the picture's own sideways swipe turns to the next or previous image. Not at compact width: there the
+    /// picture is the Source page of the item pager, and the pager takes the swipe
+    /// (`ios.item.next-and-previous-item`, #6947).
+    static func turnsImage(compactWidth: Bool) -> Bool {
+        !compactWidth
+    }
+
     /// Where a page that isn't zoomed in rests: centred in the view along both axes. One formula for both cases: a
     /// page smaller than the view sits inside its centring inset (a negative offset), and one up to the zoomed-in
     /// threshold larger is split evenly. A new page must start here, not at the last page's scroll position.

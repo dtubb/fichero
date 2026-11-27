@@ -67,4 +67,11 @@ struct PageSwipeTests {
         #expect(PageSwipe.minimumZoom(fitScale: 0.4, minScale: 0.01) == 0.4)
         #expect(PageSwipe.minimumZoom(fitScale: nil, minScale: 0.01) == 0.01)
     }
+
+    /// `ios.item.next-and-previous-item` (#6947): at compact width the picture is the Source page of the item pager,
+    /// and the pager takes the sideways swipe.
+    @Test func thePicturesSwipeTurnsNoImageInsideTheItemPages() {
+        #expect(!PageSwipe.turnsImage(compactWidth: true))
+        #expect(PageSwipe.turnsImage(compactWidth: false))
+    }
 }
