@@ -1108,6 +1108,12 @@ with a reader installed, Kraken segment on a real-size page on the 8 GB Mac, and
 The quiet re-measure is a manager step on a measuring Mac (the figures go into section 14's table); the reader list and
 the paused word are engine work. The word waits on the pause lane's proposal (`recipes-run.control.paused-reads-one-word`).
 
+#### Step 6.4 — owed behaviours no step listed: failure in words, one step on a folder or file, Kraken's measured reliability (#6212, #7036, #6673)
+- Behaviours: `recipes-run.engine.failure-in-words-no-raw-text`, `recipes-run.journey.run-one-step-on-a-folder-or-file`, `recipes-run.kraken.reliability-measured`
+- Tests: the Test line of each behaviour above
+- Depends on: 6.3
+- Size: M
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
