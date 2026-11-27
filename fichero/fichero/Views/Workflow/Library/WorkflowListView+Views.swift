@@ -103,7 +103,7 @@ extension WorkflowListView {
     // MARK: - Table View
 
     var tableView: some View {
-        Table(filteredWorkflows, selection: $selectedWorkflowIds, sortOrder: $tableSortOrder) {
+        Table(filteredWorkflows.sorted(using: tableSortOrder), selection: $selectedWorkflowIds, sortOrder: $tableSortOrder) {
             TableColumn("Name", value: \.name) { workflow in
                 HStack {
                     Image(systemName: "flowchart")
@@ -146,9 +146,6 @@ extension WorkflowListView {
         .onChange(of: selectedWorkflowIds) { _, newValue in
             // Sync table selection to single selection for detail view
             selectedWorkflowId = newValue.first
-        }
-        .onChange(of: tableSortOrder) { _, _ in
-            // TableColumn sorting requires sortable workflows
         }
     }
 

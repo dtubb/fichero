@@ -2,7 +2,8 @@
 import XCTest
 
 /// Controls of the workflow list that were drawn but did nothing.
-/// spec: workflows `workflows.list.icon-double-click-opens`.
+/// spec: workflows `workflows.list.icon-double-click-opens`,
+/// `workflows.list.table-sorts-by-its-headers`.
 final class WorkflowListViewControlsTests: XCTestCase {
 
     private func viewsSource() throws -> String {
@@ -24,5 +25,15 @@ final class WorkflowListViewControlsTests: XCTestCase {
         let single = try XCTUnwrap(body.range(of: ".onTapGesture {"))
 
         XCTAssertLessThan(double.lowerBound, single.lowerBound)
+    }
+
+    /// The table hands SwiftUI a `sortOrder` binding, so its headers show a
+    /// sort arrow when clicked. The rows have to be sorted by that order, or
+    /// the arrow moves and nothing else does.
+    func testTheTableRowsAreSortedByTheSortOrderItsHeadersSet() throws {
+        let source = try viewsSource()
+        XCTAssertTrue(source.contains(
+            "Table(filteredWorkflows.sorted(using: tableSortOrder), selection: $selectedWorkflowIds, sortOrder: $tableSortOrder)"
+        ))
     }
 }
