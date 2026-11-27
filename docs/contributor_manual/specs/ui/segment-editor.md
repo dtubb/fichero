@@ -586,7 +586,7 @@ targets are at least 44 pt.
 
 See section 7.2 below for what exists. The design:
 
-- `segment-editor.char-positions-kept` — **[PARTIAL]** (→ #5154; engine) when Kraken reads a line, the recogniser's
+- `segment-editor.char-positions-kept` — **[OK]** (→ #5154; engine) when Kraken reads a line, the recogniser's
   per-character cuts are kept on the reading as `char_positions` (the fraction of the baseline's
   length at which each character starts, in the frame the line was read in) beside
   `char_confidences`, so every later cut can be measured instead of guessed. A reading from a
@@ -601,7 +601,9 @@ See section 7.2 below for what exists. The design:
   drawn). *Built 2026-11-21:* the full-page read's writer: `recognize_to_geometry` keeps each line's positions on
   its box (trimmed with the text), and converting the result into a pass puts them on the line's reading when there
   is one per character (`fichero-server/tests/unit/llm/test_full_page_read_keeps_char_positions.py`).
-  *Not built:* the app's `Reading` model. *Tests:* `test_kraken_char_positions.py`.
+  *Left, now `segment-editor.char-positions-in-the-app`:* the app's `Reading` model. *Tests:* `fichero-server/tests/unit/llm/test_kraken_char_positions.py`.
+- `segment-editor.char-positions-in-the-app` — **[GAP]** (→ #5154; app; split from `segment-editor.char-positions-kept`,
+  manager 2026-11-27 retag) what that line left: the app's `Reading` model. Not built: no Swift file names `char_positions`.
 - `segment-editor.cut-words-from-positions` — **[PARTIAL]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
   a page, derives word segments from the counting reading: each space in the text is a gap
   between two characters; the cut is the point on the baseline midway between the end of the
