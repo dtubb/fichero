@@ -8,6 +8,7 @@
   "docs/contributor_manual/specs/compute/runner-reliability.md::run.fail.bug-report-route",
   "docs/contributor_manual/specs/compute/runner-reliability.md::runner.pause.survives-relaunch",
   "docs/contributor_manual/specs/harness/building-fichero-locally.md::dev-workflows.quality.perf-method",
+  "docs/contributor_manual/specs/harness/building-fichero-locally.md::dev-workflows.review.quality-lenses",
   "docs/contributor_manual/specs/harness/building-fichero-locally.md::dev-workflows.review.performance-lens",
   "docs/contributor_manual/specs/harness/building-fichero-locally.md::dev-workflows.review.security-lens",
   "docs/contributor_manual/specs/harness/building-fichero-locally.md::local.engine-ux-coverage-report",
