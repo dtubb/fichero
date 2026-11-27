@@ -170,6 +170,38 @@ REF_LOCK_RACE = re.compile(r"cannot lock ref '[^']+': is at [0-9a-f]+ but expect
 REF_LOCK_TRIES, REF_LOCK_RETRY_S = 3, 2
 
 
+def _patch_ids(repo, since: str, head: str) -> dict:
+    """{patch-id: "<short sha> <subject>"} of the non-merge commits of since..head (git patch-id --stable)."""
+    log = _git(repo, "log", "--no-merges", "--format=%H %s", f"{since}..{head}").stdout.splitlines()
+    out = {}
+    for line in log:
+        sha, _, subject = line.partition(" ")
+        diff = _git(repo, "show", "--no-color", "--format=", sha).stdout
+        pid = subprocess.run([land_tool.GIT, "patch-id", "--stable"], input=diff, capture_output=True, text=True).stdout.split()
+        if pid:
+            out[pid[0]] = f"{sha[:9]} {subject}"
+    return out
+
+
+def foreign_commits(repo, since: str, head: str, others) -> list[tuple[str, str]]:
+    """[(other lane/step, "<sha> <subject>")] of the commits of since..head whose patch-id is one of another lane's unlanded step's
+    commits (its own range over the same base). [] when none, or when nothing can be read."""
+    if not since or not others:
+        return []
+    try:
+        since = since if re.fullmatch(r"[0-9a-f]{40}", since) else r_since(repo, since)  # a branch name: its sha in the engine repo
+        mine = _patch_ids(repo, since, head)
+        hits = []
+        for key, other in others:
+            if not other or _git(repo, "cat-file", "-e", f"{other}^{{commit}}").returncode:
+                continue
+            theirs = _patch_ids(repo, since, other)
+            hits += [(key, mine[p]) for p in set(mine) & set(theirs)]
+        return hits
+    except (OSError, ValueError, RuntimeError):
+        return []
+
+
 def do_rebase(a, branch: str) -> str:
     """As the worker: fetch origin and rebase the worktree onto origin/<branch>, so a lane that lands after another is judged
     on the range that will land. '' = done; otherwise why (the rebase aborted, never resolved here).
@@ -862,6 +894,16 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         head = do_fetch(a, repo, branch)
         if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
             return no("error", f"could not fetch the worktree's branch into {repo}")
+        if (others := getattr(a, "foreign_heads", ())) and (foreign := foreign_commits(repo, branch, head, others)):
+            # 2026-11-27 05:14: told of a train conflict, kg-readable 2.3's worker MERGED the training lane's branch; the rebase after it
+            # flattened ~25 training commits into the step. A step never carries another lane's unlanded commits into a check
+            step("foreign", False, f"{len(foreign)} commit(s) of another lane's unlanded step")
+            text = (f"Your branch holds commits of another lane's step that has not landed ({', '.join(sorted({k for k, _c in foreign}))}):\n"
+                    + "\n".join(f"- {c}" for _k, c in foreign[:30])
+                    + f"\nRebuild the branch from origin/{branch} with only this step's own commits (`git rebase -i origin/{branch}` dropping "
+                    "those, or a new branch and `git cherry-pick` of yours). Never merge, pull or cherry-pick another lane's branch: a "
+                    "conflict with a step that has not landed waits for it to land, then you rebase onto origin.")
+            return no("refused", f"the head {head[:9]} holds {len(foreign)} commit(s) of another lane's unlanded step", findings=text)
         if getattr(a, "after_fetch", None):  # the queue's premerge against the steps waiting for the train (local.check.conflict-told-at-done)
             a.after_fetch(head)
         try:

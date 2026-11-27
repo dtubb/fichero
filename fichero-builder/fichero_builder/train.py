@@ -451,7 +451,10 @@ def git_merge(repo, base: str, heads: list[str], ref: str, generated: tuple = ()
                 files = _git(repo, "diff", "--name-only", "--diff-filter=U", cwd=wt).stdout.split()
                 if files and rebake is not None and set(files) <= set(generated) and _rebaked(repo, wt, h, files, rebake, tid):
                     continue
-                conflicts[h] = f"merging {h[:9]} onto the train's earlier steps conflicts in: {', '.join(files) or '(unknown)'}\n{(m.stdout + m.stderr).strip()[-600:]}"
+                conflicts[h] = (f"merging {h[:9]} onto the train's earlier steps conflicts in: {', '.join(files) or '(unknown)'}\n"
+                                "Those steps have not landed: never merge, pull or cherry-pick another lane's branch to resolve this. Keep "
+                                "only this step's own commits on origin's land branch; once they land, rebase onto it and resolve there.\n"
+                                f"{(m.stdout + m.stderr).strip()[-600:]}")
                 _git(repo, "merge", "--abort", cwd=wt)
         cand = _git(repo, "rev-parse", "HEAD", cwd=wt).stdout.strip()
         _git(repo, "update-ref", ref, cand)

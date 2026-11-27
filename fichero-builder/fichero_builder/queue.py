@@ -2507,6 +2507,12 @@ def _a_cycle(after: dict) -> list:
     return []
 
 
+def other_heads(lane_id: str) -> list[tuple[str, str]]:
+    """[(lane/step, head)] of every OTHER lane's step that has a head and has not landed: commits a step of this lane must never hold."""
+    return [(f"{x['id']}/{st['step']}", st["head"]) for x in load() if x["id"] != lane_id for st in x["steps"]
+            if st.get("head") and st["state"] not in ("landed", "parked")]
+
+
 def told_at_done(lane: dict, s: dict, procs: Procs) -> None:
     """local.check.conflict-told-at-done: before the step's ladder, its head is test-merged (in memory) onto each step waiting for the
     train; one `conflicts-with` row per conflict, and the step is held out of that step's train, so it merges after it. A conflict
@@ -3573,6 +3579,7 @@ def real_procs(root) -> Procs:
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
         a.repin = lambda: work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
+        a.foreign_heads = other_heads(lane["id"])  # local.check.no-foreign-commits: another lane's unlanded steps
         if TRAIN[0].enabled and step.get("premerged") is None:  # local.check.conflict-told-at-done for a worker lane: once its head is here
             a.after_fetch = lambda head: mark_conflicts(lane, step, head, premerge(lane, head))
         return work.after_run(a, repo, branch, reviewer, stage=stage)

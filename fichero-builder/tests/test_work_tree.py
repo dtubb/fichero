@@ -297,3 +297,40 @@ def test_when_step_one_is_cleared_it_lands_alone_and_step_two_goes_on_from_its_l
     tick()
     lane, st = _st()
     assert fake.starts[-1][1] == "2" and "Continue from the tree" in open(st["2"]["resume_brief"]).read(), "a new session goes on from the tree"
+
+
+def test_a_head_holding_another_lanes_unlanded_commits_is_refused_before_its_check(tmp_path, monkeypatch):
+    """2026-11-27 05:14: told of a train conflict, kg-readable 2.3's worker merged the training lane's branch; the rebase after it
+    flattened ~25 training commits into the step. Commits whose patch-id is one of another lane's unlanded step's are found."""
+    import subprocess as sp
+
+    from fichero_builder import journal, queue, work
+    r = tmp_path / "r"
+    r.mkdir()
+    g = lambda *a: sp.run(["git", "-C", str(r), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    (r / "base.txt").write_text("0\n")
+    g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base")
+    base = g("rev-parse", "HEAD")
+    g("checkout", "-qb", "training", base)
+    for n in ("cycle", "start_sheet"):
+        (r / f"{n}.py").write_text(n), g("add", "."), g("commit", "-qm", f"feat(training): {n}")
+    training = g("rev-parse", "HEAD")
+    g("checkout", "-qb", "kg", base)
+    (r / "kg.py").write_text("kg"), g("add", "."), g("commit", "-qm", "feat(kg): place")
+    clean = g("rev-parse", "HEAD")
+    g("merge", "-q", "--no-edit", "training")
+    g("rebase", "-q", "integration")  # the flattening: the training commits are now the step's own, new shas, same patches
+    flat = g("rev-parse", "HEAD")
+    others = [("training/1b", training)]
+    assert work.foreign_commits(str(r), base, clean, others) == []
+    hits = work.foreign_commits(str(r), base, flat, others)
+    assert sorted(c.split(" ", 1)[1] for _k, c in hits) == ["feat(training): cycle", "feat(training): start_sheet"] and {k for k, _c in hits} == {"training/1b"}
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    (tmp_path / "b").write_text("b")
+    queue.add("kg", "/w/kg", "2.3", str(tmp_path / "b"), [1])
+    queue.add("training", "/w/t", "1b", str(tmp_path / "b"), [2])
+    lanes = queue.load()
+    lanes[1]["steps"][0].update(state="train", head=training)
+    queue.save(lanes)
+    assert queue.other_heads("kg") == [("training/1b", training)] and queue.other_heads("training") == []
