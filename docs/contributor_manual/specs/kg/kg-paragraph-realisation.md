@@ -260,21 +260,27 @@ held, never finer. A statement with no stored level is said to the year.
 | worked out, not read (`basis` inferred) | the date, then "(fecha inferida)" | the date, then "(date inferred)" |
 | none | under "Sin fecha conocida:" at the end | under "Undated:" at the end |
 
-- `kg.para.date-at-stored-level` — **[OK]** (#6773, → #6837) every dated statement's clause
+- `kg.para.date-at-stored-level` — **[PARTIAL]** (#6773, → #6837) every dated statement's clause
   states its date in the sentence's language at the level held: a year-level statement stored
   as 1 January never reads as a day; a month never gains a day. The sentence says the date
   normalised at that level; the form written on the page is kept in `date.as_written` and the
   app shows it on hover (owner ruling 2026-11-21, G3). Today no sentence has a date
-  (0 of 18). Built on the entry path for a language with a table that holds `dates`. Test:
+  (0 of 18). Test (to write): `test_each_level_reads_as_its_row_of_the_table`.
+  Built: on the entry path for a language with a table that holds `dates`, the clause says the date at its level. Test:
   `fichero-server/tests/unit/knowledge/test_paragraph_dates.py::test_each_level_reads_as_its_row_of_the_table`.
+  Not built: the app's hover showing `date.as_written`.
 - `kg.para.date-bound-and-about` — **[OK]** (#6773, → #6837) a bound and an approximate date
   read as the table's rows, and a date whose basis is `inferred` is followed by the table's
   "inferred" words; a bound is never said as a date. Test (to write):
+  `test_a_bound_and_an_about_date_never_read_as_exact`.
+  Built: the bound and about rows and the inferred words. Test:
   `fichero-server/tests/unit/knowledge/test_paragraph_dates.py::test_a_bound_and_an_about_date_never_read_as_exact`.
 - `kg.para.date-leads-the-sentence` — **[OK]** (#4648, → #6837) a sentence of one unit opens
   with its date, so the paragraph reads as a chronology and consecutive sentences do not open
   with the name; in a joined sentence each object's date follows it in brackets.
-  Tests: `fichero-server/tests/unit/knowledge/test_paragraph_dates.py::test_a_single_unit_sentence_opens_with_its_date`,
+  Test (to write): `test_a_single_unit_sentence_opens_with_its_date`.
+  Built: a one-unit sentence opens with its date; a joined sentence follows each object with its date. Tests:
+  `fichero-server/tests/unit/knowledge/test_paragraph_dates.py::test_a_single_unit_sentence_opens_with_its_date`,
   `test_a_joined_sentence_follows_each_object_with_its_own_date`.
 - `kg.para.order-by-time` — **[PARTIAL]** (#4648, → #6837) units are ordered by the earliest
   bound of their date, then source document, then position in it, then id; undated units come
@@ -282,6 +288,8 @@ held, never finer. A statement with no stored level is said to the year.
   offset. Sentences in Spanish and in English share this one chronology; there is no block per
   language (owner ruling 2026-11-21, G5). Built: order by date
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_orders_by_date_then_created_at_then_id`).
+  Not built: the undated lead-in, the query value, the by-source order on the route.
+  Test (to write): `test_undated_units_come_last_under_their_own_words`.
   Built: the undated lead-in, said once before the first undated sentence that follows a dated one
   (`fichero-server/tests/unit/knowledge/test_paragraph_dates.py::test_undated_units_come_last_under_their_own_words`).
   Not built: the query value, the by-source order on the route, the tie-break by source document and position.
