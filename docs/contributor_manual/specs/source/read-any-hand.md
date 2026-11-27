@@ -176,7 +176,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   from the same lines. A hand whose pool holds fewer lines than a point reports that point as "not measured: N lines
   in the pool", never as a number. The error is the whole page as a run produces it, scored by the one scorer
   (`training.eval.one-scorer`); the figure on given lines is kept beside it, as
-  `readers.bakeoff.the-whole-page-is-measured` rules for the bake-off. *Test:* test_blind_hands_curve.py
+  `readers.bakeoff.the-whole-page-is-measured` rules for the bake-off. *Test (to write):* test_blind_hands_curve.py
   (nested subsets from one seed; a short pool gives "not measured"; a fake reader's known errors give the known curve).
 - `hands.bench.round-report-is-one-table` — **[GAP]** (#5441 → #6967) a round writes one machine-readable file and
   one page a person reads: per hand and configuration the five points, lines-to-target, trusted coverage, calibration
