@@ -529,6 +529,40 @@ class TestMCPManager:
                 assert len(all_tools) == 1
                 assert tools2[0] in all_tools
 
+    @pytest.mark.asyncio
+    async def test_a_server_that_never_answers_is_given_up_after_the_connect_timeout(self, monkeypatch):
+        """#7105: a server that hangs on connect costs its timeout, and the servers after it still load."""
+        import asyncio
+        import time
+
+        from fichero_server.mcp import manager as manager_module
+
+        monkeypatch.setattr(manager_module, "CONNECT_TIMEOUT_SECONDS", 0.2)
+        manager = MCPManager()
+        manager.add_server(MCPServerConfig(name="hangs", transport="stdio", command="python"))
+        manager.add_server(MCPServerConfig(name="answers", transport="stdio", command="python"))
+        tools = [create_mock_tool("tool")]
+
+        async def mock_load_mcp_tools(session, *, connection=None, server_name=None, tool_name_prefix=False):
+            if server_name == "hangs":
+                await asyncio.sleep(30)
+            return tools
+
+        with patch("langchain_mcp_adapters.tools.load_mcp_tools", side_effect=mock_load_mcp_tools):
+            started = time.monotonic()
+            with pytest.raises(TimeoutError):
+                await manager.load_server_tools("hangs")
+            all_tools = await manager.load_all_tools()
+            took = time.monotonic() - started
+
+        assert all_tools == tools
+        assert took < 5, f"two hung connects took {took:.1f} s against a 0.2 s timeout each"
+
+    def test_the_connect_timeout_is_five_seconds(self):
+        from fichero_server.mcp import manager as manager_module
+
+        assert manager_module.CONNECT_TIMEOUT_SECONDS == 5.0
+
 
 # =============================================================================
 # Singleton Tests

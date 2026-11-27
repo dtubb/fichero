@@ -7,6 +7,7 @@ Supports stdio, HTTP, SSE, and WebSocket transports.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import shutil
@@ -33,6 +34,9 @@ if TYPE_CHECKING:
     from mcp.client.session import ClientSession
 
 logger = logging.getLogger(__name__)
+
+# How long one server gets to connect and list its tools (#7105).
+CONNECT_TIMEOUT_SECONDS = 5.0
 
 _DEFAULT_STDIO_COMMAND_ALLOWLIST = frozenset(
     {
@@ -280,11 +284,15 @@ class MCPManager:
         # Hand the adapters the CONNECTION, not an open session: each tool then opens its own session when it is
         # called. Tools bound to a session that this block closed failed on every call with ClosedResourceError, and
         # an un-initialized session was refused at the first request, so no external tool ever ran (#5760).
-        tools = await load_mcp_tools(
-            None,
-            connection=config.to_connection(),
-            server_name=config.name,
-            tool_name_prefix=config.tool_name_prefix,
+        # A server that does not answer costs CONNECT_TIMEOUT_SECONDS, then raises TimeoutError (#7105).
+        tools = await asyncio.wait_for(
+            load_mcp_tools(
+                None,
+                connection=config.to_connection(),
+                server_name=config.name,
+                tool_name_prefix=config.tool_name_prefix,
+            ),
+            CONNECT_TIMEOUT_SECONDS,
         )
 
         logger.info(f"Loaded {len(tools)} tools from server: {server_name}")
