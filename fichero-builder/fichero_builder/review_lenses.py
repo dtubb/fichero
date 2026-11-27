@@ -1,4 +1,4 @@
-"""The named checks the review prompt carries beside the checklist (#6600, Step 2.29): Performance and Security.
+"""The named checks the review prompt carries beside the checklist (#6600, Step 2.29): Performance, Security, App screen, and (owner 2026-11-27) Simplicity, Duplication, Platform practice, Accessibility.
 
 Text, not a tool: the measured rungs decide a number, these lenses are what reads the code. `harness_review.py` puts
 `LENSES` under the CHECKLIST and `surface_block` at the top of the prompt."""
@@ -29,7 +29,22 @@ LENS: App screen (#7067). An app feature is done only when its screen exists.
 For a step whose spec behaviours are app ones (the behaviour text names the app), the diff must add a view, menu or command that reaches the feature: a Window or openWindow id, a menu command, or a pane kind. A diff that adds only engine answers and pure rules for such a behaviour is NOT READY: name the behaviour and the opener it lacks.
 The spec the step cites needs its "What the person sees" section (opener, empty, loading and error states, an acceptance line); a screen added with no such section is NOT READY too."""
 
-LENSES = f"{PERFORMANCE}\n\n{SECURITY}\n\n{APP_SCREEN}"
+SIMPLICITY = """\
+LENS: Simplicity (owner 2026-11-27). The best code is the code not written. Name what the diff could delete or shrink: an abstraction with one user (an interface, factory, protocol or config key for one case); scaffolding "for later"; a hand-written helper the standard library, the platform (SwiftUI, Foundation, FastAPI, SQL) or an installed dependency already does; a flag, branch or parameter no caller passes; a wrapper that only forwards. Each finding names the shorter form. Under ~20 lines to fix: NOT READY. Larger: a `Simplify - <area>` note in your text."""
+
+DUPLICATION = """\
+LENS: Duplication (owner 2026-11-27). Before accepting new code, search the codebase by what it DOES, not by its name: a second store, cache, client, parser, path resolver, model loader, route or view for something that already exists is NOT READY (name the existing one, file:line, and say to reuse or extend it). Copy-pasted blocks over ~10 lines inside the diff, or between the diff and existing code, are NOT READY with the one function to share. Two code paths that reach the same result different ways (a second way to open a library, start a run or read a reading) are NOT READY."""
+
+PRACTICE = """\
+LENS: Platform practice (owner 2026-11-27). Lint is the guards' job (ruff, SwiftLint): do not repeat it. Read for what lint cannot see.
+Swift: main-actor isolation is the default here, so off-main work needs an explicit nonisolated or a Task.detached with a reason; no force unwrap or try! on data from the engine or disk; @State for view-owned values only, @Observable stores injected, not created in a body; structured concurrency (async let, task groups, .task with cancellation) over DispatchQueue and completion handlers; no new singletons; previews and test seams kept.
+Python: type hints on new public functions; pathlib over os.path string joins; context managers for files, sessions and locks; no bare except or except Exception that swallows (log and re-raise, or narrow it); no mutable default arguments; no global state added outside the runtime's holders; tests assert behaviour, not source text.
+A finding names file:line and the idiomatic form. NOT READY where it can crash, leak or race; otherwise a note."""
+
+ACCESSIBILITY = """\
+LENS: Accessibility (owner 2026-11-27). For every new or changed control or view in the app: an image-only button or icon has an accessibilityLabel; a custom control has its role (accessibilityAddTraits or a native control instead); every action is reachable by keyboard (a menu command or shortcut, focusable, no hover-only action); text uses Dynamic Type styles, not fixed point sizes; colour is never the only signal (a state also has a symbol or text); animations respect Reduce Motion; VoiceOver reads list rows and canvas items in a sensible order. A new control missing a label or keyboard path is NOT READY, naming the control and the modifier to add."""
+
+LENSES = f"{PERFORMANCE}\n\n{SECURITY}\n\n{APP_SCREEN}\n\n{SIMPLICITY}\n\n{DUPLICATION}\n\n{PRACTICE}\n\n{ACCESSIBILITY}"
 
 # the files whose change touches the security surface: an entitlement, an ATS exception (Info.plist), a route's module
 _SURFACE = re.compile(r"(\.entitlements$|(^|/)Info[^/]*\.plist$|(^|/)api/routes/.+\.py$)")

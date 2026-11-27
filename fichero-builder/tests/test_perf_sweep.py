@@ -614,3 +614,13 @@ def test_the_reviewer_refuses_an_app_step_whose_diff_adds_no_screen_reaching_the
     for opener in ("a Window or openWindow id", "a menu command", "a pane kind"):
         assert opener in review_lenses.APP_SCREEN
     assert "engine answers and pure rules" in review_lenses.APP_SCREEN
+
+
+def test_the_review_carries_the_simplicity_duplication_practice_and_accessibility_lenses():
+    """owner 2026-11-27: a good review also looks for what to delete, a second way to do one thing, platform practice and accessibility."""
+    from fichero_builder import review_lenses
+    for lens in ("LENS: Simplicity", "LENS: Duplication", "LENS: Platform practice", "LENS: Accessibility"):
+        assert lens in review_lenses.LENSES
+    assert "accessibilityLabel" in review_lenses.ACCESSIBILITY and "keyboard" in review_lenses.ACCESSIBILITY
+    assert "by what it DOES" in review_lenses.DUPLICATION
+    assert "Lint is the guards' job" in review_lenses.PRACTICE
