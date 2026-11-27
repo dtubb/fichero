@@ -18,13 +18,11 @@ extension WorkflowListView {
                         workflow: workflow,
                         isSelected: selectedWorkflowId == workflow.id
                     )
-                    // Double tap first: a single-tap gesture attached before it
-                    // takes every click and the double tap never fires.
-                    .onTapGesture(count: 2) {
-                        openWorkflow(workflow)
-                    }
                     .onTapGesture {
                         selectedWorkflowId = workflow.id
+                    }
+                    .onTapGesture(count: 2) {
+                        openWorkflow(workflow)
                     }
                     .contextMenu {
                         workflowContextMenu(for: workflow)
