@@ -903,7 +903,6 @@ KNOWN_VIOLATIONS: dict[str, int] = {
     "Views/Workflow/Execution/WorkflowOutputLog.swift": 1,
     "Views/Workflow/Library/WorkflowLibraryView.swift": 1,
     "Views/Workflow/Library/WorkflowLibraryViewParts/WorkflowMiniPreview.swift": 1,
-    "Views/Workflow/Nodes/NodeConfigs/CollectionNodeConfig.swift": 1,
     "Views/Workflow/Nodes/NodeConfigs/DescribeNodeConfig.swift": 1,
     "Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift": 1,
     "Views/Workflow/Nodes/NodeConfigs/FilesNodeConfig+PickerViews.swift": 2,
