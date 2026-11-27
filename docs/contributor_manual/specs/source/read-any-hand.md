@@ -170,7 +170,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   repository, and a guard refuses a commit that names one. A changed page list is a new version; figures of two
   versions are never shown in one column. *Test (to write):* test_blind_hands_manifest.py (a manuscript on both sides
   refuses; a missing licence refuses; a private id in the committed file refuses).
-- `hands.bench.learning-curve-at-five-points` — **[GAP]** (#5441 → #6967) per hand and configuration the round
+- `hands.bench.learning-curve-at-five-points` — **[PARTIAL]** (#5441 → #6967) per hand and configuration the round
   measures the page error with 0, 50, 100, 200 and 400 corrected lines from the adaptation pool. The subsets are
   nested (the 50 are among the 100, and so on) and drawn by a seed kept in the report, so two configurations learn
   from the same lines. A hand whose pool holds fewer lines than a point reports that point as "not measured: N lines
