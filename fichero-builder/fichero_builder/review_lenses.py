@@ -44,7 +44,16 @@ A finding names file:line and the idiomatic form. NOT READY where it can crash, 
 ACCESSIBILITY = """\
 LENS: Accessibility (owner 2026-11-27). For every new or changed control or view in the app: an image-only button or icon has an accessibilityLabel; a custom control has its role (accessibilityAddTraits or a native control instead); every action is reachable by keyboard (a menu command or shortcut, focusable, no hover-only action); text uses Dynamic Type styles, not fixed point sizes; colour is never the only signal (a state also has a symbol or text); animations respect Reduce Motion; VoiceOver reads list rows and canvas items in a sensible order. A new control missing a label or keyboard path is NOT READY, naming the control and the modifier to add."""
 
-LENSES = f"{PERFORMANCE}\n\n{SECURITY}\n\n{APP_SCREEN}\n\n{SIMPLICITY}\n\n{DUPLICATION}\n\n{PRACTICE}\n\n{ACCESSIBILITY}"
+API_AND_STRUCTURE = """\
+LENS: API, models, strings and placement (owner 2026-11-27). The guards already refuse hand-rolled URLs and raw URLSession in the app, client/OpenAPI drift, unlocalized strings, misplaced files and raw persistence writes: do not repeat them; read for what they cannot judge.
+FastAPI: a new route has a response_model and typed request model (no dict in or out), the project's auth dependency, pagination on anything that lists, the right status codes (404 for a missing id, 422 for bad input, never 200 with an error body), and no business logic that belongs in a service or the persistence layer.
+Pydantic: models validate at the edge (constrained types, enums over free strings, Field limits on sizes and counts); no model_construct on input; v2 idioms (model_validate, model_dump, field_validator), not v1 ones; one model per concept, not a near-copy beside an existing one.
+App and client: the app reaches the engine only through the generated client; a new endpoint is regenerated into it, never called with a built path.
+Localization: every new user-facing string is a localized key in the String Catalog with a comment for translators; no string concatenation for sentences (use a format with arguments); plurals through the catalog's plural rules; dates, numbers and units through formatters, never hand-formatted.
+Organization: the code sits in the module and folder its kind belongs to (views with views, stores with stores, routes under api/routes, tests mirroring the source); a file growing past its folder's size rule is split by responsibility, not by line count.
+NOT READY where a route is untyped, unauthenticated or unpaged, a model accepts unbounded input, or a sentence is concatenated; otherwise a note."""
+
+LENSES = f"{PERFORMANCE}\n\n{SECURITY}\n\n{APP_SCREEN}\n\n{SIMPLICITY}\n\n{DUPLICATION}\n\n{PRACTICE}\n\n{ACCESSIBILITY}\n\n{API_AND_STRUCTURE}"
 
 # the files whose change touches the security surface: an entitlement, an ATS exception (Info.plist), a route's module
 _SURFACE = re.compile(r"(\.entitlements$|(^|/)Info[^/]*\.plist$|(^|/)api/routes/.+\.py$)")
