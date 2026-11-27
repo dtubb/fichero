@@ -381,6 +381,7 @@ class Procs:
     gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
     gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
+    builder_moved: Callable[[dict], str] = lambda lane: ""  # lane -> why its session's pinned builder code is behind the land branch's; "" = it is not
     premerge: Callable[[dict, str], list] | None = None  # (lane, head) -> [(waiting step key, [files])] its head conflicts with (merge-tree)
     # local.step.stacks-on-a-waiting-step: (lane, step, under head) -> '' or why: the step's work as commits under stack/<lane>/<step>
     # (its uncommitted work as one `wip: <step>` commit) and the tree reset to the head under it
@@ -516,6 +517,8 @@ def end_session(lane: dict, s: dict, handles: dict, procs: Procs) -> None:
         why = "the session is gone"
     elif want and have and want not in have and have not in want:
         why = f"the lane's model changed: the session runs {have}, the lane now runs {want}"
+    elif moved := procs.builder_moved(lane):  # owner 2026-11-27: a step never runs on the builder code of an old pin
+        why = moved
     elif ctx and win and ctx / win > CFG["session_max_context"]:
         why = f"context {pct} is over {CFG['session_max_context'] * 100:.0f}%"
     elif lane["session_steps"] >= CFG["session_max_steps"]:
@@ -3698,7 +3701,7 @@ def real_procs(root) -> Procs:
         kind = worker_kind(mdl, lane.get("role", ""))  # a role on a Pi provider (openrouter) runs Pi under the same caps; refused before any tree is made
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
-        step["pinned"] = a.pinned  # local.pin.prune-keeps-live-pins: a landing's prune keeps the copy this session runs from
+        step["pinned"] = lane["session_pin"] = a.pinned  # local.pin.prune-keeps-live-pins: a landing's prune keeps the copy this session runs from
         a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
         j = work._jail(a)
         for wid, cmd in worker_windows(j, lane["id"], with_command=True):  # #6496: a second session of one name is unreachable by name
@@ -3767,11 +3770,22 @@ def real_procs(root) -> Procs:
         a = ns(lane, step)
         a.pinned = step.get("pinned") or work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
         a.root, a.brief = a.pinned, str(feed / "brief.txt")
+        lane["session_pin"] = a.pinned
         role = lane.get("role", "")
         cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
                            "--attach", pane, "--base", lane.get("session_head") or "", *(("--role", role) if role else ()),
                            *(() if step["state"] == "sent" else ("--idle",)))
         return spawn(j, lane, cmd)
+
+    def builder_moved(lane):
+        """Why the lane's session runs builder code the land branch has moved past ('' = the same): its pin's fichero-builder/
+        against the land branch's tip. Only the builder's own code counts, so an engine landing keeps the session."""
+        pin = Path(lane.get("session_pin") or "").name.removeprefix("pinned-")
+        if not pin:
+            return ""
+        tip = land_tool.resolve_branch(repo, branch)
+        r = work._git(repo, "diff", "--quiet", pin, tip, "--", "fichero-builder/")
+        return f"the builder code moved: the session runs pinned-{pin}, the land branch is at {tip[:9]}" if r.returncode == 1 else ""
 
     def send(lane, text):
         p = Path(lane["feed"]) / f"msg-{lane['seq']}.txt"
@@ -3937,7 +3951,7 @@ def real_procs(root) -> Procs:
         finally:  # the candidate refs are only kept while the train runs: a ref pins its commits against gc
             train.drop_refs(repo, tid)
 
-    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
+    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, builder_moved=builder_moved, thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, worker_cli=worker_cli_job(root, rules, mdl), rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  stack_hold=lambda lane, step, under: work.stack_hold(ns(lane), step["step"], under),
                  build_free=lambda: check_tool.build_lock_free(check_tool.load(root)),

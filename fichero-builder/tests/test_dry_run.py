@@ -716,3 +716,16 @@ def test_a_worktrees_own_harness_toml_never_sets_the_runs_caps(root):
         fake.procs.start = lambda *a, **k: starts.append(a) or "%9"
         assert run.run(root, wt, root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, rules=rules) == "parked"
         assert starts == [], "parked before any session, at the pinned cap"
+
+
+def test_each_run_start_journals_the_rules_it_started_on(root):
+    """Owner 2026-11-27: perf-optimize's [1m]-price refusals could not be traced; the feed's rules.json is rewritten every tick."""
+    import json
+    rules = root / "rules.json"
+    rules.write_text(json.dumps({"spend": {"session_usd": 1, "day_usd": 5, "window": 1000, "prices": {"sonnet": [3, 15]}}, "models": {}}))
+    run.run(root, root / "wt", root / "b.txt", name="w", procs=Fake([HEALTHY]).procs, out=lambda s: None, rules=rules)
+    (row,) = [r for r in journal.read() if r["event"] == "worker"]
+    assert row["rules"] == str(rules) and row["day_usd"] == 5 and len(row["prices"]) == 12
+    said = []
+    assert run.run(root, root / "wt", root / "b.txt", name="w", model="gpt-9", procs=Fake([HEALTHY]).procs, out=said.append, rules=rules) == "refused"
+    assert f"rules {rules}, day_usd 5" in said[0] and "['sonnet']" in said[0], "a refusal names the rules and the priced keys it read"

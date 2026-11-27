@@ -229,3 +229,18 @@ def test_a_landed_steps_session_whose_watcher_ended_is_a_fresh_start_with_no_wat
     assert attached == [] and [s[1] for s in fake.starts] == ["s1", "s2"]
     assert any(k == "session-fresh" and "gone" in d for _st, k, d in session_rows())
     assert not [r for r in journal.read() if r.get("event") == "alert"]
+
+
+def test_a_session_on_builder_code_the_land_branch_moved_past_ends_with_its_step_and_one_engine_landing_keeps_it(state):
+    """Owner 2026-11-27: app-bugs ran its afternoon steps on pinned-eb47c8f's builder code, hours old. A step boundary with the
+    builder's own code moved starts the next step fresh, on the current pin."""
+    two_steps(state)
+    fake = Fake()
+    fake.procs.builder_moved = lambda lane: "the builder code moved: the session runs pinned-eb47c8f, the land branch is at cb39c90fb"
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    ((step, kind, detail),) = session_rows()
+    assert (step, kind) == ("s1", "session-fresh") and "pinned-eb47c8f" in detail and len(fake.starts) == 2
+    journal.STATE.joinpath("journal.jsonl").unlink()
+    queue.save([])
+    fake = run_two(state)  # builder_moved says "" (an engine-only landing): the session is kept
+    assert [k for _, k, _ in session_rows()] == ["session-kept"]

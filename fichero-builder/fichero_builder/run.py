@@ -5,6 +5,7 @@ and the start path refuses anyone else. Process control is a small `Procs` so a 
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import os
 import re
@@ -238,10 +239,14 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         return "refused"
     xs = {"effort": effort} if effort else {}  # passed and journalled only when a row sets it: no row, the call and the row are as before
     label = {"role": role, **xs} if role else {}  # the journal rows of a role's worker say which role
+    # owner 2026-11-27: which rules this run started on, provably (the feed's rules.json is rewritten every tick): on the worker row,
+    # and on a refusal's line (the run log, which the session output keeps)
+    started_on = {"rules": str(rules or Path(root) / "harness.toml"), "day_usd": spend.day_usd,
+                  "prices": hashlib.sha1(json.dumps(spend.prices, sort_keys=True).encode()).hexdigest()[:12]}
     bad = watcher.refusals(spend, kind, model, provider)
     if bad:
         for b in bad:
-            out("builder run refuses: " + b)
+            out("builder run refuses: " + b + f" (rules {started_on['rules']}, day_usd {spend.day_usd:g}, prices {started_on['prices']}: {sorted(spend.prices)})")
         return "refused"
     if (spent := _spent_today(name)) >= spend.day_usd:
         journal.append("watch", task=name, what=f"park: today's spend {spent:.2f} USD reached the cap {spend.day_usd:.2f} before the start")
@@ -260,7 +265,8 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         out(f"{name}: lane-done before the start")
         return "lane-done"
     pane = attach or procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session, **xs)
-    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label, **({"attached": True} if attach else {}))
+    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label, **({"attached": True} if attach else {}),
+                   **started_on)
     started = last_change = procs.now()
     seen = None
     told: set[str] = set()
