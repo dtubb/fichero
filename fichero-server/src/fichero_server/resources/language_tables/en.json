@@ -11,6 +11,12 @@
     "inferred": "in {place} (place inferred)",
     "relative": "at {place}"
   },
+  "doubt": {
+    "hedge": ", apparently,",
+    "one_source": "(one source only)",
+    "sources": "({count} sources)",
+    "numbers": ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+  },
   "dates": {
     "day": "on {day} {month} {year}",
     "month": "in {month} {year}",

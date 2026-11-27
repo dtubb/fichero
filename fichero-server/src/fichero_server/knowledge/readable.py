@@ -332,6 +332,20 @@ def _check_place_words(name: str, places: object) -> None:
             raise ValueError(f"{name}: places.{key} must be a string holding {{place}}")
 
 
+def _check_doubt_words(name: str, doubt: object) -> None:
+    """A table's `doubt` is the hedge, the one-source words, `sources` holding `{count}` and twelve number words."""
+    if not isinstance(doubt, dict):
+        raise ValueError(f"{name}: doubt must be an object")
+    for key in ("hedge", "one_source", "sources"):
+        if not isinstance(doubt.get(key), str) or not doubt[key]:
+            raise ValueError(f"{name}: doubt.{key} must be a non-empty string")
+    if "{count}" not in doubt["sources"]:
+        raise ValueError(f"{name}: doubt.sources must hold {{count}}")
+    numbers = doubt.get("numbers")
+    if not isinstance(numbers, list) or len(numbers) != 12 or not all(isinstance(n, str) and n for n in numbers):
+        raise ValueError(f"{name}: doubt.numbers must be twelve words")
+
+
 def load_language_tables(directory: Path) -> dict[str, dict]:
     """Every `<language>.json` in `directory`, keyed by language; a file with a missing or mistyped
     key, or named for a language other than its own `language` field, raises ValueError."""
@@ -356,6 +370,9 @@ def load_language_tables(directory: Path) -> dict[str, dict]:
         dates = table.get("dates")
         if dates is not None:
             _check_date_words(path.name, dates)
+        doubt = table.get("doubt")
+        if doubt is not None:
+            _check_doubt_words(path.name, doubt)
         tables[path.stem] = {
             **table,
             "prepositions": {_fold(w) for w in prepositions},
@@ -460,6 +477,50 @@ def _claim_place(claim: KnowledgeClaim, language: str | None) -> dict | None:
         "entity_id": None,
         "origin": f"claim:{claim.id}:{'claim_location' if claim.claim_location else 'place_values'}",
     }
+
+
+# ponytail: the engine has no confidence band of its own; this is the low edge of the app's
+# `ConfidenceBand` (below 0.4). One band for both when the engine gets one (#4751).
+LOW_BAND = 0.4
+
+
+def _person_decided(claim: KnowledgeClaim) -> bool:
+    return claim.curation_state == ClaimCurationState.curated or claim.epistemic_status == EpistemicStatus.confirmed
+
+
+def _unsure(claim: KnowledgeClaim) -> bool:
+    """Tentative, or a confidence whose source is `measured` below `LOW_BAND`; an unmeasured figure is no doubt."""
+    measured_low = claim.confidence_source == "measured" and claim.confidence < LOW_BAND
+    return claim.epistemic_status == EpistemicStatus.tentative or measured_low
+
+
+def _doubt(claims: list[KnowledgeClaim]) -> str:
+    """The doubt of one clause's statements by rules 2, 4, 5 and 6 of the spec's table: `one_source_unsure`
+    when no person decided any of them, they rest on exactly one document and every one is `_unsure`;
+    else `none`."""
+    if any(_person_decided(c) for c in claims) or _sources(claims) != 1:
+        return "none"
+    return "one_source_unsure" if all(_unsure(c) for c in claims) else "none"
+
+
+def _doubt_words(language: str | None) -> dict | None:
+    return (_TABLES.get(language or "") or {}).get("doubt")
+
+
+def _doubt_pieces(claims: list[KnowledgeClaim], language: str | None, ids: list[str]) -> list[tuple[str, str, list[str]]]:
+    """The words that follow a clause's object: the table's one-source words for a `one_source_unsure`
+    clause; the count of its documents, in the table's number words up to twelve and digits after, for
+    two or more when no person decided; else none."""
+    words = _doubt_words(language)
+    if not words or any(_person_decided(c) for c in claims):
+        return []
+    if _doubt(claims) == "one_source_unsure":
+        return [(words["one_source"], f"table:{language}:one_source", ids)]
+    count = _sources(claims)
+    if count < 2:
+        return []
+    number = words["numbers"][count - 1] if count <= len(words["numbers"]) else str(count)
+    return [(words["sources"].format(count=number), f"table:{language}:sources", ids)]
 
 
 def _date_origin(claim: KnowledgeClaim) -> str:
@@ -675,10 +736,15 @@ def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
             pieces.append((values[role], f"claim:{claim.id}:{_role_field(claim, role)}"))
             if role == "verb":
                 pieces.extend(contraction_piece)
+    hedge = (_doubt_words(lang) or {}).get("hedge") if _doubt([claim]) == "one_source_unsure" else None
     if len(pieces) < 2:
         text = " ".join(claim.text.split())
         if text:
             pieces = [(text, f"claim:{claim.id}:text")]
+            if hedge:  # no subject to follow: the hedge closes the stored text
+                pieces.append((hedge.rstrip(","), f"table:{lang}:hedge"))
+    elif hedge and values["subject"]:
+        pieces.insert(1, (hedge, f"table:{lang}:hedge"))
     date = _claim_date(claim, lang)
     if pieces and date:
         pieces.insert(0, (f"{date['text'][0].upper()}{date['text'][1:]},", _date_origin(claim)))
@@ -688,6 +754,8 @@ def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
     year = (claim.time_start or "")[:4]
     if pieces and lang not in _TABLES and year.isdigit():
         pieces.append((f"({year})", f"claim:{claim.id}:time_start"))
+    if pieces:
+        pieces.extend((text, origin) for text, origin, _ in _doubt_pieces([claim], lang, []))
     if pieces and not pieces[-1][0].endswith((".", "!", "?")):
         pieces.append((".", "punctuation"))
     return pieces
@@ -739,6 +807,8 @@ def _merged_pieces(
     pieces = [p for p in head if p]
     if len(pieces) + bool(objects) < 2:
         return None
+    if agg.subject and any(_doubt(members) == "one_source_unsure" for _, members in objects):
+        pieces.insert(1, (_TABLES[lang]["doubt"]["hedge"], f"table:{lang}:hedge", ids))
     marks: list[tuple[int, list[KnowledgeClaim], int]] = []
     # a place every statement shares is said once at the end; otherwise each object is followed by its own
     texts = {(_claim_place(c, lang) or {}).get("text") for c in group_claims}
@@ -762,6 +832,7 @@ def _merged_pieces(
         date = _claim_date(members[0], lang)
         if date:
             pieces.append((f"({date['text']})", _date_origin(members[0]), [m.id for m in members]))
+        pieces.extend(_doubt_pieces(members, lang, [m.id for m in members]))
         marks.append((at, members, len(pieces) - 1))
     if one_place:
         pieces.extend(_place_pieces(group_claims, lang, ids))
@@ -814,7 +885,7 @@ def _trace_group_sentence(
             "role": _group_role(members, entity_id, entity_names),
             "revoiced": False,
             "state": _group_state(members),
-            "doubt": "none",
+            "doubt": _doubt(members),
             "sources": _sources(members),
             "date": _claim_date(members[0], agg.language),
             "place": {k: v for k, v in (_claim_place(members[0], agg.language) or {}).items() if k != "origin"} or None,
@@ -822,6 +893,19 @@ def _trace_group_sentence(
         for start, end, members in spans
     ]
     return text, clauses, segments
+
+
+def _apart_unsure(agg: "Aggregation", group_claims: list[KnowledgeClaim]) -> list[list[KnowledgeClaim]]:
+    """The statements of one group as the sentences that say them: the statements of an object that is
+    `one_source_unsure` are a sentence of their own, after the rest, so a hedge never lands on a plain object."""
+    if agg.count == 1:
+        return [group_claims]
+    apart = [members for obj in agg.objects
+             if _doubt(members := [c for c in group_claims if _claim_object(c) == obj]) == "one_source_unsure"]
+    if not apart or len(apart) == len(agg.objects):
+        return [group_claims]
+    moved = {c.id for members in apart for c in members}
+    return [[c for c in group_claims if c.id not in moved], *apart]
 
 
 def _is_withdrawn(claim: KnowledgeClaim) -> bool:
@@ -903,8 +987,12 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
     said_a_date = False
     said_undated = False
     places: list[dict] = []
-    for group in aggregate_claims(claims):
-        group_claims = [by_id[cid] for cid in group.claim_ids]
+    groups = [
+        (aggregate_claims(part)[0], part)
+        for agg in aggregate_claims(claims)
+        for part in _apart_unsure(agg, [by_id[cid] for cid in agg.claim_ids])
+    ]
+    for group, group_claims in groups:
         text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
         if not text:
             continue
