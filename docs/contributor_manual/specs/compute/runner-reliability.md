@@ -105,6 +105,11 @@ a download) and takes up the first item not done; it never redoes a done item an
 survives a relaunch as paused (`activity.relaunch.only-running-work-resumes`); the open never continues it. One pause
 per cause per run: a second page meeting the same cause joins the pause, it does not fail.
 
+A run the engine's death or stop cut off takes the same path (owner 2026-11-21, #6732, #6863 item 3): the next open holds
+it `paused`, never failed and never "stalled"; the launch alert lists it, one item per run, with Continue, which takes up
+the first item not done, and Leave Paused. Only a Continue whose resume cannot proceed fails the run, with the reason. A
+run with no checkpoint has nothing to resume from and is failed at the open, as `compute.run.interrupted-on-start` says.
+
 ### 3. One place it is shown
 
 The Activity row (the states table of `ui/activity-pane.md`: paused with its cause as its line, blocked under its

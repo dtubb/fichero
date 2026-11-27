@@ -323,8 +323,12 @@ def mark_run_failed(db: Any, thread_id: str, reason: str, ended_at: Any = None) 
 
 def recover_stale(db: Any, *, error: str, started_before: Optional[datetime],
                   exclude_thread_ids: tuple[str, ...]) -> list[str]:
-    """Flip runs a dead process left unfinished to failed; their ids (the caller settles their documents, #4379)."""
+    """Flip runs a dead process left unfinished to failed; their ids (the caller settles their documents, #4379).
+    A run with a checkpoint to go on from is not flipped: the open resumes it (manager 2026-11-21 ruling,
+    `run_account.mark_interrupted_runs`)."""
     where, params = [f"status IN ({_SWEEPABLE_SQL})"], [error]
+    if db.execute_fetchone("SELECT 1 FROM information_schema.tables WHERE table_name = 'checkpoints'"):
+        where.append(f"NOT EXISTS (SELECT 1 FROM checkpoints c WHERE c.thread_id = {RUNS}.id AND c.checkpoint_ns = '')")
     if started_before is not None:
         where.append("started_at < ?")
         params.append(started_before)

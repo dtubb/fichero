@@ -23,6 +23,7 @@ import pytest
 from fichero_server.db import Database
 from fichero_server.models import Document, Status
 from fichero_server.workflows.activity_store import ActivityStore
+from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
 
 
 @pytest.fixture
@@ -53,9 +54,14 @@ class TestRecoverySweep:
         asyncio.run(_save_run(store, "t-accepted", "accepted"))
         asyncio.run(_save_run(store, "t-paused", "paused"))
         asyncio.run(_save_run(store, "t-done", "completed"))
+        # A dead process's run with a checkpoint is resumed by the open, not swept (manager 2026-11-21 ruling).
+        asyncio.run(_save_run(store, "t-saved", "running"))
+        AsyncDuckDBCheckpointer.from_db_path(store.db.path)  # its tables
+        store.db.execute("INSERT INTO checkpoints (thread_id, checkpoint_id) VALUES ('t-saved', 'c1')")
 
         recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
         assert len(recovered) == 2
+        assert asyncio.run(store.get_workflow_run("t-saved")).status == "running"
 
         for tid in ("t-running", "t-accepted"):
             run = asyncio.run(store.get_workflow_run(tid))

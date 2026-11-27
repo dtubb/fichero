@@ -256,6 +256,17 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   kinds roll into one line ("and background work: 412 thumbnails, 80 embeds") and a held folder read into "New files in a
   synced folder" (the review's answers, 2026-11-14). Choose… opens Activity with the stopped rows selected
   (`ActivityWindowSelectionState.revealAll`, 2026-11-14 night). Not built: the folder's name on the new-material line.
+  *Changed 2026-11-21 (#6732, owner: interrupted runs resume from the launch alert):* a workflow run a crash or engine stop
+  cut off (no quit to pause it) is listed too when it has a checkpoint: the open holds it `paused`, its record and rows
+  saying "Paused: the engine stopped at HH:MM; Resume carries on from its last finished page"
+  (`run_account.mark_interrupted_runs`, `held_at_open`), its documents not settled. One item per run: a recipe's step run is
+  not listed on its own; its recipe's row is, and that row's Continue lets the recipe adopt the held step run
+  (`awaiting`) rather than start a new one. Continue resumes the run from its checkpoint; a resume that cannot proceed
+  ends the run failed with the reason (`_fail_held_run`: record and rows failed, documents settled). A run with no
+  checkpoint is still failed "Interrupted: …" at the open. A queue whose only unfinished rows are held reads "held",
+  never "stalled" (`jobs.queue_state`). *Test:* `fichero-server/tests/unit/api/test_interrupted_run_held_at_open_6732.py`,
+  `fichero-server/tests/unit/recipes/test_held_recipe_continues_from_the_alert_6732.py`,
+  `fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`.
   **Ruled 2026-11-14 evening (owner, looking at the alert):** a FOURTH button, **Delete All** (destructive, last): every
   listed row deleted through the one `job.delete`, one step on the window's stack, so Edit › Undo puts them back paused. With
   no run among the rows the title says what was stopped ("Background work was stopped when Fichero quit"), never "0 runs",
@@ -2768,11 +2779,12 @@ and node, not by job); a retry action for failed pages.
 - `activity.durable.lease-not-fail` — **[PARTIAL]** (#5357) after a crash or quit, an
   interrupted job goes back to waiting and resumes. *Quit — built 2026-10-18:* a quit records each live run that has a checkpoint
   `paused` and the next open resumes it (`activity.run.quit-pauses`); a paused run is not swept on reopen
-  (`activity.durable.paused-stays-paused`). *Crash — not built:* a run that was `running` or `accepted` when the engine died
-  (no quit to pause it) is still flipped to `failed` on the next open (`workflows/activity.py` `_recover_stale_runs_bg`),
-  although its checkpoints are on disk (`workflows/checkpointer.py`). The flip says so — "Interrupted: the engine stopped at HH:MM" —
-  and the run offers to read its pages not done as a new run (`compute.run.interrupted-on-start`, #5555); it is not resumed in
-  place.
+  (`activity.durable.paused-stays-paused`). *Crash — built 2026-11-21 (#6732, owner: interrupted runs resume from the launch
+  alert):* a run that was `running` or `accepted` when the engine died, and has a checkpoint, is held `paused` at the next
+  open, not flipped to `failed`; the launch alert lists it and its Continue resumes it in place from its last finished page
+  (`activity.launch.nothing-starts-one-alert`). Only a resume that cannot proceed fails it, with the reason. A run with no
+  checkpoint is still failed "Interrupted: the engine stopped at HH:MM" and offers to read its pages not done as a new run
+  (`compute.run.interrupted-on-start`, #5555). Not yet: seen in a live soak on a scratch engine.
 - `activity.durable.dies-with-the-engine` — **[OK]** (2026-10-11) when the engine dies mid-job (killed, not closed),
   nothing reads "running" after it starts again: on the project's open a queued job (an import's page, a model
   download, a recipe run) goes back to waiting, "Interrupted; carries on", and is taken up again from its own

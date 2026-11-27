@@ -240,6 +240,10 @@ class Engine:
             raise RuntimeError(f"fichero {' '.join(args)} failed: {(done.stderr or done.stdout).strip()[:400]}")
         return json.loads(done.stdout or "null")
 
+    def resume_held(self) -> Any:
+        """The launch alert's Resume: the restart holds the interrupted run, and nothing runs until this continues it."""
+        return self.cli("activity", "continue-after-quit", "--all")
+
     def save_recipe(self, steps: str, place: str) -> None:
         """Save the project recipe the soak runs: the first of RECIPE_PURPOSES whose recipe has every step STEPS[steps] names."""
         want = STEPS[steps]
@@ -294,7 +298,7 @@ def soak(engine: Any, job_id: str, total: int, *, kill_at: int | None, every: fl
          clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
     """Poll the run every `every` seconds; kill and restart the engine once `kill_at` pages are done. Returns samples, resume and down minutes."""
     t0, samples, resume, down = clock(), [], None, 0.0
-    killed, stalled = False, False
+    killed = False
     best, moved_at = -1, clock()
     while True:
         minute = (clock() - t0) / 60
@@ -311,6 +315,7 @@ def soak(engine: Any, job_id: str, total: int, *, kill_at: int | None, every: fl
             killed, before, gone = True, s, clock()
             engine.kill()
             engine.start()
+            engine.resume_held()
             down = (clock() - gone) / 60
             after = reading(engine.status(job_id), minute=(clock() - t0) / 60, rss_mb=engine.rss_mb(), swap_mb=None, previous=None)
             samples.append(after)

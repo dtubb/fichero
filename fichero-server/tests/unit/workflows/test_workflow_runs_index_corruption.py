@@ -19,6 +19,7 @@ from pathlib import Path
 
 from fichero_server.db import Database
 from fichero_server.workflows.activity_store import ActivityStore
+from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
 
 
 def _library(tmp_path: Path) -> tuple[Database, ActivityStore]:
@@ -60,8 +61,12 @@ def test_the_sweep_keeps_to_its_cutoff_and_never_flips_a_tracked_run(tmp_path):
         _seed(store, "tracked", hours_ago=5)
         _seed(store, "paused", hours_ago=5, status="paused")  # #5357: a paused run needs no process
         _seed(store, "accepted", hours_ago=5, status="accepted")
+        _seed(store, "saved", hours_ago=5)  # a checkpoint to go on from: the open resumes it (manager 2026-11-21 ruling)
+        AsyncDuckDBCheckpointer.from_db_path(db.path)  # its tables
+        db.execute("INSERT INTO checkpoints (thread_id, checkpoint_id) VALUES ('saved', 'c1')")
         recovered = asyncio.run(store.recover_stale_runs(max_age_hours=2, exclude_thread_ids=("tracked",)))
         assert sorted(recovered) == ["accepted", "old"]
+        assert _status(store, "saved") == "running"
         assert _status(store, "young") == "running" and _status(store, "tracked") == "running"
         assert _status(store, "paused") == "paused"
     finally:
