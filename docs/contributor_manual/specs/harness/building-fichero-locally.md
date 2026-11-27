@@ -5331,6 +5331,12 @@ there are. Session hosts come last because nothing before them needs more than e
 - Depends on: 10.3, 11.1
 - Size: M
 
+#### Step 11.10 — behaviours built in earlier steps that no step listed (#6589)
+- Behaviours: `dev-workflows.check.swift-tests-command`, `dev-workflows.check.ui-rung`, `dev-workflows.check.unit-affected-tests`, `dev-workflows.check.warm-swift-builds`, `dev-workflows.ladder.all-cheap-reds-in-one-pass`, `dev-workflows.nightly.cleanup`, `dev-workflows.queue.adopt-only-a-matching-session`, `dev-workflows.queue.disk-floor`, `dev-workflows.queue.split-brief`, `dev-workflows.run.done-after-delivery`, `dev-workflows.run.release-stages`
+- Tests: fichero-builder/tests/test_speed_tests.py, fichero-builder/tests/test_ladder_all_reds.py, fichero-builder/tests/test_adopt_sessions.py, fichero-builder/tests/test_loop.py, fichero-builder/tests/test_nightly.py, fichero-builder/tests/test_dry_run.py, fichero-builder/tests/test_release_run.py
+- Depends on: 11.9
+- Size: S
+
 ### From `dev-workflows.md` — Build order (history; Step headings demoted so `builder steps` files only this spec's steps)
 
 
@@ -6293,6 +6299,16 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.verify-all` | 2.8 |
 | `dev-workflows.ux.lane-usage` | 4.4 |
 
+| `dev-workflows.check.swift-tests-command` | 11.10 |
+| `dev-workflows.check.ui-rung` | 11.10 |
+| `dev-workflows.check.unit-affected-tests` | 11.10 |
+| `dev-workflows.check.warm-swift-builds` | 11.10 |
+| `dev-workflows.ladder.all-cheap-reds-in-one-pass` | 11.10 |
+| `dev-workflows.nightly.cleanup` | 11.10 |
+| `dev-workflows.queue.adopt-only-a-matching-session` | 11.10 |
+| `dev-workflows.queue.disk-floor` | 11.10 |
+| `dev-workflows.queue.split-brief` | 11.10 |
+| `dev-workflows.run.done-after-delivery` | 11.10 |
 
 ### From `dev-workflows.md` — Test matrix
 
