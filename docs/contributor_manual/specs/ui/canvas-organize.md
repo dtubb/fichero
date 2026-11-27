@@ -143,6 +143,35 @@ rebinding or a refiling, never by itself the original order.
 **Overlapping sheets in one photograph.** No standard method was found; this is designed here from
 the page finder (two outlines in one frame, one of them interrupted) and is marked as ours.
 
+**Papyrology at scale.** The Oxyrhynchus papyri are the hard case: about half a million fragments
+dug from ancient rubbish mounds, most unedited, held by many institutions, with no original order
+to recover. Ancient Lives (Zooniverse and Oxford, 2011 to 2018) had volunteers mark each letter on
+an image; Williams et al., "A Computational Pipeline for Crowdsourced Transcriptions of Ancient
+Greek Papyrus Fragments" (IEEE Big Data 2014, <https://acwio.github.io/pubs/bhd2014.pdf>), turned
+millions of clicks into consensus letters and lines, and a companion paper (IEEE eScience 2014,
+<https://acwio.github.io/pubs/escience2014.pdf>) identified damaged texts by aligning the
+consensus string against known texts with the tolerant alignment used for gene sequences.
+Papyrologists identify a literary scrap the same way by hand: a string search of the surviving
+letters in a corpus of Greek literature (the Thesaurus Linguae Graecae is the usual one, under
+licence), and for documents a search of formulae in the Duke Databank of Documentary Papyri at
+<https://papyri.info>, which joins that databank with the Heidelberg catalogue and image records.
+Trismegistos (<https://www.trismegistos.org>) gives each ancient text one stable number and keeps a
+register of holding collections and their inventory numbers, so a fragment in two catalogues is
+one thing. Joins on papyrus use the fibres as well as the edge: Abitbol, Shimshoni & Ben-Dov,
+"Machine Learning Based Assembly of Fragments of Ancient Papyrus" (*ACM JOCCH* 2021,
+<https://cris.haifa.ac.il/en/publications/machine-learning-based-assembly-of-fragments-of-ancient-papyrus/>),
+score whether the thread pattern continues across two edges, then vote and align; precision is
+low alone, and the reported use is to discard about 98% of candidate pairs before a person looks.
+Pirrone et al., "Papy-S-Net" (HIP 2019, <https://hal.archives-ouvertes.fr/hal-02367779v1>), train
+a Siamese network to say whether two patches are from one papyrus. Same-hand work has the
+GRK-Papyri set (<https://d-scribes.philhist.unibas.ch/en/gkr-papyri/>) and unsupervised writer
+retrieval (Christlein et al., "Writer Retrieval and Writer Identification in Greek Papyri", 2022,
+<https://arxiv.org/abs/2212.07664>), which notes that the fibres themselves disturb the features.
+Adopted: fibres as a second join signal beside the edge; alignment that tolerates gaps for
+identification; stable identifiers from the field's own registers, never ours; every one of these
+as a filter that ranks candidates for a person. Different on purpose: no corpus under licence is
+bundled, and a holder's images are referenced, never copied.
+
 **Canvas tools.** Tinderbox maps: adornments (a labelled region behind notes), typed links with
 labels, aliases (one note in several places), and agents that gather. Scrivener's corkboard: the
 order of cards *is* the order of the manuscript. Obsidian Canvas and the open JSON Canvas format
@@ -181,7 +210,8 @@ together*.
 
 ### Relations
 
-Every relation is a `TypedLink`. Eight keys are new; the rest are already in the vocabulary.
+Every relation is a `TypedLink`. Eight keys are new; the rest are already in the vocabulary. A ninth,
+`attests`, comes with the large-fragment case below.
 
 | Relation | Key | Direction, as read | Model |
 |---|---|---|---|
@@ -201,6 +231,7 @@ Every relation is a `TypedLink`. Eight keys are new; the rest are already in the
 | Misfiled | `belongs_in` | A belongs in B (a group, set or folder) | **new**; A stays filed where it was found |
 | In a set | `member_of` | A is a member of set S | **new** |
 | Came after | `follows` | A follows B | exists |
+| Is part of a known text | `attests` | A attests work W, lines x to y | **new** (section F); the other end is a URI |
 
 **An item order** is a named order over documents and pages with the same properties as a reading
 order over segments: a name, a kind (`physical`, `chronological`, `as-read`, project terms), an
@@ -323,6 +354,40 @@ Rules for all four:
   precision measured at its score.
 - A person's correction to a mark (a hole redrawn, a torn edge marked as a cut) reruns only the
   comparisons that mark was part of.
+
+## A test case at scale: an excavated dump of fragments
+
+The design above is drawn from a box of a few hundred pages. The opposite case tests it: about
+half a million papyrus fragments from one site's rubbish mounds, mostly unedited, with no order to
+recover because none was ever kept, divided among many institutions, and partly transcribed
+letter by letter by a crowd. Seven things change.
+
+1. **Scale.** Nothing is compared with everything. Each fragment gets its descriptors once (outline,
+   edge, fibres, hand, the letters read so far) and they go into an index that answers "the nearest
+   few hundred to this one" in bounded time. A triage pass sorts fragments by what can be done with
+   them. Matching runs as budgeted, resumable jobs that say how much of the scope they have
+   covered. A board never holds the whole scope: it opens on a slice and says so.
+2. **No original order.** A dump has a find context, not an arrangement: a dig season, a find spot,
+   a box as the excavators packed it. Each is a set, sets nest, and a fragment can be in several.
+   The order a holder gave its inventory is kept as *As Filed* and is labelled as the holder's
+   order; nothing in the app calls it the original order.
+3. **Fibres.** Papyrus is two layers of strips at right angles, horizontal on the recto and vertical
+   on the verso. Across a vertical break the recto's fibres carry on; across a horizontal break the
+   verso's do. Two pieces that agree on both faces are a strong join even where the edge has
+   crumbled, and two that agree on one face with a gap between them are the same sheet, not
+   neighbours. Sheet joins in a roll (kolleseis) are marks too.
+4. **Hands.** Fragments written by one hand are proposed as a set, with the letter forms that say
+   so. The set never names a scribe; a person may.
+5. **Known texts.** A fragment's partial reading, gaps and doubtful letters included, is aligned
+   against corpora of known texts the project has installed. A hit proposes "part of this work,
+   these lines"; two fragments attesting neighbouring lines propose one roll and its order. A hit
+   in a register of published papyri proposes that the fragment is already edited.
+6. **Other holders.** A fragment in another institution comes in as a reference to that holder's
+   IIIF manifest. A join across holders names both, with each one's inventory number, manifest and
+   rights, and exports as a manifest of the reunited sheet that points at both image services.
+7. **Many people.** Answers from a crowd or a team are kept one by one with who gave them. Agreement
+   makes ground truth; disagreement is shown. The recognizers retrain on it and report their score
+   before and after.
 
 ## What the person sees
 
@@ -551,6 +616,72 @@ file, then function.
   the same routes, with the same result as the board. Test:
   `py::test_organize_tools_match_their_routes`.
 
+### F. At the scale of a dump of fragments
+
+- `canvas-organize.scale.descriptor-index` — **[GAP]** (→ #5548; engine) every fragment's descriptors
+  (outline, edge, fibres, hand, read letters) are computed once, versioned by method, and held in an
+  index that returns the nearest candidates to one fragment in bounded time on five hundred
+  thousand fragments; adding fragments extends the index without rebuilding it. Test:
+  `test_descriptor_index.py::test_nearest_candidates_are_bounded_at_half_a_million`.
+- `canvas-organize.scale.triage` — **[GAP]** (→ #5550; engine + app) a triage pass gives each fragment
+  facets: written or blank, size, script and language, which face shows which fibre direction,
+  book hand or documentary hand, read or unread, in a set or in none; fragments too small to match
+  are kept and left out of matching with that reason; the facets are counts and filters in the
+  table and on the board. Test: `test_triage.py::test_a_blank_scrap_is_kept_and_left_out_with_its_reason`.
+- `canvas-organize.scale.jobs-say-their-coverage` — **[GAP]** (→ #5550; engine) a matching job takes a
+  budget (time, comparisons), works in priority order (the selection, then by triage), resumes
+  where it stopped, and reports its coverage as fragments compared out of fragments in scope; a
+  proposal list from a partial run says it is partial. Test:
+  `test_matching_coverage.py::test_a_stopped_job_reports_what_it_covered_and_resumes`.
+- `canvas-organize.scale.board-is-a-slice` — **[GAP]** (→ #4192; app) a board over a scope larger than
+  two thousand items opens on a slice (a set, triage facets, a search, or one fragment and its
+  candidates), states how many of how many are shown, and never loads the rest; Show Candidates
+  brings a selected fragment's nearest onto the board as ghost cards. Test:
+  `CanvasSliceTests.swift::aLargeScopeOpensOnASliceAndSaysHowMany`.
+- `canvas-organize.findcontext.sets` — **[GAP]** (→ #4639; engine + app) set kinds gain find context
+  terms (season, find spot, excavation box, project terms); a set can be a member of a set; find
+  contexts are made from inventory metadata at import as proposals; the holder's inventory order
+  is *As Filed*, labelled with the holder's name, and no surface calls it the original order. Test:
+  `test_find_context_sets.py::test_a_fragment_is_in_its_box_its_season_and_still_filed_by_inventory`.
+- `canvas-organize.physical.fibre-continuity` — **[GAP]** (→ #5548; engine) on papyrus, each face's
+  fibre direction and the fibres meeting each edge (position, spacing, width, tone) are marks; two
+  edges whose fibres continue are proposed as `joins`, scored higher when both faces agree, and
+  with a stated gap when the fibres agree and the edges do not meet; the evidence draws the fibres
+  running across the break on each face. Sheet joins of a roll are marks and never read as a tear.
+  Test: `test_fibre_continuity.py::test_fibres_agreeing_on_both_faces_outrank_an_edge_fit_alone`.
+- `canvas-organize.hand.same-hand-sets` — **[GAP]** (→ #5550; engine + app) fragments are clustered by
+  an unsupervised hand descriptor and each cluster is proposed as a set of kind hand; the evidence
+  is the same letters from several members side by side and the member that fits least; the set
+  names no scribe; splitting or merging a set is an answer that teaches. Test:
+  `test_same_hand_sets.py::test_a_proposed_hand_set_shows_matching_letter_forms_and_names_no_one`.
+- `canvas-organize.text.identify` — **[GAP]** (→ #5550; engine) a fragment's reading, with gaps and
+  doubtful letters, is aligned against the known-text corpora installed in the project by an
+  alignment that tolerates both; a hit proposes `attests` to the work's identifier with the lines
+  and the aligned text as evidence, and several rival hits are all shown; a hit in a register of
+  published texts proposes `same_as` to that text's stable identifier. The vocabulary gains
+  `attests`. Test: `test_text_identification.py::test_a_gapped_reading_proposes_the_work_and_its_lines`.
+- `canvas-organize.text.same-work-orders` — **[GAP]** (→ #5548; engine) fragments that attest one work
+  are proposed as one set with an order by line number, and two that attest neighbouring columns
+  are proposed as candidates for a join, ranked above candidates with no text in common. Test:
+  `test_text_identification.py::test_two_fragments_of_one_work_are_ordered_by_their_lines`.
+- `canvas-organize.text.corpora-are-installed` — **[GAP]** (→ #5550; engine + app) a known-text corpus
+  is installed per project with its name, licence and version; none under a licence that forbids
+  it is bundled; identification runs locally and never sends a reading to a service unless a
+  person chooses one; each proposal names the corpus and version it matched. Test:
+  `test_text_corpora.py::test_a_proposal_names_its_corpus_and_version`.
+- `canvas-organize.cross.join-names-both-holders` — **[GAP]** (→ #4639; engine + app) a fragment held
+  elsewhere is on a board as a reference to its holder's manifest and canvas; a link whose ends
+  have different holders records each holder, inventory number, manifest and rights statement,
+  and its card and Inspector say who holds each piece; the reunited sheet exports as a manifest
+  that references both holders' image services and copies no image. Test:
+  `test_cross_holder_join.py::test_the_join_record_and_its_manifest_name_both_holders`.
+- `canvas-organize.crowd.answers-are-ground-truth` — **[GAP]** (→ #5550; engine + app) every accept,
+  reject and correction is kept with who gave it; a relation counts as ground truth when the
+  project's rule is met (a number of people agreeing, or a named editor); disagreement is listed
+  and never averaged; imported crowd transcriptions keep their agreement as certainty; a recognizer
+  retrained on ground truth reports its score before and after, on fragments held out by find
+  context. Test: `test_crowd_ground_truth.py::test_two_agreeing_answers_make_ground_truth_and_a_split_is_listed`.
+
 ## Data model and which operations are engine calls
 
 Everything is an engine action through the audited layer; the app holds positions in flight and
@@ -638,6 +769,33 @@ slice, the third is removed by `canvas-organize.link.one-vocabulary-in-the-app`.
 - Behaviours: `canvas-organize.export`, `canvas-organize.mcp-cli`
 - Tests: py, py
 - Depends on: 1.2, 3.1
+- Size: M
+
+### Stage 6 — The large-fragment case
+#### Step 6.1 — The descriptor index, triage and coverage (#TBD)
+- Behaviours: `canvas-organize.scale.descriptor-index`, `canvas-organize.scale.triage`, `canvas-organize.scale.jobs-say-their-coverage`
+- Tests: test_descriptor_index.py, test_triage.py, test_matching_coverage.py
+- Depends on: 4.3
+- Size: M
+#### Step 6.2 — A board that is a slice; find contexts (#TBD)
+- Behaviours: `canvas-organize.scale.board-is-a-slice`, `canvas-organize.findcontext.sets`
+- Tests: CanvasSliceTests.swift, test_find_context_sets.py
+- Depends on: 6.1, 2.3
+- Size: M
+#### Step 6.3 — Fibres and hands (#TBD)
+- Behaviours: `canvas-organize.physical.fibre-continuity`, `canvas-organize.hand.same-hand-sets`
+- Tests: test_fibre_continuity.py, test_same_hand_sets.py
+- Depends on: 6.1, 4.2
+- Size: M
+#### Step 6.4 — Known texts (#TBD)
+- Behaviours: `canvas-organize.text.corpora-are-installed`, `canvas-organize.text.identify`, `canvas-organize.text.same-work-orders`
+- Tests: test_text_corpora.py, test_text_identification.py
+- Depends on: 6.1
+- Size: M
+#### Step 6.5 — Other holders and many people (#TBD)
+- Behaviours: `canvas-organize.cross.join-names-both-holders`, `canvas-organize.crowd.answers-are-ground-truth`
+- Tests: test_cross_holder_join.py, test_crowd_ground_truth.py
+- Depends on: 5.1
 - Size: M
 
 ## Test matrix
@@ -729,3 +887,14 @@ a sentence: "Letter of 4 March replies to Letter of 20 February, made by a perso
 9. **One milestone or the existing one?** This spec names a new `canvas-organize` milestone.
    *Recommended: new*, ordered in `build-order.md` after `library-view-modes` and the segment
    editor's steps, with Stage 1 (engine) free to start beside them since it touches no shared view.
+10. **How large is one library meant to be?** The fragment case is five hundred thousand items.
+   *Recommended: test and promise one hundred thousand in a library on a Mac; treat half a million
+   as an index built on a cluster through the existing runner, with the app opening slices of it.*
+   The board, the table and the jobs are designed for the larger number either way.
+11. **Which known-text corpora are offered?** *Recommended: bundle none; offer open ones as
+   downloads (the documentary texts published at papyri.info, open Greek and Latin literary
+   collections), and let a project add a licensed corpus it already holds, used locally only.*
+   Each corpus's licence is checked before it is listed.
+12. **What makes a crowd's answer ground truth?** *Recommended: two people agreeing or one named
+   editor, set per project, with every single answer kept.* Training uses ground truth only;
+   proposals may show lone answers as a hint with their count.
