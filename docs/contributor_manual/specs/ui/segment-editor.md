@@ -371,7 +371,7 @@ targets are at least 44 pt.
   the whole selection one image pixel, ⇧ ten, ⌥⇧ a hundred; with a pressed point, the point
   alone (built). A held key gathers into one action, committed when the key is released or
   after half a second of stillness (`undo.typing.commit-is-one-step` applied to keys).
-- `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
+- `segment-editor.make-region-from-lines` — **[OK]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
   (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
   union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
   the region takes the lines' own parent, so lines inside a region that keeps other lines make a region nested in it; when the
@@ -380,9 +380,11 @@ targets are at least 44 pt.
   region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
   each is the other's undo: undoing a group deletes the region (and brings back the region it emptied), undoing an ungroup
   brings the same region back with the same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
-  *Tests:* `test_segment_group_lines.py` (including the emptied region's delete, undo and redo); `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
-  *Not built:* the new region open for its type; the region in orders other than `as-written`; the existing marquee path "New Region from
+  *Tests:* `fichero-server/tests/unit/api/test_segment_group_lines.py` (including the emptied region's delete, undo and redo); `fichero-server/tests/unit/api/test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `fichero/Tests/Unit/general/Views/Preview/SegmentGroupLinesTests.swift`.
+  *Left, now `segment-editor.make-region-opens-for-its-type`:* the new region open for its type; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
+- `segment-editor.make-region-opens-for-its-type` — **[GAP]** (#6737; app + engine; split from `segment-editor.make-region-from-lines`,
+  manager 2026-11-27 retag) what that line left: the new region open for its type; the region in orders other than `as-written`. Not built.
 - `segment-editor.make-region-in-every-menu` — **[OK]** (#6737, #7070; app) Make Region from Lines (two or more selected
   segments) and Ungroup Region (a selected region) are in every menu that lists the verbs: the Segment menu, the page's
   context menu and `SegmentVerbMenu` (the Order list's row menu and the Reader's line menu); a verb that cannot apply is
