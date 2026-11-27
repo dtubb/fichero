@@ -312,7 +312,7 @@ held, never finer. A statement with no stored level is said to the year.
   `test_a_documents_place_is_not_said_as_the_events_place`.
   Built: the document's place, the inferred words and the relative place as written. Tests:
   `fichero-server/tests/unit/knowledge/test_paragraph_places.py::test_a_documents_place_is_not_said_as_the_events_place`, `test_a_place_given_relative_to_another_is_said_as_written`.
-- `kg.para.place-links-its-name` — **[OK]** (#6773, → #6838) when the place is a known name,
+- `kg.para.place-links-its-name` — **[PARTIAL]** (#6773, → #6838) when the place is a known name,
   `place.entity_id` holds it so the app can open that name. Test (to write):
   `test_a_known_place_carries_its_entity_id`.
   Built: `place.entity_id` is the one entity whose canonical name is the place's label, else null; an entry's places are looked up in one query. Tests:

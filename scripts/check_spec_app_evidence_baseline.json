@@ -46,7 +46,6 @@
   "docs/contributor_manual/specs/harness/version-and-contract-integrity.md::contract.release-engine-reports-its-release",
   "docs/contributor_manual/specs/importer/importer.md::importer.nlp-draft-quality-gate",
   "docs/contributor_manual/specs/importer/importer.md::importer.nlp-scoped-to-new-and-stranded-only",
-  "docs/contributor_manual/specs/kg/kg-paragraph-realisation.md::kg.para.place-links-its-name",
   "docs/contributor_manual/specs/kg/kg-paragraph-realisation.md::kg.para.proposed-is-marked",
   "docs/contributor_manual/specs/kg/kg-readable-representation.md::kg.read.provenance-linked",
   "docs/contributor_manual/specs/kg/kg-readable-representation.md::kg.read.render-uses-claim-subject",
