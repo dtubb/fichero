@@ -1086,7 +1086,10 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
 - `local.loop.follows-landed-code` [OK] (#6589; built 2026-11-25) — the loop never runs older code than the rules it pins. On
   2026-11-25 a landing added a `[check]` key; the loop re-pinned the new rules, and its own older checkout refused every check
   from 16:41 to 18:05 as "unknown keys" (alerts 1902-1909) until a person updated it. Every two minutes the loop compares its
-  checkout's HEAD with the land branch's tip; when the tip is ahead and changed the builder package or harness.toml: with
+  checkout's HEAD with the land branch's tip, at most one follow per `[loop].follow_min_s` (1800 s) from the last (2026-11-27:
+  four follows in 24 minutes reset every check queue; a held tip is followed once the time is up, and `touch <state>/follow.now`
+  forces the next at once; test `fichero-builder/tests/test_follow_landed.py::test_a_follow_within_follow_min_s_of_the_last_waits_for_its_time_and_follow_now_forces_it`);
+  when the tip is ahead and changed the builder package or harness.toml: with
   `[loop].follow_landed = true` the checkout goes to the tip, its own harness.toml kept as it was, one `loop` row `followed`,
   and the loop re-execs onto the new code at once: running chains do not hold it (their steps go again from queue.json), only a
   dev build's thread does, and no chain starts on the old process meanwhile (2026-11-25 21:2x-21:39, alerts 1938-1948: nine busy

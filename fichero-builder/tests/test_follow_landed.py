@@ -191,3 +191,22 @@ def test_a_checkout_moved_by_hand_to_the_landed_tip_counts_as_followed_so_runnin
     assert queue.follow_landed(live, out=lambda s: None) == "", "once per tip"
     busy = {"c": types.SimpleNamespace(done=lambda: False)}  # a chain in its check
     assert queue.restart_due(("old",), live, busy, followed=True), "followed: a running chain does not hold the re-exec"
+
+
+def test_a_follow_within_follow_min_s_of_the_last_waits_for_its_time_and_follow_now_forces_it(repos):
+    """Manager 2026-11-27: four follows in 24 min each reset every check queue. One follow per [loop].follow_min_s from the last; a
+    held tip is followed once the time is up; `follow.now` forces it."""
+    import os
+    eng, live, rules = repos
+    (live / "harness.toml").write_text(rules + "[loop]\nfollow_landed = true\nfollow_min_s = 1800\n")
+    (journal.STATE / "follow.at").touch()  # a follow ten seconds ago
+    assert queue.follow_landed(live, out=lambda s: None) == "", "too soon: held"
+    assert g(live, "rev-parse", "HEAD") != g(eng, "rev-parse", "integration") and not (journal.STATE / "follow.tip").exists()
+    old = (journal.STATE / "follow.at").stat().st_mtime - 1801
+    os.utime(journal.STATE / "follow.at", (old, old))
+    assert queue.follow_landed(live, out=lambda s: None).startswith("followed"), "the time is up: the held tip is followed"
+    (eng / "fichero-builder" / "fichero_builder" / "x.py").write_text("newer = 3\n")
+    g(eng, "commit", "-qam", "c")
+    assert queue.follow_landed(live, out=lambda s: None) == "", "the follow just now holds the next landing"
+    (journal.STATE / "follow.now").touch()
+    assert queue.follow_landed(live, out=lambda s: None).startswith("followed") and not (journal.STATE / "follow.now").exists(), "forced, once"

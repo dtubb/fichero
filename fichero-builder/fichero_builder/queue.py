@@ -3211,6 +3211,13 @@ def follow_landed(root, out=print) -> str:
     tip, head = land_tool.resolve_branch(repo, branch), git("rev-parse", "HEAD").stdout.strip()
     if not tip or not head or (journal.STATE / "follow.tip").is_file() and (journal.STATE / "follow.tip").read_text().strip() == tip:
         return ""
+    # manager 2026-11-27 (four follows in 24 min, each re-exec reset every check queue): at most one follow per [loop].follow_min_s from
+    # the last one; `touch <state>/follow.now` forces the next. The tip is not marked, so a held follow happens once the time is up.
+    now_file, at = journal.STATE / "follow.now", journal.STATE / "follow.at"
+    if now_file.exists():
+        now_file.unlink(missing_ok=True)
+    elif at.exists() and time.time() - at.stat().st_mtime < float(rules.get("loop", {}).get("follow_min_s", FOLLOW_MIN_S)):
+        return ""
     origin_tip = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "-q", "--verify", f"refs/remotes/origin/{branch}^{{commit}}"],
                                 capture_output=True, text=True).stdout.strip()
     if head in (tip, origin_tip):  # the engine repo's own branch may lag origin's (2026-11-27, cb39c90)
@@ -3219,6 +3226,7 @@ def follow_landed(root, out=print) -> str:
         # new chain for over an hour on the old code. A checkout at the landed tip is followed code: it re-execs as a follow does
         # (restart_due still needs the code on disk to differ from the running code's mark).
         (journal.STATE / "follow.tip").write_text(tip + "\n")  # ponytail: keyed on the local tip; a later origin-only move rows again, once
+        at.touch()
         journal.append("loop", state="followed", detail=f"the loop's checkout is already at the landed {head[:9]} (moved by hand): it re-execs onto it, a running dev build first")
         return f"followed {head[:9]} (already there)"
     # the builder's code only: a landing of harness.toml or docs alone changes nothing this process runs (the checkout keeps its
@@ -3254,7 +3262,11 @@ def follow_landed(root, out=print) -> str:
         return say(f"the update to {tip[:9]} failed: {(r.stderr or r.stdout).strip()[-200:]}")
     journal.append("loop", state="followed", detail=f"the loop's checkout went from {head[:9]} to the landed {tip[:9]} ({len(changed.stdout.split())} builder file(s)); it re-execs now, a running dev build first")
     out(f"loop: followed the landed code to {tip[:9]}")
+    at.touch()
     return f"followed {tip[:9]}"
+
+
+FOLLOW_MIN_S = 1800.0  # [loop].follow_min_s
 
 
 RULES_NEWER = re.compile(r"unknown keys|unknown rules|rules file refused")  # "unknown rules": [check].auto (alerts 1938-1948)

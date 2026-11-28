@@ -480,6 +480,9 @@ dispatch = ["lane-ie"]  # first watched batch 2026-11-10; widen to lane-sharing,
 blocked_hours = 4
 # #6589 2026-11-20: under this many free GB on the Mac no new lane starts (a `disk-hold` row says why)
 disk_floor_gb = 30
+# manager 2026-11-27: the loop follows landed builder code at most once per this many seconds from its last follow (four follows in
+# 24 min reset every check queue); `touch ~/.local/state/fichero-builder/follow.now` forces the next follow at once
+follow_min_s = 1800
 
 [loop.approved_pinned]
 # #6466: a maintainer lane's pinned-checks refusal naming ONLY these files at exactly these blobs is approved by itself
