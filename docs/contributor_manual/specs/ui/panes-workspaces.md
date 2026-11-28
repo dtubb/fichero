@@ -894,9 +894,13 @@ the browse→read flow down the centre.
 > MORE THAN ONE pane: whether each pane holds its own, and whether they sync. This spec owns the
 > plumbing; the preview spec owns the instrument.
 
-- `panes.magnifier.per-pane-open-state` — **[GAP]** (#5015, #4725) each pane's magnifier opens and closes
+- `panes.magnifier.per-pane-open-state` — **[OK]** (#5015, #4725) each pane's magnifier opens and closes
   independently — one pane magnified while another is not. (Pane-scoped state; the magnifier's
   own behavior is `preview-magnifier`.)
+  *Built under `magnifier.per-pane-switches` (`preview-magnifier.md`):* the magnifier's and the loupe's switches are
+  kept per pane (`@PaneOnlyStorage`), and the menu acts on the focused pane. *Test:*
+  `fichero/Tests/Unit/general/Views/PreviewMagnifierPerPaneShapeTests.swift::testThePreviewKeepsItsSwitchesPerPane`,
+  `::testTheMenuActsOnTheFocusedPaneNotASharedFlag`.
 - `panes.zoom.sync-across-panes` — **[GAP]** (#4726) when synchronization is on, zoom/magnification
   in one pane drives the corresponding region in the others (original ↔ words), so the loupe
   is shared; sync is toggleable, off by default. This is the ONE genuinely cross-pane magnifier
