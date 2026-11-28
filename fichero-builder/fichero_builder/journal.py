@@ -10,6 +10,7 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from fichero_builder import client
@@ -42,6 +43,44 @@ def append(event: str, **fields) -> dict:
 def read() -> list[dict]:
     p = path()
     return [json.loads(line) for line in p.read_text().splitlines() if line.strip()] if p.exists() else []
+
+
+_CACHED: dict = {}  # path -> [inode, bytes read, rows, first bytes]
+_CACHED_LOCK = threading.Lock()
+
+
+def read_cached(p: Path | None = None, keep: Callable[[dict], bool] | None = None) -> list[dict]:
+    """The journal's rows, parsing only the bytes appended since the last call (2026-11-28: the console parsed a 102 MB journal,
+    1.7 s, on every request, and its pages stayed on "loading"). A new file at the path (rotated, replaced) or a shorter one is read
+    again from the start; a line not yet ended is left for the next call; a line that does not parse is skipped. `keep` filters the
+    rows kept (one filter per path). A new list each call; the rows are shared, not to be changed."""
+    p = Path(p or path())
+    with _CACHED_LOCK:
+        try:
+            st = p.stat()
+        except OSError:
+            _CACHED.pop(str(p), None)
+            return []
+        c = _CACHED.get(str(p))
+        with p.open("rb") as f:
+            head = f.read(256)
+            if c is None or c[0] != st.st_ino or st.st_size < c[1] or not head.startswith(c[3][: len(head)]) or len(head) < len(c[3]):
+                c = _CACHED[str(p)] = [st.st_ino, 0, [], head]  # rewritten in place (a test's write_text) starts over too
+            if st.st_size > c[1]:
+                f.seek(c[1])
+                chunk = f.read(st.st_size - c[1])
+                end = chunk.rfind(b"\n") + 1  # whole lines only
+                for ln in chunk[:end].splitlines():
+                    if ln.strip():
+                        try:
+                            r = json.loads(ln)
+                        except ValueError:
+                            continue
+                        if isinstance(r, dict) and (keep is None or keep(r)):
+                            c[2].append(r)
+                c[1] += end
+                c[3] = head
+        return list(c[2])
 
 
 def open_intents() -> list[dict]:

@@ -40,18 +40,12 @@ def rows_of(root) -> list[dict]:
     """The owner's journal (checks, landings) and the worker's under the shared state (runs), by time. From the shared file, which
     the worker can write, only run rows are read, so a worker cannot put a check or a landing on the console; a line that does not
     parse is skipped. A page of one file alone shows half of this."""
-    rows = journal.read()
+    rows = journal.read_cached()  # only the new bytes are parsed (2026-11-28: 102 MB, 1.7 s a request)
     f = Path(root) / "harness.toml"
     workroot = tomllib.loads(f.read_text()).get("jail", {}).get("workroot") if f.is_file() else None
     shared = Path(workroot) / "state" / "journal.jsonl" if workroot else None
     if shared and shared.is_file() and shared.resolve() != journal.path().resolve():
-        for ln in shared.read_text(errors="replace").splitlines():
-            try:
-                r = json.loads(ln)
-            except ValueError:
-                continue
-            if isinstance(r, dict) and r.get("event") in WORKER_ROWS:
-                rows.append(r)
+        rows += journal.read_cached(shared, keep=lambda r: r.get("event") in WORKER_ROWS)
     return sorted(rows, key=lambda r: r.get("ts", ""))
 
 
@@ -333,7 +327,7 @@ def dev_builds(rows: list[dict]) -> list[dict]:
 
 def _build_path(sha: str) -> str:
     """The DMG a dev build of `sha` left, from the journal only: never a path a request names."""
-    hit = next((b for b in dev_builds(journal.read()) if sha and b["sha"] == sha[:9]), None)
+    hit = next((b for b in dev_builds(journal.read_cached()) if sha and b["sha"] == sha[:9]), None)
     if hit is None:
         raise ValueError(f"no dev build of {sha!r} is on disk")
     return hit["path"]
@@ -948,6 +942,7 @@ def worktrees(root, git=_git_text) -> dict:
 
 
 _LANDING: dict = {}  # a minute's cache of view B
+_LANDING_BUSY = threading.Lock()  # one background landing read at a time
 _TREES: dict = {}  # {"at": time, "data": ...}: a minute's cache; a console action (a Clean up) clears it
 
 
@@ -1007,12 +1002,19 @@ def landing(root, lanes: list[dict], branch: str = "integration") -> dict:
     stage_of = {"queued": "waiting", "sent": "building", "done": "waiting for the check", "checking": "checking", "reviewing": "reviewing",
                 "blocked": "question", "landed": "landed"}
     out = []
-    for name, wt, lane in srcs:
+
+    def reads(src):  # ponytail: 8 at once; a per-tree cache keyed on its HEAD is the next step if this is still slow
+        _n, wt, lane = src
         log = _git_text(wt, "log", "--format=%x1e%H%x00%B", *([] if lane else ["--since=7.days"]), f"origin/{branch}..HEAD")
+        return log, (_git_text(wt, "diff", "--name-only", f"origin/{branch}...HEAD") if log.strip() else "")
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        got = list(pool.map(reads, srcs))
+    for (name, wt, lane), (log, diff) in zip(srcs, got):
         if not log.strip():
             continue
         cited = _cited(log)
-        files = len([x for x in _git_text(wt, "diff", "--name-only", f"origin/{branch}...HEAD").splitlines() if x])
+        files = len([x for x in diff.splitlines() if x])
         cur = lane["steps"][min(lane["cursor"], len(lane["steps"]) - 1)] if lane and lane["steps"] else None
         out.append({"name": name, "worktree": wt, "head": log.split("\x1e")[1].split("\x00")[0][:9] if "\x1e" in log else "",
                     "commits": log.count("\x1e"), "files": files, "fixes": sorted({n for _s, k, n in cited if k in ("fixes", "closes")}),
@@ -1103,7 +1105,7 @@ def release(root, branch: str = "integration", gh: str = "gh", pr=None, rows: li
                            capture_output=True, text=True, timeout=60, cwd=str(root))
         pr = json.loads(r.stdout or "[]") if r.returncode == 0 else []
     return {"ts": _ts(time.time()), "ahead": len(log), "commits": log[:40], "tag": tag, "prs": pr,
-            "since_build": since_build(root, journal.read() if rows is None else rows, branch, gh, issue)}
+            "since_build": since_build(root, journal.read_cached() if rows is None else rows, branch, gh, issue)}
 
 
 _TILES: dict = {}
@@ -1214,7 +1216,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/now":
             return _json(self, 200, now_view(rows_of(ROOT), queue.load()))
         if path == "/api/activity":
-            return _json(self, 200, activity(journal.read()))
+            return _json(self, 200, activity(journal.read_cached()))
         if path == "/api/hotspots":  # the Hotspots panel reads latest.json (perf-sweep.output.table)
             try:
                 return _json(self, 200, json.loads((journal.STATE / "perf" / "latest.json").read_text()))
@@ -1224,11 +1226,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             from fichero_builder import perf_warnings
             return _json(self, 200, perf_warnings.latest(journal.STATE))
         if path == "/api/landing":
-            if not _LANDING or time.time() - _LANDING["at"] > 60:
-                _LANDING.update(at=time.time(), data=landing(ROOT, queue.load()))
-            return _json(self, 200, _LANDING["data"])
+            # 2026-11-28: 141 git calls, 21 s a request; worked out in the background, at most one at a time, every 60 s: a
+            # request gets the last answer at once (the first one, `computing`)
+            if (not _LANDING or time.time() - _LANDING["at"] > 60) and _LANDING_BUSY.acquire(blocking=False):
+                def refresh():
+                    try:
+                        _LANDING.update(at=time.time(), data=landing(ROOT, queue.load()))
+                    finally:
+                        _LANDING_BUSY.release()
+                threading.Thread(target=refresh, daemon=True).start()
+            return _json(self, 200, _LANDING.get("data") or {"ts": None, "branches": [], "computing": True})
         if path == "/api/issues":
-            return _json(self, 200, {"issues": issues_today(journal.read(), repo_url(ROOT))})
+            return _json(self, 200, {"issues": issues_today(journal.read_cached(), repo_url(ROOT))})
         if path == "/api/release":
             try:
                 return _json(self, 200, json.loads((journal.STATE / "console-release.json").read_text()))
@@ -1242,7 +1251,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError as e:
                 return _json(self, 500, {"error": str(e)})
         if path == "/api/builds":
-            return _json(self, 200, {"builds": dev_builds(journal.read())})
+            return _json(self, 200, {"builds": dev_builds(journal.read_cached())})
         if path.startswith("/download/"):
             return self._download(path.rsplit("/", 1)[-1])
         if path == "/api/events":
@@ -1361,7 +1370,7 @@ def _auto_refresh() -> None:
     while True:
         try:
             cache = json.loads(_cache().read_text()) if _cache().exists() else {}
-            land = next((r["ts"] for r in reversed(journal.read()) if r.get("event") == "landed" and r.get("step") == "done"), "")
+            land = next((r["ts"] for r in reversed(journal.read_cached()) if r.get("event") == "landed" and r.get("step") == "done"), "")
             old = not cache.get("ts") or time.time() - time.mktime(time.strptime(cache["ts"], "%Y-%m-%dT%H:%M:%S")) > 900
             if old or (land and land != seen and land > cache.get("ts", "")):
                 seen = land
@@ -1396,6 +1405,7 @@ def configure(root) -> None:
 def main(a) -> int:
     configure(a.root)
     threading.Thread(target=_auto_refresh, daemon=True).start()
+    threading.Thread(target=lambda: rows_of(ROOT), daemon=True).start()  # the journal parsed once now, so the first page is quick
     srv = server("127.0.0.1", a.port)
     print(f"the builder console at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")
     try:
