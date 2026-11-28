@@ -974,7 +974,7 @@ See section 7.2 below for what exists. The design:
   is a line with no region and the page says "This line is in no region". The new segment is selected, and ⌘Z removes it.
   *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`polygonAtALevel`, `parents`, `noRegionNotice`);
   `fichero/Tests/Unit/general/Views/Segments/DrawRegionPointerTests.swift` (the drag hands one box to the host and leaves no point; clicks
-  still place points). Needs an on-screen check.
+  still place points; at the Region or Word level, or under Follow Selection, the Polygon tool's drag makes no box). Needs an on-screen check.
 - `segment-editor.draw-kind-picker` — **[OK]** (→ #7083; app) beside the tools a Makes picker says what the polygon and rectangle tools
   draw: Region, Line or Word, kept for the window; Follow Selection (the default, until one is chosen) draws a line when a region is
   selected and a word when a line is selected, else a region. A word goes into the line that holds most of it. Before this every
