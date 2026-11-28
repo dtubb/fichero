@@ -11,6 +11,14 @@
     "inferred": "en {place} (lugar inferido)",
     "relative": "a {place}"
   },
+  "doubt": {
+    "hedge": ", al parecer,",
+    "one_source": "(una sola fuente)",
+    "sources": "({count} fuentes)",
+    "numbers": ["una", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce"],
+    "according_one": "según una fuente",
+    "according_other": "según otra"
+  },
   "dates": {
     "day": "el {day} de {month} de {year}",
     "month": "en {month} de {year}",

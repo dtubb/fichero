@@ -45,9 +45,11 @@ from fichero_server.knowledge.paragraph import (
 )
 from fichero_server.models.knowledge import (
     ClaimCurationState,
+    ClaimRelationType,
     EpistemicStatus,
     EvidenceBasis,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
 )
 
@@ -332,6 +334,21 @@ def _check_place_words(name: str, places: object) -> None:
             raise ValueError(f"{name}: places.{key} must be a string holding {{place}}")
 
 
+def _check_doubt_words(name: str, doubt: object) -> None:
+    """A table's `doubt` is the hedge, the one-source words, `sources` holding `{count}`, twelve number words and
+    the two attributions of a dispute."""
+    if not isinstance(doubt, dict):
+        raise ValueError(f"{name}: doubt must be an object")
+    for key in ("hedge", "one_source", "sources", "according_one", "according_other"):
+        if not isinstance(doubt.get(key), str) or not doubt[key]:
+            raise ValueError(f"{name}: doubt.{key} must be a non-empty string")
+    if "{count}" not in doubt["sources"]:
+        raise ValueError(f"{name}: doubt.sources must hold {{count}}")
+    numbers = doubt.get("numbers")
+    if not isinstance(numbers, list) or len(numbers) != 12 or not all(isinstance(n, str) and n for n in numbers):
+        raise ValueError(f"{name}: doubt.numbers must be twelve words")
+
+
 def load_language_tables(directory: Path) -> dict[str, dict]:
     """Every `<language>.json` in `directory`, keyed by language; a file with a missing or mistyped
     key, or named for a language other than its own `language` field, raises ValueError."""
@@ -356,6 +373,9 @@ def load_language_tables(directory: Path) -> dict[str, dict]:
         dates = table.get("dates")
         if dates is not None:
             _check_date_words(path.name, dates)
+        doubt = table.get("doubt")
+        if doubt is not None:
+            _check_doubt_words(path.name, doubt)
         tables[path.stem] = {
             **table,
             "prepositions": {_fold(w) for w in prepositions},
@@ -460,6 +480,50 @@ def _claim_place(claim: KnowledgeClaim, language: str | None) -> dict | None:
         "entity_id": None,
         "origin": f"claim:{claim.id}:{'claim_location' if claim.claim_location else 'place_values'}",
     }
+
+
+# ponytail: the engine has no confidence band of its own; this is the low edge of the app's
+# `ConfidenceBand` (below 0.4). One band for both when the engine gets one (#4751).
+LOW_BAND = 0.4
+
+
+def _person_decided(claim: KnowledgeClaim) -> bool:
+    return claim.curation_state == ClaimCurationState.curated or claim.epistemic_status == EpistemicStatus.confirmed
+
+
+def _unsure(claim: KnowledgeClaim) -> bool:
+    """Tentative, or a confidence whose source is `measured` below `LOW_BAND`; an unmeasured figure is no doubt."""
+    measured_low = claim.confidence_source == "measured" and claim.confidence < LOW_BAND
+    return claim.epistemic_status == EpistemicStatus.tentative or measured_low
+
+
+def _doubt(claims: list[KnowledgeClaim]) -> str:
+    """The doubt of one clause's statements by rules 2, 4, 5 and 6 of the spec's table: `one_source_unsure`
+    when no person decided any of them, they rest on exactly one document and every one is `_unsure`;
+    else `none`."""
+    if any(_person_decided(c) for c in claims) or _sources(claims) != 1:
+        return "none"
+    return "one_source_unsure" if all(_unsure(c) for c in claims) else "none"
+
+
+def _doubt_words(language: str | None) -> dict | None:
+    return (_TABLES.get(language or "") or {}).get("doubt")
+
+
+def _doubt_pieces(claims: list[KnowledgeClaim], language: str | None, ids: list[str]) -> list[tuple[str, str, list[str]]]:
+    """The words that follow a clause's object: the table's one-source words for a `one_source_unsure`
+    clause; the count of its documents, in the table's number words up to twelve and digits after, for
+    two or more when no person decided; else none."""
+    words = _doubt_words(language)
+    if not words or any(_person_decided(c) for c in claims):
+        return []
+    if _doubt(claims) == "one_source_unsure":
+        return [(words["one_source"], f"table:{language}:one_source", ids)]
+    count = _sources(claims)
+    if count < 2:
+        return []
+    number = words["numbers"][count - 1] if count <= len(words["numbers"]) else str(count)
+    return [(words["sources"].format(count=number), f"table:{language}:sources", ids)]
 
 
 def _date_origin(claim: KnowledgeClaim) -> str:
@@ -675,10 +739,15 @@ def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
             pieces.append((values[role], f"claim:{claim.id}:{_role_field(claim, role)}"))
             if role == "verb":
                 pieces.extend(contraction_piece)
+    hedge = (_doubt_words(lang) or {}).get("hedge") if _doubt([claim]) == "one_source_unsure" else None
     if len(pieces) < 2:
         text = " ".join(claim.text.split())
         if text:
             pieces = [(text, f"claim:{claim.id}:text")]
+            if hedge:  # no subject to follow: the hedge closes the stored text
+                pieces.append((hedge.rstrip(","), f"table:{lang}:hedge"))
+    elif hedge and values["subject"]:
+        pieces.insert(1, (hedge, f"table:{lang}:hedge"))
     date = _claim_date(claim, lang)
     if pieces and date:
         pieces.insert(0, (f"{date['text'][0].upper()}{date['text'][1:]},", _date_origin(claim)))
@@ -688,6 +757,8 @@ def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
     year = (claim.time_start or "")[:4]
     if pieces and lang not in _TABLES and year.isdigit():
         pieces.append((f"({year})", f"claim:{claim.id}:time_start"))
+    if pieces:
+        pieces.extend((text, origin) for text, origin, _ in _doubt_pieces([claim], lang, []))
     if pieces and not pieces[-1][0].endswith((".", "!", "?")):
         pieces.append((".", "punctuation"))
     return pieces
@@ -708,11 +779,7 @@ def _join_pieces(pieces: list[tuple[str, str, list[str]]]) -> tuple[str, list[di
 
 
 def _group_state(claims: list[KnowledgeClaim]) -> str:
-    reviewed = all(
-        c.curation_state == ClaimCurationState.curated or c.epistemic_status == EpistemicStatus.confirmed
-        for c in claims
-    )
-    return "reviewed" if reviewed else "proposed"
+    return "reviewed" if all(_person_decided(c) for c in claims) else "proposed"
 
 
 def _sources(claims: list[KnowledgeClaim]) -> int:
@@ -739,6 +806,9 @@ def _merged_pieces(
     pieces = [p for p in head if p]
     if len(pieces) + bool(objects) < 2:
         return None
+    hedge = (_doubt_words(lang) or {}).get("hedge")
+    if hedge and agg.subject and any(_doubt(members) == "one_source_unsure" for _, members in objects):
+        pieces.insert(1, (hedge, f"table:{lang}:hedge", ids))
     marks: list[tuple[int, list[KnowledgeClaim], int]] = []
     # a place every statement shares is said once at the end; otherwise each object is followed by its own
     texts = {(_claim_place(c, lang) or {}).get("text") for c in group_claims}
@@ -762,6 +832,7 @@ def _merged_pieces(
         date = _claim_date(members[0], lang)
         if date:
             pieces.append((f"({date['text']})", _date_origin(members[0]), [m.id for m in members]))
+        pieces.extend(_doubt_pieces(members, lang, [m.id for m in members]))
         marks.append((at, members, len(pieces) - 1))
     if one_place:
         pieces.extend(_place_pieces(group_claims, lang, ids))
@@ -807,21 +878,121 @@ def _trace_group_sentence(
         (0, len(text), group_claims)
     ]
     clauses = [
-        {
-            "start": start,
-            "end": end,
-            "claim_ids": [c.id for c in members],
-            "role": _group_role(members, entity_id, entity_names),
-            "revoiced": False,
-            "state": _group_state(members),
-            "doubt": "none",
-            "sources": _sources(members),
-            "date": _claim_date(members[0], agg.language),
-            "place": {k: v for k, v in (_claim_place(members[0], agg.language) or {}).items() if k != "origin"} or None,
-        }
+        _clause(start, end, members, agg.language, entity_id, entity_names, _doubt(members))
         for start, end, members in spans
     ]
     return text, clauses, segments
+
+
+def _clause(
+    start: int, end: int, members: list[KnowledgeClaim], language: str | None, entity_id: str,
+    entity_names: list[str], doubt: str,
+) -> dict:
+    return {
+        "start": start,
+        "end": end,
+        "claim_ids": [c.id for c in members],
+        "role": _group_role(members, entity_id, entity_names),
+        "revoiced": False,
+        "state": _group_state(members),
+        "doubt": doubt,
+        "sources": _sources(members),
+        "date": _claim_date(members[0], language),
+        "place": {k: v for k, v in (_claim_place(members[0], language) or {}).items() if k != "origin"} or None,
+    }
+
+
+def _disputes(db, claims: list[KnowledgeClaim]) -> list[tuple[KnowledgeClaim, KnowledgeClaim]]:
+    """Each stored `contradicts` link between two of `claims`, as the pair in source order (`_by_source_key`,
+    then id). No pair is made of a statement a person decided, one already in a pair, one with no subject,
+    verb or object, or two statements whose shared language has no doubt words in its table."""
+    order = {c.id: i for i, c in enumerate(claims)}
+    by_id = {c.id: c for c in claims}
+    # both ends of a pair are among `claims`, so the links that start at one of them are all that can match
+    links = [
+        (by_id[link.claim_id], by_id[link.related_claim_id])
+        for link in db.query_in(KnowledgeClaimLink, "claim_id", list(by_id))
+        if link.relation_type == ClaimRelationType.contradicts
+        and link.related_claim_id in by_id and link.claim_id != link.related_claim_id
+    ]
+    pairs: list[tuple[KnowledgeClaim, KnowledgeClaim]] = []
+    taken: set[str] = set()
+    for a, b in sorted(links, key=lambda ab: sorted((order[ab[0].id], order[ab[1].id]))):
+        language = _claim_language(a)
+        if (
+            a.id in taken or b.id in taken or language != _claim_language(b) or not _doubt_words(language)
+            or any(_person_decided(c) or not (_claim_subject(c) and _claim_verb(c) and _claim_object(c)) for c in (a, b))
+        ):
+            continue
+        taken.update((a.id, b.id))
+        first, second = sorted((a, b), key=lambda c: (_by_source_key(c), c.id))
+        pairs.append((first, second))
+    return pairs
+
+
+def _reading(claim: KnowledgeClaim, language: str) -> list[tuple[str, str]]:
+    """One reading of a dispute as (text, origin) pieces: subject, verb, object (with the table's seam), place, date."""
+    verb, contraction, obj, key = _seam(_claim_verb(claim), _claim_object(claim), language, contract=True)
+    pieces = [(_claim_subject(claim), f"claim:{claim.id}:{_role_field(claim, 'subject')}"),
+              (verb, f"claim:{claim.id}:{_role_field(claim, 'verb')}")]
+    if contraction:
+        pieces.append((contraction, f"table:{language}:{key}"))
+    pieces.append((obj, f"claim:{claim.id}:{_role_field(claim, 'object')}"))
+    place = _claim_place(claim, language)
+    if place:
+        pieces.append((place["text"], place["origin"]))
+    date = _claim_date(claim, language)
+    if date:
+        pieces.append((date["text"], _date_origin(claim)))
+    return pieces
+
+
+def _dispute_sentence(
+    pair: tuple[KnowledgeClaim, KnowledgeClaim], entity_id: str, entity_names: list[str]
+) -> tuple[str, list[dict], list[dict]]:
+    """Rule 3: two disputed statements as one sentence. The pieces both readings open with are said once;
+    the rest of each follows, each with the table's attribution, joined by the table's "and". One clause
+    per statement, each `disputed`: the first from the sentence's start to its attribution, the second
+    from the rest of its reading to its own."""
+    first, second = pair
+    language = _claim_language(first)
+    words = _TABLES[language]["doubt"]
+    one, other = _reading(first, language), _reading(second, language)
+    shared = 0
+    while shared < min(len(one), len(other)) and one[shared][0] == other[shared][0]:
+        shared += 1
+    ids = [first.id, second.id]
+    pieces = [
+        *((t, o, ids) for t, o in one[:shared]),
+        *((t, o, [first.id]) for t, o in one[shared:]),
+        (words["according_one"], f"table:{language}:according_one", [first.id]),
+        (_TABLES[language]["and"], f"table:{language}:and", ids),
+    ]
+    second_at = len(pieces)
+    pieces += [
+        *((t, o, [second.id]) for t, o in other[shared:]),
+        (words["according_other"], f"table:{language}:according_other", [second.id]),
+        (".", "punctuation", ids),
+    ]
+    text, segments = _join_pieces(pieces)
+    clauses = [
+        _clause(0, segments[second_at - 2]["end"], [first], language, entity_id, entity_names, "disputed"),
+        _clause(segments[second_at]["start"], segments[-2]["end"], [second], language, entity_id, entity_names, "disputed"),
+    ]
+    return text, clauses, segments
+
+
+def _apart_unsure(agg: "Aggregation", group_claims: list[KnowledgeClaim]) -> list[list[KnowledgeClaim]]:
+    """The statements of one group as the sentences that say them: the statements of an object that is
+    `one_source_unsure` are a sentence of their own, after the rest, so a hedge never lands on a plain object."""
+    if agg.count == 1:
+        return [group_claims]
+    apart = [members for obj in agg.objects
+             if _doubt(members := [c for c in group_claims if _claim_object(c) == obj]) == "one_source_unsure"]
+    if not apart or len(apart) == len(agg.objects):
+        return [group_claims]
+    moved = {c.id for members in apart for c in members}
+    return [[c for c in group_claims if c.id not in moved], *apart]
 
 
 def _is_withdrawn(claim: KnowledgeClaim) -> bool:
@@ -903,21 +1074,36 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
     said_a_date = False
     said_undated = False
     places: list[dict] = []
-    for group in aggregate_claims(claims):
-        group_claims = [by_id[cid] for cid in group.claim_ids]
-        text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
+    # a dispute is one sentence at the place of its earlier statement; the other statements are grouped
+    order = {c.id: i for i, c in enumerate(claims)}
+    pairs = _disputes(db, claims)
+    paired = {c.id for pair in pairs for c in pair}
+    units: list[tuple[tuple[int, int], list[KnowledgeClaim], bool]] = [
+        ((min(order[c.id] for c in pair), 0), list(pair), True) for pair in pairs
+    ]
+    for agg in aggregate_claims([c for c in claims if c.id not in paired]):
+        parts = _apart_unsure(agg, [by_id[cid] for cid in agg.claim_ids])
+        units += [((order[agg.claim_ids[0]], n), part, False) for n, part in enumerate(parts)]
+    for _, group_claims, disputed in sorted(units, key=lambda u: u[0]):
+        group = aggregate_claims(group_claims)[0] if not disputed else None
+        language = _claim_language(group_claims[0])
+        claim_ids = [c.id for c in group_claims]
+        if group is None:
+            text, clauses, segments = _dispute_sentence((group_claims[0], group_claims[1]), entity_id, entity_names)
+        else:
+            text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
         if not text:
             continue
         places.extend(c["place"] for c in clauses if c["place"])
         dated = any(c["date"] for c in clauses)
-        undated_words = ((_TABLES.get(group.language or "") or {}).get("dates") or {}).get("undated")
+        undated_words = ((_TABLES.get(language or "") or {}).get("dates") or {}).get("undated")
         if said_a_date and not said_undated and not dated and undated_words:
             # the first undated sentence after dated ones opens with the table's undated words
             shift = len(undated_words) + 1
             text = f"{undated_words} {text}"
             clauses = [{**c, "start": c["start"] + shift, "end": c["end"] + shift} for c in clauses]
             segments = [
-                {"start": 0, "end": len(undated_words), "origin": f"table:{group.language}:undated", "claim_ids": list(group.claim_ids)},
+                {"start": 0, "end": len(undated_words), "origin": f"table:{language}:undated", "claim_ids": list(claim_ids)},
                 *({**g, "start": g["start"] + shift, "end": g["end"] + shift} for g in segments),
             ]
             said_undated = True
@@ -933,8 +1119,8 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
                 # stays unknown, never a guessed label a later step would
                 # trust. All members share this value -- it is IN the
                 # aggregation key, so a mixed-language group cannot exist.
-                "language": group.language,
-                "claim_ids": list(group.claim_ids),
+                "language": language,
+                "claim_ids": claim_ids,
                 "role": _group_role(group_claims, entity_id, entity_names),
                 "revoiced": False,
                 "clauses": [{**c, "start": start + c["start"], "end": start + c["end"]} for c in clauses],

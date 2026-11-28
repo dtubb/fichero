@@ -27,6 +27,9 @@ class _Db:
     def query(self, model, **kw):
         return []
 
+    def query_in(self, model, column, values):
+        return []
+
 
 def _claim(cid, verb, obj, lang, **kw) -> KnowledgeClaim:
     return KnowledgeClaim(
