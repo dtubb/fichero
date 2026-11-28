@@ -214,7 +214,7 @@ what the material is (handwriting, print, typescript, text: `answers.materials`,
 engine measures faded pages from a sample by itself (`source.onboard.auto.prepare-damaged-images` (P),
 `recipes/prepare.py`); nothing asks about damage, and the Prepare Images questions are two with fixed defaults
 (`recipes/stages.py`; `prep.setup.three-questions-suggested-from-a-sample` (G)).
-- `designer.material.condition-asked` [PARTIAL] (#6052, #6295; engine built: `recipes/condition.py`, `answers.condition`, `GET /api/recipes/questions`; the app's tick boxes are built behind `wideSetUp`, `RecipeConditionFields`, not yet seen in a build) — About the Material
+- `designer.material.condition-asked` [OK] (#6052, #6295; engine built: `recipes/condition.py`, `answers.condition`, `GET /api/recipes/questions`; the app's tick boxes are built behind `wideSetUp`, `RecipeConditionFields`, not yet seen in a build) — About the Material
   asks, under the kind of material, "What condition are the pages in?": tick boxes, none ticked by default,
   from one engine list (`GET /api/recipes/questions`): faded ink · torn or missing parts · stains · show-through
   from the other side · water damage · tight binding (text curves into the gutter) · ruled or printed lines
@@ -222,6 +222,15 @@ engine measures faded pages from a sample by itself (`source.onboard.auto.prepar
   `answers.condition` (a list, refused in words for an unknown id, kept as a list of none). *Test:*
   `test_condition_answers.py` (the list is the engine's; an unknown id is
   refused; none ticked saves an empty list, never a default).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_the_list_has_a_name_and_one_line_of_help_each`,
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_the_questions_route_serves_that_list`,
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_an_unknown_id_is_refused_naming_the_valid_list`,
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_none_ticked_saves_an_empty_list_and_unasked_saves_nothing`,
+  `fichero/Tests/Unit/general/Models/RecipeConditionTests.swift::toggling`,
+  `fichero/Tests/Unit/general/Models/RecipeConditionTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeConditionTests.swift::decoding`. The list holds seven ids; the photocopy is
+  `designer.material.condition-photocopy` (#6486), which is not in it.
 - `designer.material.condition-suggested-from-a-sample` [PARTIAL] (#6052; engine half built: `prepare_suggest.suggest` answers `condition.faded`, `condition.show-through`, `condition.ruled-lines` with "from N of M sample pages"; tight binding waits for the gutter-curve measure; the app does not show them yet) — the engine ticks a condition
   beforehand only when its sample measure says so (faded from `recipes/prepare.py`'s grey spread; show-through
   from the mirrored-verso match and tight binding from the gutter curve of
@@ -284,19 +293,36 @@ questions, before the route cards and before Choose the Stages, so the defaults 
 person; the cards (below) become the engine's answer to them, not a choice made cold. What the person has is
 derived, never asked twice (`source.onboard.derives-not-asks` (P): `recipes/derived.py` already reports this
 Mac's chip and memory, the providers with a key and the places work can run).
-- `designer.how.where` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Where should the work run?": this Mac · another machine of mine
+- `designer.how.where` [OK] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Where should the work run?": this Mac · another machine of mine
   · a cluster · the cloud, each a tick with one sentence of consequence (pages stay here / leave to your own
   machine / to the cluster's administrators / to a company), limited to the places Set Up Fichero allows
   (`source.onboard.places-cap-projects` (P)); a place the app does not allow is shown greyed with the engine's
   reason and a link, never hidden. Saved as `answers.how.places` (a list). *Test:*
   `test_how_questions.py` (the offered places are the app's allowed ones; a
   disallowed place is listed with its reason, not dropped).
-- `designer.how.model-kind` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Which kind of model?": small local models (Kraken, Apple's
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_a_place_the_app_does_not_allow_is_listed_greyed_with_its_reason_not_dropped`,
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_answers_are_kept_in_order_and_an_unknown_value_is_refused_in_words`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::decoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::flow`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::ticks`.
+- `designer.how.where-refused-place-has-a-link` [GAP] (#6052; app) — split from `designer.how.where` (manager
+  2026-11-27 retag); what that line left: a link beside a place the app does not allow (the reason is a sentence and
+  the app draws no link), and a Swift test of the greyed row. Not built.
+- `designer.how.model-kind` [OK] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Which kind of model?": small local models (Kraken, Apple's
   recognition, small MLX models: read only what is on the line, free, slower, may misread a word) · large
   vision-language models (Claude, Gemini, GPT, or a large local one: read fluently, cost per page, may invent or
   regularise text) · let Fichero compare and choose (the default: the compare of section 8 decides on the
   person's pages). Saved as `answers.how.model_kind`. *Test:* same file (the three options, the default, and
   that the large-model option is greyed with its reason when the cloud is not allowed and this Mac cannot run one).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_the_three_model_kinds_default_to_compare_and_large_is_greyed_only_with_no_cloud_and_a_small_mac`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::decoding`.
+- `designer.how.model-kind-decides-the-compare` [GAP] (#6052) — split from `designer.how.model-kind` (manager
+  2026-11-27 retag); what that line left: the default, let Fichero compare and choose, deciding through the compare of
+  section 8 (nothing in the engine reads `answers.how.model_kind` to run or skip a compare). Not built.
 - `designer.how.cloud-asked-before-any-default` [GAP] (#6489, owner 2026-11-10: the cloud choice came late in the flow; the owner had not chosen cloud, so the PP-OCR default was right for cloud off) —
   whether pages may leave this Mac is asked BEFORE any model is proposed: in the How step's "Where" question (built behind
   `wideSetUp`, not yet in the flow the owner sees; the shown flow asks it late), above "What matters most?", so no default is made
@@ -324,12 +350,20 @@ Mac's chip and memory, the providers with a key and the places work can run).
   (`designer.how.person-chosen-is-kept`); the next pages show it as chosen. Changing Where or What matters recomputes only the rows
   not picked by hand. Mac and iOS use the same rows (a Menu on touch). *Test:* `test_how_defaults.py` (a picked default is saved and
   survives a recompute; an unpicked row follows the answers; a refused card is not offered), `RecipeHowDefaultsTests`; not yet written.
-- `designer.how.what-matters` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build; extends `designer.path.what-matters-most`) — "What matters
+- `designer.how.what-matters` [OK] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build; extends `designer.path.what-matters-most`) — "What matters
   most?": speed · cost · quality · privacy, one choice, pre-filled from the places answer (privacy when only
   this Mac is ticked). Privacy means nothing leaves this Mac and the cloud question of
   `designer.path.cloud-question-on-the-page` stays unanswered; the other three break ties inside the noise band
   as section 7 says (`designer.path.what-matters-most` keeps predictability as the compare's label). Saved as
   `answers.how.matters`. *Test:* same file (privacy never writes `cloud_allowed`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_privacy_is_prefilled_when_only_this_mac_is_ticked_and_never_writes_cloud_allowed`,
+  `fichero-server/tests/unit/recipes/test_how_answers_pick_the_card.py::test_the_route_prefills_privacy_only_when_this_mac_alone_is_sent`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::decoding`.
+- `designer.how.what-matters-breaks-ties` [GAP] (#6052) — split from `designer.how.what-matters` (manager 2026-11-27
+  retag); what that line left: speed, cost and quality breaking ties inside the noise band (no rank or recommendation
+  reads `answers.how.matters`; inside the band the cheapest wins). Not built.
 - `designer.how.access-derived-and-confirmed` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "What you have" is shown, not asked: this
   Mac's memory in one sentence (the route's own), the providers with a key saved, the Hugging Face token, each
   cluster signed in, each from `recipes/derived.py` and the places route, with Add a Key…, Add a Token…, Sign
@@ -361,14 +395,23 @@ says a model's trade-off on its row; these say the same once, where the choice i
   wrote"), and marks the steps whose errors carry furthest (the earliest model steps) with "check first". The
   line is the engine's, from the job registry's reads and writes (`source.recipe.steps-work-alone-in-order`).
   *Test:* `test_chain_risk_on_ready.py`.
-- `designer.how.what-to-check` [PARTIAL] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
+- `designer.how.what-to-check` [OK] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
   gains one block, "What to check": for each model step that ran, the pages the engine is least sure of (lowest
   certainty for a CTC reader; highest insertion rate against Kraken's reading, or the lines the order check
   re-asked, for a vision-language reader), at most five, opened in the Reader by one press; a deterministic step
   lists its proposals instead (`prep.check.worklist-of-proposals-and-a-sample` (G)). *Test:*
   `test_what_to_check_after_a_run.py`. Built 2026-11-02 (engine): `recipes/what_to_check.least_sure` names up to five pages by the lowest mean
   certainty of their read lines, in the run summary's `what_to_check`, when Read ran; a vision-language reader's pages (insertion rate, order check)
-  and a deterministic step's proposals have no figure yet and are not listed. The app (Swift, not compiled): the Read card lists them as buttons that open the page (`ActivityDetails+ToCheck.swift`, `ToCheckRowsTests.swift`). Left: the other readers' figures.
+  and a deterministic step's proposals have no figure yet and are not listed. The app (Swift, not compiled): the Read card lists them as buttons that open the page (`ActivityDetails+ToCheck.swift`, `ToCheckRowsTests.swift`). *Left, now `designer.how.what-to-check-other-readers`:* the other readers' figures.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_what_to_check_after_a_run.py::test_the_least_sure_pages_come_first_and_at_most_five`,
+  `fichero-server/tests/unit/recipes/test_what_to_check_after_a_run.py::test_a_page_with_no_certainty_is_never_named`,
+  `fichero/Tests/Unit/general/Models/ToCheckRowsTests.swift::rows`,
+  `fichero/Tests/Unit/general/Models/ToCheckRowsTests.swift::none`.
+- `designer.how.what-to-check-other-readers` [GAP] (#6052; app) — split from `designer.how.what-to-check` (manager
+  2026-11-27 retag); what that line left: the pages to check for a vision-language reader (highest insertion rate
+  against Kraken's reading, or the lines the order check re-asked), a deterministic step's proposals, and a list for
+  each model step that ran (only Read's card lists them). Not built.
 
 **Improves.**
 - `designer.path.cards-are-the-routes` [MISSING] (#6052) — the page shows the routes from `routes.py`
@@ -454,10 +497,20 @@ the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a p
   *Test:* `test_defaults_table.py` (every row loads; every answer combination
   the questions can produce hits exactly one row or the fallback row; the chosen defaults match the table for
   each row above).
-- `designer.defaults.says-why` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py`; Ready shows the reasons (app, 2026-11-04), the stage pages do not yet) — every default a stage page or Ready shows carries the
+- `designer.defaults.says-why` [OK] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py`; Ready shows the reasons (app, 2026-11-04), the stage pages do not yet) — every default a stage page or Ready shows carries the
   table row's `why` in grey under it ("chosen because: faded ink, this Mac only"), served by the engine with
   the plan; a default with no row says "Fichero's usual default". *Test:*
   `test_defaults_say_why.py`. Built (app, 2026-11-04, Swift not compiled here): Ready lists each default's reason and the answers that chose it under "Chosen because" (`RecipeDefaultsWhyView`, `DefaultWhy`, `ReadyReadsTests.swift`); the stage pages do not show it yet.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_defaults_say_why.py::test_a_default_says_its_row_and_what_chose_it`,
+  `fichero-server/tests/unit/recipes/test_defaults_say_why.py::test_a_default_with_no_row_says_the_usual`,
+  `fichero/Tests/Unit/general/Models/ReadyReadsTests.swift::theReasonsComeInTheOrderOfTheDefaultsAndOncePerSentence`,
+  `fichero/Tests/Unit/general/Models/ReadyReadsTests.swift::noReasonsIsNoRows`. *Left, now
+  `designer.defaults.says-why-on-the-stage-pages`:* the stage pages.
+- `designer.defaults.says-why-on-the-stage-pages` [GAP] (#6052; app) — split from `designer.defaults.says-why`
+  (manager 2026-11-27 retag); what that line left: the `why` under each default on the stage pages; "Fichero's usual
+  default" on screen for a default with no row (the route serves no entry for it, so Ready shows nothing); the reasons
+  served with the plan (they come from a route of their own). Not built.
 - `designer.defaults.person-wins` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — a choice the person made on a stage page, in the
   finder or on Ready is never replaced by the table when an answer changes; the changed default is offered
   beside it ("your answers now suggest X; keep Y?"), as `source.onboard.step-choice-overrides-the-pick` keeps a
@@ -660,15 +713,27 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
 - `designer.rank.labels-from-the-engine` [MISSING] (#6052) — best, cheapest, fastest and most
   predictable are fields of the served candidate list, set only where measured against a person's
   reading (section 8); the app renders them and never computes them.
-- `designer.rank.one-visible-selection` [PARTIAL] (#6052) — the chosen row stays in its tier with a
+- `designer.rank.one-visible-selection` [OK] (#6052) — the chosen row stays in its tier with a
   leading radio mark and a tinted row, not moved to a head group (appendix, fact 6).
+  *Built:* the chosen row stays in its tier (`ModelFinderTiers.groups`) and the finder's card draws the leading mark
+  and the tint from `isChosen` (`ModelFinderView.swift`, `ModelFinderCard`). *Test:*
+  `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift::chosenAndMeasuredOverrideTheTier`,
+  `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift::testTheStepsReaderIsMarkedChosen`. The mark and the
+  tint are view code with no assertion of their own.
 - `designer.rank.cloud-permission-said-once` [PARTIAL] (#6052) — the cloud-permission line is shown once
   above the cloud tier, not on every card (appendix, fact 7).
 - `designer.rank.nothing-found-from-the-engine` [PARTIAL] (#6052) — the nothing-found sentence comes
   from the engine for every job, never hard-coded in the app (appendix, fact 8).
-- `designer.rank.finder-for-every-model-step` [PARTIAL] (#6052) — "Choose a model…" opens the finder
+- `designer.rank.finder-for-every-model-step` [OK] (#6052) — "Choose a model…" opens the finder
   for any step whose job needs a model, not only the reading jobs; the download / choose-cloud /
   choose-model fix buttons collapse into that one press (appendix, facts 1, 4, 5).
+  *Test:*
+  `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py::test_every_model_step_says_it_needs_a_model_and_the_finder_lists_more_than_one`,
+  `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift::testEveryModelStepsRowOffersTheFinder_byTheRegistry`.
+- `designer.rank.fix-buttons-collapse-into-the-finder` [GAP] (#6052; app) — split from
+  `designer.rank.finder-for-every-model-step` (manager 2026-11-27 retag); what that line left: the download,
+  choose-cloud and choose-model fix buttons collapsing into the one press (`RecipeStepsView.fixTitle` still offers the
+  three). Not built.
 - `designer.rank.searches-on-open` [PARTIAL] (#6052) — the finder searches online by itself when it
   opens for a step that has a search (as integration builds it, 1c008843d, d9a1cd231) and says what it
   found; the press is "Search again"; a job with no search disables the press with the reason.
@@ -710,8 +775,14 @@ the Try is pressed (`source.try.any-time` (G), `source.find.try-before-default` 
 (`training.errors.failure-modes` (G)). Nothing measured ships with the app.
 
 **Improves — measuring.**
-- `designer.measure.on-your-pages-first` [PARTIAL] (#6052) — a measurement on the person's pages
+- `designer.measure.on-your-pages-first` [OK] (#6052) — a measurement on the person's pages
   (imported truth or checked lines) is slot 1 of the rank, labelled with its page count.
+  *Test:*
+  `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py::test_a_project_that_measured_its_noise_band_ties_measured_readers_inside_it`,
+  `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift::chosenAndMeasuredOverrideTheTier`.
+- `designer.measure.on-your-pages-says-its-page-count` [GAP] (#6052) — split from
+  `designer.measure.on-your-pages-first` (manager 2026-11-27 retag); what that line left: the measurement's label
+  saying its page count (the words are "CER x% on your pages", with no count). Not built.
 - `designer.measure.noise-band` [PARTIAL] (#6052) — the project's band is 0.5 CER points per model
   kind, said so, until measured; candidates inside the band are "as good as each other", and what
   matters most decides, in words. (The bake-off's one-point constant is the defect the training spec
@@ -770,8 +841,18 @@ the Try is pressed (`source.try.any-time` (G), `source.find.try-before-default` 
   the measured per-page figures times the project's pages, basis said ("measured on 3 pages"); local
   candidates predict time from measured pages an hour (`training.ab.cost-and-time-beside` (P),
   `ai.where.estimate-names-the-place` (P)); the routes' estimate (section 4) is replaced by this.
-- `designer.compare.person-chooses` [PARTIAL] (#6052) — the compare proposes; the person chooses with
+- `designer.compare.person-chooses` [OK] (#6052) — the compare proposes; the person chooses with
   Use This One per column (`use-candidate`, unchanged); a step lists only what that press accepts.
+  *Test:*
+  `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py::test_any_candidate_becomes_the_steps_reader_audited_and_undoable`,
+  `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py::test_use_candidate_refuses_in_words`,
+  `fichero-server/tests/unit/recipes/test_step_choices_on_the_plan.py::test_the_line_step_lists_only_what_use_candidate_accepts_and_a_cloud_reader_stays`,
+  `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift::testUseForStepPostsAnyCandidateToUseCandidate`,
+  `fichero/Tests/Unit/general/Models/BakeoffStoreTests.swift::useThisPostsTheScopeAndUpdatesTheStep`. The step's name
+  after the press is `designer.step.swapped-model-says-its-own-name`.
+- `designer.compare.use-this-one-in-the-compare-window-is-tested` [GAP] (#6052; app) — split from
+  `designer.compare.person-chooses` (manager 2026-11-27 retag); what that line left: a Swift test of Use This One per
+  column in the compare window (`StageCompareWindow`, `RecipeSetupStore.useCard`). Not built.
 
 ### 9. Checking lines (new journey point; the step every measure depends on)
 
@@ -878,21 +959,30 @@ There is **no margin multiplier**: the estimate says what Fichero thinks the run
 its basis, and it learns from the project's booked costs (`designer.budget.estimate-from-booked-usage`).
 
 **Improves.**
-- `designer.budget.beside-the-estimate` [PARTIAL] (#6295) — Ready has one Budget block, above Start: the estimate
+- `designer.budget.beside-the-estimate` [OK] (#6295) — Ready has one Budget block, above Start: the estimate
   for this run (`estimate.total_cost_usd`), Fichero's best estimate, with its basis, the project's cap for the month with what is spent
   and what is left (the `CloudCapLine` figures), and two editable fields, both changeable in place, so that
   whichever cap would block Start can be updated from the block: **this run, at most** and **this
   project a month, at most**. The Hugging Face cap joins the block as a third line when a Hugging Face place is
   in the plan. One block, not a field under a question. *Test:* `BudgetBlockTests.swift`
   (pure: the block's lines from a served plan; the fields hold the served caps; a cap below 0 cannot be typed),
-  `test_budget_in_the_plan.py` (the plan carries both caps and the basis). Found partly built 2026-11-02 (#6295): the plan's `cloud_cap` line carries the monthly cap, spent, remaining, the project cap and its remaining, and the caps are changeable in place (`CloudCapLine`, `changeCloudCaps`). Built 2026-11-02 (engine): the cloud line also serves `proposed_run_cap_usd` (the estimate, no margin) beside `StartRequest.run_cap_usd` (`test_budget_in_the_plan.py`). Built 2026-11-02 (app, uncompiled): the cap row on Ready carries "This run, at most" (`RecipeRunCapField`, `RecipeSetupStore.runCapUsd` sent with Start, the engine's proposal as the prompt with "Use $N") and names the dearest step beside the refusal (`BudgetBlock`; `BudgetBlockTests.swift`). Built (app, 2026-11-04, Swift not compiled here): the block is one view above Start (`RecipeCloudCapRow`): both cap fields, "This run, at most", the words for what the caps leave, the basis rows, the fixes and "Change the model for <step>". Left: the Hugging Face line (the plan carries no Hugging Face cap yet; its field sits beside it in `RecipeMoneyAndPlaceFields`).
+  `test_budget_in_the_plan.py` (the plan carries both caps and the basis). Found partly built 2026-11-02 (#6295): the plan's `cloud_cap` line carries the monthly cap, spent, remaining, the project cap and its remaining, and the caps are changeable in place (`CloudCapLine`, `changeCloudCaps`). Built 2026-11-02 (engine): the cloud line also serves `proposed_run_cap_usd` (the estimate, no margin) beside `StartRequest.run_cap_usd` (`test_budget_in_the_plan.py`). Built 2026-11-02 (app, uncompiled): the cap row on Ready carries "This run, at most" (`RecipeRunCapField`, `RecipeSetupStore.runCapUsd` sent with Start, the engine's proposal as the prompt with "Use $N") and names the dearest step beside the refusal (`BudgetBlock`; `BudgetBlockTests.swift`). Built (app, 2026-11-04, Swift not compiled here): the block is one view above Start (`RecipeCloudCapRow`): both cap fields, "This run, at most", the words for what the caps leave, the basis rows, the fixes and "Change the model for <step>". *Left, now `designer.budget.hugging-face-cap-line`:* the Hugging Face line (the plan carries no Hugging Face cap yet; its field sits beside it in `RecipeMoneyAndPlaceFields`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_budget_in_the_plan.py::test_the_line_carries_both_caps_what_is_left_and_the_proposed_run_cap`,
+  `fichero-server/tests/unit/recipes/test_budget_in_the_plan.py::test_an_unknown_or_free_estimate_proposes_no_run_cap`,
+  `fichero/Tests/Unit/general/Models/BudgetBlockTests.swift::theBlockReadsTheProposedRunCapTheDearestStepAndTheModelToChange`,
+  `fichero/Tests/Unit/general/Models/BudgetBlockTests.swift::theFieldPromptIsTheEnginesProposalAndNoCapBelowZeroCanBeTyped`.
+- `designer.budget.hugging-face-cap-line` [GAP] (#6295; app) — split from `designer.budget.beside-the-estimate`
+  (manager 2026-11-27 retag); what that line left: the Hugging Face cap as a third line of the Budget block when a
+  Hugging Face place is in the plan (the plan carries no Hugging Face cap; its field sits beside the block in
+  `RecipeMoneyAndPlaceFields`). Not built.
 - `designer.budget.basis-per-step` [PARTIAL] (#6295) — the estimate is shown per step and per page, each with its
   basis in words: "Read: 16 pages × $0.021 a page, measured on 9 pages of this project" or "… assumed: one call
   a page of about 16 line pictures at Claude's listed rate"; the sum is the run's estimate. The basis is a
   field of the served estimate (`measured` · `assumed` · `unpriced`), never worked out in the app. *Test:*
   `test_estimate_basis_per_step.py`. Built 2026-11-02 (engine): each `StartEstimateRun` carries `basis_kind` (measured · assumed · free · unpriced), `basis_words`, `cost_per_page_usd` and `measured_pages` (`start._basis_words`; `test_estimate_basis_per_step.py`); the app words nothing. Built (app, 2026-11-04, Swift not compiled here): the per-step basis rows are in the Budget block (`CloudCapFix.basisLines`, shown by `RecipeCloudCapRow`).
 
-- `designer.budget.estimate-from-booked-usage` [PARTIAL] (#6294) — once the project has booked calls for the same
+- `designer.budget.estimate-from-booked-usage` [OK] (#6294) — once the project has booked calls for the same
   model and job (the usage rows `_record_usage` keeps, with their `place`), the per-page figure is the median
   booked cost a page over those calls, labelled measured with the page count; until then the token assumption,
   labelled assumed. A run's own booked cost replaces the assumption for its remaining pages, so a cap set at
@@ -901,9 +991,17 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   basis beside it, and the booked costs are how it improves.
   *Test:* `test_estimate_learns_from_booked_usage_6294.py` (fake usage rows
   at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
-  the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). Left: a run's own booked cost replacing the assumption for its remaining pages, mid-run.
+  the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). *Left, now `designer.budget.running-run-reads-its-booked-cost`:* a run's own booked cost replacing the assumption for its remaining pages, mid-run.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py::test_with_nothing_booked_the_figure_is_assumed`,
+  `fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py::test_booked_pages_replace_the_assumption_with_their_median_and_say_how_many`,
+  `fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py::test_a_page_with_several_rows_counts_once_and_another_model_is_not_mixed_in`.
+- `designer.budget.running-run-reads-its-booked-cost` [GAP] (#6294) — split from
+  `designer.budget.estimate-from-booked-usage` (manager 2026-11-27 retag); what that line left: a run's own booked
+  cost replacing the assumption for its remaining pages, mid-run, so that a cap set at the estimate lets the run
+  finish; no test asserts that a cap set at the new estimate is not refused. Not built.
 
-- `designer.budget.run-cap` [PARTIAL] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
+- `designer.budget.run-cap` [OK] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
   the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
   deciding, through the one spend hold (`llm/spend.py`); a run with no run cap is held by the project cap alone.
   The run cap is proposed at the estimate (the defaults table's cap column: the best estimate, assumed or
@@ -911,6 +1009,16 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   (`designer.path.caps-proposed-not-written`). *Test:*
   `test_run_cap_holds_with_the_project_cap.py` (a run cap below the project's
   remaining refuses at the run cap; the project cap still refuses first when lower). Built (engine, 2026-11-04): `StartRequest.run_cap_usd` is kept on the run's row; the cap is held from the moment `_run` starts the run (not while it waits in the queue, so a run cancelled before it starts leaves none) and cleared at its end, or by Stop on its waiting row, unless it is deferred, which keeps the cap as changed and its baseline: `test_run_cap_is_held_from_the_run_start.py`, and that Start carries it from the request to the row: `test_start_carries_the_run_cap_6295.py`.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_a_run_cap_below_what_the_project_leaves_refuses_at_the_run_cap`,
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_the_project_cap_still_refuses_first_when_it_is_lower`,
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_no_run_cap_means_the_project_caps_alone_and_the_cap_goes_with_its_run`,
+  `fichero-server/tests/unit/recipes/test_start_carries_the_run_cap_6295.py::test_start_carries_the_run_cap_from_the_request_to_the_runs_row`,
+  `fichero-server/tests/unit/recipes/test_run_cap_is_held_from_the_run_start.py::test_the_run_holds_its_cap_while_it_runs_and_clears_it_at_the_end`,
+  `fichero-server/tests/unit/recipes/test_budget_in_the_plan.py::test_the_line_carries_both_caps_what_is_left_and_the_proposed_run_cap`,
+  `fichero/Tests/Unit/general/Models/BudgetBlockTests.swift::theFieldPromptIsTheEnginesProposalAndNoCapBelowZeroCanBeTyped`.
+  The proposal is the estimate itself (`cloud_cap.proposed_run_cap_usd`), not the defaults table's cap column, which
+  is `designer.defaults.caps-proposed-from-the-table`.
 - `designer.budget.refusal-offers-the-fix` [PARTIAL] (#6295) — a Start refused for the cap says, in plain words,
   which cap refused (the project cap or the monthly cap), what the estimate is, what that cap leaves, and which step costs most; and the refusal carries typed fixes
   the app shows as buttons in the Budget block, each one press, with **both** cap fields editable in place on the
@@ -926,20 +1034,39 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   its figure; the refusal names which cap refused; raising to N clears the refusal; the fewer-pages count fits what is left,
   and the Start it makes names the first N pages in Finder order as `documents`, nothing more),
   `BudgetRefusalFixTests.swift` (the three buttons from a served refusal). Built (engine, 2026-11-04): the refusal carries typed `fixes[]` (`CapFix`: kind, step, `raise_to_usd`, `pages_that_fit`) and the dearest step: `test_cap_refusal_offers_the_fix_6295.py`. Found partly built 2026-11-02 (#6295): the cap line serves `needed_cap_usd`, `needed_project_cap_usd`, `fewer_pages` and the refusal's own sentence naming which cap refused. Built since (engine, 2026-11-04): the typed `refusal.fixes[]` and the dearest step. Built (app, 2026-11-04, Swift not compiled here): the raise amounts and the first pages that fit are read from `fixes[]` (an engine that serves none is read from the line's figures), and "Change the model for <step>" opens that step's model finder (`CloudCapOffers`, `BudgetRefusalFixTests.swift`).
-- `designer.budget.change-is-audited-and-undoable` [PARTIAL] (#6295) — raising or lowering either cap, from the
+- `designer.budget.change-is-audited-and-undoable` [OK] (#6295) — raising or lowering either cap, from the
   field or from a fix button, is one audited action, `project.set_budget` (project, which cap, from, to, who,
   when), undoable through Edit › Undo, the same write permission as any change to the project; it reuses
   `project.save_setup`'s audit and invert, so a cap change never writes any other answer. A cap raised during a
   paused run (`designer.budget.fix-during-the-run`) is the same action. *Test:*
   `test_set_budget_is_audited_and_undoable.py` (the audit row names the cap and
-  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen). Found built 2026-11-02 (#6295): `PUT /api/recipes/project/cloud-cap` is one `project.save_setup` writing only the caps, audited, one Undo puts both back (`test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`; the app: `RecipeSetupStore+CloudCaps.changeCloudCaps`). Left: an action of its own named `project.set_budget` (the audit row names `project.save_setup`), and the run cap.
-- `designer.budget.fix-during-the-run` [PARTIAL] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
+  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen). Found built 2026-11-02 (#6295): `PUT /api/recipes/project/cloud-cap` is one `project.save_setup` writing only the caps, audited, one Undo puts both back (`test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`; the app: `RecipeSetupStore+CloudCaps.changeCloudCaps`). *Built since:* the run cap is changed through the same audited, undoable route. *Left, now `designer.budget.set-budget-is-its-own-action`:* an action of its own named `project.set_budget` (the audit row names `project.save_setup`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`,
+  `fichero-server/tests/unit/recipes/test_raise_the_cap_in_place_6295.py::test_the_first_cap_change_of_a_project_with_no_set_up_writes_only_the_cap`,
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_the_cap_route_changes_the_run_cap_through_an_audited_undoable_action`,
+  `fichero/Tests/Unit/general/Models/CloudCapFixTests.swift::oneEditIsOneChangeNotTwo`.
+- `designer.budget.set-budget-is-its-own-action` [GAP] (#6295) — split from
+  `designer.budget.change-is-audited-and-undoable` (manager 2026-11-27 retag); what that line left: an audited action
+  of its own named `project.set_budget` (project, which cap, from, to, who, when), reached by MCP and the command line
+  through the regen; the audit row names `project.save_setup` today. Not built.
+- `designer.budget.fix-during-the-run` [OK] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
   paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
   fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
   change the step's model for the remaining pages, stop here and keep what is done), with the booked figure so
   far; pressing raise sets the cap and resumes the run (the run's own Resume, #5932/#5933), never silently.
   *Test:* `test_run_cap_fix_in_place.py` (a paused run resumes after the cap is
-  raised through the action; a stop keeps the finished pages). Built 2026-11-02 (engine, one path): the cap hold pauses the step's run and the recipe parks on it (`spend._STOPPED_AT_CAP`, which now records the caps it stopped under); a raised cap resumes it by the one Resume (`runner.resume_capped_runs` → `pause_recipe`, called after the cap route writes), from the run's own checkpoint, no page read again; a lowered or unchanged cap never does (`spend.raised_cap_stops`; `test_run_pauses_at_the_cap_6295.py`). Left: the Activity row and run strip fixes with the booked figure, Stop here is the run's own Stop (a run paused at the cap waits off the lane, so Stop ends it now with its finished pages kept; `test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done`).
+  raised through the action; a stop keeps the finished pages). Built 2026-11-02 (engine, one path): the cap hold pauses the step's run and the recipe parks on it (`spend._STOPPED_AT_CAP`, which now records the caps it stopped under); a raised cap resumes it by the one Resume (`runner.resume_capped_runs` → `pause_recipe`, called after the cap route writes), from the run's own checkpoint, no page read again; a lowered or unchanged cap never does (`spend.raised_cap_stops`; `test_run_pauses_at_the_cap_6295.py`). *Built since, in the app:* the run's Activity details offer Change Caps… with the raise buttons and both cap fields (`ActivityDetailsCapStop`). *Left, now `designer.budget.cap-stop-says-the-booked-figure`:* the booked figure and the run strip; Stop here is the run's own Stop (a run paused at the cap waits off the lane, so Stop ends it now with its finished pages kept; `test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_an_unchanged_or_lowered_cap_resumes_nothing_and_a_raised_one_resumes_by_the_one_resume`,
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_a_real_batch_paused_at_the_cap_on_page_two_resumes_on_a_raise_and_reads_page_two_only`,
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done`,
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_a_run_paused_at_the_cap_says_so_in_its_status_for_the_apps_offer`,
+  `fichero/Tests/Unit/general/Models/CloudCapFixTests.swift::aRunPausedAtACapOffersTheChangeByTheEnginesField`.
+- `designer.budget.cap-stop-says-the-booked-figure` [GAP] (#6295; app) — split from
+  `designer.budget.fix-during-the-run` (manager 2026-11-27 retag); what that line left: the booked figure so far
+  beside the fixes of a run paused at the cap; "change the step's model for the remaining pages" and "stop here" as
+  fixes of that view (Stop is the run's own Stop today); the same offer on the project's run strip. Not built.
 
 ### 12. Start, and the run
 
@@ -1709,3 +1836,21 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Tests: the Test line of each behaviour above
 - Depends on: 19.3
 - Size: S
+
+#### Step 19.5 — owed behaviours split off by the retag of 2026-11-27
+- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`, `designer.budget.running-run-reads-its-booked-cost`, `designer.budget.cap-stop-says-the-booked-figure`, `designer.how.what-to-check-other-readers`
+- Tests: none yet; each behaviour above says what is not built
+- Depends on: 19.4
+- Size: M
+
+#### Step 19.6 — owed behaviours split off by the retag of 2026-11-27
+- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`, `designer.how.what-matters-breaks-ties`, `designer.how.model-kind-decides-the-compare`, `designer.compare.use-this-one-in-the-compare-window-is-tested`
+- Tests: none yet; each behaviour above says what is not built
+- Depends on: 19.5
+- Size: M
+
+#### Step 19.7 — owed behaviours split off by the retag of 2026-11-27
+- Behaviours: `designer.rank.fix-buttons-collapse-into-the-finder`, `designer.measure.on-your-pages-says-its-page-count`
+- Tests: none yet; each behaviour above says what is not built
+- Depends on: 19.6
+- Size: M
