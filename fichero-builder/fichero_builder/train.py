@@ -717,7 +717,11 @@ def real_runners(repo, branch: str, pinned: str, tid: str, deadline: float | Non
         check_tool._KEY[0] = f"train {tid} {name}"
         files, tree = files_over(cand), None
         try:
-            tree = check_tool._scratch_tree(repo, cand, pinned, cfg, overlay=(name not in ("unit", "whole-tests")))
+            # a check-path file the candidate only made stricter (allowlist or guard-baseline entries removed) is the candidate's copy,
+            # as in the step's own ladder; a grown one stays pinned (2026-11-27 train 192930: seg-finish's shrunk baseline was replaced
+            # by the pinned copy and its stale entries failed check_spec_app_evidence)
+            stricter = check_tool.stricter_files(repo, base, cand, cfg, pinned) if name == "guards" else ()
+            tree = check_tool._scratch_tree(repo, cand, pinned, cfg, overlay=(name not in ("unit", "whole-tests")), stricter_from_head=stricter)
             if name == "whole-tests" and only:  # the step search: only those cases, on one step alone
                 r = check_tool.green_runs(tree, list(only), (), cfg, 1800)
                 return bool(r.get("ok")), "\n".join((x.get("stdout_tail") or "") for x in r.get("runs") or [r])[-3000:]

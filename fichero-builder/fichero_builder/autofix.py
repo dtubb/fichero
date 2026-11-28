@@ -16,7 +16,8 @@ import shlex
 
 ALLOWLIST_NAME = re.compile(r"KNOWN|ALLOW|EXEMPT", re.I)  # ponytail: by name; a REQUIRED_* list or a ratchet BASELINE never matches
 # a JSON allowlist by its kind of file, never a name pattern (review: a release_size_baseline.json key removed reads as a first run, looser)
-ALLOWLIST_JSON = re.compile(r"(_known_gaps|_allowlist)\.json$")
+ALLOWLIST_JSON = re.compile(r"(_known_gaps|_allowlist|(^|/)check_\w+_baseline)\.json$")  # a guard's baseline (check_<x>_baseline.json) too:
+# fewer entries accepted is stricter (2026-11-27, seg-finish #7077: its shrunk check_spec_app_evidence_baseline.json was thrown away)
 
 
 def _literal_items(node) -> list[tuple[str, str]] | None:

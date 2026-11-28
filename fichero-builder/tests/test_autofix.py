@@ -3,7 +3,9 @@ pinned copies over a worktree's head; a stale allowlist entry is fixable by the 
 its red carries the exact command; a missing Spec-change trailer and stale generated files carry theirs."""
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 import subprocess
 import sys
 
@@ -351,3 +353,31 @@ def test_uncommitted_tracked_edits_survive_every_class_and_the_red_goes_to_the_w
     assert _g(w, "rev-parse", "HEAD") == head and "Spec-change" not in _g(w, "log", "-1", "--format=%B")
     assert (w / "other.txt").read_text() == "worker's edit\n" and (w / "scripts" / "ratchet.json").read_text() == '{"n": 9}\n'
     assert _g(w, "status", "--porcelain").splitlines() == ["M other.txt", "M  scripts/ratchet.json"]
+
+
+def test_a_guard_baseline_a_step_only_shrank_judges_the_train_and_a_grown_one_stays_pinned(world):
+    """2026-11-27 train 192930: seg-finish (#7077) removed the entries it fixed from scripts/check_spec_app_evidence_baseline.json; the
+    train's guards rung laid the PINNED copy over it and the stale entries failed the guard. Fewer entries is stricter: the step's copy
+    judges; a grown baseline is still replaced by the pinned one."""
+    lane, pinned, f = world / "lane", world / "pinned", "scripts/check_spec_app_evidence_baseline.json"
+    full = {"engine_only": ["a.md::x", "a.md::y"]}
+    for d in (lane, pinned):
+        (d / f).write_text(json.dumps(full))
+    for d in (lane, pinned):
+        _g(d, "add", f), _g(d, "commit", "-qm", "baseline")
+    since = _g(lane, "rev-parse", "HEAD").strip()
+    cfg = check_tool.load(pinned)
+
+    def judged(entries):
+        _g(lane, "checkout", "-q", since)
+        (lane / f).write_text(json.dumps({"engine_only": entries}))
+        _g(lane, "commit", "-qam", "edit the baseline")
+        head = _g(lane, "rev-parse", "HEAD").strip()
+        stricter = check_tool.stricter_files(lane, since, head, cfg, pinned)  # the train's guards rung (train.py)
+        tree = check_tool._scratch_tree(lane, head, pinned, cfg, stricter_from_head=stricter)
+        try:
+            return stricter, json.loads((Path(tree) / f).read_text())["engine_only"]
+        finally:
+            check_tool.drop_tree(lane, tree)
+    assert judged(["a.md::x"]) == ((f,), ["a.md::x"]), "shrunk: the step's copy judges"
+    assert judged(["a.md::x", "a.md::y", "a.md::z"]) == ((), ["a.md::x", "a.md::y"]), "grown: the pinned copy judges"
