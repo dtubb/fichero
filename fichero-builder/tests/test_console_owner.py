@@ -281,16 +281,23 @@ def test_progress_is_series_per_day_from_the_journal_and_each_priority_specs_ok_
             return "c3 2026-11-27\nc2 2026-11-27\nc1 2026-11-20\n"
         if args[0] == "rev-list":
             return "c0\n"
-        return {"c0": "", "c1": spec.replace("[OK] one", "[GAP] (#2) one"), "c3": spec}[args[1].split(":")[0]]
-    p = console.progress_view(rows, journal.STATE, {"Seg": "specs/seg.md"}, now=now, git=git)
+        raise AssertionError(f"one git process per file and day: {args}")
+    asked = []
+
+    def blobs(repo, names):
+        asked.append(list(names))
+        return {n: {"c0": "", "c1": spec.replace("[OK] one", "[GAP] (#2) one"), "c3": spec}[n.split(":")[0]] for n in names}
+    p = console.progress_view(rows, journal.STATE, {"Seg": "specs/seg.md", "Act": "specs/act.md"}, now=now, git=git, blobs=blobs)
     assert len(p["days"]) == console.PROGRESS_DAYS and p["days"][-1] == "2026-11-27" and p["days"][0] == "2026-10-29"
     at = lambda series, day: series[p["days"].index(day)]  # noqa: E731
     assert (at(p["landings"], "2026-11-25"), at(p["landings"], "2026-11-26"), at(p["landings"], "2026-11-27")) == (1, 0, 2) and sum(p["landings"]) == 3
     assert (at(p["closed"], "2026-11-25"), at(p["closed"], "2026-11-27")) == (1, 2), "issues less the ones left open"
     assert sorted(p["trains"]) == ["green", "red"] and at(p["trains"]["green"], "2026-11-27") == 2 and at(p["trains"]["red"], "2026-11-26") == 1
     assert [(r["lane"], r["step"], r["rounds"]) for r in p["rounds"]] == [("a", "s1", 2), ("a", "s2", 0)], "the red rows of a step before its landed row"
-    assert p["specs"] == {"Seg": [{"day": "2026-10-28", "ok": 0}, {"day": "2026-11-20", "ok": 1}, {"day": "2026-11-27", "ok": 2}]}, "each day's last commit; behaviour lines only"
-    assert ("show", "c2:specs/seg.md") not in calls
+    series = [{"day": "2026-10-28", "ok": 0}, {"day": "2026-11-20", "ok": 1}, {"day": "2026-11-27", "ok": 2}]
+    assert p["specs"] == {"Seg": series, "Act": series}, "each day's last commit; behaviour lines only"
+    assert asked == [[f"{c}:specs/{f}.md" for f in ("seg", "act") for c in ("c0", "c1", "c3")]], "every spec's files in one read; not c2, the day's earlier commit"
+    assert [a[0] for a in calls] == ["rev-list", "log", "log"], "the commit before the window is found once, not per spec"
     (journal.STATE / "harness.toml").write_text('[land]\nbranch = "integration"\n')
     assert _get(url, "/api/progress")["specs"] == {}, "no [console.progress_specs]: no spec chart"
     import tomllib
@@ -299,3 +306,32 @@ def test_progress_is_series_per_day_from_the_journal_and_each_priority_specs_ok_
     page = _page()
     js = page[page.index("function Chart("):page.index("function App()")]
     assert '["progress", "Progress"]' in page and "<svg" in js and "/api/progress" in js and page.count("https://") == 1, "inline SVG; nothing new is fetched"
+
+
+def test_one_git_process_reads_many_files_at_many_commits_and_a_file_a_commit_lacks_reads_empty(tmp_path):
+    """Review of #6589: the Progress page ran one `git show` per spec and day; `git cat-file --batch` takes the whole list."""
+    import subprocess
+
+    def git(*a):
+        return subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *a], check=True, capture_output=True, text=True).stdout.strip()
+    git("init", "-q")
+    (tmp_path / "a b.md").write_text("one\n")
+    git("add", "."), git("commit", "-qm", "1")
+    first = git("rev-parse", "HEAD")
+    (tmp_path / "a b.md").write_text("one\ntwo é\n")
+    (tmp_path / "c.md").write_text("")
+    git("add", "."), git("commit", "-qm", "2")
+    names = [f"{first}:a b.md", f"{first}:c.md", "HEAD:a b.md", "HEAD:c.md"]
+    assert console._git_blobs(str(tmp_path), names) == dict(zip(names, ["one\n", "", "one\ntwo é\n", ""]))
+    with pytest.raises(OSError):
+        console._git_blobs(str(tmp_path / "nowhere"), names)
+
+
+def test_overlapping_cold_progress_requests_wait_for_the_one_compute(state, monkeypatch):
+    """Review of #6589: progress_cached held no lock, so each overlapping cold request ran the whole git set."""
+    ran = []
+    monkeypatch.setattr(console, "progress_view", lambda *a, **k: ran.append(1) or time.sleep(0.2) or {"n": len(ran)})
+    got = []
+    ts = [threading.Thread(target=lambda: got.append(console.progress_cached())) for _ in range(4)]
+    [t.start() for t in ts], [t.join() for t in ts]
+    assert ran == [1] and got == [{"n": 1}] * 4

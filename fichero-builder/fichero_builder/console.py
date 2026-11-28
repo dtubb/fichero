@@ -148,23 +148,45 @@ PROGRESS_DAYS = 30
 OK_LINE = re.compile(r"(?m)^\s*- `[^`\n]+`.{0,12}\[OK\]")  # a behaviour bullet tagged [OK]: "- `id` [OK]" or "- `id` — **[OK]**"
 
 
-def spec_ok_series(root, path: str, branch: str, first_day: str, git=None) -> list[dict]:
-    """[{day, ok}], oldest first: the count of behaviour lines tagged [OK] in `path` at the last commit of origin/<branch> before
-    `first_day` (dated the day before it), then at the last commit of each day since on which one touched the file."""
-    git = git or _git_text
-    out = []
+def _git_blobs(repo: str, names: list[str]) -> dict:
+    """{name: text} of each `<commit>:<path>` in `names`, from one `git cat-file --batch`; a path the commit lacks reads ""."""
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "cat-file", "--batch"], input="".join(n + "\n" for n in names).encode(), capture_output=True, timeout=120)
+    if r.returncode:
+        raise OSError(f"git cat-file --batch in {repo}: {r.stderr.decode(errors='replace').strip()}")
+    out, i, res = r.stdout, 0, {}
+    for n in names:  # one answer per name, in order: "<sha> blob <size>\n<bytes>\n", or "<name> missing\n"
+        nl = out.index(b"\n", i)
+        head = out[i:nl].split()
+        if head[-1] == b"missing":
+            res[n], i = "", nl + 1
+        else:
+            size = int(head[-1])
+            res[n], i = out[nl + 1:nl + 1 + size].decode(errors="replace"), nl + size + 2
+    return res
+
+
+def spec_ok_series(root, specs: dict, branch: str, first_day: str, git=None, blobs=None) -> dict:
+    """{name: [{day, ok}], oldest first} for `specs` {name: path}: the count of behaviour lines tagged [OK] in the path at the last
+    commit of origin/<branch> before `first_day` (dated the day before it), then at the last commit of each day since on which one
+    touched the file. One `git log` per spec, and one process (`blobs`) reads every file at every commit."""
+    if not specs:
+        return {}
+    git, blobs = git or _git_text, blobs or _git_blobs
     before = git(str(root), "rev-list", "-1", f"--before={first_day}T00:00:00", f"origin/{branch}").strip()
-    if before:
-        day0 = time.strftime("%Y-%m-%d", time.localtime(_secs(first_day + "T12:00:00") - 86400))
-        out.append({"day": day0, "ok": len(OK_LINE.findall(git(str(root), "show", f"{before}:{path}")))})
-    last: dict = {}
-    for ln in git(str(root), "log", f"--since={first_day}T00:00:00", "--format=%H %cs", f"origin/{branch}", "--", path).splitlines():
-        sha, _, day = ln.partition(" ")
-        last.setdefault(day, sha)  # the log is newest first: the day's last commit
-    return out + [{"day": d, "ok": len(OK_LINE.findall(git(str(root), "show", f"{sha}:{path}")))} for d, sha in sorted(last.items())]
+    day0 = time.strftime("%Y-%m-%d", time.localtime(_secs(first_day + "T12:00:00") - 86400))
+    at: dict = {}  # name -> [(day, "<sha>:<path>")]
+    for name, path in specs.items():
+        last: dict = {}
+        for ln in git(str(root), "log", f"--since={first_day}T00:00:00", "--format=%H %cs", f"origin/{branch}", "--", path).splitlines():
+            sha, _, day = ln.partition(" ")
+            last.setdefault(day, sha)  # the log is newest first: the day's last commit
+        at[name] = [(d, f"{sha}:{path}") for d, sha in ([(day0, before)] if before else []) + sorted(last.items())]
+    names = [n for v in at.values() for _d, n in v]
+    text = blobs(str(root), names) if names else {}
+    return {name: [{"day": d, "ok": len(OK_LINE.findall(text[n]))} for d, n in v] for name, v in at.items()}
 
 
-def progress_view(rows: list[dict], root, specs: dict, branch: str = "integration", now: float | None = None, git=None) -> dict:
+def progress_view(rows: list[dict], root, specs: dict, branch: str = "integration", now: float | None = None, git=None, blobs=None) -> dict:
     """builder-console.progress.page: the last PROGRESS_DAYS days (`days`, oldest first) and, per day: `landings` (the `landed` rows
     of step `done`), `closed` (their issues less `left_open`), `trains` {result: counts}; `rounds` (one entry per `queue` row
     `landed` in the window: the `red` rows of that lane and step since its last landing); `specs` {name: spec_ok_series}."""
@@ -190,19 +212,22 @@ def progress_view(rows: list[dict], root, specs: dict, branch: str = "integratio
         elif r.get("event") == "train" and r.get("result"):
             trains.setdefault(r["result"], [0] * len(days))[i] += 1
     return {"days": days, "landings": landings, "closed": closed, "trains": trains, "rounds": rounds,
-            "specs": {name: spec_ok_series(root, path, branch, days[0], git) for name, path in specs.items()}}
+            "specs": spec_ok_series(root, specs, branch, days[0], git, blobs)}
 
 
-_CHARTS: dict = {}  # {"at", "data"}: ten minutes' cache of /api/progress (a `git show` per spec and day)
+_CHARTS: dict = {}  # {"at", "data"}: ten minutes' cache of /api/progress (a `git log` per spec and one `git cat-file --batch`)
+_CHARTS_LOCK = threading.Lock()
 
 
 def progress_cached() -> dict:
-    if not _CHARTS or time.time() - _CHARTS["at"] > 600:
-        f = Path(ROOT) / "harness.toml"
-        doc = tomllib.loads(f.read_text()) if f.is_file() else {}
-        _CHARTS.update(at=time.time(), data=progress_view(rows_of(ROOT), ROOT, doc.get("console", {}).get("progress_specs", {}),
-                                                         doc.get("land", {}).get("branch", "integration")))
-    return _CHARTS["data"]
+    """Requests that overlap wait for the one compute in flight (the pattern of status_cached)."""
+    with _CHARTS_LOCK:
+        if not _CHARTS or time.time() - _CHARTS["at"] > 600:
+            f = Path(ROOT) / "harness.toml"
+            doc = tomllib.loads(f.read_text()) if f.is_file() else {}
+            _CHARTS.update(at=time.time(), data=progress_view(rows_of(ROOT), ROOT, doc.get("console", {}).get("progress_specs", {}),
+                                                             doc.get("land", {}).get("branch", "integration")))
+        return _CHARTS["data"]
 
 
 def _manager(name: str) -> Path:
