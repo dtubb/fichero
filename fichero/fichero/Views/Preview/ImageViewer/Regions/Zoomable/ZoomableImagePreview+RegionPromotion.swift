@@ -174,7 +174,8 @@ extension ZoomableImagePreview {
 
     /// What the menu bar's Segment menu acts on (#5229): this pane's own verbs, nothing new.
     var segmentMenuTarget: SegmentMenuTarget {
-        SegmentMenuTarget(
+        let selected = documentId.map { selectedSegments($0) } ?? []  // read once for Add and Change Kind
+        return SegmentMenuTarget(
             isEditing: isEditingSegments, selectionCount: regionSelection.count,
             toggleEditing: { windowState?.isEditingSegments.toggle() },
             canSelectAll: ocrGeometry?.boxes.isEmpty == false, selectAll: { selectAllGeometryForArmedTool() },
@@ -188,9 +189,9 @@ extension ZoomableImagePreview {
             convertToBox: { convertSelectedToBox() },
             convertToLine: { convertSelected(to: "line") },
             convertToRegion: { convertSelected(to: "region") },
-            addVerb: documentId.flatMap { SegmentShapes.addLevel(for: selectedSegments($0)) },
+            addVerb: SegmentShapes.addLevel(for: selected),
             addDrawn: { addDrawnInSelection() },
-            canChangeKind: documentId.map { SegmentShapes.offersChangeKind(selectedSegments($0)) } == true,
+            canChangeKind: SegmentShapes.offersChangeKind(selected),
             makeRegion: { makeRegionFromSelectedLines() },
             ungroupRegion: { ungroupSelectedRegions() },
             cutWords: { cutWordsOnSelectedLines() },
