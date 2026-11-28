@@ -42,7 +42,7 @@ def _project(tmp_path: Path, answers: str) -> Path:
 
 
 @pytest.fixture
-def requests(monkeypatch):
+def requests(monkeypatch, tmp_path):
     """Every request that reaches the fake provider; a refused read builds no model, so the list stays empty."""
     made: list = []
 
@@ -63,6 +63,10 @@ def requests(monkeypatch):
     # the engine's spending cap refuses an unpriced model: the test model carries a listed price
     monkeypatch.setattr(usage, "_registry_entry", lambda model, provider="": {
         "input_cost_per_token": 1e-6, "output_cost_per_token": 1e-5})
+    (tmp_path / "prices.json").write_text(json.dumps({"openai/gpt-test": {
+        "estimated_usd_per_page": 0.01, "input_usd_per_token": 1e-6, "output_usd_per_token": 1e-5}}))
+    monkeypatch.setattr(c, "PRICES", tmp_path / "prices.json")
+    monkeypatch.setattr(c, "LEDGER", tmp_path / "ledger.json")
     return made
 
 
