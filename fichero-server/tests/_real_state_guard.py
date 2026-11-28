@@ -173,22 +173,28 @@ def drain() -> list[str]:
     return out
 
 
-def share_real_embedding_cache(test_models_dir: Path) -> Path | None:
+def share_real_embedding_cache(test_models_dir: Path, real: Path | None = None) -> Path | None:
     """The one read of the real model store tests are allowed: the pinned embedding model.
 
-    Link ``<test base>/models/embeddings`` to the real ``models/embeddings`` so tests that embed use
-    the model this Mac already has (HF_HUB_OFFLINE keeps it from downloading) instead of failing;
-    every other store (spaCy, Whisper, MLX, Kraken) stays an empty temp dir. A write that resolves
-    through the link is still refused by the guard. Returns the link, or None when this Mac has no
-    embedding cache (the tests that need it then fail or skip as on a clean machine, #5528).
+    ``<test base>/models/embeddings`` is a temp dir holding one link per entry of the real
+    ``models/embeddings`` (each cached model), so tests that embed use the model this Mac already has
+    (HF_HUB_OFFLINE keeps it from downloading) instead of failing; every other store (spaCy, Whisper,
+    MLX, Kraken) stays an empty temp dir. A write into a linked model is still refused by the guard;
+    a NEW entry in the cache dir lands in the temp dir. (2026-11-28: the whole dir was one link, and
+    fastembed's fallback download made ``<cache>/tmp`` through it, which the guard refused under
+    whichever test was running, canvas-organize's base run.) Returns the dir, or None when this Mac
+    has no embedding cache (the tests that need it then fail or skip as on a clean machine, #5528).
     """
-    real = Path(ROOTS[0]) / "models" / "embeddings"
+    real = real or Path(ROOTS[0]) / "models" / "embeddings"
     if not real.is_dir():
         return None
-    test_models_dir.mkdir(parents=True, exist_ok=True)
     link = test_models_dir / "embeddings"
-    if not link.exists() and not link.is_symlink():
-        link.symlink_to(real, target_is_directory=True)
+    if link.is_symlink():  # an older base's whole-dir link
+        link.unlink()
+    link.mkdir(parents=True, exist_ok=True)
+    for entry in real.iterdir():
+        if not (link / entry.name).exists() and not (link / entry.name).is_symlink():
+            (link / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
     return link
 
 
