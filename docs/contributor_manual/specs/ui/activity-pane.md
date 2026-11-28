@@ -747,6 +747,9 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   run with nothing to resume from, is still carried on by its recipe run or marked interrupted at the next open (#5608).
   *Test:* `fichero-server/tests/unit/execution/test_close_pauses_running_work_6588.py` (the run),
   `fichero-server/tests/unit/jobs/test_close_pauses_running_work_6596.py` (the page jobs).
+  A recipe run whose own code meets the closed connection (`recipes/runner.py` `_run`) lets that error through, so its
+  row is paused in the same words and never failed as "The run stopped on an error in Fichero" (#7088;
+  `fichero-server/tests/unit/recipes/test_a_run_whose_project_closed_is_paused_7088.py`).
 
 ### Ruled 2026-11-14 afternoon: the window, the bottom panel, the log, kept exports (decisions 22-29)
 
