@@ -49,7 +49,10 @@ if tokfile.exists():
         print(f"harness_start refuses: {tokfile} is empty or not mode 600", file=sys.stderr)
         sys.exit(1)
     tok = f'export CLAUDE_CODE_OAUTH_TOKEN="$(cat {shlex.quote(str(tokfile))})" && '
-scratch = Path(jail.workroot or "/tmp") / a.name
+if not jail.workroot:  # the settings (the policy hook) are never written under a shared temp directory, in a folder any user can make first
+    print("harness_start refuses: [jail] names no workroot for the worker's scratch folder", file=sys.stderr)
+    sys.exit(1)
+scratch = Path(jail.workroot) / a.name
 argv = S.prepare(a.root, a.worktree, S.brief_prompt(a.brief), scratch, model=a.model, claude_bin=claude, effort=a.effort)  # never the text on tmux's line
 if a.dry:
     print(json.dumps(argv))

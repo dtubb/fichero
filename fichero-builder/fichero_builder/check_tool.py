@@ -2385,7 +2385,7 @@ def security_lints(root, since: str, head: str, approved=None, dirs: tuple[str, 
                 out += sr.baseline_raised(f, _entries(json.loads("\n".join(old))), _entries(json.loads("\n".join(new))))
             except ValueError:
                 out.append(f"{f} does not read as JSON at one of the heads")
-    for f, check in (("osv-scanner.toml", sr.osv_config_problems), (".gitleaks.toml", sr.gitleaks_config_problems)):
+    for f, check in (("osv-scanner.toml", sr.osv_config_problems), ("scripts/gitleaks.toml", sr.gitleaks_config_problems)):
         if (text := _lines(root, "show", f"{head}:{f}")) is not None:
             try:
                 out += check("\n".join(text))
@@ -2406,7 +2406,7 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     if not cfg.security:
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: not configured", "results": []}
     dirs = tuple(cfg.security.get("dirs") or ())
-    if not [f for f in changed if (dirs and f.startswith(dirs)) or f in ("osv-scanner.toml", ".gitleaks.toml")]:
+    if not [f for f in changed if (dirs and f.startswith(dirs)) or f in ("osv-scanner.toml", "scripts/gitleaks.toml")]:
         return {"ok": True, "skipped": True, "stdout_tail": "not required: no changed path is under a scanned directory", "stderr_tail": "", "results": []}
     problems = security_lints(root, since, head, dirs=dirs)
     if SCANS_OWED[0]:  # the added-line lints only; the scanners run once on the train's candidate

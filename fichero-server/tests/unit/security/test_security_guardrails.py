@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ast
 import re
+
+import pytest
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -490,3 +492,21 @@ def constant_only():
 """
     )
     assert visitor.dangerous_calls == []
+
+
+def test_xml_security_has_no_standard_library_fallback(monkeypatch):
+    """Without defusedxml the module refuses to import; it never falls back to `xml.etree` (semgrep
+    `use-defused-xml-parse`, 2026-11-27). `reject_xml_entities` reads the first 4 KiB only, so the parser is the guard
+    for everything after it."""
+    import importlib
+    import sys
+
+    from fichero_server.security import xml_security
+
+    monkeypatch.setitem(sys.modules, "defusedxml", None)  # `import defusedxml` now raises ImportError
+    monkeypatch.setitem(sys.modules, "defusedxml.ElementTree", None)
+    with pytest.raises(ImportError):
+        importlib.reload(xml_security)
+    monkeypatch.undo()
+    importlib.reload(xml_security)  # the real module again, for the tests that follow
+    assert xml_security.SafeET.__name__ == "defusedxml.ElementTree"

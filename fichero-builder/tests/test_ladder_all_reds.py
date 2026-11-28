@@ -321,4 +321,4 @@ def test_security_contract_current_and_the_since_guards_keep_their_green_when_th
     assert "contract-current" not in after("api/routes.py")
     assert "since-guards" not in after("app/V.swift")
     assert "security" not in after("srv/x.py")
-    assert "security" not in after(".gitleaks.toml"), "the scanner's own config is an input"
+    assert "security" not in after("scripts/gitleaks.toml"), "the scanner's own config is an input"

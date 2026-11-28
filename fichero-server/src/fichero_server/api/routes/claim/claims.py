@@ -1246,10 +1246,18 @@ def list_claims_impl(
     ``GET /api/claims`` route and the read-only ``claim.list`` action the chat
     agent calls run the SAME filtering + pagination. Returns the page of claims.
     """
-    from fichero_server.knowledge.trash_visibility import visible_claims
+    from fichero_server.knowledge.trash_visibility import trashed_document_ids, visible_claims
 
     # A statement resting only on pages in the Trash is out of view (`safety.trash.dependants-go-with-their-source`).
-    claims = visible_claims(db, db.all(KnowledgeClaim))
+    trashed = trashed_document_ids(db)
+    if not trashed and not any((q, entity_id, curated_only, curation_state, claim_type, epistemic_status, source_document_id,
+                                source_language, source_type)):
+        # Nothing hides a statement and nothing narrows the list: the page is one bounded read in table order, the slice
+        # `db.all` gave (perf-optimize 2026-11-27: 6,000 statements were hydrated to answer 500; a project has 50,000).
+        # ponytail: a filtered list, or one with a page in the Trash, still reads the whole table; the rules live in Python
+        # (`visible_claims` and the filters below) until they are written as SQL.
+        return [_resolved_claim_copy(c) for c in db.query_page(KnowledgeClaim, limit=limit, offset=offset, order_by="rowid")]
+    claims = visible_claims(db, db.all(KnowledgeClaim), trashed)
 
     # Apply filters
     if q:

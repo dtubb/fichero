@@ -1164,26 +1164,6 @@
    "test_name": "hardcoded_sql_expressions"
   },
   {
-   "code": "1219     try:\n1220         tmp = Path(tempfile.mktemp(suffix=\".jpg\"))\n1221         result = subprocess.run(\n",
-   "col_offset": 19,
-   "end_col_offset": 49,
-   "filename": "fichero-server/src/fichero_server/db/storage.py",
-   "issue_confidence": "HIGH",
-   "issue_cwe": {
-    "id": 377,
-    "link": "https://cwe.mitre.org/data/definitions/377.html"
-   },
-   "issue_severity": "MEDIUM",
-   "issue_text": "Use of insecure and deprecated function (mktemp).",
-   "line_number": 1220,
-   "line_range": [
-    1220
-   ],
-   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b306-mktemp-q",
-   "test_id": "B306",
-   "test_name": "blacklist"
-  },
-  {
    "code": "807     db.execute(\n808         f\"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ?{_clear_waiting_on(db)} \"\n809         f\"WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')\",\n810         [stopped_by(run_id), utc_now(), *ended],\n",
    "col_offset": 10,
    "end_col_offset": 74,

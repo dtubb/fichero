@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class _TrainRequest(BaseModel):
@@ -19,6 +19,14 @@ class _TrainRequest(BaseModel):
     pages_may_leave: bool = Field(False, description="The person's yes for these pages to go to Hugging Face.")
     not_for_release: bool = Field(True, description="The trained model may not be released.")
     release_note: str | None = None
+
+    @field_validator("name", check_fields=False)
+    @classmethod
+    def _name_is_one_path_part(cls, name: str) -> str:
+        """Each card's `name` becomes a file name: the landed model's, and the one `ketos -o` writes."""
+        if name in ("", ".", "..") or any(c in name for c in ("/", "\\", "\0")):
+            raise ValueError("a name is one file name: no `/`, no `\\`, not `.` or `..`, not empty")
+        return name
 
 
 class TrainKrakenRequest(_TrainRequest):

@@ -1,0 +1,33 @@
+# The repo's own semgrep rules, run by the security rung beside the registry sets (`dev-workflows.quality.security-scan-rung`):
+# what p/swift lacks and the security lens names. A waiver is `// nosemgrep: <rule-id> -- <reason> (#N)` on the line.
+rules:
+  - id: fichero.swift-process-shell
+    message: Process() runs a shell; run the program itself with an argument list, so no argument is parsed as shell text
+    severity: ERROR
+    languages: [swift]
+    pattern-either:
+      - pattern: |
+          $P.executableURL = URL(fileURLWithPath: "=~/^/(usr/)?bin/(ba|z|da)?sh$/")
+      - pattern: |
+          $P.launchPath = "=~/^/(usr/)?bin/(ba|z|da)?sh$/"
+      - pattern: |
+          Process.run(URL(fileURLWithPath: "=~/^/(usr/)?bin/(ba|z|da)?sh$/"), ...)
+  - id: fichero.swift-keyed-unarchiver-without-secure-coding
+    message: NSKeyedUnarchiver without secure coding decodes any class the data names; use unarchivedObject(ofClass:from:) or keep requiresSecureCoding true
+    severity: ERROR
+    languages: [swift]
+    pattern-either:
+      - pattern: |
+          NSKeyedUnarchiver.unarchiveObject(with: ...)
+      - pattern: |
+          NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(...)
+      - pattern: |
+          $U.requiresSecureCoding = false
+  - id: fichero.plist-allows-arbitrary-loads
+    message: NSAllowsArbitraryLoads turns App Transport Security off for every host; allow the one host that needs it instead
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: ["*.plist"]
+    pattern: |
+      <key>NSAllowsArbitraryLoads</key> <true/>

@@ -1206,17 +1206,22 @@ def _sips_convert(source: Path) -> Path | None:
     Returns a temp path to the converted file, or None if sips is unavailable
     or the conversion fails. Caller is responsible for deleting the temp file.
     """
+    import os
     import subprocess
     import tempfile
 
+    # The output file is made here, not only named (bandit B306: a name alone can be claimed by another process
+    # before sips writes it); sips writes over it. A failed conversion removes it.
+    fd, name = tempfile.mkstemp(suffix=".jpg")
+    os.close(fd)
+    tmp = Path(name)
     try:
-        tmp = Path(tempfile.mktemp(suffix=".jpg"))
         result = subprocess.run(
             ["sips", "-s", "format", "jpeg", str(source), "--out", str(tmp)],
             capture_output=True,
             timeout=30,
         )
-        if result.returncode == 0 and tmp.exists():
+        if result.returncode == 0 and tmp.stat().st_size > 0:
             return tmp
         logger.debug(
             "sips thumbnail conversion failed for %s: returncode=%s stderr=%s",
@@ -1228,6 +1233,7 @@ def _sips_convert(source: Path) -> Path | None:
         logger.debug("sips thumbnail conversion unavailable for %s: %s", source.name, exc)
     except subprocess.TimeoutExpired as exc:
         logger.debug("sips thumbnail conversion timed out for %s: %s", source.name, exc)
+    tmp.unlink(missing_ok=True)
     return None
 
 
