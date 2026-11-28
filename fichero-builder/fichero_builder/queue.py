@@ -382,6 +382,7 @@ class Procs:
     gh_watch: Callable[[], int] | None = None  # `builder github-watch` once (local.github.watch); None = [github_watch] off
     gh_watch_s: float = 600.0  # how often it runs
     model_of: Callable[[dict], str] = lambda lane: ""  # lane -> the model its worker should run on now ([models] role); "" = not known
+    park_cleared: Callable[[dict], bool] = lambda lane: False  # lane -> its last park was a day cap that today's cap and spend clear
     watched: Callable[[dict], bool] = lambda lane: False  # lane -> a `builder run` watches its feed now (run_alive)
     builder_moved: Callable[[dict], str] = lambda lane: ""  # lane -> why its session's pinned builder code is behind the land branch's; "" = it is not
     premerge: Callable[[dict, str], list] | None = None  # (lane, head) -> [(waiting step key, [files])] its head conflicts with (merge-tree)
@@ -854,6 +855,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             h = None
         else:
             h, lane["feed"], end = None, "", procs.end_of(lane)
+            if end == "parked" and procs.park_cleared(lane):  # 2026-11-28 08:29: canvas-organize's 07:53 park at the 300 cap blocked it when
+                # its train sent it back, after the cap went to 800; a day-cap park the cap now clears blocks nothing: a fresh session takes the step
+                journal.append("queue", lane=lane["id"], step=s["step"], state="park-cleared", detail="its session was parked at a day cap that no longer holds")
+                end = "gone"
             if end == "parked":
                 PARKED.append(lane["id"])
                 return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
@@ -3282,6 +3287,19 @@ def follow_landed(root, out=print) -> str:
     return f"followed {tip[:9]}"
 
 
+CAP_PARK = re.compile(r"park: today's spend ([\d.]+) USD reached the cap ([\d.]+)")
+
+
+def day_cap_park_cleared(rows: list[dict], lane_id: str, day_usd: float, today: str = "") -> bool:
+    """The lane's last park was the day cap, and it no longer holds: another day, or today's cost rows are under the cap now."""
+    from fichero_builder import watcher
+    today = today or time.strftime("%Y-%m-%d")
+    last = next((r for r in reversed(rows) if r.get("event") == "watch" and r.get("task") == lane_id and str(r.get("what", "")).startswith("park")), None)
+    if last is None or not CAP_PARK.match(str(last.get("what", ""))):
+        return False  # a provider refusal, a generation cap, a week cap: still a person's call
+    return not str(last.get("ts", "")).startswith(today) or watcher.spent_today(rows, today) < day_usd
+
+
 FOLLOW_MIN_S = 1800.0  # [loop].follow_min_s
 
 
@@ -3910,6 +3928,13 @@ def real_procs(root) -> Procs:
         log = subprocess.run([*g, "log", "--format=%h %s", f"origin/{branch}..refs/heads/{part2}"], capture_output=True, text=True)
         return 0, log.stdout.strip()
 
+    def park_cleared(lane):
+        try:  # read now: the cap is raised in the live file without a restart (08:20)
+            cap = float(tomllib.loads((root / "harness.toml").read_text()).get("spend", {}).get("day_usd", 0) or 0)
+        except (OSError, ValueError):
+            return False
+        return day_cap_park_cleared(work._shared_rows(ns(lane)), lane["id"], cap)
+
     def end_of(lane):
         return next((r["end"] for r in reversed(work._shared_rows(ns(lane))) if r.get("event") == "cost" and r.get("task") == lane["id"]
                      and r.get("end") != "handoff"), "gone")
@@ -4037,7 +4062,7 @@ def real_procs(root) -> Procs:
             train.drop_refs(repo, tid)
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, model_of=model_of, builder_moved=builder_moved,
-                 watched=lambda lane: run_alive(jail.load(root), lane.get("feed", "")), thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
+                 park_cleared=park_cleared, watched=lambda lane: run_alive(jail.load(root), lane.get("feed", "")), thin=thin_snapshots, autofix=lambda lane, step, findings, skip: work.autofix(ns(lane), step["step"], findings, Path(step["brief"]).read_text(), skip), free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, premerge=premerge, deps=deps_job(root), deps_cfg=deps_cfg(root), gh_watch=gh_watch_job(root)[0], gh_watch_s=gh_watch_job(root)[1], uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, worker_cli=worker_cli_job(root, rules, mdl), rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  stack_hold=lambda lane, step, under: work.stack_hold(ns(lane), step["step"], under),
                  build_free=lambda: check_tool.build_lock_free(check_tool.load(root)),

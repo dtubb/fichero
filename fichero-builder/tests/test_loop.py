@@ -2597,3 +2597,17 @@ def test_ladder_slot_lists_a_chain_while_it_waits_and_drops_it_once_it_holds_a_s
         assert seen[0] == ["b"], "b waits for the one slot: listed"
     t.join(5)
     assert work.SLOT_WAITING == []
+
+
+def test_a_session_parked_at_a_day_cap_that_no_longer_holds_never_blocks_its_step(state):
+    """2026-11-28 08:29: canvas-organize's session parked at the 300 cap at 07:53; after the cap went to 800 its step blocked as
+    parked when its train sent it back. A cleared cap park is a `park-cleared` row, and the step goes on to a fresh session."""
+    lane(state)
+    fake = Fake()
+    fake.end = "parked"
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    fake.alive_now = False
+    fake.procs.park_cleared = lambda ln: True
+    queue.tick(fake.procs, {"m1": "p1"}, workers_n=1, push=False, out=lambda s: None)
+    assert [r["state"] for r in journal.read() if r.get("state") in ("park-cleared", "blocked")] == ["park-cleared"]
+    assert not [r for r in _alerts() if r["step"] == "cap-park"]

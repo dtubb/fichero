@@ -803,3 +803,17 @@ def test_add_refuses_a_repeated_brief_by_name_and_a_continuation_appends_the_lan
     kept = Path(next(s for s in queue.load()[-1]["steps"] if s["step"] == "b")["brief"]).read_text()
     assert kept.startswith("Do the thing.") and "## Continues a" in kept and "- a: abcdef123" in kept and kept.rstrip().endswith("the second half: the tests")
     assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "c", "--brief", str(state / "b1.2"), *st]) == 0, "another text is taken"
+
+
+def test_a_day_cap_park_the_raised_cap_clears_blocks_nothing_and_any_other_park_still_does():
+    """2026-11-28 08:29: canvas-organize's session parked at the 300 cap at 07:53 while its step was in a train; the cap went to 800
+    at 08:20, and the train's send-back then blocked it "parked (a cap or a provider refusal)"."""
+    day = "2026-11-28"
+    park = {"event": "watch", "task": "c", "ts": f"{day}T07:53:03", "what": "park: today's spend 300.79 USD reached the cap 300.00"}
+    cost = [{"event": "cost", "task": "x", "ts": f"{day}T07:00:00", "usd": 300.79}]
+    assert queue.day_cap_park_cleared(cost + [park], "c", 800.0, day), "the cap is 800 now: cleared"
+    assert not queue.day_cap_park_cleared(cost + [park], "c", 300.0, day), "the cap still holds"
+    assert queue.day_cap_park_cleared(cost + [park], "c", 300.0, "2026-11-29"), "a new day"
+    refused = {**park, "what": "park: the provider refused for quota or credit"}
+    assert not queue.day_cap_park_cleared(cost + [refused], "c", 800.0, day), "a provider refusal is still a person's call"
+    assert not queue.day_cap_park_cleared(cost, "c", 800.0, day), "no park at all"
