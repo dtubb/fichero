@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// The pages of the iPhone's item view, in order (`ios.item.pages`, #6947). More pages are added at the end.
 enum ItemPage: Int, CaseIterable, Identifiable {
@@ -39,5 +39,11 @@ enum ItemPage: Int, CaseIterable, Identifiable {
         case .source: !imageZoomed
         case .reader, .info: true
         }
+    }
+
+    /// The animation of a page change from the header or a VoiceOver adjust: the default slide, or none with Reduce
+    /// Motion on, when the page is swapped in place.
+    static func changeAnimation(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .default
     }
 }

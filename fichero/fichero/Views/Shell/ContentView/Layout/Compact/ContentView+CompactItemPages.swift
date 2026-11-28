@@ -51,7 +51,7 @@ extension ContentView {
         Binding(
             get: { windowState.compactItemPage },
             // No slide with Reduce Motion on: the page is swapped in place.
-            set: { new in withAnimation(reduceMotion ? nil : .default) { windowState.compactItemPage = new } }
+            set: { new in withAnimation(ItemPage.changeAnimation(reduceMotion: reduceMotion)) { windowState.compactItemPage = new } }
         )
     }
 
