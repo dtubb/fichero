@@ -449,9 +449,9 @@ assumed from the milestone's age:**
 6. Paragraph-wrapping with no orphaned last-lines — **built**: `document_view.html`'s
    `text-wrap: var(--reader-text-wrap, pretty)`, its own comment naming #3684 as the tracker
    and "pretty" (no-orphan) as the on-target default.
-7. A short design doc — **produced**: `agent-work/superpowers/specs/2026-07-13-settings-
-   typography-ia-design.md` exists (at a different path than the issue's own
-   `docs/superpowers/specs/` suggestion — a location detail, not a substance gap).
+7. A short design doc — **produced** in July 2026 as a working note under `agent-work/` (a different
+   place than the issue's own `docs/superpowers/specs/` suggestion — a location detail, not a
+   substance gap). The note is since deleted; what it decided is items 1 to 6 above.
 
 **Nothing in #3678 reads as a live blocker today.** Stated as evidence, not as "superseded":
 every deliverable the issue named has a corresponding, verifiable piece of code citing its

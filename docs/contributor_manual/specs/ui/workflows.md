@@ -743,17 +743,16 @@ only when written; the tracked notes named here were read again and deleted in N
   folded**: it is the earlier sibling of the text-workflows report, covering the same
   class of tool-execution defects (already fixed/committed per its own account) rather
   than surface design.
-- `agent-work/superpowers/specs/2026-07-24-context-menu-run-workflow-targets-design.md`
-  — **folded conceptually, not as a numbered behavior**: this document
-  specifies "Run Workflow" from a Sidebar/Library context menu using a pure
-  target resolver (clicked target vs. selection, folders contribute direct
-  children only, no recursion). It reads as SHIPPED design intent for the
-  workflow bar's selection-projection behavior family
-  (`workflows.bar.selection-projected-through-accepted-inputs`) rather than a
-  distinct gap; no code was checked this session to confirm the resolver
-  exists as specified, so it is not tagged `[OK]` here — flagged for the
-  `workflows.bar.*` section's next revision to verify and either promote to a
-  numbered `[OK]` behavior or demote to `[GAP]`.
+- The July 2026 context-menu run-workflow design (a working note, since deleted)
+  — **folded conceptually, not as a numbered behavior**: it specified "Run
+  Workflow" from a Sidebar/Library context menu using a pure target resolver
+  (clicked target vs. selection, folders contributing direct children only).
+  The resolver exists (`fichero/fichero/Models/WorkflowRunTargetResolver.swift`)
+  and has since changed: a folder expands to its descendant files at any depth.
+  It belongs to the workflow bar's selection-projection behavior family
+  (`workflows.bar.selection-projected-through-accepted-inputs`); no numbered
+  behavior states the resolver's rule — flagged for the `workflows.bar.*`
+  section's next revision.
 
 Not folded (per the inventory's own "not reviewed line-by-line" budget note):
 the manual-capability-reference and grand-sweep notes (read in November 2026 and deleted;
