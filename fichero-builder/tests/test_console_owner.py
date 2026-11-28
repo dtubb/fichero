@@ -118,6 +118,28 @@ def _lane(i, steps, **kw):
             "steps": [{"step": s, "state": st, "issues": [7], "why": "", "brief": "/nonexistent/brief", "entered_at": 0.0} for s, st in steps], **kw}
 
 
+def test_the_status_api_computes_status_once_and_reads_the_journal_for_last_actions_once_not_per_lane(live, monkeypatch):
+    """Review of #6589: api_status is the slow path of #6498; the badge and the lanes' last actions add no pass per lane."""
+    class Rows(list):
+        scans = 0
+
+        def __reversed__(self):
+            Rows.scans += 1
+            return super().__reversed__()
+
+    calls, real = [], console.status
+    monkeypatch.setattr(console, "status", lambda *a, **k: calls.append(1) or real(*a, **k))
+    rows = [{"ts": "2026-11-27T10:00:00", "event": "console", "who": "owner", "verb": "pause", "state": "ended", "ok": True, "rc": 0, "detail": "old", "args": {"lane": "a"}},
+            {"ts": "2026-11-27T10:01:00", "event": "console", "who": "owner", "verb": "resume", "state": "ended", "ok": True, "rc": 0, "detail": "new", "args": {"lane": "a"}}]
+    one = console.api_status(Rows(rows), [_lane("a", [("s1", "queued")])])
+    assert len(calls) == 1, "alerts_view takes the status api_status already holds"
+    assert one["lanes"][0]["last_action"]["verb"] == "resume", "the newest row of the lane"
+    n1, Rows.scans = Rows.scans, 0
+    three = console.api_status(Rows(rows), [_lane(i, [("s", "queued")]) for i in "abc"])
+    assert Rows.scans == n1, "the journal scans do not grow with the lanes"
+    assert [x["last_action"] and x["last_action"]["detail"] for x in three["lanes"]] == ["new", None, None]
+
+
 def test_a_lanes_last_action_sits_in_its_row_and_the_action_log_is_one_page(live, monkeypatch):
     """builder-console.actions.beside-what-they-act-on: the console actions sat at the bottom of every page."""
     url, ran = live

@@ -72,13 +72,14 @@ def _secs(ts) -> float:
     return time.mktime(time.strptime(str(ts)[:19].replace(" ", "T"), "%Y-%m-%dT%H:%M:%S"))
 
 
-def alerts_view(rows: list[dict], now: float | None = None) -> dict:
+def alerts_view(rows: list[dict], now: float | None = None, st: dict | None = None) -> dict:
     """builder-console.alerts.badge-and-page: the open alerts under ALERT_FRESH_HOURS grouped by kind (the text before the first `;`,
     numbers masked), newest group first; the older ones grouped the same way apart; the badge's counts; each alert `owner` when it
-    offers ask-owner and no manager answer; and what the manager answered ask-owner in the last RESOLVED_DAYS days."""
+    offers ask-owner and no manager answer; and what the manager answered ask-owner in the last RESOLVED_DAYS days. `st` is a
+    status() of the same rows the caller already holds (api_status), so it is not computed twice."""
     from fichero_builder.queue import _alert_kind
     now = now or time.time()
-    st = status(rows, [], today=time.strftime("%Y-%m-%d", time.localtime(now)))
+    st = st or status(rows, [], today=time.strftime("%Y-%m-%d", time.localtime(now)))
     open_ = [{**a, "owner": "ask-owner" in (a["actions"] or []) and not set(a["actions"]) & set(MANAGER_ANSWERS)} for a in st["open_alerts"]]
     fresh = [a for a in open_ if now - _secs(a["ts"]) <= ALERT_FRESH_HOURS * 3600]
     older = [a for a in open_ if now - _secs(a["ts"]) > ALERT_FRESH_HOURS * 3600]
@@ -504,7 +505,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console" and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-20:]  # #6504: the person's actions, not the timer's
     st["loop_lanes"] = LOOP_LANES
-    st["alerts"] = {k: v for k, v in alerts_view(rows, now).items() if k in ("count", "owner_count")}  # the toolbar's badge
+    st["alerts"] = {k: v for k, v in alerts_view(rows, now, st).items() if k in ("count", "owner_count")}  # the toolbar's badge
     st["lane_usage"] = lane_usage(lanes, rows=rows)
     usage = {u["lane"]: u for u in st["lane_usage"]}
     # #6503: one spend number. External lanes (Max sessions) write no cost row: their transcripts say. Managed lanes' transcripts are
@@ -530,6 +531,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
                     for r in rows if r.get("event") in ("queue", "alert", "alert-answer", "loop", "landed", "console")
                     and not (r.get("event") == "loop" and r.get("state") == "tick") and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-15:]  # #6467, #6504: the last journal events, ticks and timer refreshes left out
     by_id = {x["id"]: x for x in lanes}
+    acted = {(r.get("args") or {}).get("lane"): r for r in rows if r.get("event") == "console"}  # one pass: each lane's newest console row (the later row wins)
     live = live_lines(ROOT) if ROOT else {}
     for row in st["lanes"]:
         x = by_id[row["lane"]]
@@ -566,7 +568,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         shown = steps_on_origin(x, (st.get("last_land_git") or {}).get("sha", ""))
         if row["state"] == "done" and cur is None and shown and shown[-1]["state"] != "landed":  # a lane through its steps reads `done` (review 96)
             row["state"] = NOT_LANDED  # the lane is through its steps; the last one is not on origin/integration
-        did = next((r for r in reversed(rows) if r.get("event") == "console" and (r.get("args") or {}).get("lane") == x["id"]), None)
+        did = acted.get(x["id"])
         # builder-console.actions.beside-what-they-act-on: the lane's newest action and how it ended, shown beside its buttons
         row["last_action"] = {**{k: did.get(k) for k in ("verb", "state", "ok", "rc", "ts")}, "detail": (str(did.get("detail") or "").strip().splitlines() or [""])[-1][:200]} if did else None
         row.update(  # #6467: why the lane waits, in a line, and the batches queued behind its cursor
