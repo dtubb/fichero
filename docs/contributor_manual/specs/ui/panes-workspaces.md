@@ -383,13 +383,14 @@ starting a new one.
   when the column collapses, next to the island. *Built:* `ContentView.sidebarToolbarContent` offers its item only
   while the sidebar is shown (`SidebarPairHome.declaredInColumn`, #6558). *Not built:* a look on screen. *Tests:*
   `Models/SidebarColumnStateTests.swift`.
-- `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
+- `panes.chrome.bars-do-not-name-the-selection` — **[OK]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
   repeats what is selected: the Inspector's Content, Info, Outline and Order bars carried the selected item's name
   (a test page) as their status line, which the pane head and the toolbar already say. The bar stays
   (every inspector sub-pane has one, the 2026-08-23 rule), with its controls and no name; a pane whose bar counts
   something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
-  status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*
+  status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not checked:* a look on screen. *Tests:*
   `Views/Inspector/InspectorBottomBarStatusTests.swift`.
+  *Test:* `fichero/Tests/Unit/general/Views/Inspector/InspectorBottomBarStatusTests.swift::emptyStatusIsNotDrawn`.
 - `panes.chrome.command-scroll-zooms` — **[PARTIAL]** (owner 2026-11-13; #6672) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
   zooms the view under the pointer wherever the view zooms by pinch: the Canvas already did (`CanvasScrollPan`, into the
   cursor), and now the Items' Icon grid (one 0.1 step per scroll, in the pinch's range) and, owner 2026-11-17 ("not just
