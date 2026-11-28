@@ -2611,3 +2611,16 @@ def test_a_session_parked_at_a_day_cap_that_no_longer_holds_never_blocks_its_ste
     queue.tick(fake.procs, {"m1": "p1"}, workers_n=1, push=False, out=lambda s: None)
     assert [r["state"] for r in journal.read() if r.get("state") in ("park-cleared", "blocked")] == ["park-cleared"]
     assert not [r for r in _alerts() if r["step"] == "cap-park"]
+
+
+def test_a_retry_with_text_puts_the_text_in_the_next_brief_and_a_retry_without_text_leaves_the_brief_alone(state):
+    """2026-11-27 23:03: `builder alert <id> retry --text "..."` dropped the text; activity's next message repeated its brief unchanged."""
+    _waiting(state)
+    (a,) = _alerts()
+    assert queue.answer(a["id"], "retry", text="use the 800 cap; skip the Fable probe")[0] == 0
+    brief = open(queue.brief_of(steps()["1.1"])).read()
+    assert brief.startswith("brief 1.1") and "Retried by the manager:" in brief and "Note: use the 800 cap; skip the Fable probe" in brief
+    assert [r.get("text") for r in journal.read() if r.get("event") == "alert-answer" and r["id"] == a["id"]] == ["use the 800 cap; skip the Fable probe"]
+    b = queue.alert("m1", "1.1", "another red", "ev", ["retry"])
+    before = steps()["1.1"].get("resume_brief")
+    assert queue.answer(b, "retry")[0] == 0 and steps()["1.1"].get("resume_brief") == before, "no text: the brief is not touched"

@@ -140,6 +140,9 @@ def moved_on(lane: dict, left: str) -> None:
     journal.append("moves-on", lane=lane["id"], left=left, taken=nxt)
 
 
+RETRY_NOTE = "Retried by the manager:"
+
+
 def brief_of(s: dict) -> str:
     """The brief a step's session gets: its resume brief (a fix round, a retry, a send-back, a stop) or its brief. A resume brief is
     the brief's text then an addendum; when the brief was rewritten after it was made (2026-11-26: a retry re-sent a stale
@@ -153,7 +156,7 @@ def brief_of(s: dict) -> str:
         old = Path(rb).read_text()
     except OSError:
         return rb if Path(rb).is_file() else s["brief"]
-    marks = [f"Step {s['step']}: the ", STOPPED, "Sent back by the manager:"]
+    marks = [f"Step {s['step']}: the ", STOPPED, "Sent back by the manager:", RETRY_NOTE]
     at = max((old.rfind(m) for m in marks), default=-1)
     tail = old[at:] if at > 0 else ""
     Path(rb).write_text(b.read_text().rstrip("\n") + ("\n\n" + tail if tail else "\n"))
@@ -1874,6 +1877,11 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
                     kinds = s.setdefault("approved_for", {}).setdefault(judged, [])
                     if s["approve_kind"] not in kinds:
                         kinds.append(s["approve_kind"])
+            if action == "retry" and text.strip() and lane is not None and lane.get("kind") != "external":
+                # 2026-11-27 23:03: `alert <id> retry --text` dropped the text; activity's next message repeated its brief unchanged
+                note = journal.STATE / f"retrynote-{alert_id}.txt"
+                note.write_text(Path(brief_of(s)).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\n{RETRY_NOTE} {a['what']}\nNote: {text.strip()}\n"))
+                s["resume_brief"] = str(note)
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
                 fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")) + test_python_line())
@@ -1887,7 +1895,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
         rc, out = tell_mod.send(lane["pane"], f"SENT BACK ({action}) {a['lane']} {a['step']}: {a['what'][:300]} (evidence: {a['evidence']}). "
                                 f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(a['lane'])}") if lane.get("pane") else (1, "no registered pane")
         journal.append("queue", lane=a["lane"], step=a["step"], state="told" if rc == 0 else "tell-refused", detail=out[-200:])
-    journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="")
+    journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="", **({"text": text.strip()[:500]} if text.strip() else {}))
     return 0, f"{alert_id}: {action}"
 
 
