@@ -873,7 +873,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if h is None and (s["state"] == "sent" or (s["state"] == "queued" and lane["feed"])):  # no handle: this loop restarted; the old session may be up
         mismatch = "" if s["state"] != "sent" else (f"the session was sent step {lane.get('session_step') or '-'}, the queue is at {s['step']}" if lane.get("session_step") != s["step"]
                     else f"the tree's HEAD does not descend from the head the session was sent at ({(lane.get('session_head') or '-')[:9]})"
-                    if not procs.descends(lane, lane.get("session_head", "")) else "")  # a queued step's kept session holds no step
+                    if not procs.descends(lane, lane.get("session_head", "")) and not procs.watched(lane) else "")  # a queued step's kept session holds no step
+        # 2026-11-27 20:35: activity's fix round rewrote 16 commits' trailers (the round's own ask), so its HEAD no longer descended from
+        # the sent head; the restarted loop refused to adopt the watched session and alerted "no `builder run` on its feed", which was
+        # wrong. The same step, with its watcher on the feed, is adopted whatever its history did; the check judges the new head.
         if mismatch:  # never adopt a session of another step or of a tree that moved under it
             journal.append("queue", lane=lane["id"], step=s["step"], state="adopt-refused", detail=mismatch)
         elif (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
@@ -893,7 +896,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             if s.get("live_window_alert") != wins:
                 s["live_window_alert"] = wins
                 store(lane)
-                alert(lane["id"], s["step"], f"a live session runs in tmux window {', '.join(wins)} and this loop cannot watch it (no `builder run` on its feed): "
+                why = f"it was not adopted: {mismatch}" if mismatch else "no `builder run` on its feed"
+                alert(lane["id"], s["step"], f"a live session runs in tmux window {', '.join(wins)} and this loop cannot watch it ({why}): "
                       "it is left running; `builder queue stop` ends it, then retry", str(journal.STATE / "journal.jsonl"), ["retry", "park"])
             return True
         if not mismatch and s["state"] == "sent" and _now() - s.get("entered_at", 0) < START_GRACE_S:  # a mismatch is never a slow start

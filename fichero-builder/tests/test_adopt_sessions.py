@@ -149,3 +149,32 @@ def test_an_alert_row_with_no_id_is_skipped_not_a_crash(tmp_path, monkeypatch):
     from fichero_builder import journal, queue
     monkeypatch.setattr(journal, "read", lambda: [{"event": "alert", "what": "a live session runs", "actions": ["retry"]}])
     assert queue.auto_retry_mechanical() == []
+
+
+def test_a_watched_session_whose_fix_round_rewrote_its_history_is_adopted_and_an_unwatched_one_says_why(state):
+    """2026-11-27 20:35: activity's fix round rewrote 16 commits' trailers, so the tree's HEAD no longer descended from the sent head.
+    The restarted loop refused the watched session and alerted "no `builder run` on its feed", which was not so."""
+    lane(state)
+    fake = Fake()
+    fake.procs.adopt = lambda ln: "adopted-handle"
+    fake.procs.head_of = lambda ln: "h-at-send"
+    fake.procs.descends = lambda ln, sha: False  # the history was rewritten
+    fake.procs.watched = lambda ln: True  # its watcher still runs on the feed
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    handles: dict = {}
+    queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert handles == {"m1": "adopted-handle"} and fake.stops == [] and steps()["1.1"]["state"] == "sent"
+    assert not [r for r in journal.read() if r.get("state") == "adopt-refused"]
+
+
+def test_a_refused_adoption_with_a_live_window_alerts_with_the_refusal_not_a_missing_watcher(state):
+    lane(state)
+    fake = Fake()
+    fake.procs.adopt = lambda ln: "adopted-handle"
+    fake.procs.head_of = lambda ln: "h-at-send"
+    fake.procs.descends = lambda ln, sha: False
+    fake.procs.live_windows = lambda ln: ["@13"]
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    (a,) = [r for r in journal.read() if r["event"] == "alert"]
+    assert "it was not adopted: the tree's HEAD does not descend" in a["what"] and "no `builder run`" not in a["what"]
