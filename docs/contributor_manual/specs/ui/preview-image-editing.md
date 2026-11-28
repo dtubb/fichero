@@ -11,7 +11,7 @@
 > **Status: DRAFT — PASS 1 of 2** (built behaviors only, grounded in disk 2026-09-18; the
 > fold-in of legacy milestone #168's sixteen issues is PASS 2 — a fold plan follows this
 > spec's own behaviors, no issues moved yet). **Section T (the tools) added 2026-10-29** from the
-> owner's direction and the image-preparation review of that day (a working note, since deleted): one tool
+> owner's direction and the review `agent-work/status/briefs/imgprep-review-2026-10-29.md`: one tool
 > set, one icon table, direct manipulation on the picture; revised the same day for the owner's second
 > ruling (perspective corners on Crop, the full enhancement suite in Adjust with sliders and before/after,
 > blank pages hidden and unhidden). The automatic step the tools correct is

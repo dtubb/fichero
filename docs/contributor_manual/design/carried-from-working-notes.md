@@ -1,8 +1,9 @@
 # Findings Carried From Deleted Working Notes
 
 The tracked working notes under `agent-work/` (reviews, status files, handoffs, old plans and experiment output) were
-read against the specs in November 2026 and deleted, all but four that an unbuilt spec step still reads (the
-code-organisation review, the segment editor review, the reading-levels look and the compute-per-engine review).
+read against the specs in November 2026 and deleted, all but six that a spec line still reads (the code-organisation
+review, the segment editor review, the reading-levels look, the compute-per-engine review, the image-preparation
+review and the July 2026 context-menu plan).
 Most were already carried by a spec, by a test or by the code.
 This page holds what was recorded nowhere else: measurements a choice rests on, constraints on work that is not built,
 and directions the notes attribute to the maintainer.

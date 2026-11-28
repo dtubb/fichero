@@ -505,7 +505,7 @@ The Plan is the project-management side of one research folder: its **brief** (t
 |-----|---------------|------|------|
 | Pure rule (Swift) | y | `ChatSurfaceTab` tab set + `researchProject`-present → `ResearchTasksPane` vs. invitation | proposed suite under `fichero/Tests/Unit/general/Views/Chat/` (no file yet) |
 | Availability (Swift) | y | `saveAsWorkspace()` reachable only once `backendConversationId` is non-nil | same suite |
-| Backend (pytest) | y | chat-tools loop default-on, read parity, write allowlist refuses everything else | `fichero-server/tests/unit/actions/test_chat_tools_loop.py` (exists — cited by `agent-chat-survey.md`) |
+| Backend (pytest) | y | chat-tools loop default-on, read parity, write allowlist refuses everything else | `fichero-server/tests/unit/actions/test_chat_tools_loop.py` (exists) |
 | Backend (pytest) | y | `DocumentStore.createWorkspace` → folder + `workspace_kind=agent` marker | `fichero-server/tests/**` workspace CRUD tests (not enumerated here — see `docs/reference_manual` endpoint reference) |
 | MCP | n | Research has no MCP-specific contract beyond the shared action registry | — |
 | CLI | n | no CLI surface for Research specifically | — |

@@ -558,7 +558,8 @@ surfaces" command system. The right move is to EXTEND it, not add a parallel abs
   verbs via pure extracted functions — never silently empty), `ReaderExportFocusedValueTests`,
   `LibraryImportFocusedValueTests`, `SelectAllRoutingPolicyTests`.
 - **Prior art**: `fichero/fichero/Models/WorkflowRunTargetResolver.swift` (context-menu
-  workflow targets; its July 2026 plan and design were working notes, since deleted) and an
+  workflow targets; its plan is `agent-work/plans/2026-07-24-context-menu-run-workflow-targets.md`,
+  its design note is deleted) and an
   August 2026 audit of the workflow menu against the engine (also deleted; its engine fixes
   are in `fichero-server/src/fichero_server/workflows/validation.py`).
 

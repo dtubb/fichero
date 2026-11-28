@@ -9,7 +9,7 @@
 > 2026-10-03; rewritten 2026-10-29; the owner's rulings of 2026-10-29 folded in the same day, see
 > Rulings; no open question remains; the APPROVED tag waits only on the manual section and the first
 > pinning test, as `check_spec_manual_refs` and `check_specs_have_tests` require). Review:
-> the image-preparation review of 2026-10-29 (a working note, since deleted). Stage 1 to 2 of `../../roadmap/research-pipeline.md`.
+> `agent-work/status/briefs/imgprep-review-2026-10-29.md`. Stage 1 to 2 of `../../roadmap/research-pipeline.md`.
 >
 > **Three specs, one line between them.** This spec owns the **Set Up step**: the questions and their
 > defaults, what runs by itself, finding the page, squaring a lopsided photograph, dewarping a curved
