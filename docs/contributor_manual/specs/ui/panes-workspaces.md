@@ -1074,9 +1074,12 @@ math, not a mounted pane" lesson.
   `panes.library.explicit-link-to-one-preview` / `panes.library.drag-to-connect` depend on —
   panes cannot be linked or unlinked while their live state is one window-wide value with no
   per-instance seam wired to the model field that already exists for it. Not built.
-- `panes.transcribe.strip-has-no-drag-bar` — **[GAP]** (#4876) the Transcribe workspace has no
+- `panes.transcribe.strip-has-no-drag-bar` — **[OK]** (#4876) the Transcribe workspace has no
   draggable divider between the bottom film strip and the panes stacked above it — every other
-  split in the pane system is a real `ResizableDivider`; this boundary is not. Not built.
+  split in the pane system is a real `ResizableDivider`; this boundary is not. *Built since (2026-09-20):* a strip's extent is a default, not a pin: a `.fixed` child takes a stored drag (`WorkspaceSplitStack`).
+  *Test:*
+  `fichero/Tests/Unit/general/Models/WorkspaceSplitStackIdentityTests.swift::everyPaneExtentLeafResolvesToFixedSizing`,
+  `::resolvedExtentsHonoursAStoredOverrideForAFixedChild`. The tests read the sizing, not a drawn divider.
 - `panes.transcribe.horizontal-two-rows-vertical-strip-left` — **[GAP, RULED]** (#4877) the
   workspace currently named "Transcribe · Tall" is wrong; the maintainer's ruling renames and
   reshapes it to **"Transcribe Horizontal"**: TWO ROWS, with a VERTICAL film strip on the
