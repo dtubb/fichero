@@ -779,11 +779,7 @@ def _join_pieces(pieces: list[tuple[str, str, list[str]]]) -> tuple[str, list[di
 
 
 def _group_state(claims: list[KnowledgeClaim]) -> str:
-    reviewed = all(
-        c.curation_state == ClaimCurationState.curated or c.epistemic_status == EpistemicStatus.confirmed
-        for c in claims
-    )
-    return "reviewed" if reviewed else "proposed"
+    return "reviewed" if all(_person_decided(c) for c in claims) else "proposed"
 
 
 def _sources(claims: list[KnowledgeClaim]) -> int:
@@ -810,8 +806,9 @@ def _merged_pieces(
     pieces = [p for p in head if p]
     if len(pieces) + bool(objects) < 2:
         return None
-    if agg.subject and any(_doubt(members) == "one_source_unsure" for _, members in objects):
-        pieces.insert(1, (_TABLES[lang]["doubt"]["hedge"], f"table:{lang}:hedge", ids))
+    hedge = (_doubt_words(lang) or {}).get("hedge")
+    if hedge and agg.subject and any(_doubt(members) == "one_source_unsure" for _, members in objects):
+        pieces.insert(1, (hedge, f"table:{lang}:hedge", ids))
     marks: list[tuple[int, list[KnowledgeClaim], int]] = []
     # a place every statement shares is said once at the end; otherwise each object is followed by its own
     texts = {(_claim_place(c, lang) or {}).get("text") for c in group_claims}

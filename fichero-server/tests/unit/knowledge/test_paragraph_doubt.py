@@ -6,8 +6,11 @@ spec: kg-paragraph-realisation (`kg.para.doubt-is-attribution`, `kg.para.no-figu
 """
 from __future__ import annotations
 
+import json
 import re
+import shutil
 
+from fichero_server.knowledge import readable
 from fichero_server.knowledge.readable import render_entry_with_mentions
 from fichero_server.models.knowledge import (
     ClaimCurationState,
@@ -89,6 +92,21 @@ def test_an_unsure_object_is_not_joined_into_a_plain_sentence():
         "Inés Valcárcel sold a horse (two sources).",
         "Inés Valcárcel, apparently, sold an ox (one source only).",
     ]
+
+
+def test_a_table_without_doubt_words_says_two_unsure_objects_plainly(tmp_path, monkeypatch):
+    tables = tmp_path / "tables"
+    shutil.copytree(readable.LANGUAGE_TABLES_DIR, tables)
+    (tables / "fr.json").write_text(json.dumps({
+        "language": "fr", "and": "et", "at": "à", "times": "fois",
+        "prepositions": ["à", "de", "en"], "contractions": {"de le": "du", "à le": "au"}}), encoding="utf-8")
+    monkeypatch.setattr(readable, "_TABLES", readable.load_language_tables(tables))
+    sentences = _read([
+        _claim("c1", "a vendu", "un cheval", "fr", epistemic_status=EpistemicStatus.tentative),
+        _claim("c2", "a vendu", "un boeuf", "fr", epistemic_status=EpistemicStatus.tentative),
+    ])
+    assert [s["text"] for s in sentences] == ["Inés Valcárcel a vendu un cheval et un boeuf."]
+    assert _clause(sentences, "c1")["doubt"] == "one_source_unsure"
 
 
 def test_an_unmeasured_figure_changes_no_word():
