@@ -449,13 +449,14 @@ starting a new one.
   *Built:* the two modifiers and their call sites. *Not checked:* a look on screen (hover the sidebar + and −, the
   Library + and import, a pane head ✕ and +). *Tests:* `Views/Shell/PaneHead/PaneBarStyleTests.swift`.
   *Test:* `fichero/Tests/Unit/general/Views/Shell/PaneHead/PaneBarStyleTests.swift::onePlatformChoice`.
-- `panes.chrome.bars-flush-on-mac` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS the bottom bars and the inspector strip
+- `panes.chrome.bars-flush-on-mac` — **[OK]** (#4880) (owner 2026-11-13) on macOS the bottom bars and the inspector strip
   are flat and opaque, in the pane's own background: no Liquid Glass island, no corner radius and nothing
   translucent, so rows scrolling beneath never show through the controls (owner 2026-11-13, a screenshot of the
   Items bar with its rows showing through) and the sidebar, Library and inspector bars read as one flat strip
   each, as Xcode's do; iPad and iPhone keep the floating glass. One rule,
   `PaneBarStyle.barIsFlush`, read by `PaneFilterBar`, `MiniToolbar`, the Library bottom bar and `SurfaceTabBar`.
-  *Built:* the rule and its four readers. *Not built:* a look on screen. *Tests:* `PaneBarStyleTests.swift`.
+  *Built:* the rule and its four readers. *Not checked:* a look on screen. *Tests:* `PaneBarStyleTests.swift`.
+  *Test:* `fichero/Tests/Unit/general/Views/Shell/PaneHead/PaneBarStyleTests.swift::barsFlushOnlyOnMac`.
 - `panes.chrome.bar-hairline-rule` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS every bottom bar draws exactly one
   hairline above it and every top strip one below it, always: `PaneFilterBar` draws its own by default on the Mac
   (`PaneBarStyle.barsDrawHairline`), the sidebar's bottom bar one above it, the Library's bottom bar keeps its one
