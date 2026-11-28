@@ -3054,12 +3054,11 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   `POST /api/action` with the page's token and a loopback Host, onto the verb allow-list, one `console` row each. The new
   routes `/api/lane/<id>`, `/api/runs`, `/api/work` are GET only. Test: fichero-builder/tests/test_status_page.py (extend
   with the three routes).
-- `builder-console.history.all-time-index` [PARTIAL] (owner 2026-11-28: the console shows the builder's history, change over
+- `builder-console.history.all-time-index` [OK] (owner 2026-11-28: the console shows the builder's history, change over
   time) (`history.py`) — every journal row (the owner's, the archive months', and the worker's run rows) goes into one DuckDB
   table `rows` in `<state>/history.duckdb`, with its common fields and the whole row as JSON, and one view per kind; the console
-  is its one writer and adds only the bytes appended since its last pass, every 30 s; nothing is ever dropped. Built: the index
-  (first build of the 102 MB journal 15.5 s, a pass 0.13 s, a query under 50 ms). Not built: the history pages (30 days by
-  default, 90 days and All a click away). Tests: `fichero-builder/tests/test_history_index.py`.
+  is its one writer and adds only the bytes appended since its last pass, every 30 s; nothing is ever dropped (first build of
+  the 102 MB journal 15.5 s, a pass 0.13 s, a query under 50 ms). Tests: `fichero-builder/tests/test_history_index.py`.
 - `builder-console.tailnet.owner-only` [OK] (owner 2026-11-28: testing builds on other devices) (`console.py` `_host_ok`) —
   the console behind `tailscale serve` (tailnet only, no funnel) answers a Host named in `[console].tailnet_hosts` only for
   a request that came through serve (its peer is loopback) and whose `Tailscale-User-Login` is `[console].tailnet_owner`;
