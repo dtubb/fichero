@@ -994,6 +994,62 @@ def _dispute_sentence(
     return text, clauses, segments
 
 
+def _passage_pairs(claims: list[KnowledgeClaim]) -> list[tuple[KnowledgeClaim, KnowledgeClaim]]:
+    """The two halves of one passage among `claims`, each as (plain object, prepositional object).
+
+    A pair is exactly two statements with the same subject entity, verb, language (one with a table),
+    document, page label and character range, each with a subject, verb and object, one object opening
+    with a preposition of the table and the other not, and the same said date, said place and doubt.
+    Three or more statements on one stretch make no pair."""
+    stretches: dict[tuple, list[KnowledgeClaim]] = {}
+    for claim in claims:
+        language = _claim_language(claim)
+        if (
+            claim.subject_entity_id and language in _TABLES and claim.source_document_id
+            and claim.source_char_start is not None and claim.source_char_end is not None
+            and _claim_subject(claim) and _claim_verb(claim) and _claim_object(claim)
+        ):
+            key = (claim.subject_entity_id, _normalize(_claim_verb(claim)), language, claim.source_document_id,
+                   claim.source_page_label, claim.source_char_start, claim.source_char_end)
+            stretches.setdefault(key, []).append(claim)
+    pairs: list[tuple[KnowledgeClaim, KnowledgeClaim]] = []
+    for (*_, language, _doc, _page, _start, _end), members in stretches.items():
+        if len(members) != 2:
+            continue
+        plain, other = sorted(members, key=lambda c: _is_prepositional_object(_claim_object(c), language))
+        if _is_prepositional_object(_claim_object(plain), language) or not _is_prepositional_object(_claim_object(other), language):
+            continue
+        said = [((_claim_date(c, language) or {}).get("text"), (_claim_place(c, language) or {}).get("text"), _doubt([c]))
+                for c in (plain, other)]
+        if said[0] == said[1]:
+            pairs.append((plain, other))
+    return pairs
+
+
+def _passage_sentence(
+    pair: tuple[KnowledgeClaim, KnowledgeClaim], entity_id: str, entity_names: list[str]
+) -> tuple[str, list[dict], list[dict]]:
+    """The two halves of one passage (`_passage_pairs`) as one sentence: the plain statement's own sentence
+    (`_claim_pieces`) with the other statement's object after its object and no word between them. Two
+    clauses: the first from the sentence's start to the end of the plain object, the second the other object."""
+    plain, other = pair
+    language = _claim_language(plain)
+    ids = [plain.id, other.id]
+    object_origin = f"claim:{plain.id}:{_role_field(plain, 'object')}"
+    pieces: list[tuple[str, str, list[str]]] = []
+    for text, origin in _claim_pieces(plain):
+        pieces.append((text, origin, [plain.id] if origin == object_origin else ids))
+        if origin == object_origin:
+            at = len(pieces)
+            pieces.append((_claim_object(other), f"claim:{other.id}:{_role_field(other, 'object')}", [other.id]))
+    text, segments = _join_pieces(pieces)
+    clauses = [
+        _clause(0, segments[at - 1]["end"], [plain], language, entity_id, entity_names, _doubt([plain])),
+        _clause(segments[at]["start"], segments[at]["end"], [other], language, entity_id, entity_names, _doubt([other])),
+    ]
+    return text, clauses, segments
+
+
 def _apart_unsure(agg: "Aggregation", group_claims: list[KnowledgeClaim]) -> list[list[KnowledgeClaim]]:
     """The statements of one group as the sentences that say them: the statements of a unit (`_units`) that is
     `one_source_unsure` are a sentence of their own, after the rest, so a hedge never lands on a plain object."""
@@ -1086,23 +1142,29 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
     said_a_date = False
     said_undated = False
     places: list[dict] = []
-    # a dispute is one sentence at the place of its earlier statement; the other statements are grouped
+    # a dispute, or the two halves of one passage, is one sentence at the place of its earlier statement;
+    # the other statements are grouped
     order = {c.id: i for i, c in enumerate(claims)}
     pairs = _disputes(db, claims)
     paired = {c.id for pair in pairs for c in pair}
-    units: list[tuple[tuple[int, int], list[KnowledgeClaim], bool]] = [
-        ((min(order[c.id] for c in pair), 0), list(pair), True) for pair in pairs
+    halves = _passage_pairs([c for c in claims if c.id not in paired])
+    paired |= {c.id for pair in halves for c in pair}
+    units: list[tuple[tuple[int, int], list[KnowledgeClaim], str]] = [
+        ((min(order[c.id] for c in pair), 0), list(pair), kind)
+        for kind, found in (("dispute", pairs), ("passage", halves)) for pair in found
     ]
     for agg in aggregate_claims([c for c in claims if c.id not in paired]):
         parts = _apart_unsure(agg, [by_id[cid] for cid in agg.claim_ids])
-        units += [((order[agg.claim_ids[0]], n), part, False) for n, part in enumerate(parts)]
-    for _, group_claims, disputed in sorted(units, key=lambda u: u[0]):
-        group = aggregate_claims(group_claims)[0] if not disputed else None
+        units += [((order[agg.claim_ids[0]], n), part, "group") for n, part in enumerate(parts)]
+    for _, group_claims, kind in sorted(units, key=lambda u: u[0]):
         language = _claim_language(group_claims[0])
         claim_ids = [c.id for c in group_claims]
-        if group is None:
+        if kind == "dispute":
             text, clauses, segments = _dispute_sentence((group_claims[0], group_claims[1]), entity_id, entity_names)
+        elif kind == "passage":
+            text, clauses, segments = _passage_sentence((group_claims[0], group_claims[1]), entity_id, entity_names)
         else:
+            group = aggregate_claims(group_claims)[0]
             text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
         if not text:
             continue
