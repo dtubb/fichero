@@ -150,7 +150,7 @@ extension LibraryView {
                     ShowThroughOnlyLine(documents: documents, store: documentStore)
                 }
             }
-            // Originals that moved, said above the rows, and Locate Originals (#5672).
+            // Originals that moved: counted below the rows, asked for in an alert, and Locate Originals (#5672, #7077).
             .modifier(LocateOriginalsPresenter(store: activeLibraryReference?.originalsStore,
                                                actionsService: activeLibraryReference?.actionsService,
                                                folderId: shownFolderDocumentId))

@@ -19,22 +19,26 @@ struct FocusedLocateOriginalsButton: View {
     }
 }
 
-/// The Items pane's line after a relink (the missing-originals ask itself is an alert).
-struct MissingOriginalsNotice: View {
+/// The Items pane's count of missing originals, a status line below the rows: the engine's sentence, and the last
+/// relink's. It asks for nothing; the ask is the window's alert (`LocateOriginalsPresenter`, #7077).
+struct MissingOriginalsCount: View {
     let store: OriginalsStore
     let folderId: String?
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 2) {
             if let summary = store.summarySentence {
-                Label(summary, systemImage: "checkmark.circle")
-                    .font(.callout)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .accessibilityIdentifier("library.relinkSummary")
+                Text(summary).accessibilityIdentifier("library.relinkSummary")
             }
-            // The missing-originals ask is an alert (#7077), never a strip above the rows.
+            // The count only: the missing-originals ask is an alert (#7077), never a strip above the rows.
+            if let missing = store.missing, missing.pages > 0 {
+                Text(missing.sentence).lineLimit(1).accessibilityIdentifier("library.missingOriginals")
+            }
         }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
         .task(id: folderId) { await store.loadMissing(folderId: folderId) }
     }
 }
@@ -117,8 +121,8 @@ struct LocateOriginalsSheet: View {
     }
 }
 
-/// Locate Originals on the Items pane: the notice above the rows, the sheet, and File › Locate Originals… pointed
-/// at this project.
+/// Locate Originals on the Items pane: the count below the rows, the alert that asks once an open (Locate… /
+/// Not Now), the sheet, and File › Locate Originals… pointed at this project.
 struct LocateOriginalsPresenter: ViewModifier {
     let store: OriginalsStore?
     let actionsService: ActionsService?
@@ -127,9 +131,10 @@ struct LocateOriginalsPresenter: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if let store { MissingOriginalsNotice(store: store, folderId: folderId) }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let store { MissingOriginalsCount(store: store, folderId: folderId) }
             }
+            // A notice that asks the person to act is an alert on the window, never a strip in it (#7077).
             .alert(
                 "Originals are missing",
                 isPresented: Binding(get: { store?.isOffering ?? false }, set: { if !$0 { store?.declineOffer() } })
@@ -155,7 +160,7 @@ struct LocateOriginalsPresenter: ViewModifier {
     }
 }
 
-#Preview("The Items pane's notice") {
-    MissingOriginalsNotice(store: OriginalsStore(client: FicheroClient(libraryPath: nil)), folderId: nil)
+#Preview("The Items pane's count of missing originals") {
+    MissingOriginalsCount(store: OriginalsStore(client: FicheroClient(libraryPath: nil)), folderId: nil)
         .frame(width: 520)
 }

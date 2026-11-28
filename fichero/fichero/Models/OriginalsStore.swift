@@ -42,6 +42,7 @@ final class OriginalsStore {
     }
     /// The alert offering Locate… / Not Now is showing (#7077).
     var isOffering = false
+    /// That alert has been shown for this open of the project (this store lives as long as the open project).
     private var offered = false
     /// A missing original has asked for the project's originals this run; the remembered folder has been tried.
     private var askedThisRun = false
@@ -54,10 +55,11 @@ final class OriginalsStore {
         isChoosing = true
     }
 
-    /// At open, once: when originals are missing, offer Locate… in an alert. Returns whether it offered.
+    /// At open, once: when originals are missing, offer Locate… in an alert. Nothing missing, or Locate Originals
+    /// already open, offers nothing and is not counted as this open's offer. Returns whether it offered.
     @discardableResult
     func offerOnce() -> Bool {
-        guard !offered, (projectMissing?.pages ?? 0) > 0 else { return false }
+        guard !offered, !isChoosing, (projectMissing?.pages ?? 0) > 0 else { return false }
         offered = true
         isOffering = true
         return true

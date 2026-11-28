@@ -212,6 +212,26 @@ struct OriginalsStoreTests {
         #expect(OriginalsMockURLProtocol.bodies["POST /api/actions/invoke"] == nil)
     }
 
+    @Test("importer.originals.missing-asks-in-an-alert: the count is still known after Not Now")
+    func theCountOutlivesNotNow() async {
+        let store = store()
+        await store.loadMissing()
+        #expect(store.offerOnce())
+        store.declineOffer()
+        #expect(store.missing?.pages == 92, "the count is still known after Not Now")
+    }
+
+    @Test("importer.originals.missing-asks-in-an-alert: the sheet being open offers nothing, and is not this open's offer")
+    func theAlertWaitsForTheSheet() async {
+        let store = store()
+        await store.loadMissing()
+        store.begin()
+        #expect(!store.offerOnce(), "Locate Originals is already open")
+        #expect(!store.isOffering)
+        store.isChoosing = false
+        #expect(store.offerOnce(), "an offer that did not show is not counted as this open's offer")
+    }
+
     @Test("Relink waits for a plan with something matched")
     func relinkNeedsAMatch() async {
         let store = store()
