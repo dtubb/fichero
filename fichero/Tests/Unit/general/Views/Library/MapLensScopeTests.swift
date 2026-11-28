@@ -8,7 +8,7 @@ import XCTest
 ///
 /// The map itself was never the problem — `KGMapView` has been a real MapKit
 /// surface since #1267. It was asking the wrong library, over the wrong scope,
-/// for data that (see `agent-work/specs/map-lens-needs-coordinates.md`) no
+/// for data that no
 /// extraction path writes coordinates into.
 @MainActor
 final class MapLensScopeTests: XCTestCase {

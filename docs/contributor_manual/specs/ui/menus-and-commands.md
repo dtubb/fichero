@@ -557,9 +557,10 @@ surfaces" command system. The right move is to EXTEND it, not add a parallel abs
   `MenuTerminologyBoundaryTests` (label consistency), `SidebarContextMenuPolicyTests` (context-menu
   verbs via pure extracted functions — never silently empty), `ReaderExportFocusedValueTests`,
   `LibraryImportFocusedValueTests`, `SelectAllRoutingPolicyTests`.
-- **Prior art**: `agent-work/plans/2026-07-24-context-menu-run-workflow-targets.md` +
-  `.../superpowers/specs/2026-07-24-context-menu-run-workflow-targets-design.md` (context-menu
-  workflow targets) and `agent-work/status/2026-08-03-workflow-menu-vs-engine-audit.md`.
+- **Prior art**: `fichero/fichero/Models/WorkflowRunTargetResolver.swift` (context-menu
+  workflow targets; its July 2026 plan and design were working notes, since deleted) and an
+  August 2026 audit of the workflow menu against the engine (also deleted; its engine fixes
+  are in `fichero-server/src/fichero_server/workflows/validation.py`).
 
 **So the "command catalog" is `FocusedCommandButtons` + the `@FocusedValue` bus, and it is already
 the ratified idiom.** An `AppCommand` value type would be a NEW SYSTEM duplicating this — rejected.
