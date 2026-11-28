@@ -472,10 +472,20 @@ the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a p
   *Test:* `test_defaults_table.py` (every row loads; every answer combination
   the questions can produce hits exactly one row or the fallback row; the chosen defaults match the table for
   each row above).
-- `designer.defaults.says-why` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py`; Ready shows the reasons (app, 2026-11-04), the stage pages do not yet) — every default a stage page or Ready shows carries the
+- `designer.defaults.says-why` [OK] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py`; Ready shows the reasons (app, 2026-11-04), the stage pages do not yet) — every default a stage page or Ready shows carries the
   table row's `why` in grey under it ("chosen because: faded ink, this Mac only"), served by the engine with
   the plan; a default with no row says "Fichero's usual default". *Test:*
   `test_defaults_say_why.py`. Built (app, 2026-11-04, Swift not compiled here): Ready lists each default's reason and the answers that chose it under "Chosen because" (`RecipeDefaultsWhyView`, `DefaultWhy`, `ReadyReadsTests.swift`); the stage pages do not show it yet.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_defaults_say_why.py::test_a_default_says_its_row_and_what_chose_it`,
+  `fichero-server/tests/unit/recipes/test_defaults_say_why.py::test_a_default_with_no_row_says_the_usual`,
+  `fichero/Tests/Unit/general/Models/ReadyReadsTests.swift::theReasonsComeInTheOrderOfTheDefaultsAndOncePerSentence`,
+  `fichero/Tests/Unit/general/Models/ReadyReadsTests.swift::noReasonsIsNoRows`. *Left, now
+  `designer.defaults.says-why-on-the-stage-pages`:* the stage pages.
+- `designer.defaults.says-why-on-the-stage-pages` [GAP] (#6052; app) — split from `designer.defaults.says-why`
+  (manager 2026-11-27 retag); what that line left: the `why` under each default on the stage pages; "Fichero's usual
+  default" on screen for a default with no row (the route serves no entry for it, so Ready shows nothing); the reasons
+  served with the plan (they come from a route of their own). Not built.
 - `designer.defaults.person-wins` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — a choice the person made on a stage page, in the
   finder or on Ready is never replaced by the table when an answer changes; the changed default is offered
   beside it ("your answers now suggest X; keep Y?"), as `source.onboard.step-choice-overrides-the-pick` keeps a
@@ -1783,4 +1793,10 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`, `designer.budget.running-run-reads-its-booked-cost`, `designer.budget.cap-stop-says-the-booked-figure`, `designer.how.what-to-check-other-readers`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.4
+- Size: M
+
+#### Step 19.6 — owed behaviours split off by the retag of 2026-11-27
+- Behaviours: `designer.defaults.says-why-on-the-stage-pages`
+- Tests: none yet; each behaviour above says what is not built
+- Depends on: 19.5
 - Size: M
