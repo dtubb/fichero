@@ -626,3 +626,11 @@ first_done_median_min = 90
 first_done_p90_min = 240
 train_p90_min = 30
 ready_reds = 0
+
+# builder-console.progress.page (owner 2026-11-27): the specs whose [OK] count the console's Progress page charts over time,
+# read from the git history of each file on the land branch. name = path in the repo.
+[console.progress_specs]
+"Segment editor" = "docs/contributor_manual/specs/ui/segment-editor.md"
+"Activity" = "docs/contributor_manual/specs/ui/activity-pane.md"
+"Runner" = "docs/contributor_manual/specs/compute/runner-reliability.md"
+"Models window" = "docs/contributor_manual/specs/ui/models-and-compute-window.md"

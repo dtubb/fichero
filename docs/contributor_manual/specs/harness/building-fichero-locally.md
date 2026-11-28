@@ -3082,6 +3082,54 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   same file diff and the same audit row shape; an unknown verb is refused on both; the Edits tab lists the rows newest
   first. Test (to write): fichero-builder/tests/test_edit_both_ways (new).
 
+#### H. The owner's review of the console (owner 2026-11-27, after using it)
+
+- `builder-console.alerts.badge-and-page` [OK] (#6589; owner 2026-11-27: alerts took over the top of every page, 68 of them up to
+  11 days old) — no page opens with the alert cards. The toolbar carries one count badge (the open alerts under a day old, and
+  beside it the count of those that are the owner's); the cards live on an Alerts page. `GET /api/alerts` groups the open alerts
+  by kind (the text before the first `;`, its numbers masked: the Dismiss rule without lane and step), newest group first; an open
+  alert older than `ALERT_FRESH_HOURS` (24) folds into one collapsed `older` list, grouped the same way, and is not in the badge.
+  An alert is the owner's when the answers it offers include `ask-owner` and none of `retry`, `approve`, `send-back` (a review's
+  owner question), and the alerts the manager answered `ask-owner` in the last `RESOLVED_DAYS` days are listed as asked of the
+  owner; both are marked apart from the manager's. Test: `fichero-builder/tests/test_console_owner.py::test_alerts_are_a_badge_count_and_a_page_grouped_by_kind_with_old_ones_folded_and_the_owners_marked`.
+- `builder-console.actions.beside-what-they-act-on` [OK] (#6589; owner 2026-11-27: the console actions sat at the bottom of every
+  page) — an action's button and its last result sit in the row of what it acts on: a lane row of `/api/status` carries
+  `last_action` (verb, state, ok, exit, when, the last line of its output), the newest `console` row whose args name that lane.
+  The whole-harness actions (Build, the loop's start and stop) stay in the toolbar. The `console` rows and the last events are
+  one Log page; no other page ends with them. Test: `fichero-builder/tests/test_console_owner.py::test_a_lanes_last_action_sits_in_its_row_and_the_action_log_is_one_page`.
+- `builder-console.milestones.issue-links` [OK] (#6589; owner 2026-11-27: clicking Milestones, then an issue, changed nothing) —
+  every issue of a milestone, and every issue number of a milestone's step, is a link to that issue on the project's host:
+  `/api/milestones` gives each issue its `url` and the document its `repo` (from the `origin` remote; no link when there is none).
+  Test: `fichero-builder/tests/test_console_owner.py::test_every_milestone_issue_and_step_issue_number_is_a_link_to_the_issue`.
+- `builder-console.lock.holder-named` [OK] (#6589; owner 2026-11-27: "held by ?" in the ladder-lock waiting line) — a `lock`
+  `waiting` row for the ladder names what holds each busy slot, from the slots' lock files (`<pid> <what>`), never `?`; the
+  console's waiting line fills an older row's `?` the same way. Test: `fichero-builder/tests/test_console_owner.py::test_a_ladder_wait_names_what_holds_each_busy_slot_and_the_console_fills_an_old_question_mark`.
+- `builder-console.progress.page` [OK] (#6589; owner 2026-11-27) — a Progress page of charts over the last `PROGRESS_DAYS` (30)
+  days, drawn as inline SVG (no chart library, nothing fetched): landings per day; trains per day by result; issues closed per
+  day; rounds per landing (the `red` rows of a step before its `landed` row); and each priority spec's `[OK]` count over time,
+  read from the git history of the spec files on the land branch (the last commit of each day that touched the file). The
+  priority specs are `[console.progress_specs]` of `harness.toml` (name = path). `GET /api/progress` returns the series. Test: `fichero-builder/tests/test_console_owner.py::test_progress_is_series_per_day_from_the_journal_and_each_priority_specs_ok_count_from_git_history`.
+- `builder-console.control.lanes-and-steps` [OK] (#6589; owner 2026-11-27) — from the console, each through a CLI verb and one
+  `console` row: pause, resume or start a lane; move a lane up or down the queue's lane order (`builder queue move --lane L --to N`
+  with no `--step`: one `queue` row `lane-moved`); move a lane's queued step (`queue move --lane L --step S --to N`). A Now page
+  (`GET /api/now`) shows what is running, in order: the lanes in queue order, each step with its state and its age (since
+  `entered_at`); the last trains with their steps; and every ladder slot, free or held, with what holds it (the slot's lock file
+  and its `.files` name). Tests: `fichero-builder/tests/test_console_owner.py::test_a_lane_moves_in_the_queues_order_through_the_cli_and_the_console_calls_the_verbs`, `::test_the_now_view_lists_lanes_in_order_with_each_steps_age_the_trains_and_every_ladder_slot_with_its_holder`.
+- `builder-console.manager.thread` [PARTIAL] (#6589; owner 2026-11-27) — a message box on the console: `POST /api/message {text}` (the
+  token and loopback-Host rule of every POST) appends `{ts, text}` to `manager/inbox.jsonl` under the state dir and writes one
+  `owner-message` row (who, the text's length; never the text); an empty text is refused. `GET /api/thread` returns the owner's
+  messages and the manager's replies (`manager/outbox.jsonl`, `{ts, text}` lines) as one thread by time. The manager's wait
+  script wakes on the `owner-message` row. Built: the message, the row, the thread and the page. Not yet: the manager's wait script is not in this repository, so nothing here makes it wake on the row. Test: `fichero-builder/tests/test_console_owner.py::test_a_message_to_the_manager_is_an_inbox_line_and_one_row_and_the_thread_shows_both_sides`.
+- `builder-console.review.stays` [OK] (#6589; owner 2026-11-27: the Review page stays as it is) — the Review tab, `GET /review`,
+  `GET /api/review` and `POST /api/review` are as the Review page paragraph of `dev-workflows.run.loop-status` says, beside the
+  pages above. Tests: `fichero-builder/tests/test_review_page.py::test_get_review_serves_the_page_with_the_token_and_the_review_tab_and_api_review_the_json`, `::test_post_review_needs_the_token_and_a_loopback_host_updates_one_item_and_writes_one_console_row`.
+- `builder-console.mcp.same-reads-and-controls` [OK] (#6589; owner 2026-11-27: any Claude session can drive the builder) —
+  `builder mcp` is the builder's one MCP server (stdio, JSON-RPC, standard library only). Its tools are the console's reads and
+  controls, from the console's own functions: `status`, `lanes`, `alerts`, `now`, `review_list`, `thread` (reads); `lane_pause`,
+  `lane_resume`, `alert_answer`, `review_verdict`, `message_manager` (controls). A control runs the same verb as the page's
+  button and writes the same `console` row, with who `mcp`; an unknown tool or a missing argument is an error result, never a
+  crash. Tests: `fichero-builder/tests/test_mcp_server.py::test_the_server_speaks_initialize_and_lists_the_consoles_reads_and_controls_as_tools`, `::test_each_read_tool_returns_what_the_consoles_function_returns`, `::test_a_control_tool_runs_the_pages_verb_and_writes_the_same_console_row_as_who_mcp`, `::test_an_unknown_tool_a_missing_argument_and_a_refused_control_are_error_results_never_a_crash`, `::test_the_mcp_verb_serves_stdio_on_the_roots_state`.
+
 
 ### From `performance-sweep.md` — Sources — what is measured, with what, where
 

@@ -64,6 +64,36 @@ def _resolved(rows: list[dict], today: str) -> list[dict]:
            for r in rows if r.get("event") == "alert" and r.get("id") in how and str(r.get("ts", ""))[:10] >= cut]
     return list(reversed(out))[:100]
 
+ALERT_FRESH_HOURS = 24  # an open alert older than this folds into the Alerts page's `older` list and leaves the badge
+MANAGER_ANSWERS = ("retry", "approve", "send-back")  # an alert that offers ask-owner and none of these is the owner's
+
+
+def _secs(ts) -> float:
+    return time.mktime(time.strptime(str(ts)[:19].replace(" ", "T"), "%Y-%m-%dT%H:%M:%S"))
+
+
+def alerts_view(rows: list[dict], now: float | None = None, st: dict | None = None) -> dict:
+    """builder-console.alerts.badge-and-page: the open alerts under ALERT_FRESH_HOURS grouped by kind (the text before the first `;`,
+    numbers masked), newest group first; the older ones grouped the same way apart; the badge's counts; each alert `owner` when it
+    offers ask-owner and no manager answer; and what the manager answered ask-owner in the last RESOLVED_DAYS days. `st` is a
+    status() of the same rows the caller already holds (api_status), so it is not computed twice."""
+    from fichero_builder.queue import _alert_kind
+    now = now or time.time()
+    st = st or status(rows, [], today=time.strftime("%Y-%m-%d", time.localtime(now)))
+    open_ = [{**a, "owner": "ask-owner" in (a["actions"] or []) and not set(a["actions"]) & set(MANAGER_ANSWERS)} for a in st["open_alerts"]]
+    fresh = [a for a in open_ if now - _secs(a["ts"]) <= ALERT_FRESH_HOURS * 3600]
+    older = [a for a in open_ if now - _secs(a["ts"]) > ALERT_FRESH_HOURS * 3600]
+
+    def groups(alerts: list[dict]) -> list[dict]:
+        by: dict = {}
+        for a in alerts:
+            by.setdefault(_alert_kind(a)[2], []).append(a)
+        return sorted(({"kind": k, "n": len(v), "newest": v[-1]["ts"], "owner": any(x["owner"] for x in v), "alerts": v[::-1]} for k, v in by.items()),
+                      key=lambda g: g["newest"], reverse=True)
+    return {"count": len(fresh), "owner_count": sum(a["owner"] for a in fresh), "older_count": len(older), "groups": groups(fresh), "older": groups(older),
+            "asked_owner": [a for a in st["resolved_alerts"] if a["answer"] == "ask-owner"], "resolved": st["resolved_alerts"]}
+
+
 def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dict:
     """dev-workflows.run.loop-status: what `builder status` and `/status.json` show, from journal rows and the queue only."""
     today = today or time.strftime("%Y-%m-%d")
@@ -93,6 +123,148 @@ def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dic
     }
 
 
+def now_view(rows: list[dict], lanes: list[dict], now: float | None = None) -> dict:
+    """builder-console.control.lanes-and-steps: what is running, in order: the lanes in the queue's order, each step with its state and
+    its age (seconds since `entered_at`; None when the step has none); the last trains with their steps; every ladder slot ever used
+    here, held (its lock file's pid runs and its `.files` stands) or free, with the lock file's `<pid> <what>` and the check's name."""
+    now = now or time.time()
+    st = status(rows, lanes)
+    slots = []
+    for slot in journal.ladder_slots_known():
+        holder = journal.holders([slot])
+        try:
+            name = json.loads((journal.STATE / f"{slot}.files").read_text()).get("name", "")
+        except (OSError, ValueError):
+            name = None  # no files beside the lock: no ladder runs in it
+        held = name is not None and _alive(holder.split(" ")[0])
+        slots.append({"slot": slot, "held": held, "holder": holder if held else "", "name": name if held else ""})
+    return {"lanes": [{"lane": x["id"], "kind": x.get("kind", "worker"), "paused": bool(x.get("paused")), "cursor": x["cursor"],
+                       "steps": [{"step": s["step"], "state": s["state"], "issues": s.get("issues", []),
+                                  "age_s": int(now - s["entered_at"]) if s.get("entered_at") else None} for s in x["steps"]]} for x in lanes],
+            "trains": st["trains"], "waiting_for_train": st["waiting_for_train"], "slots": slots}
+
+
+PROGRESS_DAYS = 30
+OK_LINE = re.compile(r"(?m)^\s*- `[^`\n]+`.{0,12}\[OK\]")  # a behaviour bullet tagged [OK]: "- `id` [OK]" or "- `id` — **[OK]**"
+
+
+def _git_blobs(repo: str, names: list[str]) -> dict:
+    """{name: text} of each `<commit>:<path>` in `names`, from one `git cat-file --batch`; a path the commit lacks reads ""."""
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "cat-file", "--batch"], input="".join(n + "\n" for n in names).encode(), capture_output=True, timeout=120)
+    if r.returncode:
+        raise OSError(f"git cat-file --batch in {repo}: {r.stderr.decode(errors='replace').strip()}")
+    out, i, res = r.stdout, 0, {}
+    for n in names:  # one answer per name, in order: "<sha> blob <size>\n<bytes>\n", or "<name> missing\n"
+        nl = out.index(b"\n", i)
+        head = out[i:nl].split()
+        if head[-1] == b"missing":
+            res[n], i = "", nl + 1
+        else:
+            size = int(head[-1])
+            res[n], i = out[nl + 1:nl + 1 + size].decode(errors="replace"), nl + size + 2
+    return res
+
+
+def spec_ok_series(root, specs: dict, branch: str, first_day: str, git=None, blobs=None) -> dict:
+    """{name: [{day, ok}], oldest first} for `specs` {name: path}: the count of behaviour lines tagged [OK] in the path at the last
+    commit of origin/<branch> before `first_day` (dated the day before it), then at the last commit of each day since on which one
+    touched the file. One `git log` per spec, and one process (`blobs`) reads every file at every commit."""
+    if not specs:
+        return {}
+    git, blobs = git or _git_text, blobs or _git_blobs
+    before = git(str(root), "rev-list", "-1", f"--before={first_day}T00:00:00", f"origin/{branch}").strip()
+    day0 = time.strftime("%Y-%m-%d", time.localtime(_secs(first_day + "T12:00:00") - 86400))
+    at: dict = {}  # name -> [(day, "<sha>:<path>")]
+    for name, path in specs.items():
+        last: dict = {}
+        for ln in git(str(root), "log", f"--since={first_day}T00:00:00", "--format=%H %cs", f"origin/{branch}", "--", path).splitlines():
+            sha, _, day = ln.partition(" ")
+            last.setdefault(day, sha)  # the log is newest first: the day's last commit
+        at[name] = [(d, f"{sha}:{path}") for d, sha in ([(day0, before)] if before else []) + sorted(last.items())]
+    names = [n for v in at.values() for _d, n in v]
+    text = blobs(str(root), names) if names else {}
+    return {name: [{"day": d, "ok": len(OK_LINE.findall(text[n]))} for d, n in v] for name, v in at.items()}
+
+
+def progress_view(rows: list[dict], root, specs: dict, branch: str = "integration", now: float | None = None, git=None, blobs=None) -> dict:
+    """builder-console.progress.page: the last PROGRESS_DAYS days (`days`, oldest first) and, per day: `landings` (the `landed` rows
+    of step `done`), `closed` (their issues less `left_open`), `trains` {result: counts}; `rounds` (one entry per `queue` row
+    `landed` in the window: the `red` rows of that lane and step since its last landing); `specs` {name: spec_ok_series}."""
+    now = now or time.time()
+    days = [time.strftime("%Y-%m-%d", time.localtime(now - k * 86400)) for k in range(PROGRESS_DAYS - 1, -1, -1)]
+    at = {d: i for i, d in enumerate(days)}
+    landings, closed, trains, rounds, reds = [0] * len(days), [0] * len(days), {}, [], {}
+    for r in rows:
+        i = at.get(str(r.get("ts", ""))[:10])
+        if r.get("event") == "queue" and r.get("state") in ("red", "landed"):
+            k = (r.get("lane"), r.get("step"))
+            if r["state"] == "red":
+                reds[k] = reds.get(k, 0) + 1
+            else:
+                n = reds.pop(k, 0)
+                if i is not None:
+                    rounds.append({"ts": r["ts"], "lane": k[0], "step": k[1], "rounds": n})
+        if i is None:
+            continue
+        if r.get("event") == "landed" and r.get("step") == "done":
+            landings[i] += 1
+            closed[i] += len([n for n in r.get("issues", []) if n not in r.get("left_open", [])])
+        elif r.get("event") == "train" and r.get("result"):
+            trains.setdefault(r["result"], [0] * len(days))[i] += 1
+    return {"days": days, "landings": landings, "closed": closed, "trains": trains, "rounds": rounds,
+            "specs": spec_ok_series(root, specs, branch, days[0], git, blobs)}
+
+
+_CHARTS: dict = {}  # {"at", "data"}: ten minutes' cache of /api/progress (a `git log` per spec and one `git cat-file --batch`)
+_CHARTS_LOCK = threading.Lock()
+
+
+def progress_cached() -> dict:
+    """Requests that overlap wait for the one compute in flight (the pattern of status_cached)."""
+    with _CHARTS_LOCK:
+        if not _CHARTS or time.time() - _CHARTS["at"] > 600:
+            f = Path(ROOT) / "harness.toml"
+            doc = tomllib.loads(f.read_text()) if f.is_file() else {}
+            _CHARTS.update(at=time.time(), data=progress_view(rows_of(ROOT), ROOT, doc.get("console", {}).get("progress_specs", {}),
+                                                             doc.get("land", {}).get("branch", "integration")))
+        return _CHARTS["data"]
+
+
+def _manager(name: str) -> Path:
+    return journal.STATE / "manager" / name
+
+
+def message(text, who: str) -> dict:
+    """builder-console.manager.thread: the owner's message to the manager: one `{ts, text}` line appended to manager/inbox.jsonl under
+    the state dir and one `owner-message` row (who and the text's length, not the text). ValueError for a text that is not a
+    string or is blank."""
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("a message needs {text}: a string that is not blank")
+    line = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "text": text.strip()}
+    _manager("inbox.jsonl").parent.mkdir(parents=True, exist_ok=True)
+    with _manager("inbox.jsonl").open("a") as f:
+        f.write(json.dumps(line) + "\n")
+    journal.append("owner-message", who=who, chars=len(line["text"]))
+    return line
+
+
+def thread() -> list[dict]:
+    """The owner's messages (manager/inbox.jsonl) and the manager's replies (manager/outbox.jsonl) as one list by time, each
+    `{from, ts, text}`. A line that is not a `{ts, text}` object is shown as a message saying which line could not be read."""
+    out = []
+    for who, name in (("owner", "inbox.jsonl"), ("manager", "outbox.jsonl")):
+        lines = _manager(name).read_text(errors="replace").splitlines() if _manager(name).is_file() else []
+        for n, ln in enumerate(lines, 1):
+            if not ln.strip():
+                continue
+            try:
+                r = json.loads(ln)
+                out.append({"from": who, "ts": str(r["ts"]), "text": str(r["text"])})
+            except (ValueError, KeyError, TypeError):
+                out.append({"from": who, "ts": "", "text": f"unreadable line {n} of {name}"})
+    return sorted(out, key=lambda m: m["ts"])
+
+
 def _builder(*args: str) -> list[str]:
     return [sys.executable, "-m", "fichero_builder", *args]
 
@@ -112,6 +284,7 @@ VERBS = {
     "stop": (("lane",), lambda a: _builder("queue", "stop", "--lane", a["lane"], *_st())),
     "start": (("lane",), lambda a: _builder("queue", "resume", "--lane", a["lane"], "--root", str(ROOT), *_st())),  # #6467: a blocked or parked lane goes again
     "queue-move": (("lane", "step", "to"), lambda a: _builder("queue", "move", "--lane", a["lane"], "--step", a["step"], "--to", a["to"], *_st())),
+    "lane-move": (("lane", "to"), lambda a: _builder("queue", "move", "--lane", a["lane"], "--to", a["to"], *_st())),  # no --step: the lane's place among the lanes
     "park": (("lane", "step"), lambda a: _builder("queue", "park", "--lane", a["lane"], "--step", a["step"], *_st())),
     "unpark": (("lane", "step"), lambda a: _builder("queue", "unpark", "--lane", a["lane"], "--step", a["step"], *_st())),
     "loop-start": ((), lambda a: ["launchctl", "bootstrap", f"gui/{os.getuid()}", _plist()]),
@@ -196,12 +369,13 @@ def act(verb: str, args: dict, who: str) -> dict:
     except ValueError as e:
         journal.append("console", who=who, verb=verb, ok=False, state="refused", detail=str(e))
         return {"ok": False, "error": str(e)}
-    journal.append("console", who=who, verb=verb, state="started", args={k: v for k, v in args.items() if k in VERBS[verb][0]})
+    named = {k: v for k, v in args.items() if k in VERBS[verb][0]}
+    journal.append("console", who=who, verb=verb, state="started", args=named)
 
     def go():
         rc, out = run_verb(argv)
         _TREES.clear()  # a Clean up (or any action) shows at once
-        journal.append("console", who=who, verb=verb, state="ended", ok=rc == 0, rc=rc, detail=out[-500:])
+        journal.append("console", who=who, verb=verb, state="ended", ok=rc == 0, rc=rc, detail=out[-500:], args=named)  # args: the row finds its lane (last_action)
     t = threading.Thread(target=go, daemon=True)
     t.start()
     return {"ok": True, "started": verb, "thread": t}
@@ -356,6 +530,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console" and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-20:]  # #6504: the person's actions, not the timer's
     st["loop_lanes"] = LOOP_LANES
+    st["alerts"] = {k: v for k, v in alerts_view(rows, now, st).items() if k in ("count", "owner_count")}  # the toolbar's badge
     st["lane_usage"] = lane_usage(lanes, rows=rows)
     usage = {u["lane"]: u for u in st["lane_usage"]}
     # #6503: one spend number. External lanes (Max sessions) write no cost row: their transcripts say. Managed lanes' transcripts are
@@ -368,8 +543,11 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     acquired = {(r.get("pid"), r.get("name")) for r in rows if r.get("event") == "lock" and r.get("state") == "acquired"}
     # a waiter that died (tmux crash 2026-11-08) never wrote `acquired`: its row is not a wait. flock is released by the kernel when
     # its holder dies, so a dead holder never blocks anyone; only a live waiter's row shows
-    st["lock_waits"] = [r for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired
+    st["lock_waits"] = [dict(r) for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired
                         and _alive(r.get("pid"))][-5:]
+    for w in st["lock_waits"]:  # builder-console.lock.holder-named: a ladder row that says `?` reads the slots' lock files now
+        if w.get("holder") == "?" and w.get("name") == "ladder":
+            w["holder"] = journal.holders(journal.ladder_slots_known()) or "?"
     acts = activity(rows)["running"]
     running = {a["lane"]: a for a in acts if a.get("lane")}
     st["check_running"] = next(({"lane": a["lane"], "now": a["now"], "started": a["started"]} for a in acts if a["kind"] == "check"), None)
@@ -378,6 +556,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
                     for r in rows if r.get("event") in ("queue", "alert", "alert-answer", "loop", "landed", "console")
                     and not (r.get("event") == "loop" and r.get("state") == "tick") and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-15:]  # #6467, #6504: the last journal events, ticks and timer refreshes left out
     by_id = {x["id"]: x for x in lanes}
+    # one pass: each lane's newest console row (the later row wins). argv_for takes a list for any argument: such a row is no lane's
+    acted = {r["args"]["lane"]: r for r in rows if r.get("event") == "console" and isinstance((r.get("args") or {}).get("lane"), str)}
     live = live_lines(ROOT) if ROOT else {}
     for row in st["lanes"]:
         x = by_id[row["lane"]]
@@ -414,6 +594,9 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         shown = steps_on_origin(x, (st.get("last_land_git") or {}).get("sha", ""))
         if row["state"] == "done" and cur is None and shown and shown[-1]["state"] != "landed":  # a lane through its steps reads `done` (review 96)
             row["state"] = NOT_LANDED  # the lane is through its steps; the last one is not on origin/integration
+        did = acted.get(x["id"])
+        # builder-console.actions.beside-what-they-act-on: the lane's newest action and how it ended, shown beside its buttons
+        row["last_action"] = {**{k: did.get(k) for k in ("verb", "state", "ok", "rc", "ts")}, "detail": (str(did.get("detail") or "").strip().splitlines() or [""])[-1][:200]} if did else None
         row.update(  # #6467: why the lane waits, in a line, and the batches queued behind its cursor
             why=("paused" if x.get("paused") else "held" if x.get("hold") else "finished" if cur is None
                  else "done, waiting for the check" if cur["state"] == "done" and not cur.get("why", "").strip()  # #6504: mid-lane, never the finished-lane label
@@ -662,6 +845,7 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
     except (OSError, ValueError):
         branch = "integration"
     branches, landing, unreleased = reads(root, list(held.values()), branch) if reads else git_reads(root, list(held.values()), branch)
+    url = repo_url(root)  # builder-console.milestones.issue-links: "" with no origin remote, and then no link
     out = []
     for sec in SECTIONS:
         body = next((part.split("\n", 1)[1] for part in text.split("\n## ")[1:] if part.startswith(sec)), "")
@@ -700,7 +884,8 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                                        "issues": [i["number"] for i in c["issues"]] if c else []})
                 m["questions"] = planned["questions"]
                 m["issues"] = [{"number": i["number"], "title": i["title"], "labels": [lb.get("name", "") for lb in i.get("labels") or []],
-                                "step": ms.step_of(i, slug) or "", "status": status[i["number"]][0], "where": status[i["number"]][1]} for i in issues]
+                                "step": ms.step_of(i, slug) or "", "status": status[i["number"]][0], "where": status[i["number"]][1],
+                                "url": f"{url}/issues/{i['number']}" if url else ""} for i in issues]
                 m["counts"] = {k: sum(1 for v in status.values() if v[0] == k) for k in RANK}
                 if not m["lane"]:  # a lane named otherwise holds it when its commits cite the milestone's issues
                     m["lane"] = next((w.split()[0] for st_, w in status.values() if st_ in RANK[1:3] and w.split()[0] in held), "")
@@ -709,7 +894,7 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
             out.append(m)
     stems = {Path(m["spec"]).stem for m in out if m["spec"]}
     out = [m for m in out if not (m["open"] is None and m["name"] in stems)]  # the spec's empty twin of a GitHub milestone: one row
-    return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0}
+    return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0, "repo": url}
 
 
 def _closed_issues(name: str, gh: str, cwd=None) -> list[dict]:
@@ -967,6 +1152,18 @@ def refresh(who: str) -> threading.Thread:
     return t
 
 
+def review_verdict(item_id: str, status, note, who: str) -> dict:
+    """One verdict on a review item, for the page's POST and the MCP tool: `review_page.set_item`, and one `console` row
+    `review <id> <status>`; a refused one is a row too, then the ValueError."""
+    try:
+        item = review_page.set_item(item_id, status, note)
+    except ValueError as e:
+        journal.append("console", who=who, verb=f"review {item_id} {status}", ok=False, state="refused", detail=str(e))
+        raise
+    journal.append("console", who=who, verb=f"review {item_id} {item['status']}", ok=True, state="ended", rc=0, detail=item.get("note", "")[-500:])
+    return item
+
+
 def _json(h, code: int, body) -> None:
     b = json.dumps(body, default=str).encode()
     h.send_response(code)
@@ -998,6 +1195,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, json.loads(_cache().read_text()))
             except (OSError, ValueError):
                 return _json(self, 200, {"ts": None, "milestones": []})
+        if path == "/api/alerts":
+            return _json(self, 200, alerts_view(rows_of(ROOT)))
+        if path == "/api/progress":
+            return _json(self, 200, progress_cached())
+        if path == "/api/thread":
+            return _json(self, 200, {"messages": thread()})
+        if path == "/api/now":
+            return _json(self, 200, now_view(rows_of(ROOT), queue.load()))
         if path == "/api/activity":
             return _json(self, 200, activity(journal.read()))
         if path == "/api/hotspots":  # the Hotspots panel reads latest.json (perf-sweep.output.table)
@@ -1105,14 +1310,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     raise KeyError("status")
             except (ValueError, KeyError, TypeError):
                 return _json(self, 400, {"ok": False, "error": "review needs {id, status, note}"})
-            who = f"{getpass.getuser()}@console"
             try:
-                item = review_page.set_item(item_id, status, note)
+                item = review_verdict(item_id, status, note, f"{getpass.getuser()}@console")
             except ValueError as e:
-                journal.append("console", who=who, verb=f"review {item_id} {status}", ok=False, state="refused", detail=str(e))
                 return _json(self, 404 if str(e).startswith("no review item") else 400, {"ok": False, "error": str(e)})
-            journal.append("console", who=who, verb=f"review {item_id} {item['status']}", ok=True, state="ended", rc=0, detail=item.get("note", "")[-500:])
             return _json(self, 200, {"ok": True, "item": item})
+        if self.path.split("?")[0] == "/api/message":  # the owner's message to the manager
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                line = message(body.get("text") if isinstance(body, dict) else None, f"{getpass.getuser()}@console")
+            except ValueError as e:
+                return _json(self, 400, {"ok": False, "error": str(e)})
+            return _json(self, 200, {"ok": True, "message": line})
         if self.path.split("?")[0] == "/api/refresh":
             refresh(f"{getpass.getuser()}@console")
             return _json(self, 200, {"ok": True, "started": "refresh"})
@@ -1158,10 +1367,11 @@ def server(host: str, port: int) -> http.server.ThreadingHTTPServer:
     return s
 
 
-def main(a) -> int:
+def configure(root) -> None:
+    """The checkout the verbs act on, and what its harness.toml gives the views; for the console and for `builder mcp`."""
     global ROOT
     global LOOP_LANES
-    ROOT = Path(a.root)
+    ROOT = Path(root)
     try:
         doc = tomllib.loads((ROOT / "harness.toml").read_text())
         LOOP_LANES = int(doc.get("loop", {}).get("lanes", 1))
@@ -1169,6 +1379,10 @@ def main(a) -> int:
         PRICES.update(doc.get("spend", {}).get("prices", {}))
     except (OSError, ValueError):
         pass
+
+
+def main(a) -> int:
+    configure(a.root)
     threading.Thread(target=_auto_refresh, daemon=True).start()
     srv = server("127.0.0.1", a.port)
     print(f"the builder console at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")

@@ -1364,6 +1364,22 @@ def continuation(lane_id: str, step: str, left: str) -> str:
     return "\n".join(lines + ["", "Left:", left.strip()])
 
 
+def move_lane(lane_id: str, to: int | None) -> str:
+    """`builder queue move --lane L --to N` with no `--step` (builder-console.control.lanes-and-steps): the lane goes to index N of the
+    queue's lanes (clamped to the list). '' or why; one `queue` row `lane-moved`."""
+    with journal.Lock("queue"):
+        lanes = load()
+        lane = next((x for x in lanes if x["id"] == lane_id), None)
+        if lane is None or to is None:
+            return f"no lane {lane_id!r}" if lane is None else "move needs --to"
+        lanes.remove(lane)
+        at = min(max(0, to), len(lanes))
+        lanes.insert(at, lane)
+        save(lanes)
+        journal.append("queue", lane=lane_id, step="-", state="lane-moved", detail=f"to place {at + 1} of {len(lanes)}")
+    return ""
+
+
 def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: str = "") -> str:
     """`builder queue move|park|unpark` (#6467): among the steps from the cursor on, `move` puts a queued or parked step at
     index `to` of the lane's steps (clamped: below the cursor = the cursor's place, past the end = last); `park` sends a queued or blocked one to the end as parked;
@@ -4351,8 +4367,8 @@ def main(a) -> int:
         print(f"REFUSED: {why}" if why else f"recorded the move of {a.worktree}")
         return 1 if why else 0
     if a.action in ("move", "park", "unpark", "drop"):  # #6467 (run.loop-plan): the console's Plan clicks, under the queue lock
-        why = reorder(a.lane, a.step, a.action, a.to, a.text or "")
-        print(f"REFUSED: {why}" if why else f"{a.lane} {a.step}: {a.action}")
+        why = move_lane(a.lane, a.to) if a.action == "move" and not a.step else reorder(a.lane, a.step, a.action, a.to, a.text or "")
+        print(f"REFUSED: {why}" if why else f"{a.lane} {a.step or '(the lane)'}: {a.action}")
         return 1 if why else 0
     if a.action in ("pause", "resume"):
         with journal.Lock("queue"):

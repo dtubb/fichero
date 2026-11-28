@@ -104,6 +104,19 @@ def ladder_slots_known() -> list[str]:
     return sorted({"ladder", *(p.name[:-5] for p in STATE.glob("ladder-*.lock") if p.name[7:-5].isdigit())})
 
 
+def holders(names) -> str:
+    """What holds these locks, from their lock files (`<pid> <what>`, written by the holder), joined by `; `; "" when none says."""
+    out = []
+    for n in names:
+        try:
+            text = (STATE / f"{n}.lock").read_text().strip()
+        except OSError:
+            continue
+        if text:
+            out.append(text)
+    return "; ".join(out)
+
+
 HEAVY_ENV = "FICHERO_HEAVY_HELD"  # set for what `builder heavy` runs: it already holds the lock
 
 

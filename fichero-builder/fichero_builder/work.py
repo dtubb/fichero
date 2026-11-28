@@ -798,12 +798,13 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: 
     try:
         while True:
             with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
-                free, clash, shared = None, "", set()
+                free, clash, shared, busy = None, "", set(), []
                 for slot in journal.ladder_slots(SLOTS[0] or n):
                     lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
                     try:
                         lk.__enter__()
                     except BlockingIOError:
+                        busy.append(slot)
                         other = state / f"{slot}.files"
                         try:
                             o = json.loads(other.read_text())
@@ -829,7 +830,7 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep, by_file: 
                 break
             if not said and time.time() - t0 > journal.Lock.WARN_S:
                 why = f"its batch shares files with the check of {clash}" if clash else f"all {n} ladder slot(s) are busy"
-                journal.append("lock", state="waiting", name="ladder", holder=clash or "?", what=f"the check of {name}", pid=os.getpid(), detail=why)
+                journal.append("lock", state="waiting", name="ladder", holder=clash or journal.holders(busy) or "?", what=f"the check of {name}", pid=os.getpid(), detail=why)  # the busy slots' lock files say who (owner 2026-11-27: "held by ?")
                 said = True
             sleep(1)
     finally:

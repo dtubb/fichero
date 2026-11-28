@@ -158,7 +158,7 @@ def main(argv=None) -> int:
     gw.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     q = sub.add_parser("queue", help="one long-running worker per lane, fed step by step: no action prints the steps; add; run (the owner-side loop; push only with --push); pause (no new step is fed); stop (the worker commits what is green and its session ends; the tree is kept); resume")
     q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell", "stop", "move", "park", "unpark", "drop", "landed", "moved", "said-done"])
-    q.add_argument("--to", type=int, help="move: the step's new index in the lane's steps (below the cursor = next; past the end = last)")
+    q.add_argument("--to", type=int, help="move: the step's new index in the lane's steps (below the cursor = next; past the end = last); with no --step, the lane's new index among the lanes")
     q.add_argument("--grace", type=float, default=300.0, help="stop: seconds the worker has to commit what is green before its session is closed")
     q.add_argument("--text", help="tell: the finding to put into the lane's live session"), q.add_argument("--file", help="tell: read the finding from this file")
     q.add_argument("--sha", help="landed: the commit a hand landing put on the branch"), q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
@@ -264,6 +264,8 @@ def main(argv=None) -> int:
     cs = sub.add_parser("status", help="the owner's console on 127.0.0.1: lanes live, alerts with their actions, Build, loop start/stop; /api/status, /api/events, POST /api/action onto the existing verbs")
     cs.add_argument("--port", type=int, default=8766), cs.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     cs.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml the verbs read")
+    mcp = sub.add_parser("mcp", help="the builder's MCP server on stdio: the console's reads and controls as tools (status, lanes, alerts, now, review_list, thread; lane_pause, lane_resume, alert_answer, review_verdict, message_manager)")
+    mcp.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml the verbs read"), mcp.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     w = sub.add_parser("work", help="run, patches, fetch, check, review, land as one process; stops with QUESTION: (exit 2), never pushes")
     w.add_argument("--brief", required=True), w.add_argument("--worktree", required=True), w.add_argument("--name", required=True)
     w.add_argument("--kind", default="claude", choices=["claude"])
@@ -624,6 +626,10 @@ def main(argv=None) -> int:
         from fichero_builder import console
 
         return console.main(a)
+    if a.cmd == "mcp":
+        from fichero_builder import mcp_server
+
+        return mcp_server.main(a)
     if a.cmd == "review":
         from fichero_builder import review
 
