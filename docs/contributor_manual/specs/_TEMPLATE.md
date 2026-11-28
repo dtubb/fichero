@@ -168,6 +168,11 @@ be honest about which a given item has:
   code changes. *Today:* `scripts/check_localization.py` fails on `Text(verbatim:)` and other escapes
   (real, Apple-aligned). (Shipping a locale is a later decision; being *ready* is required now.)
 
+- **A notice that asks the person to act is an alert, not a strip.** On the Mac, a notice that asks for a
+  decision or an action (locate missing originals, give access, resume a run) is an alert or a sheet on the window,
+  with its buttons, shown once for its cause. It is never a strip or banner with a button across the top of a
+  window or pane. A count or a state that asks for nothing may stay in the pane as a status line (#7077).
+
 Honesty rule (design-led testing): a **presence scan is not a behavioral test.** Fill the table so
 the intended text is on record; where a spec-pinned test or `performAccessibilityAudit()` isn't
 wired yet, tag the row `[MISSING]` rather than implying it's proven.
