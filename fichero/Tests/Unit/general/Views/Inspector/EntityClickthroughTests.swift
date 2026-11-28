@@ -11,7 +11,7 @@ import Testing
 /// every source that mentions them. The plumbing existed — the typed source
 /// cursor, the passage latch, the scoped search — but three surfaces never
 /// called it, called the wrong bus, or overrode the fixed path with the
-/// broken one. See agent-work/design/entity-clickthrough-fabel-review.md.
+/// broken one.
 @MainActor
 struct EntityClickthroughTests {
 

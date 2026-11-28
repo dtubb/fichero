@@ -16,9 +16,9 @@
 > `fichero-server/src/fichero_server/`). Also grounded in two prior read-only
 > reviews carried into this spec as design evidence (not re-verified line-by-line
 > here; flagged where a claim may have drifted since 2026-07-29/2026-08-02):
-> `agent-work/reviews/workflow-results-review.md` (results/provenance/activity
-> architecture review) and `agent-work/reviews/2026-08-02-node-editor-fabel-review.md`
-> (canvas edge-legality review). See "Sources folded in" at the end.
+> the workflow results review of 2026-07-29 (results/provenance/activity
+> architecture review) and the node-editor review of 2026-08-02
+> (canvas edge-legality review), both working notes since deleted. See "Sources folded in" at the end.
 >
 > Tags: **[OK]** true today · **[BROKEN]** regression, code contradicts the
 > intent · **[GAP]** intended, never built · **[PROPOSED]** decided here, not
@@ -701,15 +701,15 @@ Swift.
 
 Per the manager's instruction to fold still-true design content from agent-work
 files triaged `MERGE-INTO-SPEC → Workflows` in
-`INVENTORY_mode_specs.md` §3/§5, and to list which are now superseded (files
-are NOT deleted or moved — this is a report only):
+`INVENTORY_mode_specs.md` §3/§5, and to list which are now superseded (a report
+only when written; the tracked notes named here were read again and deleted in November 2026):
 
-- `agent-work/reviews/2026-08-02-node-editor-fabel-review.md` — **superseded**
+- The node-editor review of 2026-08-02 (a working note, since deleted) — **superseded**
   for its Finding 1 (edge-legality divergence) and Finding 2 (fabricated
   fallback ports), both carried into §A above as `[BROKEN]`/`[BROKEN-partial]`
   behaviors. Its Finding 3 (no tests assert canvas/engine agreement) is carried
   into this spec's Test matrix as the pure-policy-first recommendation.
-- `agent-work/reviews/workflow-results-review.md` — **superseded** for its §2
+- The workflow results review of 2026-07-29 (a working note, since deleted) — **superseded** for its §2
   P0/P1 findings (F1–F11) folded into §C `workflows.run.*` behaviors above, and
   its §3 target-design sections (results surfacing, provenance-first artifact
   browser, per-step trace, activity model) which back the `[GAP]` tags and the
@@ -718,15 +718,12 @@ are NOT deleted or moved — this is a report only):
   (artifact ordering, default-workflow duplication F15, AI-tier/preflight
   gaps F16, LangChain observability F17, sub-workflow DB-vs-JSON drift F18,
   stubbed E2E tests F19, activity-plumbing races F20) are evidence for this
-  spec's `[GAP]`s but the review itself remains the fuller citation — kept in
-  agent-work as the detailed record.
-- `agent-work/reviews/workflow-issue-drafts.md` — **not superseded**: it is the
-  issue-draft source for many of the ISSUE numbers cited above (#4312 and its
-  siblings were filed from this document per its own commit trail); it remains
-  the readable narrative behind those issue numbers and should stay in
-  agent-work as backlog-drafting history, not be folded verbatim into this
-  spec.
-- `agent-work/design/text-workflows-report.md` — **partially folded**: its
+  spec's `[GAP]`s; with the review deleted, the issues cited beside those `[GAP]`s are the record.
+- The workflow issue drafts (a working note, since deleted) — the issue-draft
+  source for many of the ISSUE numbers cited above (#4312 and its siblings were filed
+  from it); the issues are the record, and the drafts were not folded into
+  this spec.
+- The text-workflows exercise report (a working note, since deleted) — **partially folded**: its
   quality findings (programmatic cleaner destroying tally-page numbers,
   DeepL host/quota misdiagnosis, translation prompt trailing-space tune,
   Capture-OCR-and-Transcribe wrong-file bug) are all backend/tool-behavior
@@ -739,26 +736,24 @@ are NOT deleted or moved — this is a report only):
   (#4397) and is worth a future pass, not carried as its own behavior id here
   to avoid inventing an id for content that is process-note-shaped, not
   surface-shaped.
-- `agent-work/design/workflow-exercise-report.md` — **not folded**: read only
-  for its section headers; it is the earlier (2026-09-02) sibling of
-  `text-workflows-report.md` covering the same class of tool-execution defects
-  (already fixed/committed per its own account) rather than surface design.
-  Kept in agent-work as exercise-run history.
-- `agent-work/superpowers/specs/2026-07-24-context-menu-run-workflow-targets-design.md`
-  — **folded conceptually, not as a numbered behavior**: this document
-  specifies "Run Workflow" from a Sidebar/Library context menu using a pure
-  target resolver (clicked target vs. selection, folders contribute direct
-  children only, no recursion). It reads as SHIPPED design intent for the
-  workflow bar's selection-projection behavior family
-  (`workflows.bar.selection-projected-through-accepted-inputs`) rather than a
-  distinct gap; no code was checked this session to confirm the resolver
-  exists as specified, so it is not tagged `[OK]` here — flagged for the
-  `workflows.bar.*` section's next revision to verify and either promote to a
-  numbered `[OK]` behavior or demote to `[GAP]`.
+- The workflow exercise report of 2026-09-02 (a working note, since deleted) — **not
+  folded**: it is the earlier sibling of the text-workflows report, covering the same
+  class of tool-execution defects (already fixed/committed per its own account) rather
+  than surface design.
+- The July 2026 context-menu run-workflow design (a working note, since deleted)
+  — **folded conceptually, not as a numbered behavior**: it specified "Run
+  Workflow" from a Sidebar/Library context menu using a pure target resolver
+  (clicked target vs. selection, folders contributing direct children only).
+  The resolver exists (`fichero/fichero/Models/WorkflowRunTargetResolver.swift`)
+  and has since changed: a folder expands to its descendant files at any depth.
+  It belongs to the workflow bar's selection-projection behavior family
+  (`workflows.bar.selection-projected-through-accepted-inputs`); no numbered
+  behavior states the resolver's rule — flagged for the `workflows.bar.*`
+  section's next revision.
 
 Not folded (per the inventory's own "not reviewed line-by-line" budget note):
-`agent-work/design/manual-capability-reference.md`,
-`agent-work/design/grand-sweep-report.md`,
+the manual-capability-reference and grand-sweep notes (read in November 2026 and deleted;
+neither left Workflows design to fold) and
 `agent-work/design/view-unification-notes.md` — these came up in the original
 broad grep as cross-cutting UI surveys, not Workflows-specific; worth a second
 pass in a future revision of this spec, not read this session.

@@ -115,7 +115,7 @@ def test_401_on_a_hand_rolled_command_still_fails_loudly(unauthorized):
     """`docs list`'s human path handles FicheroError itself.
 
     It therefore skips `_report_fichero_error`'s "run `fichero auth login`"
-    hint (see the note filed in agent-work/status/cli-mcp-test-wiring.md). What
+    hint. What
     it must never do is exit 0 or print a document list, and that is what this
     pins.
     """

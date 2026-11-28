@@ -113,7 +113,7 @@ step takes the door and the old code survives only for chains that already carry
 
 `fichero_archive/_archive/fichero_legacy/tools/` — a CLI app with an `assets/<stage>/` folder per step and
 a JSONL manifest per stage. **Only the methods come over.** The evidence run is under
-`agent-work/status/briefs/image-prep-samples/` (two typed pages of the Nicolasa Blandón file: the legacy
+`agent-work/status/briefs/image-prep-samples/` (two typed pages of one archive file: the legacy
 crop as *before*, the legacy enhanced file on the drive as *reference*, the method restated and re-run,
 and today's Enhance at auto-levels, contrast 1.3, sharpen 1.3; `notes.json` has the timings). The
 restated method matches the reference to a mean of 1.4/255 — JPEG noise — so the parameters below are

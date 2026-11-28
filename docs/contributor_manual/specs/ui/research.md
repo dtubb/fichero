@@ -64,8 +64,7 @@ imports), while a workspace is only a window's saved pane layout.
   "research folder".
 
 - **Chat placement is free-form, not fixed zones (creative director, 2026-09-18).** An
-  earlier ruling (2026-07-20, captured in
-  `agent-work/design/agentic-surface-consolidation-fabel-review.md`) described chat as
+  earlier ruling (2026-07-20, captured in a working note since deleted) described chat as
   confined to three fixed docking zones. That is **superseded**: chat is a movable pane
   like any other kind, and sitting below the sidebar is only its DEFAULT placement. The
   mechanics of making chat movable (lifting conversation state out of `ChatView`'s `@State`
@@ -77,8 +76,7 @@ imports), while a workspace is only a window's saved pane layout.
 There is **one** agentic surface in Fichero, named **Research** — the activity, not a
 persona. The AI is an instrument the user directs, not an interlocutor with a
 pretend-human name (`docs/contributor_manual/architecture/agent_chat_as_user.md`; the
-2026-07-19/20 creative-director rulings captured in
-`agent-work/design/agentic-surface-consolidation-fabel-review.md`). "Chat", "Researcher",
+2026-07-19/20 creative-director rulings, captured in a working note since deleted). "Chat", "Researcher",
 "Agent", and "Workspace" are not separate features — they are one continuum from a
 lightweight chat bubble to a full research workspace, and every mutation the agent makes
 flows through the same audited action layer a human user's clicks use
@@ -507,7 +505,7 @@ The Plan is the project-management side of one research folder: its **brief** (t
 |-----|---------------|------|------|
 | Pure rule (Swift) | y | `ChatSurfaceTab` tab set + `researchProject`-present → `ResearchTasksPane` vs. invitation | proposed suite under `fichero/Tests/Unit/general/Views/Chat/` (no file yet) |
 | Availability (Swift) | y | `saveAsWorkspace()` reachable only once `backendConversationId` is non-nil | same suite |
-| Backend (pytest) | y | chat-tools loop default-on, read parity, write allowlist refuses everything else | `fichero-server/tests/unit/actions/test_chat_tools_loop.py` (exists — cited by `agent-chat-survey.md`) |
+| Backend (pytest) | y | chat-tools loop default-on, read parity, write allowlist refuses everything else | `fichero-server/tests/unit/actions/test_chat_tools_loop.py` (exists) |
 | Backend (pytest) | y | `DocumentStore.createWorkspace` → folder + `workspace_kind=agent` marker | `fichero-server/tests/**` workspace CRUD tests (not enumerated here — see `docs/reference_manual` endpoint reference) |
 | MCP | n | Research has no MCP-specific contract beyond the shared action registry | — |
 | CLI | n | no CLI surface for Research specifically | — |
@@ -573,21 +571,21 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
 
 ## Sources folded in
 
-Design content carried into this spec; files kept, listed here per program instruction
-(report only — not moved or deleted):
+Design content carried into this spec. The tracked working notes named here were read
+again and deleted in November 2026:
 
-- `agent-work/design/agentic-surface-consolidation-fabel-review.md` — origin of "one
-  surface, named Research", the node-kind-not-sidebar-mode ruling, and the trust-boundary
-  framing for the embedded browser. Superseded by this spec for the parts it decided that
-  are now ratified/grounded here; its migration-step sequencing (engine steps 1-3,
-  reorg-gated) remains the authoritative source for backend ordering not restated here.
-- `agent-work/status/agent-chat-survey.md` — corrected this spec's understanding that the
+- The agentic-surface consolidation review (July 2026; a working note, deleted in November
+  2026) — origin of "one surface, named Research", the node-kind-not-sidebar-mode ruling, and
+  the trust-boundary framing for the embedded browser. Superseded by this spec. Its
+  backend ordering no longer stands apart from this spec: the chat tool loop it sequenced
+  second is built (`research.agent-audited-tools`).
+- The agent-chat survey (a working note, since deleted) — corrected this spec's understanding that the
   chat-tools loop is wired and default-ON (not "planned", as the older
   `agent_chat_as_user.md` states) — verified directly against current
   `chat.py:561-588` rather than trusted as-is.
 - `agent-work/design/in-app-agent-parity-plan.md` — origin of the read-parity +
   allowlisted-write shape (`CHAT_WRITE_ALLOWLIST`) now folded into `research.agent-audited-tools`.
-- `agent-work/status/RESEARCH_STATUS.md` — status log for the Swift-parallel-safe subset
+- The Research lane's status log (a working note, since deleted) — status log for the Swift-parallel-safe subset
   (`ToolCall`/`ToolCallCard`, `SourceLedgerEntry`, the Plan tab) that is now simply "what
   exists today" above; folded in as historical provenance, not re-described as a plan.
 

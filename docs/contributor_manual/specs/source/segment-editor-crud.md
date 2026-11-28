@@ -11,7 +11,7 @@
 
 A person selects regions or lines anywhere, the Preview, the Inspector, the Segments pane or the Reader, and can create, edit, join and delete them from the same menu, context menu, shortcut and icon, each as one audited action with one undo, with no mode to enter first. Several marquees added at once are one action with one undo. Reading levels are seen, compared and chosen, and the working text is the person's. The hierarchy is selectable up to the page and down to the children; Split has a door; the Preview has a Reader bar and an Editing bar; the next step runs on the selection.
 
-## Decisions (owner 2026-11-08, DECIDED, after the Fable reviews in `agent-work/status/briefs/fable-segment-reviews-2026-11-08.md`)
+## Decisions (owner 2026-11-08, DECIDED, after the Fable reviews of 2026-11-08, a working note since deleted)
 
 1. **"Segment" is not a level.** The ladder is stroke › character › word › line › region › page; "segment" means any level of it. Every ladder in this spec and its briefs reads so; Step 1.12's parent-kind table follows the ladder.
 2. **Deleting a region with lines always asks**: with its lines, lift its lines, or cancel. No door deletes a parent's children silently (Step 1.9's region header Delete included).

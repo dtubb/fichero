@@ -328,7 +328,7 @@ class TestTheOneLegacyTestedPresetIsConfigurationDependent:
     on a preset that will bill them.
 
     This is the concrete instance of the rule written into
-    agent-work/status/2026-08-03-preset-triage.md: a removed (Untested) label
+    docs/contributor_manual/design/carried-from-working-notes.md: a removed (Untested) label
     must state the configuration it was earned under. Pinned here so the gap is
     visible and dated rather than rediscovered.
     """

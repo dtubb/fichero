@@ -2,8 +2,9 @@
 
 Surfaces an academic HPC/Slurm cluster as a *connection* the app can configure
 and test, alongside the LLM provider rows in AI settings. This is the first
-slice of the Fichero ⇄ HPC live-connection plan
-(``agent-work/design/hpc-slurm-live-connection-plan.md``):
+slice of the Fichero ⇄ HPC live-connection plan (the spec is
+``docs/contributor_manual/specs/compute/hpc-runner-acenet.md``; "plan §N" below
+names sections of the working note the plan began as, since deleted):
 
 - **Config-first.** A cluster is host alias + username + remote base dir +
   partition/account — a *reference* to the user's own SSH config, never a

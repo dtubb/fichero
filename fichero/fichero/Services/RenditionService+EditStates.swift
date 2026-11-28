@@ -16,7 +16,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Renditi
 /// These entries carry an id that says which state they are, and
 /// `RenditionService.contentData` renders through that endpoint instead of the
 /// rendition-bytes route. Registering a materialised `edited` row server-side
-/// is the follow-up (see agent-work/specs/edit-states-as-renditions.md); this
+/// is the follow-up; this
 /// is the same sequence, sourced from the recipe.
 extension DocumentRendition {
     static let editedRole = "edited"

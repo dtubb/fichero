@@ -135,7 +135,7 @@ Read this first when you pick the work up from another session or another tool (
 - Real-run check of onboarding on a scratch project: `scripts/realrun_check.py "~/Fichero Dev Test/<project>.fichero" --redo read-a-line,find-names-tag-words` (it refuses any other path).
 
 **Rules from the maintainer that outlive a session.**
-- Real data is never touched by tests, workers or experiments: `~/Fichero`, `~/Fichero Projects` (Marshall Diaries and the other collections), and the saved app containers `~/Library/Containers/app.fichero.fichero*.saved-2026-10-10` (restore only when told). Use a scratch copy under `~/Fichero Dev Test`.
+- Real data is never touched by tests, workers or experiments: `~/Fichero`, `~/Fichero Projects` (the research collections), and the saved app containers `~/Library/Containers/app.fichero.fichero*.saved-2026-10-10` (restore only when told). Use a scratch copy under `~/Fichero Dev Test`.
 - Push only `integration`, and only after the gates are green (combined tree: app suite + engine suite + every guard). Never push `main`, tag, or release without the maintainer. Never print the Hugging Face token or enter a password.
 - **Mac unit tests run from a GUI-session shell, not a sandboxed agent shell** (#6111): WebKit's web-content process cannot start under a sandboxed shell, so `ReaderAllHitsTests` and `ReaderTranscriptWrapTests` (a real `WKWebView`) fail there with "error 159 - Sandbox restriction". They now fail with that cause named (`WebKitProbe`); they are never skipped. A red from them in an agent shell is the shell's, so rerun them from a GUI-session shell before calling the code wrong.
 - No `xcodebuild test` while the maintainer is using the app (the test host shares its bundle id and quits his app). One `xcodebuild` at a time. Do not take over the screen.
@@ -218,8 +218,7 @@ stay reachable by SHA / `git log --grep` / the closed issue.
 
 **Commit, never stash.** Park interrupted work as a WIP commit on the lane
 branch — a stash doesn't survive a worktree teardown. Baseline-diffing happens
-in a **separate worktree**, never stash-and-checkout in the same one (see
-`agent-work/design/git-practices-fabel-review.md` "stash-pop hazard").
+in a **separate worktree**, never stash-and-checkout in the same one.
 
 **Bring an agent up to speed with data, not a long-lived branch:**
 `agents/ROADMAP.md` + GitHub milestones for "what's next", `*_STATUS.md` /
@@ -236,8 +235,7 @@ before the result lands and the agent loops without ever committing.
 splits a file must update every `scripts/check_*.py` `TARGET_FILES`-style
 constant and guardrail allowlist in the SAME commit (see "A `pytest -k` subset
 skips the architecture guardrails" below) — the guardrail's own test files are
-part of the gate, not optional. Full rationale:
-`agent-work/design/git-practices-fabel-review.md`.
+part of the gate, not optional.
 
 ### Manager loop — use the scripts, don't improvise
 
@@ -717,13 +715,13 @@ misplaced — no exceptions.
 
 | What you are writing | Where |
 |---|---|
-| Status / handoff / session notes | `agent-work/status/` (e.g. `agent-work/status/SIDEBAR_STATUS.md`) |
+| Status / handoff / session notes | `agent-work/status/` |
 | Plans, sequencing, dispatch batches | `agent-work/plans/` |
 | Specs and design explorations | `agent-work/specs/` |
 | Reviews, audits, QA logs, validation reports | `agent-work/reviews/` |
 
-The four `*_STATUS.md` files already live in `agent-work/status/` — follow that
-convention; a new `FOO_STATUS.md` at the root is wrong by construction.
+A `FOO_STATUS.md` belongs in `agent-work/status/`; one at the root is wrong by
+construction.
 
 `agent-work/` is listed in `.gitignore`, so a note that is worth keeping must be
 added deliberately: `git add -f agent-work/status/<file>.md`. Scratch you do not

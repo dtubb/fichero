@@ -755,7 +755,7 @@ def _owning_line(word: "VisionOCRBox", lines: list["VisionOCRBox"]) -> "VisionOC
     whatever line happened to be earlier in the list. Rebasing then moved those
     words' spans relative to the wrong line, and every char-span consumer (span
     → region resolution, entry matching, clicking a word in the transcript)
-    inherited the error. Measured 2026-09-03 on a Marshall page: three word
+    inherited the error. Measured 2026-09-03 on a test page: three word
     boxes at opposite ends of the page all claiming `char_start` 0.
 
     When the span is ambiguous, vertical position settles it — and for a word
@@ -1871,8 +1871,8 @@ def _vision_ocr_cgimage_with_geometry(
         keep only the lines this run had not already found.
 
         Revision 3 is the newest text recognizer the OS exposes, and the lab
-        had assumed newest meant best. Measured on six Marshall pages
-        (2026-09-03, agent-work/design/vision-region-experiments.md) that is
+        had assumed newest meant best. Measured on six test pages
+        (2026-09-03) that is
         true of the reading and false of the DETECTING: revision 1 localizes
         text revision 3 never reports, most dramatically on dense small print
         — a 1923 printed calendar went 0.54 → 0.79 text-ink coverage through
@@ -1919,10 +1919,9 @@ def _vision_ocr_cgimage_with_geometry(
         ink-driven (Daniel, 2026-09-02): a faint pencil line mid-page, a
         margin figure, or a table of small print leaves ink the page pass
         never boxed, and a crop at region scale makes those glyphs several
-        times larger to Vision. Measured on Marshall diary pages: text-ink
+        times larger to Vision. Measured on diary pages: text-ink
         coverage 0.26→0.69 on dense small print, 0.75→0.85 on a page with
-        missed pencil lines, no page worse (agent-work/design/
-        local-vision-bbox-lab.md). Needs source_path — the flat image the
+        missed pencil lines, no page worse. Needs source_path — the flat image the
         boxes are fractions of — so PDF-page runs skip it, like the snap.
         """
         if not source_path:
@@ -4173,7 +4172,7 @@ async def process_vision(
     # retry below never fired: json.loads failed and the page's entire
     # geometry was thrown away while the transcription was salvaged, which
     # reads as "the model didn't give us boxes" when it gave us most of them
-    # (Daniel's Caciques detect-regions reply, cut off mid-box, 2026-08-28;
+    # (a detect-regions reply cut off mid-box, 2026-08-28;
     # five vision calls logged output=2048 exactly — the cap's signature).
     if return_boxes and effective_config.max_tokens < _BOXES_MIN_MAX_TOKENS:
         effective_config = dataclasses.replace(
@@ -4904,7 +4903,7 @@ async def process_vision(
                         text = "\n\n".join(parts)
                 else:
                     # Faint pencil reads dramatically better with the page
-                    # noise stripped (2026-08-24 eval on Marshall IMG_005:
+                    # noise stripped (2026-08-24 eval on one page:
                     # near-total word recall on the background_removed
                     # rendition vs ~2/3 on the original). A rendition with
                     # transform=None IS the node's frame by contract, so the

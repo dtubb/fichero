@@ -22,8 +22,6 @@ the search space collapses from the page to a dozen words.
 Every emitted box records HOW it was obtained. Presenting an interpolated box
 as a measured one is an unverified claim about where a word sits, and worse
 than an absent box because it looks authoritative.
-
-Design: agent-work/design/geometry-merge-review-to-word-boxes.md
 """
 
 from __future__ import annotations
@@ -49,7 +47,7 @@ MIN_LINE_SCORE = 0.30
 #: produces a wrong skeleton, and everything derived from it inherits the error
 #: silently.
 #:
-#: Directional on purpose (measured 2026-09-03 on six Marshall diary pages).
+#: Directional on purpose (measured 2026-09-03 on six diary pages).
 #: The two imbalances are not the same defect. Reviewed ≫ measured means Vision
 #: did not see most of the page, so the skeleton is missing — refuse. Measured
 #: ≫ reviewed means Vision saw MORE than the transcript covers, which is the

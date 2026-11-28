@@ -798,7 +798,7 @@ Returns whether the grant was already held (so the bookmark was not resolved twi
 or a refusal from `startAccessingSecurityScopedResource()`, means the engine genuinely
 cannot read that library, and the app must say so rather than open it and fail later.
 
-See `agent-work/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (#3747).
+See the header comment of `fichero/fichero/FicheroEngineAppStore.entitlements` (#3747).
 
 <redoc spec-url="openapi.json" hide-download-button></redoc>
 <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
