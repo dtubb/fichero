@@ -534,8 +534,8 @@ async def _stage_where_and_model(db: Database, run_id: str) -> tuple[Optional[st
     """The model and the place of one stage run, from its job rows (`activity.summary.where-and-model`, #5960); nothing
     known when the rows cannot be read, so the block stands without them. Read at most once in ten seconds for a run.
 
-    ponytail: a time window, not a narrower query: the answer (which model, which place) moves slowly, the tree is the
-    only place the places are rolled up."""
+    ponytail: a time window over the narrow read (`jobs.model_and_places`): the answer (which model, which place) moves
+    slowly; a count kept on the run's row as its calls are recorded would need no read of the pages' rows at all."""
     import time
 
     from fichero_server.api.routes.system.activity_pages import where_and_model
@@ -546,7 +546,8 @@ async def _stage_where_and_model(db: Database, run_id: str) -> tuple[Optional[st
     if held is not None and now - held[0] < _WHERE_AND_MODEL_SECONDS:
         return held[1]
     try:
-        found = await asyncio.to_thread(job_queue.tree, db, run_id)
+        # The narrow read, not the run's tree: the tree of a run of many pages does not fit DuckDB's memory floor (#7088).
+        found = await asyncio.to_thread(job_queue.model_and_places, db, run_id)
         answer = where_and_model(found) if found else (None, None)
     except Exception as exc:  # noqa: BLE001 -- said in the log
         logger.warning("activity summary: no job rows for %s: %s", run_id, exc)

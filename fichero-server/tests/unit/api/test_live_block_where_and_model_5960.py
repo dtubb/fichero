@@ -49,11 +49,11 @@ def test_a_stage_runs_rows_are_read_once_in_the_window_not_on_every_poll(monkeyp
 
     reads = []
 
-    def tree(db, run_id):
+    def model_and_places(db, run_id):
         reads.append(run_id)
-        return _row("running", places={"this_mac": 1}, children=[_row("running", "kraken:blla")])
+        return {"model": "kraken:blla", "state": "running", "places": {"this_mac": 1}}
 
-    monkeypatch.setattr(jobs, "tree", tree)
+    monkeypatch.setattr(jobs, "model_and_places", model_and_places)
     monkeypatch.setattr(activity, "_WHERE_AND_MODEL", {})
     db = SimpleNamespace(path="/lib/P.fichero/fichero.duckdb")
     answers = [asyncio.run(activity._stage_where_and_model(db, "w1")) for _ in range(3)]
