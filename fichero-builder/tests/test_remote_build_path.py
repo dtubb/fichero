@@ -100,3 +100,18 @@ def test_a_streak_already_longer_than_three_on_disk_alerts_once_and_not_again_in
     assert len([x for x in journal.read() if x.get("event") == "alert"]) == 1
     check_tool._remote_build_locked(tmp_path, _cfg(), "imac", REAL, (), "build", False)  # the 7th: still one alert for the streak
     assert len([x for x in journal.read() if x.get("event") == "alert"]) == 1
+
+
+DEFINED_IN_BOTH = ("error: Clang dependency scanning failure: module 'Darwin' is defined in both "
+                   "'/Volumes/Fichero Development/fichero-gate/derived-tests/ModuleCache.noindex/X/Darwin.pcm' and "
+                   "'/Users/dtubb/fichero-gate/derived-tests/ModuleCache.noindex/Y/Darwin.pcm'")
+
+
+def test_a_module_defined_in_both_gate_paths_is_a_stale_cache_and_the_verb_names_it():
+    """2026-11-28 09:34 and 09:58: the daily ios-sim and tests builds said "COULD NOT RUN" with a module cache that held PCMs from
+    the symlinked ~/fichero-gate beside the real /Volumes path. It is a stale cache (cleared, built once more), and the verb says
+    the remote's error, not that the remote is down."""
+    assert check_tool.STALE_CACHE.search(DEFINED_IN_BOTH)
+    why = check_tool.env_red_why({"stdout_tail": "** BUILD FAILED **\n" + DEFINED_IN_BOTH, "stderr_tail": ""})
+    assert why.startswith("error: Clang dependency scanning failure: module 'Darwin' is defined in both"), why
+    assert check_tool.env_red_why({"stderr_tail": "ssh: connect timed out\nbye"}) == "bye"

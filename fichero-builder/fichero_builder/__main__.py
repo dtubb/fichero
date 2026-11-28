@@ -377,11 +377,12 @@ def main(argv=None) -> int:
             one = (r or {}).get("results", [r or {}])[0]  # a build has results; the green run is its own row
             text = (one.get("errors") or one.get("stdout_tail") or "").strip().splitlines()
             why = next((ln for ln in text if ln.startswith("FAILED ")), text[0] if text else "")[:200]
-            print(f"{name}: " + ("COULD NOT RUN (the remote is down, or red with no Swift source error)" if r is None
+            print(f"{name}: " + ("COULD NOT RUN (the remote is down)" if r is None
+                                 else f"COULD NOT RUN on {r.get('remote', '?')}: {check_tool.env_red_why(one)} (log {one.get('log', '-')})" if r.get("remote_env_red")
                                  else "GREEN" if r["ok"] else f"RED {why} (log {one.get('log', '-')})"))
-        if any(r is not None and not r["ok"] for _, r in res):
+        if any(r is not None and not r["ok"] and not r.get("remote_env_red") for _, r in res):
             return 1
-        return 2 if not res or any(r is None for _, r in res) else 0
+        return 2 if not res or any(r is None or r.get("remote_env_red") for _, r in res) else 0
     if a.cmd == "verify-all":
         from fichero_builder import verify
 

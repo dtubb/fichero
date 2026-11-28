@@ -1164,7 +1164,8 @@ BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is no
 
 
 SHARED_DERIVED = ("build", "test", "ui")  # these share the runner's one `<gate>/derived`, kept between checks so a build is incremental
-STALE_CACHE = re.compile(r"No such module '|module '[^']+' not found|PCM|precompiled module|was compiled with module cache path|module file '[^']+' is out of date")
+STALE_CACHE = re.compile(r"No such module '|module '[^']+' not found|PCM|precompiled module|was compiled with module cache path|module file '[^']+' is out of date"
+                         r"|module '[^']+' is defined in both")  # 2026-11-28: PCMs from the symlinked gate path (before 0e12ef0c95) beside the real one
 TEST_FAILED = re.compile(r"\*\* TEST FAILED \*\*|Test [Cc]ase '[^']+' failed|^Failing tests:[ \t]*\n[ \t]+\S|✘ Test run with \d+ tests?|^[ \t]+\S+\(\)[ \t]*\n\s*\*\* TEST EXECUTE FAILED \*\*", re.M)
 # a failing test is the code's red, not the runner's: XCTest's lines, Swift Testing's run line and xcodebuild's `Failing tests:` list,
 # which end in "** TEST EXECUTE FAILED **" (2026-11-26, the train: 14 failing cases were labelled "the runner could not run the tests")
@@ -1234,6 +1235,17 @@ def build(root, changed: list[str], cfg: Config) -> dict:
 def _remote_arg(path: str) -> str:
     """`path` as one argument of a remote shell command; a leading `~/` still expands there."""
     return "~/" + shlex.quote(path[2:]) if path.startswith("~/") else shlex.quote(path)
+
+
+ENV_RED_LINE = re.compile(r"(?:error|fatal|failure)\b[^\n]*", re.I)
+
+
+def env_red_why(row: dict) -> str:
+    """The first error line of a build that went red over there with no Swift source error (2026-11-28: 'COULD NOT RUN' hid
+    "module 'Darwin' is defined in both ..."), else its last stderr line."""
+    text = "\n".join(row.get(k) or "" for k in ("errors", "stdout_tail", "stderr_tail"))
+    m = ENV_RED_LINE.search(text)
+    return (m.group(0) if m else (text.strip().splitlines() or ["no output"])[-1]).strip()[:240]
 
 
 BUILD_ENV_RED_ALERT_AFTER = 3
@@ -1371,7 +1383,7 @@ def daily_builds(root, cfg: Config) -> list[tuple[str, dict | None]]:
     out = []
     for name, argv in cfg.daily_builds.items():
         r = _remote_build(root, cfg, tuple(argv), name)
-        out.append((name, None if r and r.get("remote_env_red") else r))  # could not run there: as before
+        out.append((name, r))  # an env red (could not run there) is kept, so the verb says why
     return out
 
 BUILD_YIELD_S = 2.0  # a lane's build rung that took the build lock while a train waits for it lets go and tries again this much later
