@@ -983,13 +983,23 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   `designer.budget.change-is-audited-and-undoable` (manager 2026-11-27 retag); what that line left: an audited action
   of its own named `project.set_budget` (project, which cap, from, to, who, when), reached by MCP and the command line
   through the regen; the audit row names `project.save_setup` today. Not built.
-- `designer.budget.fix-during-the-run` [PARTIAL] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
+- `designer.budget.fix-during-the-run` [OK] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
   paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
   fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
   change the step's model for the remaining pages, stop here and keep what is done), with the booked figure so
   far; pressing raise sets the cap and resumes the run (the run's own Resume, #5932/#5933), never silently.
   *Test:* `test_run_cap_fix_in_place.py` (a paused run resumes after the cap is
-  raised through the action; a stop keeps the finished pages). Built 2026-11-02 (engine, one path): the cap hold pauses the step's run and the recipe parks on it (`spend._STOPPED_AT_CAP`, which now records the caps it stopped under); a raised cap resumes it by the one Resume (`runner.resume_capped_runs` → `pause_recipe`, called after the cap route writes), from the run's own checkpoint, no page read again; a lowered or unchanged cap never does (`spend.raised_cap_stops`; `test_run_pauses_at_the_cap_6295.py`). Left: the Activity row and run strip fixes with the booked figure, Stop here is the run's own Stop (a run paused at the cap waits off the lane, so Stop ends it now with its finished pages kept; `test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done`).
+  raised through the action; a stop keeps the finished pages). Built 2026-11-02 (engine, one path): the cap hold pauses the step's run and the recipe parks on it (`spend._STOPPED_AT_CAP`, which now records the caps it stopped under); a raised cap resumes it by the one Resume (`runner.resume_capped_runs` → `pause_recipe`, called after the cap route writes), from the run's own checkpoint, no page read again; a lowered or unchanged cap never does (`spend.raised_cap_stops`; `test_run_pauses_at_the_cap_6295.py`). *Built since, in the app:* the run's Activity details offer Change Caps… with the raise buttons and both cap fields (`ActivityDetailsCapStop`). *Left, now `designer.budget.cap-stop-says-the-booked-figure`:* the booked figure and the run strip; Stop here is the run's own Stop (a run paused at the cap waits off the lane, so Stop ends it now with its finished pages kept; `test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_an_unchanged_or_lowered_cap_resumes_nothing_and_a_raised_one_resumes_by_the_one_resume`,
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_a_real_batch_paused_at_the_cap_on_page_two_resumes_on_a_raise_and_reads_page_two_only`,
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done`,
+  `fichero-server/tests/unit/recipes/test_run_pauses_at_the_cap_6295.py::test_a_run_paused_at_the_cap_says_so_in_its_status_for_the_apps_offer`,
+  `fichero/Tests/Unit/general/Models/CloudCapFixTests.swift::aRunPausedAtACapOffersTheChangeByTheEnginesField`.
+- `designer.budget.cap-stop-says-the-booked-figure` [GAP] (#6295; app) — split from
+  `designer.budget.fix-during-the-run` (manager 2026-11-27 retag); what that line left: the booked figure so far
+  beside the fixes of a run paused at the cap; "change the step's model for the remaining pages" and "stop here" as
+  fixes of that view (Stop is the run's own Stop today); the same offer on the project's run strip. Not built.
 
 ### 12. Start, and the run
 
@@ -1761,7 +1771,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: S
 
 #### Step 19.5 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`, `designer.budget.running-run-reads-its-booked-cost`
+- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`, `designer.budget.running-run-reads-its-booked-cost`, `designer.budget.cap-stop-says-the-booked-figure`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.4
 - Size: M
