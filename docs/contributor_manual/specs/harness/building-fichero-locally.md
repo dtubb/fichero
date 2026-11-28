@@ -1416,7 +1416,7 @@ gate.
 
 Today (2026-11-26): the Swift, builder and contract jobs are green on Actions, the engine shards reach their 30-minute
 limit, and the Xcode Cloud build is red in its clone script; both are being fixed in step ci-actions-1. Cost decides
-how much of this runs per train: eight engine shards of 25 minutes are 200 runner minutes a train, a macOS minute
+how much of this runs per train: twelve engine shards, each under a 30-minute job limit, are at most 360 runner minutes a train, a macOS minute
 counts ten times on a private repository, and a full Swift plan of 20 minutes on each of 15 trains a day would use a
 month's 25 included Xcode Cloud hours in five days. So CI starts in `report` mode, the train's CI jobs run only the
 tiers its diff touches, and the full Swift plan runs per night and per release unless the hours are set higher.
