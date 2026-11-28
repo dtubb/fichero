@@ -3784,7 +3784,8 @@ def real_procs(root) -> Procs:
     mdl = models.load(root)
     load_cfg(root)
     TRAIN[0] = train.load(rules)  # a bad [train] refuses the start
-    builder, reviewer = models.for_role(mdl, "builder").model, models.for_role(mdl, "reviewer").model
+    models.for_role(mdl, "builder")  # a missing builder role still refuses the start; its model is read live at each start (model_for)
+    reviewer = models.for_role(mdl, "reviewer").model
     reviewer_fast = models.for_role(mdl, "reviewer_fast").model if "reviewer_fast" in mdl else reviewer
     opus_paths = tuple(mdl.get("reviewer_paths") or work.OPUS_PATHS)
     opus_lanes = set(mdl.get("opus_lanes") or ())  # owner 2026-11-06: a lane whose rounds cost more than its review minutes gets the full reviewer
@@ -3806,8 +3807,19 @@ def real_procs(root) -> Procs:
                                      owe_scans=TRAIN[0].enabled and TRAIN[0].security_perf,  # and, with [train].security_perf, the scanners and perf
                                      stack_base=(step or {}).get("stack_base", "") if (step or {}).get("stacked_on") else "")
 
+    def model_for(lane) -> tuple[str, dict]:
+        """The lane's model from the live harness.toml [models], read at each start (2026-11-28 08:20: builder went to sonnet in the
+        live file, and the 08:23 starts still ran claude-fable-5-2[1m], read when the loop started); the start's [models] too."""
+        role = lane.get("role", "") or "builder"
+        try:
+            m = models.load(root)
+            return models.for_role(m, role).model, m
+        except (OSError, ValueError, KeyError, models.Question):  # a bad edit: the models the loop started with
+            return models.for_role(mdl, role).model, mdl
+
     def start(lane, step):
-        kind = worker_kind(mdl, lane.get("role", ""))  # a role on a Pi provider (openrouter) runs Pi under the same caps; refused before any tree is made
+        model, live = model_for(lane)
+        kind = worker_kind(live, lane.get("role", ""))  # a role on a Pi provider (openrouter) runs Pi under the same caps; refused before any tree is made
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
         step["pinned"] = lane["session_pin"] = a.pinned  # local.pin.prune-keeps-live-pins: a landing's prune keeps the copy this session runs from
@@ -3854,7 +3866,7 @@ def real_procs(root) -> Procs:
         codemap.provide_all(root)
         role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
         a.kind, pi = kind
-        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
+        cmd = work.run_cmd(a, model, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
                            *(("--role", role) if role else ()), *pi)
         return spawn(j, lane, cmd)
 
@@ -3883,7 +3895,7 @@ def real_procs(root) -> Procs:
         a.root, a.brief = a.pinned, str(feed / "brief.txt")
         lane["session_pin"] = a.pinned
         role = lane.get("role", "")
-        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
+        cmd = work.run_cmd(a, model_for(lane)[0], "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
                            "--attach", pane, "--base", lane.get("session_head") or "", *(("--role", role) if role else ()),
                            *(() if step["state"] == "sent" else ("--idle",)))
         return spawn(j, lane, cmd)
@@ -4034,7 +4046,7 @@ def real_procs(root) -> Procs:
         journal.append("cleanup", lane="-", step="", path=tree, state="index-dropped" if rc == 0 else "index-kept", detail=out.strip()[-200:] or f"index of {tree} dropped")
 
     def model_of(lane):
-        return models.for_role(mdl, lane["role"]).model if lane.get("role") else builder
+        return model_for(lane)[0]
 
     def premerge(lane, head):
         if subprocess.run([land_tool.GIT, "-C", str(repo), "cat-file", "-e", f"{head}^{{commit}}"], capture_output=True).returncode:

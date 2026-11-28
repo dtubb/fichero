@@ -167,3 +167,22 @@ def test_a_landed_steps_live_session_is_closed_for_the_next_step_instead_of_aler
     lane["steps"][0]["state"] = "train"
     with pytest.raises(RuntimeError, match="holds a live session"):
         queue.real_procs(state).start(lane, {"step": "soak-5", "brief": str(state / "brief"), "issues": [], "rounds": 0})
+
+
+def test_a_start_reads_the_roles_model_from_the_live_rules_not_the_ones_the_loop_started_with(state, monkeypatch):
+    """2026-11-28 08:20: builder and maintainer-fable went to sonnet in the live harness.toml; the 08:23 starts still ran
+    claude-fable-5-2[1m], the [models] the loop read at its start. Each start (and model_of, which ends a kept session whose model
+    changed) reads the live file."""
+    popens = []
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv[-1]) or object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    procs = queue.real_procs(state)
+    lane = {"id": "mf", "worktree": str(state / "wr" / "wt-mf"), "seq": 0, "role": "maintainer-fable"}
+    step = {"step": "1.1", "brief": str(state / "brief"), "issues": []}
+    toml = state / "harness.toml"
+    toml.write_text(toml.read_text().replace('model = "claude-fable-5-1", context = 400000', 'model = "sonnet", context = 200000'))
+    procs.start(dict(lane), dict(step))
+    assert "--model sonnet" in popens[-1] and procs.model_of(lane) == "sonnet"
