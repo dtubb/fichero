@@ -537,7 +537,7 @@ window = 200000   # plain sonnet's window (owner 2026-11-02: every turn stays un
 handoff_at = 0.85
 handoff_tokens = 175000   # owner 2026-11-02: hand off here, an absolute count (a lane used 17M tokens for three steps on a 1M window)
 session_usd = 12  # owner 2026-11-21: Sonnet workers; the meter reads ~1.9x high until #6870 lands (8 handed off too often)
-day_usd = 300  # owner 2026-11-27: back to 300 on Saturday 11-28 after the weekly reset (was 800, then 2000 for the last day of the week)
+day_usd = 800  # owner 2026-11-28: new week, Sonnet code + Opus review, "you can increase budget"; was 300 (2000 on 11-27 for the Fable push)
 silent_s = 1800
 prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5], claude-fable-5-1 = [15, 75], claude-fable-5-2 = [15, 75] }  # fable: notional like the others (Max login); opus rates until the owner sets its own
 
@@ -546,8 +546,8 @@ prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5], claude-fable-5-1 =
 # person, never a fallback. `claude-code` = an interactive Claude Code session in a pane (the model is its /model name);
 # `anthropic` and `omlx` are Pi providers (their models and prices live in Pi's models.json). Change by editing here.
 providers = ["claude-code", "anthropic", "omlx"]
-builder = { provider = "claude-code", model = "sonnet" }  # owner 2026-11-21 11:20: back to Sonnet after the burn (Opus cost ~40x a landing); Haiku trial on chosen lanes
-reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its review cap is 40% of this at 3.5 bytes a token
+builder = { provider = "claude-code", model = "sonnet" }  # owner 2026-11-28: new week, Sonnet writes code again; was opus (Fri 11-27 Max credits)
+reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # owner 2026-11-28: new week, Opus reviews; was Fable 1M (11-27)
 # manager 2026-11-02 (6a): sonnet reviews by default; opus (`reviewer`) when a range touches these paths, and once per milestone
 reviewer_fast = { provider = "claude-code", model = "sonnet", context = 200000 }
 # owner 2026-11-06 (t28): these lanes' batches always get the full reviewer; half-done fast reviews cost them whole rounds
@@ -559,7 +559,7 @@ helper = { provider = "claude-code", model = "haiku" }
 manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answers them (dev-workflows.run.loop-roles)
 researcher = { provider = "claude-code", model = "sonnet" }
 # owner 2026-11-18: a lane runs its worker on this role (`builder queue add --role maintainer-fable`); its handoff mark is 85 % of `context`
-maintainer-fable = { provider = "claude-code", model = "claude-fable-5-1", context = 200000 }
+maintainer-fable = { provider = "claude-code", model = "sonnet", context = 200000 }  # owner 2026-11-28: new week, the lanes on this role write with Sonnet; was claude-fable-5-2[1m] 1M (11-27)
 
 [models.display]
 # the name the `Written-By:` trailer carries for each model alias a worker is started with (agent-profiles.trailer.one-line);
