@@ -221,10 +221,14 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   section while the column is up (`SidebarPairHome.declaredInColumn`, `ContentView.sidebarToolbarContent`). *Test:*
   `fichero/Tests/Unit/general/Models/SidebarColumnStateTests.swift::macDeclaresPairOnlyInItsHome`,
   `::pairInSidebarWhileShown`.
-- `panes.split.asymmetric` — **[GAP/BROKEN]** (#4669, #4737) splitting a preview vertically then horizontally
+- `panes.split.asymmetric` — **[OK]** (#4669, #4737) splitting a preview vertically then horizontally
   makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
   one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
   every sub-pane renders the same content. Needs nested/asymmetric split (part of F7).
+  *Built since:* a split made from the menus is stored in the pane list (`PaneList.splittingLeaf`), which nests a
+  split inside one half of a split in either direction and leaves the other half as it was, so two panes over one is a
+  list the model holds. *Test:*
+  `fichero/Tests/Unit/general/Models/PaneListIdentityTests.swift::splittingAnAlreadySplitPairLeavesTheOtherHalfUntouched`.
 - `panes.minimap-secondary-pane` — **[GAP]** (#1932) a secondary split pane can act as a MINIMAP
   of the primary — a zoomed-out overview, especially for the WebKit/KG view. The split/side-by-
   side half of this request is substantially covered already (`panes.split.asymmetric`,
