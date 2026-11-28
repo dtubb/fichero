@@ -190,6 +190,7 @@ extension ZoomableImagePreview {
             convertToRegion: { convertSelected(to: "region") },
             addVerb: documentId.flatMap { SegmentShapes.addLevel(for: selectedSegments($0)) },
             addDrawn: { addDrawnInSelection() },
+            canChangeKind: documentId.map { SegmentShapes.offersChangeKind(selectedSegments($0)) } == true,
             makeRegion: { makeRegionFromSelectedLines() },
             ungroupRegion: { ungroupSelectedRegions() },
             cutWords: { cutWordsOnSelectedLines() },

@@ -50,4 +50,9 @@ extension SegmentShapes {
         default: nil
         }
     }
+
+    /// Whether Change Kind is offered: something is selected and every selected segment is a region or a line.
+    static func offersChangeKind(_ selected: [Segment]) -> Bool {
+        !selected.isEmpty && selected.allSatisfy { changedKind(of: $0) != nil }
+    }
 }
