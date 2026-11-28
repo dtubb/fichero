@@ -1,8 +1,8 @@
 """`builder status`: the owner's console (dev-workflows.run.loop-status, Console). A stdlib server on 127.0.0.1:
 GET / (console.html), GET /api/status (journal + queue.json), GET /api/events (an SSE tail of the journal), POST /api/action
 (an allow-list onto the existing verbs, nothing else). Every action writes one `console` row: who, the verb, its exit.
-A POST needs the token the page was served with and a loopback Host, so another site in the browser cannot drive it.
-ponytail: a Tailscale bind comes later, behind the same token."""
+A POST needs the token the page was served with and a loopback Host, so another site in the browser cannot drive it; a
+[console].tailnet_hosts name counts too, for the [console].tailnet_owner login that `tailscale serve` names (owner 2026-11-28)."""
 from __future__ import annotations
 
 import calendar
@@ -27,6 +27,11 @@ TOKEN = secrets.token_urlsafe(24)
 PAGE = Path(__file__).with_name("console.html")
 PKG = Path(__file__).resolve().parents[1]
 LOOPBACK = ("127.0.0.1", "localhost", "[::1]")
+# owner 2026-11-28 (testing builds on other devices): the console behind `tailscale serve` on these names ([console].tailnet_hosts),
+# for the one tailnet login [console].tailnet_owner. serve proxies from loopback and sets Tailscale-User-Login; the header from any
+# other peer is ignored. A POST still needs the token, which the page served to that login carries
+TAILNET_HOSTS: list = []
+TAILNET_OWNER: list = [""]
 
 WORKER_ROWS = ("worker", "cost", "reading")  # what `builder run` writes to the shared state; everything else there is the worker's word
 
@@ -1175,12 +1180,17 @@ def _json(h, code: int, body) -> None:
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def _host_ok(self) -> bool:
-        return (self.headers.get("Host") or "").rsplit(":", 1)[0] in LOOPBACK
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].lower()
+        if host in LOOPBACK:
+            return True
+        login = (self.headers.get("Tailscale-User-Login") or "").strip().lower()
+        return (host in TAILNET_HOSTS and self.client_address[0] in ("127.0.0.1", "::1")  # through serve, never a direct peer
+                and bool(TAILNET_OWNER[0]) and login == TAILNET_OWNER[0].lower())
 
     def do_GET(self):
         path = self.path.split("?")[0]
         if not self._host_ok():
-            return _json(self, 403, {"error": "a loopback Host only"})
+            return _json(self, 403, {"error": "a loopback Host, or a [console].tailnet_hosts name for the tailnet owner, only"})
         if path in ("/", "/review"):  # /review is the same page opened on its Review tab
             b = PAGE.read_text().replace("__TOKEN__", TOKEN).replace("__TAB__", "review" if path == "/review" else "lanes").encode()
             self.send_response(200)
@@ -1377,6 +1387,8 @@ def configure(root) -> None:
         LOOP_LANES = int(doc.get("loop", {}).get("lanes", 1))
         MACHINES[:] = sorted(doc.get("machines", {}))
         PRICES.update(doc.get("spend", {}).get("prices", {}))
+        TAILNET_HOSTS[:] = [str(h).lower() for h in doc.get("console", {}).get("tailnet_hosts", [])]
+        TAILNET_OWNER[0] = str(doc.get("console", {}).get("tailnet_owner", ""))
     except (OSError, ValueError):
         pass
 

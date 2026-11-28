@@ -335,3 +335,46 @@ def test_overlapping_cold_progress_requests_wait_for_the_one_compute(state, monk
     ts = [threading.Thread(target=lambda: got.append(console.progress_cached())) for _ in range(4)]
     [t.start() for t in ts], [t.join() for t in ts]
     assert ran == [1] and got == [{"n": 1}] * 4
+
+
+def _handler(host, peer, login=None):
+    h = console.Handler.__new__(console.Handler)
+    h.headers = {"Host": host, **({"Tailscale-User-Login": login} if login else {})}
+    h.client_address = (peer, 50000)
+    return h
+
+
+def test_the_console_takes_its_tailnet_name_for_the_owners_login_through_serve_and_refuses_every_other_host(monkeypatch):
+    """Owner 2026-11-28: the console over `tailscale serve` (tailnet only). The name in [console].tailnet_hosts with the
+    [console].tailnet_owner login passed by serve (from loopback) is allowed; any other host, another login, no login, or the
+    header from a non-loopback peer is refused (the DNS-rebinding guard stays)."""
+    ts = "macbook-pro-m1.tail677e72.ts.net"
+    monkeypatch.setattr(console, "TAILNET_HOSTS", [ts])
+    monkeypatch.setattr(console, "TAILNET_OWNER", ["owner@example.com"])
+    assert _handler("127.0.0.1:8766", "127.0.0.1")._host_ok(), "loopback as before"
+    assert _handler(f"{ts}:8443", "127.0.0.1", "Owner@Example.com")._host_ok(), "the tailnet name, the owner, through serve"
+    assert not _handler(f"{ts}:8443", "127.0.0.1", "someone@else.com")._host_ok(), "another tailnet login"
+    assert not _handler(f"{ts}:8443", "127.0.0.1")._host_ok(), "no login"
+    assert not _handler(f"{ts}:8443", "100.101.102.103", "owner@example.com")._host_ok(), "the header from a peer that is not serve"
+    assert not _handler("evil.example:8443", "127.0.0.1", "owner@example.com")._host_ok(), "any other host: DNS rebinding"
+    monkeypatch.setattr(console, "TAILNET_OWNER", [""])
+    assert not _handler(f"{ts}:8443", "127.0.0.1", "owner@example.com")._host_ok(), "no owner configured: no tailnet way in"
+
+
+def test_configure_reads_the_tailnet_names_and_owner(tmp_path, monkeypatch):
+    monkeypatch.setattr(console, "TAILNET_HOSTS", [])
+    monkeypatch.setattr(console, "TAILNET_OWNER", [""])
+    (tmp_path / "harness.toml").write_text('[console]\ntailnet_hosts = ["A.ts.net"]\ntailnet_owner = "o@x"\n')
+    console.configure(tmp_path)
+    assert console.TAILNET_HOSTS == ["a.ts.net"] and console.TAILNET_OWNER == ["o@x"]
+
+
+def test_a_tailnet_page_carries_the_token_so_the_owners_writes_need_no_paste(live, monkeypatch):
+    import urllib.request
+    url, ran = live
+    ts = "box.tail1.ts.net"
+    monkeypatch.setattr(console, "TAILNET_HOSTS", [ts])
+    monkeypatch.setattr(console, "TAILNET_OWNER", ["owner@example.com"])
+    req = urllib.request.Request(url + "/", headers={"Host": f"{ts}:8443", "Tailscale-User-Login": "owner@example.com"})
+    page = urllib.request.urlopen(req, timeout=5).read().decode()
+    assert console.TOKEN in page

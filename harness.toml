@@ -635,3 +635,9 @@ ready_reds = 0
 "Activity" = "docs/contributor_manual/specs/ui/activity-pane.md"
 "Runner" = "docs/contributor_manual/specs/compute/runner-reliability.md"
 "Models window" = "docs/contributor_manual/specs/ui/models-and-compute-window.md"
+
+[console]
+# owner 2026-11-28: the Builder Console over `tailscale serve --bg --https=8443 http://127.0.0.1:8766` (tailnet only, no funnel),
+# for the one tailnet login `tailnet_owner` (set in the live file: it is the owner's account, kept out of the repo)
+tailnet_hosts = ["macbook-pro-m1.tail677e72.ts.net"]
+# tailnet_owner = "<the owner's Tailscale login>"

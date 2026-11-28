@@ -3054,6 +3054,13 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   `POST /api/action` with the page's token and a loopback Host, onto the verb allow-list, one `console` row each. The new
   routes `/api/lane/<id>`, `/api/runs`, `/api/work` are GET only. Test: fichero-builder/tests/test_status_page.py (extend
   with the three routes).
+- `builder-console.tailnet.owner-only` [OK] (owner 2026-11-28: testing builds on other devices) (`console.py` `_host_ok`) —
+  the console behind `tailscale serve` (tailnet only, no funnel) answers a Host named in `[console].tailnet_hosts` only for
+  a request that came through serve (its peer is loopback) and whose `Tailscale-User-Login` is `[console].tailnet_owner`;
+  every other host is refused as before (the DNS-rebinding guard), and the login header from any other peer is ignored. The
+  page served to the owner carries the console token, so the owner's posts from a phone or an iPad need nothing pasted; a
+  POST still needs that token. Test:
+  `fichero-builder/tests/test_console_owner.py::test_the_console_takes_its_tailnet_name_for_the_owners_login_through_serve_and_refuses_every_other_host`.
 
 #### F. One API, two front ends, editable both ways
 
