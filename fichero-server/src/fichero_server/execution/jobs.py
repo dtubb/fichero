@@ -997,6 +997,32 @@ def _current_step() -> str | None:
     )
 
 
+def model_and_places(db: "Database", job_id: str) -> dict[str, Any] | None:
+    """What the activity summary says of a run (`activity.summary.where-and-model`), read without its tree (#7088): the
+    `model` and `state` of a row under it that runs now, else of the newest row that names a model, and `places`, how
+    many of its model calls went to each place. None for a job that has no row.
+
+    No row's detail is held: the walk down the run carries each row's places alone (a join back to `jobs` by id put
+    every detail in the join's table, and `tree`'s `SELECT *` walk kept them all; both ran out of memory under the
+    256 MiB floor on a run of 20,000 pages), and the places are counted in the database."""
+    _ensure(db)
+    if db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ?", [job_id], committed=True) is None:
+        return None
+    named = db.execute_fetchone(
+        "WITH RECURSIVE t(id) AS (SELECT id FROM jobs WHERE id = ? UNION ALL "
+        "SELECT j.id FROM jobs j JOIN t ON j.parent_id = t.id) "
+        "SELECT model, state FROM jobs WHERE id IN (SELECT id FROM t) AND model IS NOT NULL AND model <> '' "
+        "ORDER BY (state = 'running') DESC, created_at DESC LIMIT 1", [job_id], committed=True)
+    places = db.execute_fetchall(
+        "WITH RECURSIVE t(id, kind, places) AS ("
+        "SELECT id, kind, json_extract_string(detail, '$.usage[*].place') FROM jobs WHERE id = ? UNION ALL "
+        "SELECT j.id, j.kind, json_extract_string(j.detail, '$.usage[*].place') FROM jobs j JOIN t ON j.parent_id = t.id) "
+        f"SELECT place, count(*) FROM (SELECT unnest(places) AS place FROM t WHERE kind NOT IN ({', '.join('?' for _ in RUN_KINDS)})) "
+        "WHERE place IS NOT NULL AND place <> '' GROUP BY place",
+        [job_id, *RUN_KINDS], committed=True)
+    return {"model": named[0] if named else None, "state": named[1] if named else None, "places": dict(places)}
+
+
 def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     """A job and its descendants, each with the pages under it done and in all
     (`activity.jobs-are-a-tree`: "progress ... roll[s] up the tree")."""

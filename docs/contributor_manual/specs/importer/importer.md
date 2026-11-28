@@ -560,7 +560,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   whole (`db.query(Document)`). It took 1.0 s at 500 pages and 4.0 s at 2,000 on a solid-state disk; at 5,000
   pages it is 3.5 million calls, 800,000 of them on the source volume, which on a volume that answers in a few
   milliseconds is the many-minute stall seen in a stall dump on 2026-11-20. The app asks at open and again each
-  time a folder is selected (`LocateOriginalsPresenter` and `MissingOriginalsNotice`,
+  time a folder is selected (`LocateOriginalsPresenter` and `MissingOriginalsCountLine`,
   `fichero/fichero/Views/Library/LocateOriginals.swift`), and the answer lists every missing id, which the app searches as
   an array for each cell (`OriginalsStore.isMissing`). Test to add: 500 linked pages in 5 folders are checked with
   at most one filesystem call a page and one listing a folder, counted; a volume that is not there is one call.
@@ -604,6 +604,14 @@ job table; the open queries pending ids, not whole documents.
 `importers/relink.py`, `db/storage.py`, `security/path_security.py`, the route, `OriginalsStore.swift`,
 `LocateOriginals.swift`. Test: counted filesystem calls for 500 pages in 5 folders (at most 505); one call for a
 volume that is not there.
+
+#### Step 1.2a — Missing originals ask in an alert, not a strip (#7077)
+- Behaviours: `importer.originals.missing-asks-in-an-alert`
+- Tests: fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift
+- Size: S
+
+`Models/OriginalsStore.swift`, `Views/Library/LocateOriginals.swift`: the alert on the window, once an open; the
+count as a status line below the rows.
 
 #### Step 1.3 — An import survives a quit (#6829, #739)
 - Behaviours: `importer.resume.jobs-are-queued-with-each-batch`, `importer.resume.an-interrupted-import-is-offered-again`
@@ -797,7 +805,7 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
   and relinks every missing original found under it, matching by file name and size, then by content hash, and reports N
   relinked and M still missing; it never errors on the ones it cannot match, and an error it does show names what failed.
   Test: a folder holding three moved files relinks three and reports none missing.
-- `importer.originals.missing-asks-in-an-alert` — **[OK]** (#7077, #5672; owner) a project with missing originals asks the person to act in an alert on the window, "Originals are missing" with the engine's one sentence and the buttons "Locate…" (opens the Locate Originals sheet) and "Not Now", once per project open and after the remembered folder has been tried (`OriginalsStore.offerOnce`, shown by `LocateOriginalsPresenter`). It is never a strip or banner at the top of the main window. File ▸ Locate Originals… and an item's menu still open the sheet at any time. Test: `fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift` (`offersOncePerOpen`, `locateFromTheAlert`).
+- `importer.originals.missing-asks-in-an-alert` — **[OK]** (#7077, #5672; owner) a project with missing originals asks the person to act in an alert on the window, "Originals are missing" with the engine's one sentence and the buttons "Locate…" (opens the Locate Originals sheet) and "Not Now", once per project open and after the remembered folder has been tried (`OriginalsStore.offerOnce`, shown by `LocateOriginalsPresenter`). It is never a strip or banner at the top of the main window. An offer that did not show because the Locate Originals sheet was already open is not counted as the open's offer. The Items pane keeps the count as a status line below the rows, which asks for nothing and stays after Not Now: the engine's sentence (`library.missingOriginals`) and the last relink's (`library.relinkSummary`), drawn by `MissingOriginalsCountLine` (`fichero/fichero/Views/Library/LocateOriginals.swift`). File ▸ Locate Originals… and an item's menu still open the sheet at any time. Test: `fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift` (`offersOncePerOpen`, `locateFromTheAlert`, `theCountOutlivesNotNow`, `theAlertWaitsForTheSheet`; Swift, not run on this branch: needs a compile). *Not tested:* the alert and the status line as drawn.
 - `importer.originals.retry-finds-and-relinks` — **[GAP]** (#6733; app + engine; owner 2026-11-19) a thumbnail that says "Original unavailable"
   offers Retry. Retry resolves the bookmark, then searches the last folder used and the library's known roots; on finding the
   original it relinks it and offers to relink the other K missing originals in that folder too. Test: Retry finds one and

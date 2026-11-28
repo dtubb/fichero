@@ -1393,6 +1393,10 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         deferred = isinstance(exc, (jobs.JobDeferred, ParkedOnStepRun, WorkflowPaused))  # it comes back: its run cap stays
         raise
     except Exception as exc:  # noqa: BLE001 -- a slip in the run's own plan ends it in plain words, its work kept (#6298)
+        from fichero_server.llm import failure
+
+        if failure.kind_of(exc)[0] == "library-closed":  # its project closed under it: the job's end pauses it in those words (#7088)
+            raise
         logger.exception("run %s: stopped on an error", job_id)
         raise RuntimeError("The run stopped on an error in Fichero. What it finished is kept, and Start carries on from there; "
                            "the log has the detail.") from exc
