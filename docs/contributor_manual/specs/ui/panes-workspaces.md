@@ -205,17 +205,30 @@ the Mail default. The Mail layout is just one composition the reliable system ca
 Findings from the creative director running the chat-in-sidebar build. Chat-in-sidebar
 itself works (committed c4a22c2b5). The rest are the workspace/pane defects to pin+fix.
 
-- `panes.chat.toggle-in-sidebar-top` — **[GAP]** (#4970) (→ #4705 increment 6; the side is superseded by
+- `panes.chat.toggle-in-sidebar-top` — **[OK]** (#4970) (→ #4705 increment 6; the side is superseded by
   #5292, `panes.sidebar.title-bar-holds-sidebar-chat-and-add`: Chat sits to the RIGHT) the chat show/hide toggle
   should sit at the TOP of the sidebar, beside the sidebar (panel) button — not the
   sparkles button in the main toolbar.
-- `panes.sidebar-button.in-sidebar-section` — **[GAP]** (#4735) the sidebar toggle button belongs IN
+  *Built under `shell.toolbar.ipad-matches-the-mac` and `panes.toolbar.sidebar-pair-once`:* the Chat button is one of
+  the Sidebar/Chat pair, drawn in the sidebar column's own bar while the column is up (`SidebarPairHome`,
+  `ContentView+SidebarButtons.swift`); the window toolbar has no Chat button except on an iPhone. *Test:*
+  `fichero/Tests/Unit/general/Models/SidebarColumnStateTests.swift::pairInSidebarWhileShown`,
+  `::macDeclaresPairOnlyInItsHome`.
+- `panes.sidebar-button.in-sidebar-section` — **[OK]** (#4735) the sidebar toggle button belongs IN
   the sidebar's own top-left section (Xcode-style), not floating in the main window toolbar's
   left group.
-- `panes.split.asymmetric` — **[GAP/BROKEN]** (#4669, #4737) splitting a preview vertically then horizontally
+  *Built under `panes.toolbar.sidebar-pair-once`:* the sidebar button is declared in the sidebar column's own toolbar
+  section while the column is up (`SidebarPairHome.declaredInColumn`, `ContentView.sidebarToolbarContent`). *Test:*
+  `fichero/Tests/Unit/general/Models/SidebarColumnStateTests.swift::macDeclaresPairOnlyInItsHome`,
+  `::pairInSidebarWhileShown`.
+- `panes.split.asymmetric` — **[OK]** (#4669, #4737) splitting a preview vertically then horizontally
   makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
   one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
   every sub-pane renders the same content. Needs nested/asymmetric split (part of F7).
+  *Built since:* a split made from the menus is stored in the pane list (`PaneList.splittingLeaf`), which nests a
+  split inside one half of a split in either direction and leaves the other half as it was, so two panes over one is a
+  list the model holds. *Test:*
+  `fichero/Tests/Unit/general/Models/PaneListIdentityTests.swift::splittingAnAlreadySplitPairLeavesTheOtherHalfUntouched`.
 - `panes.minimap-secondary-pane` — **[GAP]** (#1932) a secondary split pane can act as a MINIMAP
   of the primary — a zoomed-out overview, especially for the WebKit/KG view. The split/side-by-
   side half of this request is substantially covered already (`panes.split.asymmetric`,
@@ -245,7 +258,7 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `CustomizableToolbarContent` on macOS. *Test:*
   `fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift::aliasIsCustomizableOnMac`.
   No test proves that the sites use `toolbar(id:)`.
-- `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
+- `shell.search.always-visible-with-scope` — **[OK]** (#6729; owner 2026-11-19) search is one field
   in the toolbar; its magnifier menu has a **Search Scope** section with a check on the current scope,
   and the placeholder names it ("Search this page", "Search this document", "Search this folder", "Search this
   project", "Search everywhere"). **Built (manager ruling 2026-11-20):** the menu offers This Page, This Document,
@@ -257,7 +270,11 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift::menuHoldsWhatTheSecondButtonOffered`.
   The right inspector's minimum width keeps the field whole (f0d4698eb8). *Test:*
   `InspectorPaneWidthTests.swift::testTheInspectorMinimumKeepsTheSearchFieldWhole`.
-  **Not built:** a UI test that the field stays visible and focusable (⌘F) with the inspector narrow or closed.
+  *Left, now `shell.search.field-stays-visible-ui-test`:* a UI test that the field stays visible and focusable (⌘F) with the inspector narrow or closed.
+- `shell.search.field-stays-visible-ui-test` — **[GAP]** (#6729; app) split from
+  `shell.search.always-visible-with-scope` (manager 2026-11-27 retag); what that line left: a UI test that the field
+  stays visible and focusable (⌘F) with the inspector narrow or closed; Everywhere searching across libraries (it
+  sends the same call as This Project today). Not built.
 - `panes.claim.source-is-document` — **[OK]** (fixed b7be99143) the Claims Source column shows
   the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
   bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
@@ -353,12 +370,16 @@ starting a new one.
   toolbar; "open in a new window" should be one general capability reachable for any node
   (doc/page/artifact/attribute), consistent with the reader/inspector mini-toolbars. Not
   verified as built.
-- `panes.chrome.shared-surfacechrome-component` — **[GAP]** (#3530) the Reader/Inspector tab
+- `panes.chrome.shared-surfacechrome-component` — **[OK]** (#3530) the Reader/Inspector tab
   bar + bottom mini-toolbar + sub-tab pattern should be extracted into one reusable
   `SurfaceChrome` component set so Workflow/Chat/Agent/Research/Search can adopt the same
   chrome without re-deriving it. Verified at HEAD: no `SurfaceChrome`-named type exists
   anywhere under `fichero/fichero/` — `MiniToolbar`/`PaneFilterBar` are shared, but the tab-bar
   half of the pattern is not yet extracted.
+  *Built since that check:* the tab-bar half is `SurfaceTab` and `SurfaceTabBar` (`Views/Shell/SurfaceTabBar.swift`),
+  mounted by the Reader, the Inspector, the Workflow inspector, the batch run view and the research chat. *Test:*
+  `fichero/Tests/Unit/general/Views/Inspector/InspectorLayoutTests.swift` (`SurfaceChromeTests`:
+  `defaultAccessibilityID`, `readerTabConformsToSurfaceTab`).
 - `panes.toolbar.sidebar-pair-once` — **[PARTIAL]** (owner 2026-11-13, a screenshot of two pairs) the Sidebar/Chat
   pair (☰ ✦) is in the window toolbar ONCE: while the sidebar is up, in the sidebar column's own toolbar section
   beside the window controls; while it is hidden, as its own island beside Back/Forward. Seen 2026-11-13: with the
@@ -366,22 +387,26 @@ starting a new one.
   when the column collapses, next to the island. *Built:* `ContentView.sidebarToolbarContent` offers its item only
   while the sidebar is shown (`SidebarPairHome.declaredInColumn`, #6558). *Not built:* a look on screen. *Tests:*
   `Models/SidebarColumnStateTests.swift`.
-- `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
+- `panes.chrome.bars-do-not-name-the-selection` — **[OK]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
   repeats what is selected: the Inspector's Content, Info, Outline and Order bars carried the selected item's name
   (a test page) as their status line, which the pane head and the toolbar already say. The bar stays
   (every inspector sub-pane has one, the 2026-08-23 rule), with its controls and no name; a pane whose bar counts
   something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
-  status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*
+  status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not checked:* a look on screen. *Tests:*
   `Views/Inspector/InspectorBottomBarStatusTests.swift`.
-- `panes.chrome.command-scroll-zooms` — **[PARTIAL]** (owner 2026-11-13; #6672) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
+  *Test:* `fichero/Tests/Unit/general/Views/Inspector/InspectorBottomBarStatusTests.swift::emptyStatusIsNotDrawn`.
+- `panes.chrome.command-scroll-zooms` — **[OK]** (owner 2026-11-13; #6672) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
   zooms the view under the pointer wherever the view zooms by pinch: the Canvas already did (`CanvasScrollPan`, into the
   cursor), and now the Items' Icon grid (one 0.1 step per scroll, in the pinch's range) and, owner 2026-11-17 ("not just
   in canvas, but also in source reader/image/preview, icons"), the Source's page image, a PDF page and the Reader, by
   5% per scroll event in each one's own zoom range (`CommandScrollZoom.scaled`; small, because a Magic Mouse sends many
   events for one swipe). *Correction 2026-11-17:* this bullet said the page image already zoomed (`ScrollWheelZoom`);
   that view was never mounted, and the image did not zoom. Without ⌘ a scroll is a scroll. One modifier,
-  `View.commandScrollZoom` (`CommandScrollZoom`), for any view that joins. *Not built:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
-  the owner saw on the Canvas. *Tests:* `Views/Components/CommandScrollZoomTests.swift`.
+  `View.commandScrollZoom` (`CommandScrollZoom`), for any view that joins. *Left, now `panes.chrome.command-scroll-zooms-rows-and-folder-views`:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
+  the owner saw on the Canvas. *Tests:* `fichero/Tests/Unit/general/Views/Components/CommandScrollZoomTests.swift`.
+- `panes.chrome.command-scroll-zooms-rows-and-folder-views` — **[GAP]** (#6672; app) split from
+  `panes.chrome.command-scroll-zooms` (manager 2026-11-27 retag); what that line left: List and Table row size on a ⌘
+  scroll, the Source pane's folder views' zoom button (#26), the pinch lag the owner saw on the Canvas. Not built.
 - `panes.chrome.one-filter-pattern` — **[GAP]** (#4374) (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
   prompt's items 13 and 14) every list of items has ONE bottom bar, the same five controls in the same order:
   **+ · 🗑 · Metadata · Sort · Filter**. That is the sidebar, the Items pane in every view (List, Table, Icons,
@@ -423,20 +448,22 @@ starting a new one.
   `SidebarDestination.knowledgeCollection`); a narrowing that makes sense in a list becomes a Filter option
   (`panes.chrome.one-filter-pattern`). *Built:* the control (`LibraryContentKindControl`) is removed from
   `LibraryView.libraryPaneHead`, and its file deleted. *Not built:* a look on screen.
-- `panes.chrome.bar-buttons-accessory-style` — **[PARTIAL]** (#4880) (owner 2026-11-13, Xcode 26 as the reference) on macOS
+- `panes.chrome.bar-buttons-accessory-style` — **[OK]** (#4880) (owner 2026-11-13, Xcode 26 as the reference) on macOS
   every button and menu in a pane head or a bottom bar wears the accessory-bar style, a bezel on hover and a fill
   while pressed, as Xcode's navigator filter bar and jump bar do; iPad and iPhone keep today's borderless look. One
   choice for all of them, `View.paneBarButtonStyle()` / `paneBarMenuStyle()` (`PaneBarStyle.swift`), used by the
   sidebar bottom bar, the Library bottom bar, `PaneHead`, `PaneChromeMenu` and the Preview head's controls.
-  *Built:* the two modifiers and their call sites. *Not built:* a look on screen (hover the sidebar + and −, the
+  *Built:* the two modifiers and their call sites. *Not checked:* a look on screen (hover the sidebar + and −, the
   Library + and import, a pane head ✕ and +). *Tests:* `Views/Shell/PaneHead/PaneBarStyleTests.swift`.
-- `panes.chrome.bars-flush-on-mac` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS the bottom bars and the inspector strip
+  *Test:* `fichero/Tests/Unit/general/Views/Shell/PaneHead/PaneBarStyleTests.swift::onePlatformChoice`.
+- `panes.chrome.bars-flush-on-mac` — **[OK]** (#4880) (owner 2026-11-13) on macOS the bottom bars and the inspector strip
   are flat and opaque, in the pane's own background: no Liquid Glass island, no corner radius and nothing
   translucent, so rows scrolling beneath never show through the controls (owner 2026-11-13, a screenshot of the
   Items bar with its rows showing through) and the sidebar, Library and inspector bars read as one flat strip
   each, as Xcode's do; iPad and iPhone keep the floating glass. One rule,
   `PaneBarStyle.barIsFlush`, read by `PaneFilterBar`, `MiniToolbar`, the Library bottom bar and `SurfaceTabBar`.
-  *Built:* the rule and its four readers. *Not built:* a look on screen. *Tests:* `PaneBarStyleTests.swift`.
+  *Built:* the rule and its four readers. *Not checked:* a look on screen. *Tests:* `PaneBarStyleTests.swift`.
+  *Test:* `fichero/Tests/Unit/general/Views/Shell/PaneHead/PaneBarStyleTests.swift::barsFlushOnlyOnMac`.
 - `panes.chrome.bar-hairline-rule` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS every bottom bar draws exactly one
   hairline above it and every top strip one below it, always: `PaneFilterBar` draws its own by default on the Mac
   (`PaneBarStyle.barsDrawHairline`), the sidebar's bottom bar one above it, the Library's bottom bar keeps its one
@@ -467,10 +494,13 @@ Two more issues, redirected from the legacy "Library View" milestone while foldi
 behavior this spec already owns):
 
 - `ui.window.resizes-smoothly` — **[GAP]** (#6548; owner 2026-11-11) a live window resize keeps up with the pointer: every frame under 16 ms. Measured 2026-11-11 (`⏱ window live resize`): 62 frames averaging 87.6 ms, slowest 1554.9 ms; another drag averaging 371.2 ms, slowest 1893.0 ms.
-- `panes.double-click-focuses-current-window` — **[GAP]** (#3364) double-clicking a
+- `panes.double-click-focuses-current-window` — **[OK]** (#3364) double-clicking a
   sidebar/library item should focus/navigate in the CURRENT window by default; opening in a
   new window or tab stays reachable only from an explicit contextual command. Not verified
   as built.
+  *Built (checked 2026-11-27):* a double-click in the Items list opens the document in the current window
+  (`LibraryView.handleDoubleClick` calls `openDocument`, never `openDocumentInNewWindow`). *Test:*
+  `fichero/Tests/Unit/general/Views/Shell/SidebarSelectionTests.swift::libraryDoubleClickOpensInCurrentWindow`.
 - `panes.split.each-pane-its-own-document` — **[GAP]** (#4565, #2422) a split reader pane should be
   independently targetable to a different document (drag a doc into a pane, or a per-pane
   picker), with a clear control choosing "different doc per split" versus the existing
@@ -741,10 +771,15 @@ the browse→read flow down the centre.
   (`.inspector`, `.chat`) stay out of the list until they are real leaves (#4705, increments 6–7);
   the chat head gains the selector when chat becomes a pane. *Test:* a source guardrail that every
   pane head mounts `PaneKindSelector`, plus a pure test of `selectableKinds`.
-- `panes.split.independent-mode-per-pane` — **[BROKEN]** (#4720) each pane holds its own view mode;
+- `panes.split.independent-mode-per-pane` — **[OK]** (#4720) each pane holds its own view mode;
   changing one pane to Entities or Claims does not clear or convert the others. Today
   switching a pane's node-type to entity/claim in the entities view removes them from the
   other panes.
+  *Built under `kg.tables.pane-kind-mismatch` (`../kg/kg-tables.md`):* a pane's own kind, kept in its `PaneConfig`,
+  wins over the window's sidebar collection (`LibraryView.effectiveKind`), so one pane set to Entities or Claims
+  leaves the others as they are. *Test:*
+  `fichero/Tests/Unit/general/Views/Library/LibraryEffectiveContentKindTests.swift::explicitPaneKindWinsOverWindow`,
+  `::paneKindTakesPrecedenceOverLocalOverride`.
 - `panes.open-view-arbitrarily` — **[GAP]** (#4722) any pane can be set to any view mode (source /
   words / entities / claims / graph / inspector) directly, without routing through a
   document selection. Today there is no way to open an entity or claim view arbitrarily in
@@ -845,7 +880,7 @@ the browse→read flow down the centre.
   `NavigatorMiniMap.swift` (`Views/Preview/ImageViewer/`), which is an image-viewer zoom
   navigator inside a single pane (`preview-magnifier.md`'s territory) — not a second PANE
   showing an overview of a first one. Not built.
-- `panes.options-per-pane` — **[PARTIAL]** (#5233, #4689) (→ #5280, ruled 2026-10-01) each pane remembers its
+- `panes.options-per-pane` — **[OK]** (#5233, #4689) (→ #5280, ruled 2026-10-01) each pane remembers its
   own filter and metadata settings: two panes of one kind set different values and neither
   overwrites the other, and both survive a relaunch. A new pane starts from the last choice made
   anywhere, as a new Finder window does (`PaneStorage`: a pane-id → value map beside the shared
@@ -854,9 +889,13 @@ the browse→read flow down the centre.
   the Library's column visibility, sort by folder, dates lozenge and entity-kind filter (pinned by
   `fichero/Tests/Unit/general/Views/Library/LibraryOptionsPerPaneTests.swift`, which drives the real
   wrapper in two hosted panes and reads it back as a relaunch; the kind filter answers the hidden-kinds question above: per pane, and the Inspector
-  follows the last change made). Still per window: the table's column order and widths
+  follows the last change made). *Test:* `fichero/Tests/Unit/general/Views/Library/LibraryOptionsPerPaneTests.swift::testTwoPanesKeepTheirOwnValueAndBothSurviveARelaunch`, `::testANewPaneStartsFromTheLastChoiceMadeAnywhere`. *Left, now `panes.options-per-pane-still-shared`:* still per window: the table's column order and widths
   (`TableColumnCustomization`); still app-wide: icon scale, canvas colour-by and arrangement, the
   magnifier and loupe, and the Reader and Inspector toggles.
+- `panes.options-per-pane-still-shared` — **[GAP]** (#5233, #4689; app) split from `panes.options-per-pane` (manager
+  2026-11-27 retag); what that line left: per pane, the table's column order and widths (`TableColumnCustomization`,
+  per window today), and icon scale, canvas colour-by and arrangement and the Reader and Inspector toggles (app-wide
+  today). Not built.
 
 ### B. Cross-pane zoom & magnifier state
 
@@ -866,9 +905,13 @@ the browse→read flow down the centre.
 > MORE THAN ONE pane: whether each pane holds its own, and whether they sync. This spec owns the
 > plumbing; the preview spec owns the instrument.
 
-- `panes.magnifier.per-pane-open-state` — **[GAP]** (#5015, #4725) each pane's magnifier opens and closes
+- `panes.magnifier.per-pane-open-state` — **[OK]** (#5015, #4725) each pane's magnifier opens and closes
   independently — one pane magnified while another is not. (Pane-scoped state; the magnifier's
   own behavior is `preview-magnifier`.)
+  *Built under `magnifier.per-pane-switches` (`preview-magnifier.md`):* the magnifier's and the loupe's switches are
+  kept per pane (`@PaneOnlyStorage`), and the menu acts on the focused pane. *Test:*
+  `fichero/Tests/Unit/general/Views/PreviewMagnifierPerPaneShapeTests.swift::testThePreviewKeepsItsSwitchesPerPane`,
+  `::testTheMenuActsOnTheFocusedPaneNotASharedFlag`.
 - `panes.zoom.sync-across-panes` — **[GAP]** (#4726) when synchronization is on, zoom/magnification
   in one pane drives the corresponding region in the others (original ↔ words), so the loupe
   is shared; sync is toggleable, off by default. This is the ONE genuinely cross-pane magnifier
@@ -996,8 +1039,11 @@ the browse→read flow down the centre.
   `@SceneStorage` — the same capability #4732 already tracks here, not a second one.
 - `panes.reader.one-or-two-below-browser` — **[GAP]** (#4733) below the browser strip sit one or two
   readers (transcription / summary / metadata), driven by the browser selection.
-- `panes.source.full-height-right` — **[GAP]** (#4734) the source image occupies the full-height
+- `panes.source.full-height-right` — **[OK]** (#4734) the source image occupies the full-height
   right column by default.
+  *Built under `panes.layout.mail-default`:* the default workspace, Read, is the Items list over the Reader beside the
+  Source at the row's full height. *Test:*
+  `fichero/Tests/Unit/general/Views/Shell/BuiltInWorkspaceLayoutTests.swift::readIsLibraryOverReaderBesidePreview`.
 
 ### F. Maintainer test, 2026-09-19 morning
 
@@ -1006,12 +1052,19 @@ paired with the `panes.strip.fixed-extent-is-content-not-whole-pane` /
 `panes.split.peers-open-even` retags below, since both are the same "tested against sizing
 math, not a mounted pane" lesson.
 
-- `panes.visibility.hide-show-round-trip` — **[PARTIAL]** (#5027) hiding a kind keeps the
+- `panes.visibility.hide-show-round-trip` — **[OK]** (#5027) hiding a kind keeps the
   hidden leaves in `PaneList.hiddenPanes` (outside `nodes`, so counts and the renderer ignore
   them); showing the kind puts the SAME pane back (id, size, kind, style) at its old top-level
   index. A pane that sat inside a split returns at the end of the row, same id and config.
   Pinned by `PaneHideShowRoundTripTests`. Left: restoring into the original split; any other
   edit of the list (close, split) drops the stash.
+  *Test:* `fichero/Tests/Unit/general/Models/PaneHideShowRoundTripTests.swift::testHideThenShowReturnsTheSameList`,
+  `::testAMiddlePaneComesBackInTheMiddle`, `::testAPaneHiddenFromASplitReturnsWithItsIdAtTheEnd`. What is left is now
+  `panes.visibility.hidden-pane-returns-into-its-split`.
+- `panes.visibility.hidden-pane-returns-into-its-split` — **[GAP]** (#5027; app) split from
+  `panes.visibility.hide-show-round-trip` (manager 2026-11-27 retag); what that line left: a pane hidden from inside a
+  split returning into that split; the hidden panes surviving another edit of the list (a close or a split drops them
+  today). Not built.
 
 - `panes.model.per-pane-scope-and-kind-unread` — **[BROKEN]** (#4887) the pane MODEL already
   carries per-pane fields — `PaneScope` (`libraryId`, `documentId`, `folderId`) and
@@ -1039,9 +1092,12 @@ math, not a mounted pane" lesson.
   `panes.library.explicit-link-to-one-preview` / `panes.library.drag-to-connect` depend on —
   panes cannot be linked or unlinked while their live state is one window-wide value with no
   per-instance seam wired to the model field that already exists for it. Not built.
-- `panes.transcribe.strip-has-no-drag-bar` — **[GAP]** (#4876) the Transcribe workspace has no
+- `panes.transcribe.strip-has-no-drag-bar` — **[OK]** (#4876) the Transcribe workspace has no
   draggable divider between the bottom film strip and the panes stacked above it — every other
-  split in the pane system is a real `ResizableDivider`; this boundary is not. Not built.
+  split in the pane system is a real `ResizableDivider`; this boundary is not. *Built since (2026-09-20):* a strip's extent is a default, not a pin: a `.fixed` child takes a stored drag (`WorkspaceSplitStack`).
+  *Test:*
+  `fichero/Tests/Unit/general/Models/WorkspaceSplitStackIdentityTests.swift::everyPaneExtentLeafResolvesToFixedSizing`,
+  `::resolvedExtentsHonoursAStoredOverrideForAFixedChild`. The tests read the sizing, not a drawn divider.
 - `panes.transcribe.horizontal-two-rows-vertical-strip-left` — **[GAP, RULED]** (#4877) the
   workspace currently named "Transcribe · Tall" is wrong; the maintainer's ruling renames and
   reshapes it to **"Transcribe Horizontal"**: TWO ROWS, with a VERTICAL film strip on the
@@ -1057,16 +1113,25 @@ math, not a mounted pane" lesson.
   reading ] beside preview(image)`, §"The built-in workspaces" table above) is right as built;
   the maintainer confirmed it on screen and ruled it should not be touched. Pinned:
   `BuiltInWorkspaceLayoutTests` (Read composes exactly ONE library leaf, per the table above).
-- `panes.split.changing-one-leaf-kind-changes-whole-column` — **[BROKEN]** (#4878) splitting a
+- `panes.split.changing-one-leaf-kind-changes-whole-column` — **[OK]** (#4878) splitting a
   Preview pane into two and changing the BOTTOM pane's kind to Library changes the ENTIRE
   column, not only the bottom pane, and the pane footers stack (screenshot 8.30.25). Seen on
   screen this morning; expected is that changing one split half's kind changes only that pane.
   Prerequisite: `panes.model.per-pane-scope-and-kind-unread` above — a pane's kind/content
   cannot be independent of its siblings while the live state one window-wide value drives is
   the thing changing.
-- `panes.library.narrow-pushes-content-off-edge` — **[BROKEN]** (#4966, #4879) narrowing the left
+  *Built since (2026-09-20):* `PaneList.changingLeafKind` changes the one leaf it is given, in a split of a split too.
+  *Test:*
+  `fichero/Tests/Unit/general/Models/PaneListIdentityTests.swift::changingTheDuplicatesKindAfterASecondSplitIsIsolated`,
+  `fichero/Tests/Unit/general/Views/Shell/BuiltInWorkspaceLayoutTests.swift::changingLeafKindIsPerPane`. The tests
+  read the pane list, not a rendered column; the stacked footers are not tested.
+- `panes.library.narrow-pushes-content-off-edge` — **[OK]** (#4966, #4879) narrowing the left
   Library pane pushes its content off the left edge of the window instead of reflowing/
   shrinking it to the new width (screenshot 9.11.46). Seen on screen this morning.
+  *Built since:* the Icon grid's slot is clamped to the pane's width
+  (`LibraryView.iconGridItemBounds(scale:paneWidth:)`, `iconColumnCount`). *Test:*
+  `fichero/Tests/Unit/general/Views/Library/IconGridNarrowPaneTests.swift::testANarrowPaneShrinksTheSlotRatherThanOverflowing`,
+  `::testClampedBoundsNeverExceedThePaneWidth`.
 - `panes.chrome.head-and-footer-not-shared` — **[BROKEN]** (#4880) pane head bars and pane
   footer bars do not share one component: the Library's head/footer are slightly taller than
   Preview's and Reader's, and the Library's kind chooser has no down arrow while Preview's and
@@ -2055,9 +2120,9 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `shell.accessibility-labels` — **[GAP]** (#3691) every control and custom view has a meaningful accessibilityLabel, correct traits and grouping; icon-only buttons are labelled.
 - `shell.dynamic-type` — **[GAP]** (#3694) text scales with the system Larger Text setting using semantic styles, composing with the reader font-size override, without breaking layouts.
 - `shell.system-accessibility-settings` — **[GAP]** (#3695) Reduce Motion and Increase Contrast are honoured (only ImmersiveReaderView and SkeletonPlaceholder read reduce-motion today).
-- `panes.empty-state.blank` — **[PARTIAL]** (#5273) *Built 2026-10-17 (app), not yet seen:* an empty pane draws nothing a person reads (ruled 2026-10-11: empty panes blank, no text, no icon). `PaneEmptyStateView` and `PaneEmptyState.view` are clear views whose accessibility label says which pane it is and what would fill it, so VoiceOver still knows. *Test:* `PaneEmptyStateTests` (neither view draws a `Text`, `Label` or `ContentUnavailableView`). Supersedes `panes.empty-state.names-itself-first`.
+- `panes.empty-state.blank` — **[OK]** (#5273) *Built 2026-10-17 (app), not yet seen:* an empty pane draws nothing a person reads (ruled 2026-10-11: empty panes blank, no text, no icon). `PaneEmptyStateView` and `PaneEmptyState.view` are clear views whose accessibility label says which pane it is and what would fill it, so VoiceOver still knows. *Test:* `PaneEmptyStateTests` (neither view draws a `Text`, `Label` or `ContentUnavailableView`). Supersedes `panes.empty-state.names-itself-first`. *Test:* `fichero/Tests/Unit/general/Views/Shell/PaneEmptyStateTests.swift::emptyPanesAreBlank`.
 - `panes.island.path-of-icons-last-is-the-proxy` — **[GAP]** (#5274) the document island is a path of icon-plus-name segments with chevrons that collapses to an ellipsis and expands like Xcode's jump bar, and its last icon is the selection's draggable proxy (a count badge for several).
-- `panes.split-stack-scene-key-changes-only-with-the-pane-list` — **[BROKEN]** (#4994) WorkspaceSplitStack's SceneStorage key changes only when the pane list changes, so SwiftUI's 'may not change its key' warning does not flood the console.
+- `panes.split-stack-scene-key-changes-only-with-the-pane-list` — **[OK]** (#4994) WorkspaceSplitStack's SceneStorage key changes only when the pane list changes, so SwiftUI's 'may not change its key' warning does not flood the console. *Built:* the key is the stack's position in the tree alone and the stored value is keyed by pane id (`WorkspaceSplitStack.storageKey`). *Test:* `fichero/Tests/Unit/general/Models/WorkspaceSplitStackSizingTests.swift::storageKeyIsThePositionAlone`, `::storageKeyStableForOneList`, `::storedSizeDoesNotLeakAcrossWorkspaces`.
 - `panes.no-multi-second-main-thread-stalls` — **[GAP]** (#4997) pane and workspace changes never stall the main thread for seconds in SwiftUI graph updates (ContentView.mainContent, ObservationCenter.invalidate), measured by the stall sampler.
 - `panes.library-strip-scrolls-along-its-shape-only` — **[GAP]** (#5000) a bottom Library film strip scrolls horizontally only and a narrow side Library strip vertically only, following the pane's shape.
 - `panes.split.halves-open-equal-inside-their-slot` **[BROKEN]** (#5011): splitting a pane opens two equal halves, at any depth of nesting, and no pane's head, body or footer ever draws outside the slot its parent gives it. (The gap half was fixed in fa4f49ef7.)
@@ -2065,10 +2130,14 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `panes.visibility.show-brings-back-the-same-pane` **[BROKEN]** (#5027): hiding a pane and showing it again brings back the same pane, in its old place, at its old size, with its own kind and view, not a new pane at the end of the row.
 - `panes.head.kind-name-comes-from-the-kind` **[GAP]** (#5062): a pane head's kind chooser always shows the name of the kind the pane really is, because the name comes from the kind and is never passed separately.
 - `panes.inspector.sidebar-material` **[GAP]** (#5226): the Inspector column (and its tab strip) sits on the same translucent system material as the sidebar, as Xcode's inspector and NetNewsWire do, so both side columns look like one family in light and dark mode with text contrast intact.
-- `shell.inspector.toggle-reachable-on-ipad` **[PARTIAL]** (#6561; owner, on an iPad mini, 2026-11-12): on the iPad the Show/Hide Inspector button is in the content's navigation bar, beside the pane toggles, so the docked Inspector can be closed and brought back, as the Mac's toolbar button does. It used to be an item of the Inspector column's own toolbar, the Mac's place for it, and the iPad's docked column has no bar to draw it in. The Mac is unchanged. *Built:* `InspectorToggleHome` (the Mac's docked column, else the content bar), read by both toolbars. *Test:* `InspectorToggleHomeTests`.
-- `shell.toolbar.ipad-matches-the-mac` **[PARTIAL]** (#6563; owner, on an iPad mini, 2026-11-12): the iPad's bars carry what the Mac's toolbar does. The top of the sidebar has the Mac's Sidebar/Chat pair in place of the system toggle, and the pair moves to the content bar while the sidebar is hidden (`SidebarPairHome`; an iPhone keeps the system's own). The content bar has Back/Forward at its leading edge and search at its far right, with the search options as a submenu of the bar's overflow menu rather than a second loupe. The pane group has no Chat toggle wherever the pair is drawn. On the iPad the pair sits at the leading edge of the sidebar's bar and, with the sidebar hidden, at the content bar's leading edge ahead of Back/Forward, in the bar's own capsule; each glyph fits inside its pill (`.body` in 32 × 28 on iOS, `.title3` in 28 × 24 on the Mac). On iOS Show/Hide Items, Source and Reader are the Workspaces menu's first section, not a group in the bar (`PaneToggleHome`), so the bar reads Workspaces, the Inspector toggle, then search at the far right, and search stays whether the Inspector is open or not (owner, 2026-11-13). With that room the centre island is drawn on an iPad mini with both side columns open. *Not met:* the owner wants search in a capsule apart from the Inspector toggle; iPadOS keeps the "…" overflow button with search and draws the item before them in the same capsule, and no spacer, placement or pin parted them. When the bar is tight the Inspector toggle, search and the centre island stay, and the model chip, the bars capsule and the Workspaces menu overflow first; on the iPad the island is the bar's only centre item and its neighbours are secondary actions (`ContentView.islandNeighbourPlacement`). *Seen on the iPad 2026-11-12:* the pair, Back/Forward, search far right and the options in the overflow. *Test:* `SidebarColumnStateTests` (the pair's home), `ToolbarGroupingTests.exactlyFourPrincipalItems`.
+- `shell.inspector.toggle-reachable-on-ipad` **[OK]** (#6561; owner, on an iPad mini, 2026-11-12): on the iPad the Show/Hide Inspector button is in the content's navigation bar, beside the pane toggles, so the docked Inspector can be closed and brought back, as the Mac's toolbar button does. It used to be an item of the Inspector column's own toolbar, the Mac's place for it, and the iPad's docked column has no bar to draw it in. The Mac is unchanged. *Built:* `InspectorToggleHome` (the Mac's docked column, else the content bar), read by both toolbars. *Test:* `InspectorToggleHomeTests`. *Test:* `fichero/Tests/Unit/general/Views/Inspector/InspectorToggleHomeTests.swift::anIPadDockedInspectorIsToggledFromTheContentBar`, `::theMacDockedInspectorCarriesItsOwnToggle`.
+- `shell.toolbar.ipad-matches-the-mac` **[OK]** (#6563; owner, on an iPad mini, 2026-11-12): the iPad's bars carry what the Mac's toolbar does. The top of the sidebar has the Mac's Sidebar/Chat pair in place of the system toggle, and the pair moves to the content bar while the sidebar is hidden (`SidebarPairHome`; an iPhone keeps the system's own). The content bar has Back/Forward at its leading edge and search at its far right, with the search options as a submenu of the bar's overflow menu rather than a second loupe. The pane group has no Chat toggle wherever the pair is drawn. On the iPad the pair sits at the leading edge of the sidebar's bar and, with the sidebar hidden, at the content bar's leading edge ahead of Back/Forward, in the bar's own capsule; each glyph fits inside its pill (`.body` in 32 × 28 on iOS, `.title3` in 28 × 24 on the Mac). On iOS Show/Hide Items, Source and Reader are the Workspaces menu's first section, not a group in the bar (`PaneToggleHome`), so the bar reads Workspaces, the Inspector toggle, then search at the far right, and search stays whether the Inspector is open or not (owner, 2026-11-13). With that room the centre island is drawn on an iPad mini with both side columns open. *Not met:* the owner wants search in a capsule apart from the Inspector toggle; iPadOS keeps the "…" overflow button with search and draws the item before them in the same capsule, and no spacer, placement or pin parted them. When the bar is tight the Inspector toggle, search and the centre island stay, and the model chip, the bars capsule and the Workspaces menu overflow first; on the iPad the island is the bar's only centre item and its neighbours are secondary actions (`ContentView.islandNeighbourPlacement`). *Seen on the iPad 2026-11-12:* the pair, Back/Forward, search far right and the options in the overflow. *Test:* `fichero/Tests/Unit/general/Models/SidebarColumnStateTests.swift` (the pair's home), `fichero/Tests/Unit/general/Views/Shell/ToolbarGroupingTests.swift::exactlyFourPrincipalItems`. The item under Not met is now `shell.toolbar.ipad-search-in-its-own-capsule`.
+- `shell.toolbar.ipad-search-in-its-own-capsule` — **[GAP]** (#6563; app, iPadOS) split from
+  `shell.toolbar.ipad-matches-the-mac` (manager 2026-11-27 retag); what that line left: on the iPad, search in a
+  capsule apart from the Inspector toggle (iPadOS draws the item before the overflow button in the same capsule, and
+  no spacer, placement or pin parted them). Not built.
 - `shell.panes.ipad-row-fits-its-column` **[PARTIAL]** (#6564; owner, on an iPad mini, 2026-11-12): on the iPad a workspace's panes fit the content column between the sidebar and the Inspector: no pane is drawn narrower than its own head and bottom bar need, the flexing pane keeps a usable width, and every pane keeps its content inside its own frame, never over the sidebar or a neighbour. The Mac is unchanged (its window minimum keeps panes usable). *Built:* `WorkspaceSplitStack.minPerPane(onIOS:)` (160 on iOS, 48 on the Mac) and `flexMinimum(onIOS:)` (220, 48), and each child clipped to its frame. *Seen on the iPad 2026-11-12:* Browse's icon strip went from about 80 to about 160 points. *Not met:* the strip's head row is still wider than 160 points and is clipped at both ends. *Test:* `WorkspaceSplitStackFlexMinimumTests`.
-- `shell.panes.ipad-bars-at-the-bottom-edge` **[PARTIAL]** (#6570; owner, on an iPad mini, 2026-11-13): on the iPad each column's bottom bar (the sidebar's, each pane's, the Inspector's) sits at the screen's bottom edge, as the Mac's do, not about 20 points above it for the home indicator; the iPhone keeps that margin. *Built:* `BottomSafeAreaPolicy`, applied at the root of each split-view column and the Inspector (the split view keeps a safe area per column, so a modifier outside them changed nothing). *Seen on the iPad 2026-11-13.* *Test:* `BottomSafeAreaPolicyTests`.
+- `shell.panes.ipad-bars-at-the-bottom-edge` **[OK]** (#6570; owner, on an iPad mini, 2026-11-13): on the iPad each column's bottom bar (the sidebar's, each pane's, the Inspector's) sits at the screen's bottom edge, as the Mac's do, not about 20 points above it for the home indicator; the iPhone keeps that margin. *Built:* `BottomSafeAreaPolicy`, applied at the root of each split-view column and the Inspector (the split view keeps a safe area per column, so a modifier outside them changed nothing). *Seen on the iPad 2026-11-13.* *Test:* `BottomSafeAreaPolicyTests`. *Test:* `fichero/Tests/Unit/general/Views/Shell/BottomSafeAreaPolicyTests.swift::theIPadRunsIntoTheBottomEdge`, `::theIPhoneKeepsItsBottomMargin`, `::theMacIsUnchanged`.
 - `panes.click-answers-in-its-own-frame` **[GAP]** (#5253): a click in the Reader, the Inspector, the Segments pane, a Preview page turn or a pane-kind switch changes the clicked thing in the same frame; whatever follows (another pane, an image, an engine call) comes after, with a visible loading state if it takes more than a moment. Each seam is timed in InteractionProfile. (The Library half landed in 12c9c23ef, 261485d4c.)
 - `panes.sidebar.title-bar-holds-sidebar-chat-and-add` **[GAP]** (#5292): the sidebar's title-bar area holds, left to right, Show/Hide Sidebar fixed at the far left, Show/Hide Chat beside it, and a large + pull-down carrying New Folder and Import ▸ Link, Copy, Move Files…; when the sidebar hides, Chat and + go with it and the sidebar button stays put. (Orders the chat button right of the sidebar button, unlike `panes.chat.toggle-in-sidebar-top`.)
 - `panes.head.kind-picker-matches-the-view-menu` **[GAP]** (#5297): the pane head's view picker lists Icons, List, Table and Columns as the View menu now does (ruled 2026-09-30 and built there in 1762871ce): each with its icon and a native checkmark, in shortcut order.
