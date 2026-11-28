@@ -441,13 +441,14 @@ starting a new one.
   `SidebarDestination.knowledgeCollection`); a narrowing that makes sense in a list becomes a Filter option
   (`panes.chrome.one-filter-pattern`). *Built:* the control (`LibraryContentKindControl`) is removed from
   `LibraryView.libraryPaneHead`, and its file deleted. *Not built:* a look on screen.
-- `panes.chrome.bar-buttons-accessory-style` — **[PARTIAL]** (#4880) (owner 2026-11-13, Xcode 26 as the reference) on macOS
+- `panes.chrome.bar-buttons-accessory-style` — **[OK]** (#4880) (owner 2026-11-13, Xcode 26 as the reference) on macOS
   every button and menu in a pane head or a bottom bar wears the accessory-bar style, a bezel on hover and a fill
   while pressed, as Xcode's navigator filter bar and jump bar do; iPad and iPhone keep today's borderless look. One
   choice for all of them, `View.paneBarButtonStyle()` / `paneBarMenuStyle()` (`PaneBarStyle.swift`), used by the
   sidebar bottom bar, the Library bottom bar, `PaneHead`, `PaneChromeMenu` and the Preview head's controls.
-  *Built:* the two modifiers and their call sites. *Not built:* a look on screen (hover the sidebar + and −, the
+  *Built:* the two modifiers and their call sites. *Not checked:* a look on screen (hover the sidebar + and −, the
   Library + and import, a pane head ✕ and +). *Tests:* `Views/Shell/PaneHead/PaneBarStyleTests.swift`.
+  *Test:* `fichero/Tests/Unit/general/Views/Shell/PaneHead/PaneBarStyleTests.swift::onePlatformChoice`.
 - `panes.chrome.bars-flush-on-mac` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS the bottom bars and the inspector strip
   are flat and opaque, in the pane's own background: no Liquid Glass island, no corner radius and nothing
   translucent, so rows scrolling beneath never show through the controls (owner 2026-11-13, a screenshot of the
