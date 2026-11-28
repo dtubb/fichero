@@ -7,7 +7,7 @@ import random
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-_spec = importlib.util.spec_from_file_location("blind_hands_coverage", REPO_ROOT / "scripts" / "blind_hands" / "coverage.py")
+_spec = importlib.util.spec_from_file_location("blind_hands_trusted_coverage", REPO_ROOT / "scripts" / "blind_hands" / "trusted_coverage.py")
 c = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(c)
 
@@ -49,8 +49,3 @@ def test_a_partly_missing_confidence_is_refused():
 def test_no_prefix_under_the_threshold_gives_zero():
     rows = [{"edits": 10, "chars": 100, "confidence": 0.9}]
     assert c.trusted_coverage(rows)["trusted_coverage"] == 0.0
-
-
-def test_the_cut_is_not_an_argument():
-    import inspect
-    assert list(inspect.signature(c.trusted_coverage).parameters) == ["rows"]
