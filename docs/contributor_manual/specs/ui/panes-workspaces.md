@@ -1095,13 +1095,18 @@ math, not a mounted pane" lesson.
   reading ] beside preview(image)`, §"The built-in workspaces" table above) is right as built;
   the maintainer confirmed it on screen and ruled it should not be touched. Pinned:
   `BuiltInWorkspaceLayoutTests` (Read composes exactly ONE library leaf, per the table above).
-- `panes.split.changing-one-leaf-kind-changes-whole-column` — **[BROKEN]** (#4878) splitting a
+- `panes.split.changing-one-leaf-kind-changes-whole-column` — **[OK]** (#4878) splitting a
   Preview pane into two and changing the BOTTOM pane's kind to Library changes the ENTIRE
   column, not only the bottom pane, and the pane footers stack (screenshot 8.30.25). Seen on
   screen this morning; expected is that changing one split half's kind changes only that pane.
   Prerequisite: `panes.model.per-pane-scope-and-kind-unread` above — a pane's kind/content
   cannot be independent of its siblings while the live state one window-wide value drives is
   the thing changing.
+  *Built since (2026-09-20):* `PaneList.changingLeafKind` changes the one leaf it is given, in a split of a split too.
+  *Test:*
+  `fichero/Tests/Unit/general/Models/PaneListIdentityTests.swift::changingTheDuplicatesKindAfterASecondSplitIsIsolated`,
+  `fichero/Tests/Unit/general/Views/Shell/BuiltInWorkspaceLayoutTests.swift::changingLeafKindIsPerPane`. The tests
+  read the pane list, not a rendered column; the stacked footers are not tested.
 - `panes.library.narrow-pushes-content-off-edge` — **[BROKEN]** (#4966, #4879) narrowing the left
   Library pane pushes its content off the left edge of the window instead of reflowing/
   shrinking it to the new width (screenshot 9.11.46). Seen on screen this morning.
