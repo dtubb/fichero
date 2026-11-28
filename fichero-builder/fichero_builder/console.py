@@ -1236,6 +1236,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         _LANDING_BUSY.release()
                 threading.Thread(target=refresh, daemon=True).start()
             return _json(self, 200, _LANDING.get("data") or {"ts": None, "branches": [], "computing": True})
+        if path == "/api/history":  # builder-console.history.all-time-index: the History page, from the index (?range=30|90|all)
+            from urllib.parse import parse_qs, urlparse
+            from fichero_builder import history
+            rng = (parse_qs(urlparse(self.path).query).get("range") or ["30"])[0]
+            try:
+                return _json(self, 200, history.views(rng if rng in history.RANGES else "30"))
+            except Exception as e:  # noqa: BLE001 - no duckdb, or no index yet
+                return _json(self, 503, {"error": f"the history index is not ready: {e}"[:300]})
         if path == "/api/issues":
             return _json(self, 200, {"issues": issues_today(journal.read_cached(), repo_url(ROOT))})
         if path == "/api/release":

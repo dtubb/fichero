@@ -114,3 +114,49 @@ def query(sql: str, params: list | None = None) -> list[dict]:
         cur = connect().execute(sql, params or [])
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+RANGES = {"30": 30, "90": 90, "all": None}  # the history pages: 30 days by default, 90 days and All a click away (manager 2026-11-28)
+
+
+def views(rng: str = "30", today: str = "") -> dict:
+    """The console's History page over a range: a day a bucket for 30 and 90 days, a week a bucket for All. Landings, cost (by
+    model), checks (green and red), alerts by kind (the text before its first `;`, numbers masked, as the Alerts page groups them),
+    per-rung times, and per-lane totals."""
+    days = RANGES.get(rng, 30)
+    unit = "week" if days is None else "day"
+    since = "TIMESTAMP '1970-01-01'" if days is None else (f"(DATE '{today}' - INTERVAL {days - 1} DAY)" if today else f"(current_date - INTERVAL {days - 1} DAY)")
+    b = f"strftime(date_trunc('{unit}', ts), '%Y-%m-%d')"
+    w = f"ts >= {since}"
+    first = query(f"SELECT {b} b FROM rows WHERE {w} AND ts IS NOT NULL ORDER BY ts LIMIT 1")
+    last = query(f"SELECT {b} b FROM rows WHERE {w} AND ts IS NOT NULL ORDER BY ts DESC LIMIT 1")
+    if not first:
+        return {"range": rng, "unit": unit, "buckets": [], "landings": [], "cost": {}, "checks": {}, "alerts": {}, "rungs": [], "lanes": []}
+    buckets = [r["b"] for r in query(f"SELECT strftime(g, '%Y-%m-%d') b FROM generate_series(date_trunc('{unit}', TIMESTAMP '{first[0]['b']}'), "
+                                     f"TIMESTAMP '{last[0]['b']}', INTERVAL 1 {unit}) t(g)")]
+
+    def series(sql: str, key: str = "") -> dict | list:
+        got = query(sql)
+        if not key:
+            m = {r["b"]: r["v"] for r in got}
+            return [round(m.get(x) or 0, 2) for x in buckets]
+        out: dict = {}
+        for r in got:
+            out.setdefault(r[key] or "?", {})[r["b"]] = r["v"]
+        return {k: [round(v.get(x) or 0, 2) for x in buckets] for k, v in out.items()}
+    kind = "regexp_replace(split_part(json_extract_string(raw, '$.what'), ';', 1), '[0-9]+', 'N', 'g')"
+    top_kinds = [r["k"] for r in query(f"SELECT {kind} k, count(*) n FROM alerts WHERE {w} GROUP BY k ORDER BY n DESC LIMIT 6")]
+    secs = "COALESCE(seconds, TRY_CAST(json_extract(raw, '$.wall_s') AS DOUBLE))"
+    return {
+        "range": rng, "unit": unit, "buckets": buckets,
+        "landings": series(f"SELECT {b} b, count(*) v FROM landed WHERE {w} AND step = 'done' GROUP BY b"),
+        "cost": series(f"SELECT {b} b, model, sum(usd) v FROM costs WHERE {w} GROUP BY b, model", "model"),
+        "checks": series(f"SELECT {b} b, CASE WHEN ok THEN 'green' ELSE 'red' END r, count(*) v FROM checks WHERE {w} AND ok IS NOT NULL GROUP BY b, r", "r"),
+        "alerts": {k: v for k, v in series(f"SELECT {b} b, {kind} k, count(*) v FROM alerts WHERE {w} GROUP BY b, k", "k").items() if k in top_kinds},
+        "rungs": query(f"SELECT json_extract_string(raw, '$.rung') rung, count(*) n, round(avg({secs}), 1) mean, round(quantile_cont({secs}, 0.9), 1) p90, "
+                       f"round(100.0 * avg(CASE WHEN ok = false THEN 1 ELSE 0 END), 1) red_pct FROM rows "
+                       f"WHERE {w} AND event = 'activity' AND state = 'rung' GROUP BY rung ORDER BY sum({secs}) DESC NULLS LAST"),
+        "lanes": query(f"SELECT lane, count(*) FILTER (WHERE event = 'landed' AND step = 'done') landings, round(sum(usd) FILTER (WHERE event = 'cost'), 2) usd, "
+                       f"count(*) FILTER (WHERE event = 'queue' AND state = 'red') reds FROM rows WHERE {w} AND lane IS NOT NULL AND lane <> '-' "
+                       f"GROUP BY lane HAVING landings > 0 OR usd > 0 ORDER BY landings DESC, usd DESC NULLS LAST"),
+    }

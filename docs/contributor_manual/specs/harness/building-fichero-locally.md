@@ -3058,7 +3058,10 @@ rungs, waits, and lands with others after one train. Tests: `fichero-builder/tes
   time) (`history.py`) — every journal row (the owner's, the archive months', and the worker's run rows) goes into one DuckDB
   table `rows` in `<state>/history.duckdb`, with its common fields and the whole row as JSON, and one view per kind; the console
   is its one writer and adds only the bytes appended since its last pass, every 30 s; nothing is ever dropped (first build of
-  the 102 MB journal 15.5 s, a pass 0.13 s, a query under 50 ms). Tests: `fichero-builder/tests/test_history_index.py`.
+  the 102 MB journal 15.5 s, a pass 0.13 s). The History tab (`GET /api/history?range=30|90|all`) shows landings, cost by model,
+  checks and alerts by kind per day (per week for All), the rungs' runs, mean, p90 and red share, and each lane's landings, cost
+  and red rounds; 30 days by default, 90 days and All a click away; each range answers in under 200 ms on that journal. Tests:
+  `fichero-builder/tests/test_history_index.py`.
 - `builder-console.tailnet.owner-only` [OK] (owner 2026-11-28: testing builds on other devices) (`console.py` `_host_ok`) —
   the console behind `tailscale serve` (tailnet only, no funnel) answers a Host named in `[console].tailnet_hosts` only for
   a request that came through serve (its peer is loopback) and whose `Tailscale-User-Login` is `[console].tailnet_owner`;

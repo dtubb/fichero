@@ -524,6 +524,29 @@ function Progress({ st }) {
     </div>`;
 }
 
+// builder-console.history.all-time-index: the builder's history from the index; 30 days by default, 90 days and All a click away
+function History() {
+  const [rng, setRng] = useState("30");
+  const d = useApi(`/api/history?range=${rng}`, rng);
+  const pick = html`<div class="seg" style="display:inline-flex;margin-left:10px">${[["30", "30 days"], ["90", "90 days"], ["all", "All"]].map(([r, n]) =>
+    html`<button aria-pressed=${rng === r} onClick=${() => setRng(r)}>${n}</button>`)}</div>`;
+  if (!d) return html`<h2>History ${pick}</h2><p class="muted">Loading…</p>`;
+  if (d.error) return html`<h2>History ${pick}</h2><p class="muted">${d.error}</p>`;
+  const many = obj => Object.entries(obj).map(([name, values], i) => ({ name, values, color: name === "green" ? "var(--green)" : name === "red" ? "var(--red)" : COLORS[i % COLORS.length] }));
+  const per = d.unit === "week" ? "per week" : "per day";
+  return html`<h2>History ${pick} <span class="muted" style="font-weight:400">${d.buckets.length} ${d.unit}s</span></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px">
+      <${Chart} title=${`Landings ${per}`} labels=${d.buckets} kind="bar" series=${[{ name: "landings", values: d.landings, color: "var(--green)" }]} />
+      <${Chart} title=${`Cost ${per}, USD, by model`} labels=${d.buckets} kind="bar" series=${many(d.cost)} />
+      <${Chart} title=${`Checks ${per}`} labels=${d.buckets} kind="bar" series=${many(d.checks)} />
+      <${Chart} title=${`Alerts ${per}, by kind`} note="the six most frequent kinds" labels=${d.buckets} kind="bar" series=${many(d.alerts)} />
+    </div>
+    <h3>Rungs</h3><table><tr><th>rung</th><th>runs</th><th>mean s</th><th>p90 s</th><th>red %</th></tr>
+      ${d.rungs.map(r => html`<tr class="row"><td class="mono">${r.rung}</td><td>${r.n}</td><td>${r.mean}</td><td>${r.p90}</td><td>${r.red_pct}</td></tr>`)}</table>
+    <h3>Lanes</h3><table><tr><th>lane</th><th>landings</th><th>cost USD</th><th>red rounds</th></tr>
+      ${d.lanes.map(l => html`<tr class="row"><td class="mono">${l.lane}</td><td>${l.landings}</td><td>${l.usd ?? 0}</td><td>${l.reds}</td></tr>`)}</table>`;
+}
+
 function App() {
   const st = useStatus();
   const [msg, setMsg] = useState("");
@@ -538,7 +561,7 @@ function App() {
   return html`
     <div class="toolbar">
       <h1>Builder</h1>
-      <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["progress", "Progress"], ["manager", "Manager"], ["log", "Log"]].map(([t, n]) =>
+      <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["progress", "Progress"], ["history", "History"], ["manager", "Manager"], ["log", "Log"]].map(([t, n]) =>
         html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}${t === "alerts" && st.alerts.count ? html` <span class=${"pill " + (st.alerts.owner_count ? "orange" : "")} title=${`${st.alerts.count} open alert(s) under a day old, ${st.alerts.owner_count} yours`}>${st.alerts.count}</span>${st.alerts.owner_count ? html` <span class="pill orange">${st.alerts.owner_count} yours</span>` : ""}` : ""}</button>`)}</div>
       <span class="spacer"></span>
       ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
@@ -567,8 +590,8 @@ function App() {
         return (q || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${q ? `${q} lane(s) with a question` : ""}
           ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>` : ""; })()}
       ${(st.open_questions || []).length > 0 && html`<h2>Questions</h2><div class="alerts">${st.open_questions.map(q => html`<div class="alert"><div><b class="mono">${q.lane} ${q.step}</b></div><div class="what">${q.question}</div></div>`)}</div>`}
-      ${{ progress: Progress, manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
-        ? html`<${{ progress: Progress, manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
+      ${{ progress: Progress, history: History, manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]
+        ? html`<${{ progress: Progress, history: History, manager: Manager, now: Now, log: Log, alerts: AlertsPage, milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release, review: Review }[tab]} st=${st} />`
         : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
     </main>`;
 }
