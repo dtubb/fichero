@@ -1402,10 +1402,29 @@ def configure(root) -> None:
         pass
 
 
+HISTORY_S = 30  # the history index's incremental pass, this often
+
+
+def _history_loop() -> None:
+    """The history index kept current (owner 2026-11-28): this process is its one writer. A pass that fails is one row, then tried again."""
+    from fichero_builder import history
+    said = False
+    while True:
+        try:
+            history.update(ROOT)
+            said = False
+        except Exception as e:  # noqa: BLE001 - the console goes on without history
+            if not said:
+                journal.append("console", who="-", verb="history", ok=False, state="failed", detail=str(e)[-300:])
+                said = True
+        time.sleep(HISTORY_S)
+
+
 def main(a) -> int:
     configure(a.root)
     threading.Thread(target=_auto_refresh, daemon=True).start()
     threading.Thread(target=lambda: rows_of(ROOT), daemon=True).start()  # the journal parsed once now, so the first page is quick
+    threading.Thread(target=_history_loop, daemon=True).start()
     srv = server("127.0.0.1", a.port)
     print(f"the builder console at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")
     try:

@@ -13,6 +13,9 @@ readme = "README.md"
 requires-python = ">=3.11"  # queue.py imports tomllib
 dependencies = []
 
+[project.optional-dependencies]
+history = ["duckdb>=1.4"]  # the console's history index (fichero_builder/history.py); everything else stays stdlib-only
+
 [project.scripts]
 builder = "fichero_builder.__main__:main"
 
