@@ -370,14 +370,23 @@ says a model's trade-off on its row; these say the same once, where the choice i
   wrote"), and marks the steps whose errors carry furthest (the earliest model steps) with "check first". The
   line is the engine's, from the job registry's reads and writes (`source.recipe.steps-work-alone-in-order`).
   *Test:* `test_chain_risk_on_ready.py`.
-- `designer.how.what-to-check` [PARTIAL] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
+- `designer.how.what-to-check` [OK] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
   gains one block, "What to check": for each model step that ran, the pages the engine is least sure of (lowest
   certainty for a CTC reader; highest insertion rate against Kraken's reading, or the lines the order check
   re-asked, for a vision-language reader), at most five, opened in the Reader by one press; a deterministic step
   lists its proposals instead (`prep.check.worklist-of-proposals-and-a-sample` (G)). *Test:*
   `test_what_to_check_after_a_run.py`. Built 2026-11-02 (engine): `recipes/what_to_check.least_sure` names up to five pages by the lowest mean
   certainty of their read lines, in the run summary's `what_to_check`, when Read ran; a vision-language reader's pages (insertion rate, order check)
-  and a deterministic step's proposals have no figure yet and are not listed. The app (Swift, not compiled): the Read card lists them as buttons that open the page (`ActivityDetails+ToCheck.swift`, `ToCheckRowsTests.swift`). Left: the other readers' figures.
+  and a deterministic step's proposals have no figure yet and are not listed. The app (Swift, not compiled): the Read card lists them as buttons that open the page (`ActivityDetails+ToCheck.swift`, `ToCheckRowsTests.swift`). *Left, now `designer.how.what-to-check-other-readers`:* the other readers' figures.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_what_to_check_after_a_run.py::test_the_least_sure_pages_come_first_and_at_most_five`,
+  `fichero-server/tests/unit/recipes/test_what_to_check_after_a_run.py::test_a_page_with_no_certainty_is_never_named`,
+  `fichero/Tests/Unit/general/Models/ToCheckRowsTests.swift::rows`,
+  `fichero/Tests/Unit/general/Models/ToCheckRowsTests.swift::none`.
+- `designer.how.what-to-check-other-readers` [GAP] (#6052; app) — split from `designer.how.what-to-check` (manager
+  2026-11-27 retag); what that line left: the pages to check for a vision-language reader (highest insertion rate
+  against Kraken's reading, or the lines the order check re-asked), a deterministic step's proposals, and a list for
+  each model step that ran (only Read's card lists them). Not built.
 
 **Improves.**
 - `designer.path.cards-are-the-routes` [MISSING] (#6052) — the page shows the routes from `routes.py`
@@ -1771,7 +1780,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: S
 
 #### Step 19.5 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`, `designer.budget.running-run-reads-its-booked-cost`, `designer.budget.cap-stop-says-the-booked-figure`
+- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`, `designer.budget.running-run-reads-its-booked-cost`, `designer.budget.cap-stop-says-the-booked-figure`, `designer.how.what-to-check-other-readers`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.4
 - Size: M
