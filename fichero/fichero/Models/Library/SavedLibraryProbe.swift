@@ -18,8 +18,8 @@ nonisolated enum SavedLibraryProbe {
 
     static func answers(
         for paths: [String],
-        timeout: TimeInterval = SavedLibraryProbe.timeout,
-        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        timeout: TimeInterval,
+        exists: @escaping @Sendable (String) -> Bool,
         late: @escaping @Sendable (_ path: String, _ exists: Bool) -> Void
     ) -> [String: Answer] {
         let asked = Set(paths)
