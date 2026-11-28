@@ -16,9 +16,9 @@
 > `fichero-server/src/fichero_server/`). Also grounded in two prior read-only
 > reviews carried into this spec as design evidence (not re-verified line-by-line
 > here; flagged where a claim may have drifted since 2026-07-29/2026-08-02):
-> `agent-work/reviews/workflow-results-review.md` (results/provenance/activity
-> architecture review) and `agent-work/reviews/2026-08-02-node-editor-fabel-review.md`
-> (canvas edge-legality review). See "Sources folded in" at the end.
+> the workflow results review of 2026-07-29 (results/provenance/activity
+> architecture review) and the node-editor review of 2026-08-02
+> (canvas edge-legality review), both working notes since deleted. See "Sources folded in" at the end.
 >
 > Tags: **[OK]** true today · **[BROKEN]** regression, code contradicts the
 > intent · **[GAP]** intended, never built · **[PROPOSED]** decided here, not
@@ -704,12 +704,12 @@ files triaged `MERGE-INTO-SPEC → Workflows` in
 `INVENTORY_mode_specs.md` §3/§5, and to list which are now superseded (a report
 only when written; the tracked notes named here were read again and deleted in November 2026):
 
-- `agent-work/reviews/2026-08-02-node-editor-fabel-review.md` — **superseded**
+- The node-editor review of 2026-08-02 (a working note, since deleted) — **superseded**
   for its Finding 1 (edge-legality divergence) and Finding 2 (fabricated
   fallback ports), both carried into §A above as `[BROKEN]`/`[BROKEN-partial]`
   behaviors. Its Finding 3 (no tests assert canvas/engine agreement) is carried
   into this spec's Test matrix as the pure-policy-first recommendation.
-- `agent-work/reviews/workflow-results-review.md` — **superseded** for its §2
+- The workflow results review of 2026-07-29 (a working note, since deleted) — **superseded** for its §2
   P0/P1 findings (F1–F11) folded into §C `workflows.run.*` behaviors above, and
   its §3 target-design sections (results surfacing, provenance-first artifact
   browser, per-step trace, activity model) which back the `[GAP]` tags and the
@@ -718,14 +718,11 @@ only when written; the tracked notes named here were read again and deleted in N
   (artifact ordering, default-workflow duplication F15, AI-tier/preflight
   gaps F16, LangChain observability F17, sub-workflow DB-vs-JSON drift F18,
   stubbed E2E tests F19, activity-plumbing races F20) are evidence for this
-  spec's `[GAP]`s but the review itself remains the fuller citation — kept in
-  agent-work as the detailed record.
-- `agent-work/reviews/workflow-issue-drafts.md` — **not superseded**: it is the
-  issue-draft source for many of the ISSUE numbers cited above (#4312 and its
-  siblings were filed from this document per its own commit trail); it remains
-  the readable narrative behind those issue numbers and should stay in
-  agent-work as backlog-drafting history, not be folded verbatim into this
-  spec.
+  spec's `[GAP]`s; with the review deleted, the issues cited beside those `[GAP]`s are the record.
+- The workflow issue drafts (a working note, since deleted) — the issue-draft
+  source for many of the ISSUE numbers cited above (#4312 and its siblings were filed
+  from it); the issues are the record, and the drafts were not folded into
+  this spec.
 - The text-workflows exercise report (a working note, since deleted) — **partially folded**: its
   quality findings (programmatic cleaner destroying tally-page numbers,
   DeepL host/quota misdiagnosis, translation prompt trailing-space tune,

@@ -7,7 +7,7 @@
 
 > **Status: APPROVED by the owner 2026-11-14 (the six rulings in the last section folded into the bullets they decide;
 > owner request 2026-11-14: a spec for how the code is organised and kept tidy, and a review of the tree against it; the
-> review is `agent-work/reviews/code-organization-review-2026-11-14.md`, the first-wave briefs `agent-work/briefs/code-org/`).**
+> review is `agent-work/reviews/code-organization-review-2026-11-14.md`, the first-wave briefs, G0, V1, G1, G2, P1 and S5, were run and are deleted; what each built is in the bullets below).**
 > Tags: **[OK]** built and enforced · **[PARTIAL]** a guard exists, the rule is wider than it checks · **[GAP]** a rule with no
 > guard. Issues: #1944 (folders), #1945 (dead files), #1941 (Xcode registration), #4446 (lint ratchet), #1915 (comment
 > hygiene), #3040 (shell size), #2569 (routes grouping), #2566 (engine package reorg), #6318 (`--since` guards).
