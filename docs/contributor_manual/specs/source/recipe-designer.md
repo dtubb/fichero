@@ -214,7 +214,7 @@ what the material is (handwriting, print, typescript, text: `answers.materials`,
 engine measures faded pages from a sample by itself (`source.onboard.auto.prepare-damaged-images` (P),
 `recipes/prepare.py`); nothing asks about damage, and the Prepare Images questions are two with fixed defaults
 (`recipes/stages.py`; `prep.setup.three-questions-suggested-from-a-sample` (G)).
-- `designer.material.condition-asked` [PARTIAL] (#6052, #6295; engine built: `recipes/condition.py`, `answers.condition`, `GET /api/recipes/questions`; the app's tick boxes are built behind `wideSetUp`, `RecipeConditionFields`, not yet seen in a build) — About the Material
+- `designer.material.condition-asked` [OK] (#6052, #6295; engine built: `recipes/condition.py`, `answers.condition`, `GET /api/recipes/questions`; the app's tick boxes are built behind `wideSetUp`, `RecipeConditionFields`, not yet seen in a build) — About the Material
   asks, under the kind of material, "What condition are the pages in?": tick boxes, none ticked by default,
   from one engine list (`GET /api/recipes/questions`): faded ink · torn or missing parts · stains · show-through
   from the other side · water damage · tight binding (text curves into the gutter) · ruled or printed lines
@@ -222,6 +222,15 @@ engine measures faded pages from a sample by itself (`source.onboard.auto.prepar
   `answers.condition` (a list, refused in words for an unknown id, kept as a list of none). *Test:*
   `test_condition_answers.py` (the list is the engine's; an unknown id is
   refused; none ticked saves an empty list, never a default).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_the_list_has_a_name_and_one_line_of_help_each`,
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_the_questions_route_serves_that_list`,
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_an_unknown_id_is_refused_naming_the_valid_list`,
+  `fichero-server/tests/unit/recipes/test_condition_answers.py::test_none_ticked_saves_an_empty_list_and_unasked_saves_nothing`,
+  `fichero/Tests/Unit/general/Models/RecipeConditionTests.swift::toggling`,
+  `fichero/Tests/Unit/general/Models/RecipeConditionTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeConditionTests.swift::decoding`. The list holds seven ids; the photocopy is
+  `designer.material.condition-photocopy` (#6486), which is not in it.
 - `designer.material.condition-suggested-from-a-sample` [PARTIAL] (#6052; engine half built: `prepare_suggest.suggest` answers `condition.faded`, `condition.show-through`, `condition.ruled-lines` with "from N of M sample pages"; tight binding waits for the gutter-curve measure; the app does not show them yet) — the engine ticks a condition
   beforehand only when its sample measure says so (faded from `recipes/prepare.py`'s grey spread; show-through
   from the mirrored-verso match and tight binding from the gutter curve of
