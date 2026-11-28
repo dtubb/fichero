@@ -14,6 +14,9 @@ final class OriginalsStore {
 
     /// The missing originals, or nil when none are (or before they are read).
     private(set) var missing: Components.Schemas.MissingOriginals?
+    /// The last answer for the whole project; a folder's read never writes it. The at-open relink and the alert
+    /// read this one, so a folder's answer arriving in between does not decide them (#7077).
+    private(set) var projectMissing: Components.Schemas.MissingOriginals?
     /// What relinking to the chosen folder would do, before it is done.
     private(set) var plan: Components.Schemas.RelinkPlan?
     /// The folder chosen, for the plan and the relink.
@@ -37,6 +40,9 @@ final class OriginalsStore {
     @ObservationIgnored lazy var recallRoot: () -> URL? = { [client] in
         RememberedOriginalsRoot.recall(project: client.currentLibraryPath)
     }
+    /// The alert offering Locate… / Not Now is showing (#7077).
+    var isOffering = false
+    private var offered = false
     /// A missing original has asked for the project's originals this run; the remembered folder has been tried.
     private var askedThisRun = false
     private var triedRememberedRoot = false
@@ -46,6 +52,22 @@ final class OriginalsStore {
         cancel()
         self.folderId = folderId
         isChoosing = true
+    }
+
+    /// At open, once: when originals are missing, offer Locate… in an alert. Returns whether it offered.
+    @discardableResult
+    func offerOnce() -> Bool {
+        guard !offered, (projectMissing?.pages ?? 0) > 0 else { return false }
+        offered = true
+        isOffering = true
+        return true
+    }
+
+    func declineOffer() { isOffering = false }
+
+    func locateFromOffer() {
+        isOffering = false
+        begin()
     }
 
     init(client: FicheroClient) {
@@ -61,7 +83,9 @@ final class OriginalsStore {
             if case .ok(let success) = try await client.api.missingOriginalsApiDocumentsMissingOriginalsGet(
                 query: .init(folderId: folderId)
             ) {
-                missing = try success.body.json
+                let answer = try success.body.json
+                missing = answer
+                if folderId == nil { projectMissing = answer }
             }
         } catch {
             if error.isCancellationError { return }
@@ -153,7 +177,7 @@ final class OriginalsStore {
     /// it relinked.
     @discardableResult
     func relinkFromRememberedRoot(actionsService: ActionsService, steps: WindowSteps?) async -> Bool {
-        guard !triedRememberedRoot, (missing?.pages ?? 0) > 0 else { return false }
+        guard !triedRememberedRoot, (projectMissing?.pages ?? 0) > 0 else { return false }
         triedRememberedRoot = true
         guard let root = recallRoot() else { return false }
         await choose(root)
