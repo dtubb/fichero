@@ -560,6 +560,7 @@ manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answ
 researcher = { provider = "claude-code", model = "sonnet" }
 # owner 2026-11-18: a lane runs its worker on this role (`builder queue add --role maintainer-fable`); its handoff mark is 85 % of `context`
 maintainer-fable = { provider = "claude-code", model = "sonnet", context = 200000 }  # owner 2026-11-28: new week, the lanes on this role write with Sonnet; was claude-fable-5-2[1m] 1M (11-27)
+spec-fable = { provider = "claude-code", model = "claude-fable-5-2[1m]", context = 1000000 }  # owner 2026-11-28: "a fable spec and review" (platform-floor and research specs)
 
 [models.display]
 # the name the `Written-By:` trailer carries for each model alias a worker is started with (agent-profiles.trailer.one-line);
