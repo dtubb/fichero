@@ -31,9 +31,13 @@ from tests._real_state_guard import skip_without_embedding_model
 
 @pytest.fixture(autouse=True)
 def _models_dir_in_tmp(tmp_path, monkeypatch):
-    """Where the embedding model is absent, loading it makes its cache folder; keep that under tmp_path."""
+    """Where the embedding model is absent, loading it makes its cache folder; keep that under tmp_path. The cached models are
+    linked in, one link each, so the tests that embed for real still find the model (2026-11-28: the 5 of them were red on the
+    Air and the Pro with "Could not load model ... from any source"); a new entry, such as fastembed's tmp, stays here."""
     from fichero_server.llm import local_models
+    from tests._real_state_guard import share_real_embedding_cache
 
+    share_real_embedding_cache(tmp_path / "models")
     monkeypatch.setattr(local_models, "MODELS_BASE", tmp_path / "models")
 
 
