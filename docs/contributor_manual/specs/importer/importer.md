@@ -544,18 +544,6 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   size, its checksum and its source date at import, which is what Locate Originals matches on (`ingest_file`,
   `_extract_file_metadata`, `importers/ingest.py`; `relink_plan`, `importers/relink.py`;
   `fichero-server/tests/unit/importers/test_locate_originals_5672.py`).
-- `importer.originals.missing-asks-in-an-alert` — **[PARTIAL]** (#7077; Locate Originals #5672) app. A project
-  opened with originals missing asks in an alert on its window, "Some originals are not where the project says",
-  with the engine's sentence and two buttons, Locate… (opens the Locate Originals sheet) and Not Now. It asks once
-  for an open of the project, after the remembered folder has been tried (`transfer.machine.originals-relinked-from-one-grant`);
-  nothing missing asks nothing, and an ask that did not show (Locate Originals already open) is not counted. There is
-  no strip with a button above the rows. The Items pane keeps the count as a status line below the rows (the
-  engine's sentence, `library.missingOriginals`; the last relink's sentence, `library.relinkSummary`), which stays
-  after Not Now (`OriginalsStore.askInAlertOnce`, `LocateOriginalsPresenter`, `MissingOriginalsCountLine`,
-  `fichero/fichero/Views/Library/LocateOriginals.swift`). Acceptance: with 92 pages missing the first ask puts the
-  alert up and a second ask in the same open does not, and the count is still held after Not Now; with nothing
-  missing, or the sheet open, no alert (`fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift`, Swift, unrun:
-  needs compile). *Not tested:* the alert and the status line as drawn.
 - `importer.originals.copy-is-a-clone-on-the-same-disk` — **[OK]** a copy import onto the disk the files are on takes
   no extra space (`_try_apfs_clone`, `_verify_copied`, `importers/ingest.py`): measured, 500 pages and 1.9 GB copied
   in 35.5 s with the disk's used space unchanged but for the thumbnails; the stored path is relative to the
@@ -817,7 +805,7 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
   and relinks every missing original found under it, matching by file name and size, then by content hash, and reports N
   relinked and M still missing; it never errors on the ones it cannot match, and an error it does show names what failed.
   Test: a folder holding three moved files relinks three and reports none missing.
-- `importer.originals.missing-asks-in-an-alert` — **[OK]** (#7077, #5672; owner) a project with missing originals asks the person to act in an alert on the window, "Originals are missing" with the engine's one sentence and the buttons "Locate…" (opens the Locate Originals sheet) and "Not Now", once per project open and after the remembered folder has been tried (`OriginalsStore.offerOnce`, shown by `LocateOriginalsPresenter`). It is never a strip or banner at the top of the main window. File ▸ Locate Originals… and an item's menu still open the sheet at any time. Test: `fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift` (`offersOncePerOpen`, `locateFromTheAlert`).
+- `importer.originals.missing-asks-in-an-alert` — **[OK]** (#7077, #5672; owner) a project with missing originals asks the person to act in an alert on the window, "Originals are missing" with the engine's one sentence and the buttons "Locate…" (opens the Locate Originals sheet) and "Not Now", once per project open and after the remembered folder has been tried (`OriginalsStore.offerOnce`, shown by `LocateOriginalsPresenter`). It is never a strip or banner at the top of the main window. An offer that did not show because the Locate Originals sheet was already open is not counted as the open's offer. The Items pane keeps the count as a status line below the rows, which asks for nothing and stays after Not Now: the engine's sentence (`library.missingOriginals`) and the last relink's (`library.relinkSummary`), drawn by `MissingOriginalsCountLine` (`fichero/fichero/Views/Library/LocateOriginals.swift`). File ▸ Locate Originals… and an item's menu still open the sheet at any time. Test: `fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift` (`offersOncePerOpen`, `locateFromTheAlert`, `theCountOutlivesNotNow`, `theAlertWaitsForTheSheet`; Swift, not run on this branch: needs a compile). *Not tested:* the alert and the status line as drawn.
 - `importer.originals.retry-finds-and-relinks` — **[GAP]** (#6733; app + engine; owner 2026-11-19) a thumbnail that says "Original unavailable"
   offers Retry. Retry resolves the bookmark, then searches the last folder used and the library's known roots; on finding the
   original it relinks it and offers to relink the other K missing originals in that folder too. Test: Retry finds one and
