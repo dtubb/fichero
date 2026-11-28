@@ -31,4 +31,17 @@ final class ItemPagesTests: XCTestCase {
     func testTheWindowStartsOnSource() {
         XCTAssertEqual(WindowState(libraryId: UUID()).compactItemPage, .source)
     }
+
+    /// A header tap or a VoiceOver adjust slides the pager only when Reduce Motion is off. Read from the source: the
+    /// setting is an environment value, and no view is mounted here.
+    func testAPageChangeDoesNotSlideWithReduceMotionOn() throws {
+        let shell = try AppSource.root().appendingPathComponent("Views/Shell/ContentView")
+        let pages = try String(
+            contentsOf: shell.appendingPathComponent("Layout/Compact/ContentView+CompactItemPages.swift"), encoding: .utf8
+        )
+        XCTAssertTrue(pages.contains("withAnimation(reduceMotion ? nil : .default)"))
+        XCTAssertFalse(pages.contains("withAnimation {"))
+        let view = try String(contentsOf: shell.appendingPathComponent("ContentView.swift"), encoding: .utf8)
+        XCTAssertTrue(view.contains("@Environment(\\.accessibilityReduceMotion) var reduceMotion"))
+    }
 }
