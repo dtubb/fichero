@@ -109,6 +109,7 @@ def test_alerts_are_a_badge_count_and_a_page_grouped_by_kind_with_old_ones_folde
     assert st["alerts"] == {"count": 3, "owner_count": 1}
     page = _page()
     assert '["alerts", "Alerts"]' in page and "st.alerts.count" in page, "a tab and a badge"
+    assert ">${st.alerts.owner_count} yours</span>" in page, "the owner's count is text beside the badge, not only its colour or hover"
     app = page[page.index("function App()"):]
     assert "<${Alerts}" not in app.replace("alerts: Alerts", "") and "Resolved" not in app, "no page opens with the alert cards"
 

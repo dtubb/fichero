@@ -539,7 +539,7 @@ function App() {
     <div class="toolbar">
       <h1>Builder</h1>
       <div class="seg">${[["lanes", "Lanes"], ["now", "Now"], ["alerts", "Alerts"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"], ["review", "Review"], ["progress", "Progress"], ["manager", "Manager"], ["log", "Log"]].map(([t, n]) =>
-        html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}${t === "alerts" && st.alerts.count ? html` <span class=${"pill " + (st.alerts.owner_count ? "orange" : "")} title=${`${st.alerts.count} open alert(s) under a day old, ${st.alerts.owner_count} yours`}>${st.alerts.count}</span>` : ""}</button>`)}</div>
+        html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}${t === "alerts" && st.alerts.count ? html` <span class=${"pill " + (st.alerts.owner_count ? "orange" : "")} title=${`${st.alerts.count} open alert(s) under a day old, ${st.alerts.owner_count} yours`}>${st.alerts.count}</span>${st.alerts.owner_count ? html` <span class="pill orange">${st.alerts.owner_count} yours</span>` : ""}` : ""}</button>`)}</div>
       <span class="spacer"></span>
       ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
       ${build && html`<span class="muted">${build.state === "ended" ? (build.ok ? "Build done" : "Build failed") : "Building…"}</span>`}
