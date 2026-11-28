@@ -110,6 +110,7 @@ def test_fewer_than_twelve_shards_is_no_usable_run(repo, tmp_path, monkeypatch):
     ran = []
     _fa(repo, head, cfg(), _local(ran))
     assert ran == [1]
+    assert _origin_has(tmp_path, head), "the push comes before the wait: the head is on origin although the rung ran locally"
     assert "11 of 12" in (tmp_path / "journal.jsonl").read_text()
 
 
@@ -133,6 +134,7 @@ def test_no_run_in_time_runs_the_rung_locally_with_one_journal_row(repo, tmp_pat
     rows = [json.loads(x) for x in (tmp_path / "journal.jsonl").read_text().splitlines()]
     why = [x for x in rows if x.get("state") == "actions-local" and x["rung"] == "unit"]
     assert len(why) == 1 and "0 of 12 engine jobs" in why[0]["reason"]
+    assert _origin_has(tmp_path, head), "the push comes before the wait: the head is on origin although the rung ran locally"
 
 
 def test_a_run_for_another_sha_is_refused(repo, tmp_path, monkeypatch):
@@ -141,6 +143,7 @@ def test_a_run_for_another_sha_is_refused(repo, tmp_path, monkeypatch):
     ran = []
     _fa(repo, head, cfg(), _local(ran))
     assert ran == [1]
+    assert _origin_has(tmp_path, head), "the push comes before the wait: the head is on origin although the rung ran locally"
 
 
 def test_a_run_still_in_progress_is_not_a_pass(repo, tmp_path, monkeypatch):
@@ -149,6 +152,7 @@ def test_a_run_still_in_progress_is_not_a_pass(repo, tmp_path, monkeypatch):
     ran = []
     _fa(repo, head, cfg(), _local(ran))
     assert ran == [1]
+    assert _origin_has(tmp_path, head), "the push comes before the wait: the head is on origin although the rung ran locally"
 
 
 def test_a_gh_that_fails_runs_locally_with_the_reason(repo, tmp_path, monkeypatch):
@@ -157,6 +161,7 @@ def test_a_gh_that_fails_runs_locally_with_the_reason(repo, tmp_path, monkeypatc
     ran = []
     _fa(repo, head, cfg(), _local(ran))
     assert ran == [1]
+    assert _origin_has(tmp_path, head), "the push comes before the wait: the head is on origin although the rung ran locally"
     assert "no network" in (tmp_path / "journal.jsonl").read_text()
 
 
