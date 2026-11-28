@@ -263,23 +263,23 @@ def traverse(
     # Breadth first, one depth at a time: the links of a whole depth's nodes and the statements they point at are read in two
     # queries, and only a NAME is asked for the statements mentioning it (a statement's id is never a name's, so asking for
     # each statement was an empty query a node: 1,841 queries for a busy name at depth 2, perf-optimize 2026-11-27).
-    frontier: list[tuple[str, bool]] = [(entity_id, True)]  # (node id, is it an entity)
+    frontier: list[str] = [entity_id]  # only the root, at depth 0, is a name
 
     cut = False
     for current_depth in range(max_depth):
         if not frontier or cut:
             break
         links_of: dict[str, list[KnowledgeClaimLink]] = {}
-        for link in db.query_in(KnowledgeClaimLink, "claim_id", [node_id for node_id, _ in frontier]):
+        for link in db.query_in(KnowledgeClaimLink, "claim_id", frontier):
             links_of.setdefault(link.claim_id, []).append(link)
         targets = {
             c.id: c for c in db.query_in(KnowledgeClaim, "id", [link.related_claim_id for links in links_of.values() for link in links])
         }
-        next_frontier: list[tuple[str, bool]] = []
-        for current_id, is_entity in frontier:
+        next_frontier: list[str] = []
+        for current_id in frontier:
             if cut:
                 break
-            if include_claims and is_entity:
+            if include_claims and current_depth == 0:
                 room = max(TRAVERSE_NODE_LIMIT - len(nodes), 0)
                 claim_ids = db.claim_ids_mentioning([current_id], room + 1)
                 if len(claim_ids) > room:
@@ -300,7 +300,7 @@ def traverse(
                                 ),
                             },
                         ))
-                        next_frontier.append((claim.id, False))
+                        next_frontier.append(claim.id)
                     edges.append(TraverseEdge(
                         source=current_id, target=claim.id,
                         type="mentioned_in", depth=current_depth + 1,
@@ -324,7 +324,7 @@ def traverse(
                         "relation": link.relation_type.value,
                     },
                 ))
-                next_frontier.append((target.id, False))
+                next_frontier.append(target.id)
                 edges.append(TraverseEdge(
                     source=current_id, target=target.id,
                     type=link.relation_type.value,
