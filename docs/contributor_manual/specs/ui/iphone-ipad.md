@@ -289,7 +289,7 @@ paging. The screens, in order:
   the header or by Back. On the phone the page first ships as look-and-select (tap a segment, read its text below); the
   drawing tools (Brush, Knife, Marker, Order) stay on the Mac and the iPad until the owner asks for them on the phone.
   Tests: `IOSItemPagesUITests.swift` (a horizontal drag on Segments leaves Segments showing).
-- `ios.item.next-and-previous-item` — **[GAP]** (#6566; → #6947; Open question 6) the sideways swipe is taken by the pages, so
+- `ios.item.next-and-previous-item` — **[GAP]** (built: the inline picture's swipe no longer turns the image at compact width (`PageSwipe.turnsImage`, `PageSwipeTests.swift`). Not built: the two buttons, so on the iPhone the only ways to the next or previous item are Back and the list, the VoiceOver actions "Previous image" and "Next image" on the picture, and a swipe in the full-screen view) (#6566; → #6947; Open question 6) the sideways swipe is taken by the pages, so
   the next and previous item in the folder are two buttons at the bottom of the item view (and VoiceOver actions), which
   replace the item in place: the path's last step changes, nothing is pushed, Back still returns to the folder, and the
   page stays the same page. Tests: `CompactPathTests.swift`.
