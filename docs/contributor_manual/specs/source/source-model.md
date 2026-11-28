@@ -461,7 +461,7 @@ level it was made for.
   from its heading, recorded with its status and conflicts. Not built: the heading as a date mention
   on its line.* The page's date is a date mention on the heading's line, and the document's date
   columns are worked out from it.
-- `source.extract.date-run-taken-back` — **[PARTIAL]** (#5597) a run's writes to a document's date
+- `source.extract.date-run-taken-back` — **[OK]** (#5597) a run's writes to a document's date
   are recorded under the run and undone when the run is taken back, as its readings are. *Built:
   Work Out Dates writes a page's four date columns only through the audited, undoable
   `document.write_extracted_date` action under the run's id (`date_extract._write_date`); undoing
@@ -471,9 +471,13 @@ level it was made for.
   replace it is kept and says so, and a date a person (or a later run) set after the run is kept
   when the run is taken back. Redo puts the run's date back. Tests:
   `fichero-server/tests/unit/workflows/test_date_run_taken_back_5597.py` (the shipped preset through
-  the real runner; the person's date and the take-back through the routes). Left: the run's `dates`
+  the real runner; the person's date and the take-back through the routes). Left, now
+  `source.extract.date-run-artifacts-taken-back`: the run's `dates`
   artifacts are still saved bare and stay after a take-back; taking a whole run back as one step
   is #5245.*
+- `source.extract.date-run-artifacts-taken-back` — **[GAP]** (#5597) split from
+  `source.extract.date-run-taken-back` (manager 2026-11-27 retag); what that line left: the run's `dates`
+  artifacts are still saved bare and stay after a take-back; taking a whole run back as one step is #5245.
 - `source.extract.entries-are-units` — **[PARTIAL]** (#5467; #5601) *Built: entry nodes with a
   date, a region and a prototype. Built (#5601): on a page tied to its lines, the one splitter
   (`diary_entries.split_pages_into_entries`) records the lines each entry covers, in order
@@ -1263,7 +1267,7 @@ action record holding a researcher's words is ruled out.
 - (#4638) Design-first brief for edition kinds/methodologies/export formats; edition picker tracked in archival-data-model-plan.md (P4), full methodology model is Future
 
 ## Triaged from the backlog (2026-10-04)
-- `source.store.every-model-registered` — **[GAP]** (#5055) every persisted model is in `Database._all_schema_models`, so a library open creates every table and index.
+- `source.store.every-model-registered` — **[OK]** (#5055) every persisted model is in `Database._all_schema_models`, so a library open creates every table and index. *Built (under #5178): a guard reads the engine's code for every model it saves, gets or queries and fails on one that is not declared. Test:* `fichero-server/tests/unit/db/test_every_used_model_is_declared.py::test_every_model_the_engine_stores_is_declared`.
 - `source.store.saved-is-found-after-a-crash` — **[OK]** (#5644) what a run saved is found after the engine was killed mid-work: a page's segment pass and its lines are listed, its run's activity is found, and a library damaged before the fix opens repaired, once. DuckDB 1.4–1.5.6 writes stale secondary indexes at the first checkpoint after replaying a WAL (`scripts/repro_duckdb_wal_index.py`); the first open of a file after a crash rebuilds them in `core/duckdb_session.py::connect_utc`, whoever opens it. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_pages_segments_are_listed_after_the_engine_was_killed`, `::test_the_activity_store_opening_first_finds_a_crashed_runs_rows`, `::test_a_library_damaged_before_the_fix_is_repaired_once` (a real engine process killed mid-write).
 - `source.store.one-managed-database` — **[PARTIAL]** (#5645) a library's stores keep their rows as registered
   models through the library's one managed `Database` (one connection, one lock, opened through `connect_utc`), not
@@ -1323,5 +1327,5 @@ action record holding a researcher's words is ruled out.
   next statement and cannot open a second `Database` on the file for it to write through outside the transaction.
   `close_all` takes each `Database` out of the manager's table before it closes it, as `close_database` does. Tests:
   `fichero-server/tests/unit/db/test_a_closed_database_stays_closed_6238.py::test_a_statement_after_close_is_refused_and_opens_nothing`, `::test_a_library_closed_inside_a_transaction_opens_no_second_database`.
-- `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
+- `source.store.fresh-open-invariant` — **[OK]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists. *Built: the guard reads the catalog of a freshly opened library. Tests:* `fichero-server/tests/unit/db/test_fresh_open_invariant.py::test_no_registered_model_is_missing_its_table`, `::test_nothing_declared_is_missing`, `::test_opening_twice_keeps_every_declared_index`.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

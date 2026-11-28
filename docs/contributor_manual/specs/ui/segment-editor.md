@@ -371,7 +371,7 @@ targets are at least 44 pt.
   the whole selection one image pixel, ⇧ ten, ⌥⇧ a hundred; with a pressed point, the point
   alone (built). A held key gathers into one action, committed when the key is released or
   after half a second of stillness (`undo.typing.commit-is-one-step` applied to keys).
-- `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
+- `segment-editor.make-region-from-lines` — **[OK]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
   (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
   union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
   the region takes the lines' own parent, so lines inside a region that keeps other lines make a region nested in it; when the
@@ -380,9 +380,11 @@ targets are at least 44 pt.
   region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
   each is the other's undo: undoing a group deletes the region (and brings back the region it emptied), undoing an ungroup
   brings the same region back with the same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
-  *Tests:* `test_segment_group_lines.py` (including the emptied region's delete, undo and redo); `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
-  *Not built:* the new region open for its type; the region in orders other than `as-written`; the existing marquee path "New Region from
+  *Tests:* `fichero-server/tests/unit/api/test_segment_group_lines.py` (including the emptied region's delete, undo and redo); `fichero-server/tests/unit/api/test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `fichero/Tests/Unit/general/Views/Preview/SegmentGroupLinesTests.swift`.
+  *Left, now `segment-editor.make-region-opens-for-its-type`:* the new region open for its type; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
+- `segment-editor.make-region-opens-for-its-type` — **[GAP]** (#6737; app + engine) split from `segment-editor.make-region-from-lines`
+  (manager 2026-11-27 retag); what that line left: the new region open for its type; the region in orders other than `as-written`. Not built.
 - `segment-editor.make-region-in-every-menu` — **[OK]** (#6737, #7070; app) Make Region from Lines (two or more selected
   segments) and Ungroup Region (a selected region) are in every menu that lists the verbs: the Segment menu, the page's
   context menu and `SegmentVerbMenu` (the Order list's row menu and the Reader's line menu); a verb that cannot apply is
@@ -586,7 +588,7 @@ targets are at least 44 pt.
 
 See section 7.2 below for what exists. The design:
 
-- `segment-editor.char-positions-kept` — **[PARTIAL]** (→ #5154; engine) when Kraken reads a line, the recogniser's
+- `segment-editor.char-positions-kept` — **[OK]** (→ #5154; engine) when Kraken reads a line, the recogniser's
   per-character cuts are kept on the reading as `char_positions` (the fraction of the baseline's
   length at which each character starts, in the frame the line was read in) beside
   `char_confidences`, so every later cut can be measured instead of guessed. A reading from a
@@ -601,7 +603,9 @@ See section 7.2 below for what exists. The design:
   drawn). *Built 2026-11-21:* the full-page read's writer: `recognize_to_geometry` keeps each line's positions on
   its box (trimmed with the text), and converting the result into a pass puts them on the line's reading when there
   is one per character (`fichero-server/tests/unit/llm/test_full_page_read_keeps_char_positions.py`).
-  *Not built:* the app's `Reading` model. *Tests:* `test_kraken_char_positions.py`.
+  *Left:* `segment-editor.char-positions-on-the-reading-model`. *Tests:* `fichero-server/tests/unit/llm/test_kraken_char_positions.py`.
+- `segment-editor.char-positions-on-the-reading-model` — **[GAP]** (→ #5154; app) split from `segment-editor.char-positions-kept`
+  (manager 2026-11-27 retag); what that line left: the app's `Reading` model. Not built: no Swift file names `char_positions`.
 - `segment-editor.cut-words-from-positions` — **[PARTIAL]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
   a page, derives word segments from the counting reading: each space in the text is a gap
   between two characters; the cut is the point on the baseline midway between the end of the
@@ -646,7 +650,7 @@ See section 7.2 below for what exists. The design:
   into words at all and says why. *Built (2026-11-13):* `line_cut.cuts_from_ink_gaps` (the profile
   along the chord of the baseline, gaps a seventh of the line's height, confidence at most 0.4);
   a line with too few gaps is left alone and named. *Tests:* `fichero-server/tests/unit/api/test_segment_cut_words.py::TestFallback`.
-- `segment-editor.cut-records-source-and-confidence` — **[PARTIAL]** (→ #5212; engine) every word and character made by a cut
+- `segment-editor.cut-records-source-and-confidence` — **[OK]** (→ #5212; engine) every word and character made by a cut
   carries `cut_source` (`ctc`, `ink-gap`, `person`), `cut_confidence` (0 to 1; the recogniser's
   character confidence at the cut for `ctc`, the gap measure for `ink-gap`, 1 for `person`) and
   the reading it was cut from, in the segment's metadata, so a later pass, the Check lens and an
@@ -657,7 +661,7 @@ See section 7.2 below for what exists. The design:
   *Built 2026-11-21:* the engine for a cut a person adds: `segment.split` with a `cut_path` across a word marks both
   pieces `cut_source: person` with confidence 1 and the reading they were cut from
   (`test_segment_move_cut.py::test_a_cut_added_inside_a_word_splits_its_stretch_of_the_reading_at_the_nearest_character`).
-  *Not built:* the app's click that sends it. Needs an on-screen check.
+  *Left to `segment-editor.cut-marks-editable`:* its "click that adds a cut", which sends this.
   *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`,
   `fichero-server/tests/unit/api/test_segment_move_cut.py`.
 - `segment-editor.cut-marks-editable` — **[PARTIAL]** (→ #5212; app + engine) in the word layer each cut is a short mark
@@ -895,7 +899,7 @@ See section 7.2 below for what exists. The design:
   for the prepared one, the transform, since ALTO and PAGE have no place for it. *Built:*
   storage in the upright frame; the carry for Kraken, YOLO and crops. *Not built:* the app
   naming the shown rendition on a create or update; the export choice and its loss-report line.
-- `segment-editor.corrections-train` — **[PARTIAL]** (→ #4947; engine; ties to `../compute/training-and-evaluation.md`)
+- `segment-editor.corrections-train` — **[OK]** (→ #4947; engine; ties to `../compute/training-and-evaluation.md`)
   a corrected page's working pass, with its lines, baselines, outlines, regions and order, is
   what the Kraken training set writes (`training/kraken_set.py`); word and character cuts made
   or confirmed by a person are included as PAGE `Word` / `Glyph` so a recogniser trained on
@@ -905,8 +909,11 @@ See section 7.2 below for what exists. The design:
   *Built 2026-11-21:* the set (a full PAGE export) carries regions, words and glyphs; a word or glyph whose `custom`
   names a machine's cut (`cut {source:ctc|ink-gap}`) is left out (`kraken_set.drop_flagged_lines`), a person's cut
   and a word no cut made stay (`fichero-server/tests/unit/training/test_training_set_keeps_a_persons_cuts.py`).
-  *Not built:* an option to include a machine's cuts, the manifest counting the cuts left out, the YOLO label from
-  corrected regions.
+  *Built under `prep.yolo.fine-tune-from-corrected-regions`:* the YOLO label from corrected regions (`persons_regions`;
+  `fichero-server/tests/unit/training/test_yolo_regions_training.py::test_a_persons_regions_become_labels_and_a_models_do_not`).
+  *Left, now `segment-editor.corrections-train-machine-cuts`:* an option to include a machine's cuts, the manifest counting the cuts left out.
+- `segment-editor.corrections-train-machine-cuts` — **[GAP]** (→ #4947; engine) split from `segment-editor.corrections-train`
+  (manager 2026-11-27 retag); what that line left: an option to include a machine's cuts, the manifest counting the cuts left out. Not built.
 - `segment-editor.provenance-on-every-segment` — **[PARTIAL]** (→ #4923; engine) every segment says who made it
   (`created_by`, `provenance_kind`: model and run, or person, set by the engine from the
   action's context, never from the client) and every change is a version with who and when
@@ -1134,7 +1141,7 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   box's bottom along its direction (down the middle of a vertical line), marked
   `baseline: estimated`, one undo. *Not built:* the offer on the tools' own refusal (the menu says
   it). *Tests:* `fichero-server/tests/unit/api/test_segment_add_baseline.py`; `fichero/Tests/Unit/general/Views/Source/RedrawOutlineTests.swift`.
-- `segment-editor.edge.word-across-lines` — **[PARTIAL]** (→ #5212; engine) a word broken at a line end is one segment with
+- `segment-editor.edge.word-across-lines` — **[OK]** (→ #5212; engine) a word broken at a line end is one segment with
   two shapes (`source.segment.shape-kinds`); Cut Words on both lines makes the two pieces and
   offers to join them as one word when the second line's reading starts without a space and the
   first's ends with a hyphen; the join is `segment.merge` keeping both shapes. *Built (2026-11-14):* the engine:
