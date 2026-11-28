@@ -33,7 +33,7 @@ import tomllib
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 
-from fichero_builder import client, journal
+from fichero_builder import actions, client, journal
 
 
 @dataclass(frozen=True)
@@ -107,6 +107,8 @@ class Config:
     swift_tests: tuple = ()             # the build tool's argv up to the action (project, scheme, destination, -testPlan fichero): `swift_tests()` appends build-for-testing, then test-without-building
     rungs: tuple = ()                   # [check].rungs: the rungs to run, in this order, by name (RUNGS and the [[check.rung]] names); () = every RUNGS rung
     rung: tuple = ()                    # [[check.rung]]: {name, argv, timeout_s}: a rung that runs argv in the scratch tree, green on exit 0
+    actions: tuple = ()                 # [check].actions: rungs a GitHub Actions run of the batch head may supply (only "unit"); () = all on the Macs
+    actions_timeout_s: float = 1500     # how long to wait for that run before the rung runs on the Macs
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
@@ -162,7 +164,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), autofix=tuple(c.get("autofix", d.autofix)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), autofix=tuple(c.get("autofix", d.autofix)), engine_repo=c.get("engine_repo", d.engine_repo), actions=tuple(c.get("actions", d.actions)), actions_timeout_s=float(c.get("actions_timeout_s", d.actions_timeout_s)), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
         always_tests=tuple(c.get("always_tests", ())), ui_tests=tuple(c.get("ui_tests", ())), ui_runner=c.get("ui_runner", d.ui_runner), ui=dict(c.get("ui", {})), swift_tests=tuple(c.get("swift_tests", ())), swift_test_target=c.get("swift_test_target", d.swift_test_target), swift_test_dir=c.get("swift_test_dir", d.swift_test_dir),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
@@ -2481,7 +2483,44 @@ def _security_on(root, since: str, head: str, cfg: Config, problems: list, pins:
         return _not_run("security", cfg.security, f"{', '.join(tools)} refused", "\n".join(refused), {"results": [r], "table": rows_table},
                         [*problems, *[f"{x['scanner']} {x['rule']} {x['where']}" for x in reds]])
     lines = [*problems, *refused, *[f"{x['scanner']} {x['rule']} {x['where']}" for x in reds]]
-    return _report_only("security", cfg.security, not (problems or refused or reds), lines or ["no new finding"], {"results": [r], "table": rows_table})
+    return _report_only("security", cfg.security, not (problems or refused or reds), lines or ["no new finding"],
+                        {"results": [r], "table": rows_table, "gitleaks_clean": not any(x.get("scanner") == "gitleaks" for x in reds)})
+
+
+def push_blocker(root, pinned, since: str, head: str, scan: dict | None) -> str:
+    """Why the head may not be sent to GitHub yet, or "". Whatever `[check.security].enforce` says, the push needs (1) no hit of the land
+    boundary patterns over since..head and (2) a `security` row that scanned this batch with gitleaks and found nothing new: a skipped,
+    not-run, refused or missing row, or a gitleaks finding, blocks it (the batch then runs the rung on the Macs)."""
+    from . import land_tool
+    try:  # the PINNED harness.toml, as the land step reads it: a lane's own edit of [land].boundary never loosens the patterns
+        patterns = list((tomllib.loads((Path(pinned) / "harness.toml").read_text()).get("land") or {}).get("boundary", land_tool.DEFAULT_BOUNDARY))
+    except (OSError, ValueError) as e:
+        return f"the pinned harness.toml could not be read: {e}"
+    if hits := land_tool.boundary(root, since, head, patterns):
+        return "the public boundary: " + "; ".join(hits)
+    if not scan:
+        return "no security row: the head was not scanned"
+    if scan.get("skipped") or scan.get("not_run") or scan.get("gitleaks_clean") is not True:
+        return "the security rung did not show a clean gitleaks scan over " + f"{since[:9]}..{head[:9]}: " + (scan.get("stdout_tail") or "")[:160].replace("\n", " ")
+    return ""
+
+
+def from_actions(rung: str, root, head: str, cfg: Config, local, pinned, since: str = "", scan: dict | None = None, lane: str = "") -> dict:
+    """A rung in [check].actions takes its result from the GitHub Actions run of the batch head (actions.fetch): green or red from the run,
+    or `local()` with one journal row saying why when there is no usable run. Not listed: `local()` and no push. The head is pushed only
+    when `push_blocker` is empty (boundary clear, `scan` = the security row shows gitleaks ran clean), to `lane-<lane>` and only when `head`
+    is the tip of that lane's `work-<lane>` ref (actions.lane_branch)."""
+    if rung not in cfg.actions or (rung == "unit" and not cfg.always_tests):  # a rung the local run skips is not turned on by Actions
+        return local()
+    if why := push_blocker(root, pinned, since, head, scan):
+        journal.append("check", state="actions-local", rung=rung, head=head, reason="not pushed: " + why)
+        return local()
+    res = actions.fetch(root, head, actions.lane_branch(root, lane, head), cfg.actions_timeout_s)
+    if res["state"] == "none":
+        journal.append("check", state="actions-local", rung=rung, head=head, reason=res["why"])
+        return local()
+    return {"argv": [], "exit_code": 0 if res["ok"] else 1, "ok": res["ok"], "timed_out": False, "seconds": 0, "results": [], "actions_run": res["run"],
+            "stdout_tail": f"from GitHub run {res['run']}: step {actions.STEP!r} {res['conclusion']}", "stderr_tail": "" if res["ok"] else res["lines"]}
 
 
 def rung_not_run(r: dict) -> bool:
@@ -2489,7 +2528,7 @@ def rung_not_run(r: dict) -> bool:
     return bool(r.get("not_run") or r.get("skipped"))
 
 
-CHEAP_RUNGS = ("ready", "guards", "contract-current", "since-guards")  # independent of each other and of the tests: all report in one pass
+CHEAP_RUNGS = ("ready", "guards", "contract-current", "since-guards")  # independent of each other and of the tests: all report in one pass; `unit` is not one: it pushes the head to GitHub, so only a ladder green so far (security included) reaches it
 
 
 def ladder(rungs: list) -> dict:
@@ -2701,16 +2740,17 @@ class EmptyRange(RuntimeError):
 
 
 def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
-                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
-    """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
+                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = (), lane: str = "") -> dict:
+    """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged. `lane`: the lane whose
+    batch this is; the `unit` rung pushes only to its branch (from_actions)."""
     if since_sha == head:
         raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
     return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened, approve_red=approve_red,
-                      approve_pinned_new=approve_pinned_new, guard_data=guard_data)
+                      approve_pinned_new=approve_pinned_new, guard_data=guard_data, lane=lane)
 
 
 def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False,
-               approve_weakened: bool | tuple = False, approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
+               approve_weakened: bool | tuple = False, approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = (), lane: str = "") -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -2735,7 +2775,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
     ACTIVITY(kind="check", key=_KEY[0], state="start")
     ended: dict = {}
     try:
-        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red, approve_pinned_new, guard_data)
+        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red, approve_pinned_new, guard_data, lane)
         return ended
     finally:
         ACTIVITY(kind="check", key=_KEY[0], state="end", ok=bool(ended.get("ok")), failed=ended.get("failed", "?"))
@@ -2774,7 +2814,7 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
     return {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}
 
 
-RUNGS = ("ready", "diff-bound", "red-on-base", "unit", "guards", "security", "contract-current", "since-guards", "build", "ui", "perf")  # the ladder below, in order
+RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "security", "unit", "contract-current", "since-guards", "build", "ui", "perf")  # the ladder below, in order
 
 
 def pick_rungs(all_rungs: list, cfg: Config, tree) -> list:
@@ -2794,7 +2834,7 @@ def pick_rungs(all_rungs: list, cfg: Config, tree) -> list:
 
 
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
-                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
+                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = (), lane: str = "") -> dict:
     cfg = load(pinned)
     stricter = stricter_files(root, since, head, cfg, pinned, rows=True)
     bad = [b for b in pinned_violations(root, since, head, cfg, pinned) if b.split(": ", 1)[0] not in stricter]
@@ -2838,13 +2878,14 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         if tests and not HEAD_GREEN_ONLY[0] and green_only:
             journal.append("auto", rule="red-on-base-tests-only", head=head, file=",".join(tests),
                            detail="every changed path is a test, a tests directory file or a Markdown file: no red owed; the tests run green on head")
+        seen: dict = {}  # the security row, read by `unit` before it may push the head
         out = ladder(pick_rungs([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
             ("red-on-base", lambda: red_on_base_rung(root, since, head, names, tests, whole, cfg, own, approve_red, green_only)),
-            ("unit", lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg)),
             ("guards", lambda: guards_on_current_base(root, since, head, pinned, cfg, tree, data_from_head=tuple(guard_data), stricter_from_head=stricter)),
-            ("security", lambda: security(tree, since, head, names, cfg)),
+            ("security", lambda: seen.setdefault("security", security(tree, since, head, names, cfg))),
+            ("unit", lambda: from_actions("unit", root, head, cfg, lambda: unit(own, [f for _s, _m, f in _changes(root, since, head)], cfg), pinned, since, seen.get("security"), lane)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),

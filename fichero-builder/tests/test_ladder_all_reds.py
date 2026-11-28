@@ -26,6 +26,16 @@ def test_a_red_cheap_rung_does_not_stop_the_other_cheap_rungs_and_every_red_is_r
     assert ran == ["ready", "guards", "contract-current", "since-guards"], "after a red only the cheap independent rungs go on"
 
 
+def test_unit_reads_actions_only_after_every_earlier_rung_is_green_security_included():
+    """`unit` pushes the head to GitHub: a red ready or security must stop the ladder before it."""
+    assert "unit" not in check_tool.CHEAP_RUNGS
+    assert check_tool.RUNGS.index("unit") > check_tool.RUNGS.index("security")
+    for red in ("ready", "security"):
+        ran = []
+        check_tool.ladder(_rungs(ran, {red}))
+        assert "unit" not in ran, red
+
+
 def test_a_red_cheap_rung_before_a_green_ladder_end_still_skips_the_heavy_rungs():
     ran = []
     out = check_tool.ladder(_rungs(ran, {"guards"}))

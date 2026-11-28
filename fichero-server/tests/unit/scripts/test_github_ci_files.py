@@ -40,10 +40,11 @@ def test_security_workflow_runs_on_prs_and_nightly_reuses_the_rungs_scanner_and_
 def test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job():
     doc = _workflow("tests.yml")
     assert doc["on"]["pull_request"]["branches"] == ["integration"]
-    assert set(doc["on"]["push"]["branches"]) == {"lane-*", "integration"}, "lane pushes and integration pushes run it too"
+    assert set(doc["on"]["push"]["branches"]) == {"lane-*", "integration", "train/**"}, "lane, integration and merge-train pushes run it"
     jobs = doc["jobs"]
-    assert set(jobs) == {"engine", "engine-macos", "contracts", "builder", "swift"}
-    assert all(j["continue-on-error"] is True for j in jobs.values()), "report-only: every job"
+    assert set(jobs) == {"changes", "engine", "engine-macos", "contracts", "builder", "swift", "train-gate"}
+    tiers = ("engine", "engine-macos", "contracts", "builder", "swift")
+    assert all("train/" in jobs[n]["continue-on-error"] for n in tiers), "report-only except on a train branch"
     assert "enable-cache: true" in (ROOT / ".github/workflows/tests.yml").read_text()
 
 
@@ -61,13 +62,13 @@ def test_each_python_tier_is_its_own_job_with_cached_uv_and_the_engine_job_keeps
     for name in ("engine", "engine-macos", "contracts", "builder"):
         uv = next(s for s in jobs[name]["steps"] if s.get("uses", "").startswith("astral-sh/setup-uv"))
         assert uv["with"]["enable-cache"] is True, name
-        assert "if" not in jobs[name], f"{name} runs on every trigger, lane pushes included"
+        assert jobs[name]["if"] == f"needs.changes.outputs.{'builder' if name == 'builder' else 'engine'} == 'true'", f"{name} runs on every trigger, a train branch only when its diff touches the tier"
 
 
 def test_the_swift_job_selects_its_xcode_says_not_run_without_it_caches_by_package_resolved_and_skips_lane_pushes():
     """ci.swift-on-actions: the app scheme's build and unit tests (never the UI plans), on the newest macOS runner."""
     swift = _workflow("tests.yml")["jobs"]["swift"]
-    assert swift["if"] == "github.event_name != 'push' || github.ref == 'refs/heads/integration'", "the Macs own Swift for lane checks"
+    assert swift["if"] == "needs.changes.outputs.swift == 'true' && (github.event_name != 'push' || github.ref == 'refs/heads/integration' || startsWith(github.ref, 'refs/heads/train/'))", "the Macs own Swift for lane checks"
     assert swift["runs-on"] == "macos-26"
     steps = _steps(swift)
     select = steps["Select Xcode"]["run"]
@@ -99,8 +100,8 @@ def test_xcode_cloud_scripts_never_start_python():
         assert p.stat().st_mode & 0o111, f"{p.name} must be executable for Xcode Cloud to run it"
 
 
-def test_the_python_tiers_run_on_linux_with_the_unit_tier_in_eight_shards_and_macos_runs_only_the_macos_only_tests():
-    """ci.python-tiers: Linux runs everything but `macos_only` (the unit tier as eight shards that together are the whole tier,
+def test_the_python_tiers_run_on_linux_with_the_unit_tier_in_twelve_shards_and_macos_runs_only_the_macos_only_tests():
+    """ci.python-tiers: Linux runs everything but `macos_only` (the unit tier as twelve shards that together are the whole tier,
     each inside 30 minutes, the spec guards once, from the repo root); engine-macos runs exactly the `macos_only` tests on a
     macOS runner, or says NOT RUN with the reason when the engine does not install there. Every engine job is on the
     engine's Python (3.12), and every pytest run has a per-test timeout and names its failures."""
@@ -108,14 +109,14 @@ def test_the_python_tiers_run_on_linux_with_the_unit_tier_in_eight_shards_and_ma
     for name in ("engine", "contracts", "builder"):
         assert jobs[name]["runs-on"] == "ubuntu-latest", name
     engine = jobs["engine"]
-    assert engine["strategy"]["matrix"]["shard"] == list(range(1, 9)) and engine["strategy"]["fail-fast"] is False
-    assert engine["name"] == "engine (${{ matrix.shard }}/8)" and engine["timeout-minutes"] <= 30
+    assert engine["strategy"]["matrix"]["shard"] == list(range(1, 13)) and engine["strategy"]["fail-fast"] is False
+    assert engine["name"] == "engine (${{ matrix.shard }}/12)" and engine["timeout-minutes"] <= 30
     steps = _steps(engine)
-    assert steps["Spec guards"]["if"] == "matrix.shard == 1", "the guards run once, not eight times"
+    assert steps["Spec guards"]["if"] == "matrix.shard == 1", "the guards run once, not twelve times"
     assert "working-directory" not in steps["Spec guards"], "the guards scan docs/ from the repo root (run 45666948572)"
     assert "for g in scripts/check_spec_*.py" in steps["Spec guards"]["run"] and "--project fichero-server" in steps["Spec guards"]["run"]
     assert steps["Unit tests"]["if"] == "${{ !cancelled() }}", "a red guard still lets the shard's tests run"
-    assert "ci_shard_tests.py tests/unit ${{ matrix.shard }} 8" in steps["Unit tests"]["run"]
+    assert "ci_shard_tests.py tests/unit ${{ matrix.shard }} 12" in steps["Unit tests"]["run"]
     assert "-m 'not macos_only'" in steps["Unit tests"]["run"] and "-m 'not macos_only'" in _steps(jobs["contracts"])["Contract tests"]["run"]
     for name, step in (("engine", "Unit tests"), ("contracts", "Contract tests"), ("engine-macos", "macOS-only tests")):
         run = _steps(jobs[name])[step]["run"]
@@ -145,7 +146,7 @@ def test_the_shards_together_are_the_whole_unit_tier_each_entry_once():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     items = mod.entries(ROOT / "fichero-server" / "tests" / "unit")
-    shards = mod.shards(items, 8)
+    shards = mod.shards(items, 12)
     flat = [p for s in shards for p in s]
     assert sorted(flat) == sorted(p for p, _ in items) and len(flat) == len(set(flat))
     assert all(shards), "no shard is empty"

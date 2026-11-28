@@ -50,13 +50,13 @@ jobs:
 
   # The Python tiers run on Linux (ci.python-tiers): Apple-only dependencies carry a darwin marker, so the same uv.lock
   # syncs here, and a test that needs macOS itself is marked macos_only, skipped here with its reason and run by
-  # engine-macos. The engine unit tier is split into eight jobs by test file, weighed by test count
+  # engine-macos. The engine unit tier is split into twelve jobs by test file, weighed by test count
   # (scripts/ci_shard_tests.py). Python is the engine's own 3.12 (the repo's .python-version): a runner's default
   # (3.14 on Linux, 3.15 on macOS) is not what ships, and onnxruntime has no 3.15 wheel.
   # Each pytest run: --timeout=300 per test (pytest-timeout, in the dev extra) with the gates' thread method, so a hang
   # ends the run with every thread's stack instead of the job's limit; -rfE names each failure in the summary.
   engine:
-    name: engine (${{ matrix.shard }}/8)
+    name: engine (${{ matrix.shard }}/12)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
@@ -65,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -99,8 +99,8 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: fichero-server
         run: |
-          paths="$(python3 ../scripts/ci_shard_tests.py tests/unit ${{ matrix.shard }} 8)"
-          echo "shard ${{ matrix.shard }}/8: $(echo $paths | wc -w) files"
+          paths="$(python3 ../scripts/ci_shard_tests.py tests/unit ${{ matrix.shard }} 12)"
+          echo "shard ${{ matrix.shard }}/12: $(echo $paths | wc -w) files"
           uv run --frozen pytest $paths -q -rfE -p no:cacheprovider -m 'not macos_only' --timeout=300 --timeout-method=thread
 
   # The macos_only tests run on the Macs whatever this job says. When the engine cannot be installed on the hosted macOS

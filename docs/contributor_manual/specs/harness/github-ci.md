@@ -65,7 +65,7 @@ it. Spec-change: owner 2026-11-20.
 
   | Job | Runner | What it runs |
   |---|---|---|
-  | `engine` (eight, `engine (1/8)`..`engine (8/8)`) | ubuntu-latest | the engine's `tests/unit` tier without `macos_only`, split by test file: `scripts/ci_shard_tests.py` deals every `test_*.py` under `tests/unit` to eight shards, each file weighed by its `def test_` count, heaviest first to the lightest shard, so the shards together are the whole tier, are even by test count, and a new file or folder needs no workflow edit; each shard has a 30-minute job limit; shard 1 also runs the `check_spec_*` guards from the repo root as its `Spec guards` step, and its `Unit tests` step runs even when a guard is red |
+  | `engine` (twelve, `engine (1/12)`..`engine (12/12)`) | ubuntu-latest | the engine's `tests/unit` tier without `macos_only`, split by test file: `scripts/ci_shard_tests.py` deals every `test_*.py` under `tests/unit` to twelve shards, each file weighed by its `def test_` count, heaviest first to the lightest shard, so the shards together are the whole tier, are even by test count, and a new file or folder needs no workflow edit; each shard has a 30-minute job limit; shard 1 also runs the `check_spec_*` guards from the repo root as its `Spec guards` step, and its `Unit tests` step runs even when a guard is red |
   | `engine-macos` | macos-26 | exactly the `macos_only` tests of `tests/unit` and `tests/contracts`; when the engine does not install on the hosted runner, the `Install the engine` step says `NOT RUN:` with uv's reason in a notice and the job ends without red, and the tests are skipped (a NOT RUN is not a green; the Macs run these tests either way) |
   | `contracts` | ubuntu-latest | the engine's `tests/contracts` without `macos_only` |
   | `builder` | ubuntu-latest | the builder's own suite (stdlib plus pytest, uv's cache keyed on `fichero-builder/pyproject.toml`) |
@@ -96,7 +96,7 @@ it. Spec-change: owner 2026-11-20.
   gated off a trigger; the Linux jobs exclude `macos_only` and `engine-macos` runs only it or says NOT RUN; the shards
   cover the tier once and are even by test count; every pytest run has the per-test timeout. Tests:
   `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_each_python_tier_is_its_own_job_with_cached_uv_and_the_engine_job_keeps_the_steps_the_builder_reads`,
-  `::test_the_python_tiers_run_on_linux_with_the_unit_tier_in_eight_shards_and_macos_runs_only_the_macos_only_tests`,
+  `::test_the_python_tiers_run_on_linux_with_the_unit_tier_in_twelve_shards_and_macos_runs_only_the_macos_only_tests`,
   `::test_the_shards_together_are_the_whole_unit_tier_each_entry_once`,
   `::test_apple_only_dependencies_carry_a_darwin_marker_so_the_lock_syncs_on_linux`,
   `::test_macos_only_is_a_registered_marker_that_skips_off_darwin_with_its_reason`.
@@ -163,43 +163,54 @@ it. Spec-change: owner 2026-11-20.
 - `ci.settings-are-the-owners` [GAP] (#6600) — secret scanning, its push protection, Dependabot alerts and security
   updates, and code scanning as a required check on `integration` are repository settings. The owner switches them
   on; no workflow, script or builder verb sets them, and a worker has no token that could. Until they are on, a
-  secret is caught only by the gitleaks scan of `ci.security-workflow` and the builder's own security rung, after the
-  push, not before it.
+  secret is caught only by the gitleaks scan of `ci.security-workflow` and the builder's own security rung; the builder's `unit` rung
+  pushes a batch head only after its own gitleaks scan and the land boundary patterns are clean (`ci.builder-reads-actions`).
 
 ## The builder reads the results
 
-- `ci.builder-reads-actions` [GAP] (#6600) — `builder check` may take a green GitHub Actions run for the same commit as one rung,
-  so the three Macs do less. It is opt-in: `[check.github] use_actions = false` in `harness.toml`, off until the owner
-  turns it on. How it reads a run, on the manager's side only (workers have no GitHub token and never call it):
-  `gh run list --commit <head sha> --workflow tests.yml --json databaseId,status,conclusion` for the exact head sha of the
-  batch, then the run's jobs through `gh api` (the Actions "list jobs for a workflow run" endpoint). The jobs are
-  `continue-on-error`, which makes the run's own conclusion `success` even when a job failed, so the rung reads each JOB's
-  conclusion and each step's conclusion, never the run's. The rung is satisfied only when the run is `completed`, its head
-  sha equals the batch head exactly, the `Spec guards` step of `engine (1/8)` is `success` and the `Unit tests` step of every
-  `engine (n/8)` job is `success` (the unit tier is eight shards, `ci.python-tiers`; one missing shard is no pass). It then
-  stands in for the engine unit-test rung and the spec-guard rung of that batch, and the ladder row says
-  `from GitHub run <id>`. A run that is missing, still running, for another sha, red, cancelled, or unreadable (no `gh`,
-  no network, a bad reply) is never a pass: the rung runs on the Macs as it does today and the row says why the run was not
-  used. The `build`, `perf`, red-on-base and review rungs never come from GitHub. The security rung's scanners may be taken
-  the same way from the `security.yml` job `scanners`, and CodeQL alerts are read from code scanning for the head sha and
-  listed in the review prompt under SECURITY SCAN as reported, never as a gate. Acceptance (no network, a fake `gh`): a
-  completed run for the head sha whose `Unit tests` step succeeded satisfies the rung; the same run with the step failed,
-  a run for the parent sha, a run still `in_progress`, a `gh` that exits non-zero, and `use_actions = false` each leave the
-  rung to run locally with the reason in its row. Built: nothing yet; the workflows above are what it will read.
+Still the design and not built (the `ci.builder-reads-actions` bullet below is what is built): the security rung's scanners may be
+  taken from the `security.yml` job `scanners` the same way, and CodeQL alerts are read from code scanning for the head sha and listed in
+  the review prompt under SECURITY SCAN as reported, never as a gate. The `build`, `perf`, red-on-base and review rungs never come from GitHub.
+
+- `ci.builder-reads-actions` [PARTIAL] (#6600) — `builder check` takes the GitHub Actions run of the batch head as the `unit` rung.
+  `[check].actions` in `harness.toml` lists the rungs Actions may supply (`["unit"]`; `guards` is not read from Actions: the
+  `Spec guards` step runs only `check_spec_*.py` and runs the head's own workflow and scripts, so it is neither every guard nor the pinned copy);
+  `[check].actions_timeout_s` (default 1500) is how long it waits. For a listed rung, in the loop with the loop's credentials
+  (a worker never calls it): once the land boundary patterns (`[land].boundary`) have no hit over `since..head` and the `security` row shows gitleaks ran over the batch with no new finding (whatever `[check.security].enforce` says; a skipped, not-run or refused `security` row blocks it), the batch head is force-pushed to `refs/heads/lane-<lane>` on origin, where `<lane>` is the lane the loop is checking (`do_check` passes it down; never the HEAD of the engine repo, which judges every lane), and only when the head is the tip of that lane's `work-<lane>` ref (`tests.yml`
+  runs its Python jobs on that push; `ci.Hosted.push`), then `ci.wait` polls the check runs of exactly that sha (the commit's `check-runs` endpoint)
+  until all twelve `engine (N/12)` check runs are `completed`; they must belong to one Actions run, whose jobs are read through `ci.Hosted.jobs` for the conclusions of the
+  step `Unit tests` (rung `unit`) of every `engine (N/12)` job (the `contracts` and `builder` jobs are not read). The rung is green only
+  when all twelve jobs are present and each `Unit tests` step is `success`; fewer than twelve jobs is no usable run. The jobs are `continue-on-error`, so the run's own conclusion
+  is never read. A green step is the rung's green and its row says `from GitHub run <id>`; a red step is the rung's red, with the
+  tail of `gh run view <id> --job <job> --log-failed` of each red job (`ci.Hosted.failed_log`) as the fix brief. No finished run of that sha within the timeout, a run for another sha,
+  no `gh`, no network, a boundary hit, a `security` row that is not a clean gitleaks scan (nothing is pushed), a failed push, a bad reply, no lane named, a lane name that is no branch name, a head that is not the tip of `work-<lane>`: the rung runs on the Macs as before and the
+  journal gets one `check` row (`state = actions-local`) with the reason, and `unit` runs the selected tests on the Macs. Acceptance (a fake `gh`, a local bare origin; tests in
+  `fichero-builder/tests/test_actions_rungs.py`): a green run (twelve `engine (N/12)` jobs) supplies the rung and the head is on origin; a red `Unit tests` step
+  in any one shard is the rung's red with the failing lines; eleven shards, no run, a run for another sha, a run `in_progress` and a `gh` that exits non-zero each run locally with the head already on the bare origin (the push comes before the wait); a rung
+  not listed, no lane named, a head that is not the tip of `work-<lane>`, a lane name that is no branch name, a boundary hit, and a `security` row that is report-only with a gitleaks finding, skipped as not required, not run or missing each run locally and leave the bare origin without the head (nothing is pushed). A red already on the base is not told apart: the rung reads the whole engine tier of the head's run with no comparison against the base, so until the tier has a green Linux run (see *Not proved* under `ci.python-tiers`) a `unit` red may be a base red, and the fix brief carries the failing lines for the reader to judge. With the engine repo's HEAD on another lane's branch, only `lane-<lane>` of the checked lane is pushed. With no `[check].always_tests` the `unit` rung is off locally, and Actions does not turn it on: `local()` answers (the rung's skip) and nothing is pushed, whatever `[check].actions` lists. Built: the push and the `unit` rung (`guards` always runs locally), off in this repository: no `.toml` here sets `[check].always_tests`, so the `unit` rung is skipped and never reads Actions; not built: reading the security
+  scanners and CodeQL alerts from Actions, and a real run against GitHub (nothing here has run `gh` for real yet).
 
 ## What the builder reads from Actions and what it runs on the Macs
 
-- `ci.actions-or-local` [GAP] (#6600) — each check has one place it may come from. Today every row below is run on the
-  Macs: `harness.toml` has no `[check.github]` table and `fichero-builder/fichero_builder/check_tool.py` has no reader
-  (`ci.builder-reads-actions`). Acceptance: every rung's row names its source, `local`, a runner, or
-  `from GitHub run <id>`; a rung in the last two rows of the table never names a GitHub run.
+- `ci.actions-or-local` [PARTIAL] (#6600) — each check has one place it may come from; the table says which. Everything Swift,
+  red-on-base, perf and security stays on the Macs. Acceptance: every rung's row names its source, `local`, a runner, or
+  `from GitHub run <id>`; a rung in the last two rows of the table never names a GitHub run (only the `unit` rung is
+  wrapped by `from_actions`; `fichero-builder/tests/test_actions_rungs.py` covers a listed and an unlisted rung). No guard checks
+  the table against the code yet.
 
-| Check | Read from GitHub | Run on the Macs |
-| --- | --- | --- |
-| Engine unit tests, spec guards | a green `tests.yml` job for the exact head, when `use_actions` is on | otherwise, and always when the run is missing, red or unreadable |
-| bandit, semgrep, gitleaks, osv-scanner | the `scanners` job of `security.yml`, the same way | otherwise |
-| CodeQL | code scanning alerts for the head, listed for the reviewer | never run locally; never a gate in the builder |
-| Dependabot | its pull requests and alerts live on GitHub | nothing in the builder reads them yet |
-| Builder's own tests, contract tier | not yet read (`ci.python-tiers` runs them as jobs `builder` and `contracts`) | yes |
-| Pinned checks, ready, diff bound, red-on-base, the build rung, Swift tests, perf, review | never | always |
-| Nightly verify, DMG, notarize, smoke, publish | never | always |
+| Rung | Where it runs |
+| --- | --- |
+| `unit` (engine `tests/unit`) | Actions `Unit tests` step of all twelve `engine` jobs when `[check].actions` lists `unit` and `[check].always_tests` is set (it is not in this repository, so the rung is skipped); no usable run: the selected tests run on the Macs |
+| `guards` (every `scripts/check_*.py`) | the Macs, against the pinned copy; the Actions `Spec guards` step is not the rung |
+| `ready`, `diff-bound`, `red-on-base`, `contract-current`, `since-guards` | the Macs |
+| `security` (bandit, semgrep, gitleaks, osv-scanner) | the Macs; `security.yml` is not read yet |
+| `build`, Swift tests, `perf`, review | the Macs, never Actions |
+
+Not rungs, not read by the builder yet:
+
+| Check | Where |
+| --- | --- |
+| CodeQL | code scanning alerts for the head; never run locally, never a gate in the builder |
+| Dependabot | its pull requests and alerts live on GitHub |
+| Builder's own tests, contract tier | the Macs; the `builder` and `contracts` jobs of `tests.yml` are not read yet (`ci.python-tiers`) |
+| Nightly verify, DMG, notarize, smoke, publish | the Macs, never Actions |

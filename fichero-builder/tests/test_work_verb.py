@@ -610,9 +610,9 @@ def _early_chain(chain, monkeypatch, later_red: bool):
         chain.calls.append(("check", since, head))
         work.check_tool.ON_RUNG[0]("red-on-base", True, [{"name": "ready", "ok": True}, {"name": "red-on-base", "ok": True}])
         assert not (Path(ladder).parent / (Path(ladder).name + ".partial")).exists(), "not after red-on-base: no guard has run yet (reviews 199, 207, 263, 275)"
-        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base", "unit")] + [
+        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base")] + [
             {"name": "guards", "ok": True, "results": [{"name": "check_a", "ok": True}, {"name": "check_b", "ok": True}]},
-            {"name": "security", "ok": True}, {"name": "contract-current", "ok": True}, {"name": "since-guards", "ok": True}]
+            {"name": "unit", "ok": True}, {"name": "security", "ok": True}, {"name": "contract-current", "ok": True}, {"name": "since-guards", "ok": True}]
         work.check_tool.ON_RUNG[0]("since-guards", True, cheap)
         assert started.wait(5), "the review started beside the ladder, before the check ended"
         if not later_red:
@@ -739,8 +739,8 @@ def test_keep_green_for_a_base_delta_that_shares_no_file_test_check_file_or_guar
     assert words.startswith("kept across rebase onto") and "base delta disjoint (1 file(s))" in words and rungs == ("guards",)
     assert keep(move("pkg/NOTES.md"))[1] == ("guards",), "a delta in the batch's own top dir, outside its tests, is disjoint now"
     assert keep(move("fichero/F.swift"))[1] == ("build",)
-    assert keep(move("fichero-server/src/s.py"))[1] == ("red-on-base", "guards")
-    assert keep(move("docs/x.md", "fichero/F.swift", "fichero-server/src/s.py"))[1] == ("red-on-base", "guards", "build"), "a mixed delta runs the union, in ladder order"
+    assert keep(move("fichero-server/src/s.py"))[1] == ("red-on-base", "guards", "unit")
+    assert keep(move("docs/x.md", "fichero/F.swift", "fichero-server/src/s.py"))[1] == ("red-on-base", "guards", "unit", "build"), "a mixed delta runs the union, in ladder order"
     new = move("docs/x.md")
     assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg) == ("", ()), "no heads: the patch cannot be compared"
     assert keep(new, ["pkg/a.py", "pkg/c.py"]) == ("", ()), "a different batch"
