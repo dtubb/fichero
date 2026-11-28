@@ -911,11 +911,12 @@ def _disputes(db, claims: list[KnowledgeClaim]) -> list[tuple[KnowledgeClaim, Kn
     verb or object, or two statements whose shared language has no doubt words in its table."""
     order = {c.id: i for i, c in enumerate(claims)}
     by_id = {c.id: c for c in claims}
-    # ponytail: reads every `contradicts` link of the library; query by claim id when links grow many
+    # both ends of a pair are among `claims`, so the links that start at one of them are all that can match
     links = [
         (by_id[link.claim_id], by_id[link.related_claim_id])
-        for link in db.query(KnowledgeClaimLink, relation_type=ClaimRelationType.contradicts.value)
-        if link.claim_id in by_id and link.related_claim_id in by_id and link.claim_id != link.related_claim_id
+        for link in db.query_in(KnowledgeClaimLink, "claim_id", list(by_id))
+        if link.relation_type == ClaimRelationType.contradicts
+        and link.related_claim_id in by_id and link.claim_id != link.related_claim_id
     ]
     pairs: list[tuple[KnowledgeClaim, KnowledgeClaim]] = []
     taken: set[str] = set()

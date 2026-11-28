@@ -36,6 +36,9 @@ class _Db:
         assert model is not KnowledgeEntity, "a place name is looked up through entity_ids_by_canonical_name"
         return []
 
+    def query_in(self, model, column, values):
+        return []
+
     def entity_ids_by_canonical_name(self, names):
         self.lookups.append(sorted(names))
         return {n: [self.known[n].id] for n in names if n in self.known}

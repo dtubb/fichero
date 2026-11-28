@@ -25,6 +25,7 @@ class _Db:
     def __init__(self, claims, links=()):
         self.claims = claims
         self.links = list(links)
+        self.link_reads = []
         self.entity = KnowledgeEntity(id=PAGE, canonical_name="Inés Valcárcel")
 
     def get(self, model, key):
@@ -34,7 +35,12 @@ class _Db:
         return list(self.claims)
 
     def query(self, model, **kw):
-        return [x for x in self.links if all(getattr(x, k) == v for k, v in kw.items())] if model.__name__ == "KnowledgeClaimLink" else []
+        assert model is not KnowledgeClaimLink, "links are read by the entry's statement ids (query_in)"
+        return []
+
+    def query_in(self, model, column, values):
+        self.link_reads.append((model, column, sorted(values)))
+        return [x for x in self.links if getattr(x, column) in set(values)]
 
     def entity_ids_by_canonical_name(self, names):
         return {}
@@ -167,6 +173,15 @@ def test_a_dispute_is_one_sentence_with_both_readings():
     # a link of another kind is no dispute
     assert all("según" not in s["text"] for s in _read([a, b], [KnowledgeClaimLink(
         claim_id="c1", related_claim_id="c2", relation_type=ClaimRelationType.supports)]))
+
+
+def test_only_the_links_of_the_entrys_statements_are_read():
+    a = _born("c1", "1702-03-14", "1702-03-14", "day", "doc-a")
+    b = _born("c2", "1704-01-01", "1704-12-31", "year", "doc-b")
+    db = _Db([a, b], [_contradicts("c1", "c2"), _contradicts("x1", "x2"), _contradicts("c1", "x2")])
+    sentences = render_entry_with_mentions(db, PAGE)[0]
+    assert db.link_reads == [(KnowledgeClaimLink, "claim_id", ["c1", "c2"])]
+    assert [s["claim_ids"] for s in sentences] == [["c1", "c2"]]
 
 
 def test_a_confirmed_statement_in_a_dispute_is_said_plainly():
