@@ -660,8 +660,13 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
 - `designer.rank.labels-from-the-engine` [MISSING] (#6052) — best, cheapest, fastest and most
   predictable are fields of the served candidate list, set only where measured against a person's
   reading (section 8); the app renders them and never computes them.
-- `designer.rank.one-visible-selection` [PARTIAL] (#6052) — the chosen row stays in its tier with a
+- `designer.rank.one-visible-selection` [OK] (#6052) — the chosen row stays in its tier with a
   leading radio mark and a tinted row, not moved to a head group (appendix, fact 6).
+  *Built:* the chosen row stays in its tier (`ModelFinderTiers.groups`) and the finder's card draws the leading mark
+  and the tint from `isChosen` (`ModelFinderView.swift`, `ModelFinderCard`). *Test:*
+  `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift::chosenAndMeasuredOverrideTheTier`,
+  `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift::testTheStepsReaderIsMarkedChosen`. The mark and the
+  tint are view code with no assertion of their own.
 - `designer.rank.cloud-permission-said-once` [PARTIAL] (#6052) — the cloud-permission line is shown once
   above the cloud tier, not on every card (appendix, fact 7).
 - `designer.rank.nothing-found-from-the-engine` [PARTIAL] (#6052) — the nothing-found sentence comes
