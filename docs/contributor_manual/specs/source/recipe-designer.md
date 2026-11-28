@@ -828,8 +828,18 @@ the Try is pressed (`source.try.any-time` (G), `source.find.try-before-default` 
   the measured per-page figures times the project's pages, basis said ("measured on 3 pages"); local
   candidates predict time from measured pages an hour (`training.ab.cost-and-time-beside` (P),
   `ai.where.estimate-names-the-place` (P)); the routes' estimate (section 4) is replaced by this.
-- `designer.compare.person-chooses` [PARTIAL] (#6052) — the compare proposes; the person chooses with
+- `designer.compare.person-chooses` [OK] (#6052) — the compare proposes; the person chooses with
   Use This One per column (`use-candidate`, unchanged); a step lists only what that press accepts.
+  *Test:*
+  `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py::test_any_candidate_becomes_the_steps_reader_audited_and_undoable`,
+  `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py::test_use_candidate_refuses_in_words`,
+  `fichero-server/tests/unit/recipes/test_step_choices_on_the_plan.py::test_the_line_step_lists_only_what_use_candidate_accepts_and_a_cloud_reader_stays`,
+  `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift::testUseForStepPostsAnyCandidateToUseCandidate`,
+  `fichero/Tests/Unit/general/Models/BakeoffStoreTests.swift::useThisPostsTheScopeAndUpdatesTheStep`. The step's name
+  after the press is `designer.step.swapped-model-says-its-own-name`.
+- `designer.compare.use-this-one-in-the-compare-window-is-tested` [GAP] (#6052; app) — split from
+  `designer.compare.person-chooses` (manager 2026-11-27 retag); what that line left: a Swift test of Use This One per
+  column in the compare window (`StageCompareWindow`, `RecipeSetupStore.useCard`). Not built.
 
 ### 9. Checking lines (new journey point; the step every measure depends on)
 
@@ -1821,7 +1831,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: M
 
 #### Step 19.6 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`, `designer.how.what-matters-breaks-ties`, `designer.how.model-kind-decides-the-compare`
+- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`, `designer.how.what-matters-breaks-ties`, `designer.how.model-kind-decides-the-compare`, `designer.compare.use-this-one-in-the-compare-window-is-tested`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.5
 - Size: M
