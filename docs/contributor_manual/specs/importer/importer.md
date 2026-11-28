@@ -551,7 +551,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   nothing missing asks nothing, and an ask that did not show (Locate Originals already open) is not counted. There is
   no strip with a button above the rows. The Items pane keeps the count as a status line below the rows (the
   engine's sentence, `library.missingOriginals`; the last relink's sentence, `library.relinkSummary`), which stays
-  after Not Now (`OriginalsStore.askInAlertOnce`, `LocateOriginalsPresenter`, `MissingOriginalsCount`,
+  after Not Now (`OriginalsStore.askInAlertOnce`, `LocateOriginalsPresenter`, `MissingOriginalsCountLine`,
   `fichero/fichero/Views/Library/LocateOriginals.swift`). Acceptance: with 92 pages missing the first ask puts the
   alert up and a second ask in the same open does not, and the count is still held after Not Now; with nothing
   missing, or the sheet open, no alert (`fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift`, Swift, unrun:
@@ -572,7 +572,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   whole (`db.query(Document)`). It took 1.0 s at 500 pages and 4.0 s at 2,000 on a solid-state disk; at 5,000
   pages it is 3.5 million calls, 800,000 of them on the source volume, which on a volume that answers in a few
   milliseconds is the many-minute stall seen in a stall dump on 2026-11-20. The app asks at open and again each
-  time a folder is selected (`LocateOriginalsPresenter` and `MissingOriginalsCount`,
+  time a folder is selected (`LocateOriginalsPresenter` and `MissingOriginalsCountLine`,
   `fichero/fichero/Views/Library/LocateOriginals.swift`), and the answer lists every missing id, which the app searches as
   an array for each cell (`OriginalsStore.isMissing`). Test to add: 500 linked pages in 5 folders are checked with
   at most one filesystem call a page and one listing a folder, counted; a volume that is not there is one call.

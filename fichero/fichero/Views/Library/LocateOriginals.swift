@@ -21,7 +21,7 @@ struct FocusedLocateOriginalsButton: View {
 
 /// The Items pane's count of missing originals, a status line below the rows: the engine's sentence, and the last
 /// relink's. It asks for nothing; the ask is the window's alert (`LocateOriginalsPresenter`, #7077).
-struct MissingOriginalsCount: View {
+struct MissingOriginalsCountLine: View {
     let store: OriginalsStore
     let folderId: String?
 
@@ -132,7 +132,7 @@ struct LocateOriginalsPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let store { MissingOriginalsCount(store: store, folderId: folderId) }
+                if let store { MissingOriginalsCountLine(store: store, folderId: folderId) }
             }
             // A notice that asks the person to act is an alert on the window, never a strip in it (#7077).
             .alert(
@@ -161,6 +161,6 @@ struct LocateOriginalsPresenter: ViewModifier {
 }
 
 #Preview("The Items pane's count of missing originals") {
-    MissingOriginalsCount(store: OriginalsStore(client: FicheroClient(libraryPath: nil)), folderId: nil)
+    MissingOriginalsCountLine(store: OriginalsStore(client: FicheroClient(libraryPath: nil)), folderId: nil)
         .frame(width: 520)
 }
