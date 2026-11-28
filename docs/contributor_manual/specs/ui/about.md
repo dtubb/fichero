@@ -10,7 +10,7 @@
 > carry a filled Test matrix, be cited by ≥1 test, and declare a `Milestone:` matching a GitHub
 > milestone of the same name. Tags: [OK] built · [MISSING] not built · [PARTIAL] exists / not wired.
 >
-> Supersedes the Fabel review at `agent-work/design/about-view-fabel-review.md` (2026-07-25):
+> Supersedes the Fabel review of 2026-07-25 (a working note, since deleted):
 > Issues A (copyright), B (repo/license links + acknowledgements sheet), and C (Server row
 > omitted when unknown) proposed there have all SHIPPED and are pinned below. This spec migrates
 > that review's still-valid intent into the canonical location and adds the a11y ids + preview

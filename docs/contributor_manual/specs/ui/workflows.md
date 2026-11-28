@@ -701,8 +701,8 @@ Swift.
 
 Per the manager's instruction to fold still-true design content from agent-work
 files triaged `MERGE-INTO-SPEC → Workflows` in
-`INVENTORY_mode_specs.md` §3/§5, and to list which are now superseded (files
-are NOT deleted or moved — this is a report only):
+`INVENTORY_mode_specs.md` §3/§5, and to list which are now superseded (a report
+only when written; the tracked notes named here were read again and deleted in November 2026):
 
 - `agent-work/reviews/2026-08-02-node-editor-fabel-review.md` — **superseded**
   for its Finding 1 (edge-legality divergence) and Finding 2 (fabricated
@@ -726,7 +726,7 @@ are NOT deleted or moved — this is a report only):
   the readable narrative behind those issue numbers and should stay in
   agent-work as backlog-drafting history, not be folded verbatim into this
   spec.
-- `agent-work/design/text-workflows-report.md` — **partially folded**: its
+- The text-workflows exercise report (a working note, since deleted) — **partially folded**: its
   quality findings (programmatic cleaner destroying tally-page numbers,
   DeepL host/quota misdiagnosis, translation prompt trailing-space tune,
   Capture-OCR-and-Transcribe wrong-file bug) are all backend/tool-behavior
@@ -739,11 +739,10 @@ are NOT deleted or moved — this is a report only):
   (#4397) and is worth a future pass, not carried as its own behavior id here
   to avoid inventing an id for content that is process-note-shaped, not
   surface-shaped.
-- `agent-work/design/workflow-exercise-report.md` — **not folded**: read only
-  for its section headers; it is the earlier (2026-09-02) sibling of
-  `text-workflows-report.md` covering the same class of tool-execution defects
-  (already fixed/committed per its own account) rather than surface design.
-  Kept in agent-work as exercise-run history.
+- The workflow exercise report of 2026-09-02 (a working note, since deleted) — **not
+  folded**: it is the earlier sibling of the text-workflows report, covering the same
+  class of tool-execution defects (already fixed/committed per its own account) rather
+  than surface design.
 - `agent-work/superpowers/specs/2026-07-24-context-menu-run-workflow-targets-design.md`
   — **folded conceptually, not as a numbered behavior**: this document
   specifies "Run Workflow" from a Sidebar/Library context menu using a pure
@@ -757,8 +756,8 @@ are NOT deleted or moved — this is a report only):
   numbered `[OK]` behavior or demote to `[GAP]`.
 
 Not folded (per the inventory's own "not reviewed line-by-line" budget note):
-`agent-work/design/manual-capability-reference.md`,
-`agent-work/design/grand-sweep-report.md`,
+the manual-capability-reference and grand-sweep notes (read in November 2026 and deleted;
+neither left Workflows design to fold) and
 `agent-work/design/view-unification-notes.md` — these came up in the original
 broad grep as cross-cutting UI surveys, not Workflows-specific; worth a second
 pass in a future revision of this spec, not read this session.

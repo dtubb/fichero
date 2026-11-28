@@ -218,8 +218,7 @@ stay reachable by SHA / `git log --grep` / the closed issue.
 
 **Commit, never stash.** Park interrupted work as a WIP commit on the lane
 branch — a stash doesn't survive a worktree teardown. Baseline-diffing happens
-in a **separate worktree**, never stash-and-checkout in the same one (see
-`agent-work/design/git-practices-fabel-review.md` "stash-pop hazard").
+in a **separate worktree**, never stash-and-checkout in the same one.
 
 **Bring an agent up to speed with data, not a long-lived branch:**
 `agents/ROADMAP.md` + GitHub milestones for "what's next", `*_STATUS.md` /
@@ -236,8 +235,7 @@ before the result lands and the agent loops without ever committing.
 splits a file must update every `scripts/check_*.py` `TARGET_FILES`-style
 constant and guardrail allowlist in the SAME commit (see "A `pytest -k` subset
 skips the architecture guardrails" below) — the guardrail's own test files are
-part of the gate, not optional. Full rationale:
-`agent-work/design/git-practices-fabel-review.md`.
+part of the gate, not optional.
 
 ### Manager loop — use the scripts, don't improvise
 

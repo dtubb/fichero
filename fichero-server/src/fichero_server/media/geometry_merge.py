@@ -22,8 +22,6 @@ the search space collapses from the page to a dozen words.
 Every emitted box records HOW it was obtained. Presenting an interpolated box
 as a measured one is an unverified claim about where a word sits, and worse
 than an absent box because it looks authoritative.
-
-Design: agent-work/design/geometry-merge-review-to-word-boxes.md
 """
 
 from __future__ import annotations

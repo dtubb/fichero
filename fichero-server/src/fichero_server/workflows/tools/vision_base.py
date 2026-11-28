@@ -1872,7 +1872,7 @@ def _vision_ocr_cgimage_with_geometry(
 
         Revision 3 is the newest text recognizer the OS exposes, and the lab
         had assumed newest meant best. Measured on six Marshall pages
-        (2026-09-03, agent-work/design/vision-region-experiments.md) that is
+        (2026-09-03) that is
         true of the reading and false of the DETECTING: revision 1 localizes
         text revision 3 never reports, most dramatically on dense small print
         — a 1923 printed calendar went 0.54 → 0.79 text-ink coverage through
@@ -1921,8 +1921,7 @@ def _vision_ocr_cgimage_with_geometry(
         never boxed, and a crop at region scale makes those glyphs several
         times larger to Vision. Measured on Marshall diary pages: text-ink
         coverage 0.26→0.69 on dense small print, 0.75→0.85 on a page with
-        missed pencil lines, no page worse (agent-work/design/
-        local-vision-bbox-lab.md). Needs source_path — the flat image the
+        missed pencil lines, no page worse. Needs source_path — the flat image the
         boxes are fractions of — so PDF-page runs skip it, like the snap.
         """
         if not source_path:

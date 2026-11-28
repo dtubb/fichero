@@ -14,7 +14,7 @@
 >
 > Scope with other docs: `AGENTS.md` "Where Things Live" stays the short rule for agent scratch and the repo root; this spec
 > is the long form for product code and the one the guards cite. `design/swiftui-app-reorg.md` (2026-07) and
-> `agent-work/design/engine-package-reorg.md` (2026-07) are the surveys this spec grew from; their **shim strategy is
+> a survey of the engine package (2026-07, a working note since deleted) are the surveys this spec grew from; their **shim strategy is
 > superseded** by `AGENTS.md` rule 0 (a move is a hard cutover in one commit, never an alias module).
 
 ## Intent

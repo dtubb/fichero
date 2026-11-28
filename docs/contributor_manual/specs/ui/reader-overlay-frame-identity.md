@@ -23,7 +23,7 @@ All three overlays already convert their normalized `[x,y,w,h]` through ONE shar
 `BoundingBoxGeometry.viewRect(normalized:in:visible:)`, framed to the same
 `PreviewImageGeometry` (`visible` window + `drawnFrame`). The pointer/click path maps in through the
 same two rects, so "the click hits the box it covers" holds by construction. The 2026-09-03
-unification (`agent-work/design/annotation-region-bbox-unification-review.md`) settled the transform;
+unification (reviewed in a working note, since deleted) settled the transform;
 the coordinate conventions were never the defect. **Do not add a second transform.**
 
 ## The rule: an overlay is valid only on a frame it was measured on
@@ -84,7 +84,8 @@ only as correct as the answer to "did this rendition re-frame?" — carried by `
 
 ## References
 
-- `agent-work/design/annotation-region-bbox-unification-review.md` (the canonical prior analysis)
+- The 2026-09-03 unification review (a working note, since deleted; its one finding no spec held, the check cycle
+  deleting and recreating its mark, is in `docs/contributor_manual/design/carried-from-working-notes.md`)
 - Fix: `fichero/fichero/Services/RenditionService+EditStates.swift` (`frameChangingOps`)
 - Gate: `fichero/fichero/Views/Preview/ImageViewer/ZoomableImagePreviewMac+Renditions.swift`
   (`overlayFrameMatches`)

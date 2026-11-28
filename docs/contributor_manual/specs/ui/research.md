@@ -64,8 +64,7 @@ imports), while a workspace is only a window's saved pane layout.
   "research folder".
 
 - **Chat placement is free-form, not fixed zones (creative director, 2026-09-18).** An
-  earlier ruling (2026-07-20, captured in
-  `agent-work/design/agentic-surface-consolidation-fabel-review.md`) described chat as
+  earlier ruling (2026-07-20, captured in a working note since deleted) described chat as
   confined to three fixed docking zones. That is **superseded**: chat is a movable pane
   like any other kind, and sitting below the sidebar is only its DEFAULT placement. The
   mechanics of making chat movable (lifting conversation state out of `ChatView`'s `@State`
@@ -77,8 +76,7 @@ imports), while a workspace is only a window's saved pane layout.
 There is **one** agentic surface in Fichero, named **Research** — the activity, not a
 persona. The AI is an instrument the user directs, not an interlocutor with a
 pretend-human name (`docs/contributor_manual/architecture/agent_chat_as_user.md`; the
-2026-07-19/20 creative-director rulings captured in
-`agent-work/design/agentic-surface-consolidation-fabel-review.md`). "Chat", "Researcher",
+2026-07-19/20 creative-director rulings, captured in a working note since deleted). "Chat", "Researcher",
 "Agent", and "Workspace" are not separate features — they are one continuum from a
 lightweight chat bubble to a full research workspace, and every mutation the agent makes
 flows through the same audited action layer a human user's clicks use
@@ -576,11 +574,11 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
 Design content carried into this spec; files kept, listed here per program instruction
 (report only — not moved or deleted):
 
-- `agent-work/design/agentic-surface-consolidation-fabel-review.md` — origin of "one
-  surface, named Research", the node-kind-not-sidebar-mode ruling, and the trust-boundary
-  framing for the embedded browser. Superseded by this spec for the parts it decided that
-  are now ratified/grounded here; its migration-step sequencing (engine steps 1-3,
-  reorg-gated) remains the authoritative source for backend ordering not restated here.
+- The agentic-surface consolidation review (July 2026; a working note, deleted in November
+  2026) — origin of "one surface, named Research", the node-kind-not-sidebar-mode ruling, and
+  the trust-boundary framing for the embedded browser. Superseded by this spec. Its
+  backend ordering no longer stands apart from this spec: the chat tool loop it sequenced
+  second is built (`research.agent-audited-tools`).
 - `agent-work/status/agent-chat-survey.md` — corrected this spec's understanding that the
   chat-tools loop is wired and default-ON (not "planned", as the older
   `agent_chat_as_user.md` states) — verified directly against current

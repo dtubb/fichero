@@ -17,8 +17,8 @@ Reading is work: a reader highlights, checks/rates, notes, and tags a source, an
 durable, queryable, and promotable into knowledge. This spec pins the annotation **data model and
 behaviors** — kinds, the check cycle, the review representation, promotion to a claim, export. It is
 the companion to [[reader-overlay-frame-identity]], which pins only WHERE a mark draws (the pixel
-transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling doc
-`agent-work/design/reading-markup-coding-system.md` (Daniel, 2026-08-30).
+transform); this pins WHAT a mark is and how it behaves. Grounded in the maintainer's rulings of
+2026-08-30 (recorded in a working note, since deleted).
 
 Annotations are drawn on the page as the Notes layer of `layers-on-the-source.md`, which also
 says how that layer is switched and shown on the canvases.
@@ -181,7 +181,7 @@ says how that layer is switched and shown on the canvases.
 
 ## References
 
-- `agent-work/design/reading-markup-coding-system.md` (rulings)
+- `docs/contributor_manual/design/carried-from-working-notes.md` (the margin-note ruling of 2026-08-30, which no behaviour above holds)
 - Engine: `fichero-server/src/fichero_server/models/knowledge.py` (AnnotationKind/Annotation), `api/routes/document/annotations.py`,
   `api/routes/system/views.py` (annotations representation), `api/routes/document/documents.py` (jsonld export)
 - Client: `fichero/fichero/Models/AnnotationStore.swift`, `Services/AnnotationService+*.swift`,
