@@ -1258,7 +1258,9 @@ async def enhanced_search(
         if search_entities
         else []
     )
-    if search_content and entity_hits:
+    # Manager ruling 2026-11-28: a scope token restricts results to its kind, so `entities:X` returns entity hits only; the graph
+    # leg's documents are content and belong to content and unscoped searches.
+    if search_content and entity_hits and "entities" not in plan.scopes:
         graph_seen = {r.document_id for r in results}
         graph_slots = max(0, request.limit - len(results))
         graph_hits: list[SearchResult] = []

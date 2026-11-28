@@ -587,6 +587,10 @@ search route is not called by the app.
   Built: the graph leg reads the entity hits as the plain records they are; pinned by
   test_graph_leg_finds_the_page_of_a_named_entity.py. Not built: the older graph-leg case in
   test_routes_search.py still has an `if via == graph` condition and needs the embedding model.
+- `search.graph.scope-keeps-its-kind` — **[OK]** (manager ruling 2026-11-28) a scope token restricts the results to its
+  kind: `entities:X` returns name hits only, so the graph leg, whose pages are content, does not run under it; its pages
+  belong to content and unscoped searches. Test:
+  `fichero-server/tests/unit/api/test_routes_search.py::TestEnhancedSearch::test_entities_scope_query_returns_only_entity_hits`.
 - `search.graph.own-route` — **[PARTIAL]** (#2571, → #6788) `GET /api/kg/search` looks for letters in
   every name, statement, note and annotation by reading them all, lower-cased but not folded (an
   accented name is missed unless an alias is plain); it is off below the beta tier and nothing in the
