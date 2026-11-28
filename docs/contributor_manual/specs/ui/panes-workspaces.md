@@ -258,7 +258,7 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `CustomizableToolbarContent` on macOS. *Test:*
   `fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift::aliasIsCustomizableOnMac`.
   No test proves that the sites use `toolbar(id:)`.
-- `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
+- `shell.search.always-visible-with-scope` — **[OK]** (#6729; owner 2026-11-19) search is one field
   in the toolbar; its magnifier menu has a **Search Scope** section with a check on the current scope,
   and the placeholder names it ("Search this page", "Search this document", "Search this folder", "Search this
   project", "Search everywhere"). **Built (manager ruling 2026-11-20):** the menu offers This Page, This Document,
@@ -270,7 +270,11 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift::menuHoldsWhatTheSecondButtonOffered`.
   The right inspector's minimum width keeps the field whole (f0d4698eb8). *Test:*
   `InspectorPaneWidthTests.swift::testTheInspectorMinimumKeepsTheSearchFieldWhole`.
-  **Not built:** a UI test that the field stays visible and focusable (⌘F) with the inspector narrow or closed.
+  *Left, now `shell.search.field-stays-visible-ui-test`:* a UI test that the field stays visible and focusable (⌘F) with the inspector narrow or closed.
+- `shell.search.field-stays-visible-ui-test` — **[GAP]** (#6729; app) split from
+  `shell.search.always-visible-with-scope` (manager 2026-11-27 retag); what that line left: a UI test that the field
+  stays visible and focusable (⌘F) with the inspector narrow or closed; Everywhere searching across libraries (it
+  sends the same call as This Project today). Not built.
 - `panes.claim.source-is-document` — **[OK]** (fixed b7be99143) the Claims Source column shows
   the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
   bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
