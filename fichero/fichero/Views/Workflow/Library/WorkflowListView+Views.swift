@@ -101,7 +101,11 @@ extension WorkflowListView {
     // MARK: - Table View
 
     var tableView: some View {
-        Table(filteredWorkflows, selection: $selectedWorkflowIds, sortOrder: $tableSortOrder) {
+        Table(
+            Self.tableRows(filteredWorkflows, sortedBy: tableSortOrder),
+            selection: $selectedWorkflowIds,
+            sortOrder: $tableSortOrder
+        ) {
             TableColumn("Name", value: \.name) { workflow in
                 HStack {
                     Image(systemName: "flowchart")
@@ -145,9 +149,15 @@ extension WorkflowListView {
             // Sync table selection to single selection for detail view
             selectedWorkflowId = newValue.first
         }
-        .onChange(of: tableSortOrder) { _, _ in
-            // TableColumn sorting requires sortable workflows
-        }
+    }
+
+    /// The table's rows in the order its column headers set. `nonisolated`
+    /// so a test can call it off the main actor.
+    nonisolated static func tableRows(
+        _ workflows: [WorkflowSidebarItem],
+        sortedBy order: [KeyPathComparator<WorkflowSidebarItem>]
+    ) -> [WorkflowSidebarItem] {
+        workflows.sorted(using: order)
     }
 
     // MARK: - Empty State

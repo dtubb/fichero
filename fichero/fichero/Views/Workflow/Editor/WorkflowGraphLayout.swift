@@ -13,8 +13,10 @@ enum WorkflowTopology {
     static func orderedNodes(nodes: [WorkflowNode], edges: [WorkflowEdge]) -> [WorkflowNode] {
         guard !nodes.isEmpty else { return [] }
 
-        let nodeById = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
-        var indegree = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, 0) })
+        // Nodes can share an id (the engine does not refuse it), so the first
+        // one keeps the key: `uniqueKeysWithValues` traps on the second.
+        let nodeById = Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var indegree = Dictionary(nodes.map { ($0.id, 0) }, uniquingKeysWith: { first, _ in first })
         var outgoing: [String: [String]] = [:]
 
         for edge in edges {
@@ -57,9 +59,10 @@ enum WorkflowTopology {
     /// 1-based execution step for each node id, from the topological sort.
     static func stepNumbers(nodes: [WorkflowNode], edges: [WorkflowEdge]) -> [String: Int] {
         Dictionary(
-            uniqueKeysWithValues: orderedNodes(nodes: nodes, edges: edges)
+            orderedNodes(nodes: nodes, edges: edges)
                 .enumerated()
-                .map { ($0.element.id, $0.offset + 1) }
+                .map { ($0.element.id, $0.offset + 1) },
+            uniquingKeysWith: { first, _ in first }
         )
     }
 

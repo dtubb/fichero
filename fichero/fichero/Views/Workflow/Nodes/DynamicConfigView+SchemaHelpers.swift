@@ -54,20 +54,4 @@ extension DynamicConfigView {
         }
         return nil
     }
-
-    func getMin(from schema: [String: AnyCodableValue]) -> Double? {
-        switch schema["min"] {
-        case .double(let val): return val
-        case .int(let val): return Double(val)
-        default: return nil
-        }
-    }
-
-    func getMax(from schema: [String: AnyCodableValue]) -> Double? {
-        switch schema["max"] {
-        case .double(let val): return val
-        case .int(let val): return Double(val)
-        default: return nil
-        }
-    }
 }

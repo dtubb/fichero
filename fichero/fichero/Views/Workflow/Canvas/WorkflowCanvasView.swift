@@ -207,7 +207,7 @@ struct WorkflowCanvasView: View {
 
         // Delete selected edge first
         if let edgeId = selectedEdgeId {
-            workflow.edges.removeAll { $0.id == edgeId }
+            workflow.removeEdge(id: edgeId)
             selectedEdgeId = nil
             registerUndo(from: previousWorkflow, actionName: "Delete Connection")
             return
@@ -215,12 +215,7 @@ struct WorkflowCanvasView: View {
 
         // Delete selected nodes
         if !selectedNodeIds.isEmpty {
-            for nodeId in selectedNodeIds {
-                // Remove connected edges
-                workflow.edges.removeAll { $0.sourceNodeId == nodeId || $0.targetNodeId == nodeId }
-                // Remove node
-                workflow.nodes.removeAll { $0.id == nodeId }
-            }
+            workflow.removeNodes(ids: selectedNodeIds)
             selectedNodeIds.removeAll()
             editingNodeId = nil
             registerUndo(from: previousWorkflow, actionName: "Delete Node")

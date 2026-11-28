@@ -372,7 +372,6 @@ extension WorkflowEditor {
             return
         }
 
-        isSaving = true
         saveError = nil
 
         do {
@@ -383,20 +382,10 @@ extension WorkflowEditor {
                 _ = try await workflowStore.saveWorkflow(definition)
             }
             actionsLogger.info("Successfully saved workflow")
-            showSaveSuccess = true
-
-            // Hide success message after 2 seconds
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                guard !Task.isCancelled else { return }
-                showSaveSuccess = false
-            }
         } catch {
             actionsLogger.error("Failed to save workflow: \(error.localizedDescription)")
             saveError = error.localizedDescription
         }
-
-        isSaving = false
     }
 
     func exportWorkflow() {

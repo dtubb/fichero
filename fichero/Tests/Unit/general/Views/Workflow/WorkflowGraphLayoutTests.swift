@@ -55,6 +55,23 @@ final class WorkflowGraphLayoutTests: XCTestCase {
         XCTAssertEqual(steps, ["a": 1, "b": 2])
     }
 
+    /// The engine does not refuse a workflow whose nodes share an id (an
+    /// imported file can carry one), and the canvas numbers its steps on every
+    /// draw. spec: workflows `workflows.canvas.duplicate-node-ids-do-not-crash`.
+    func testNodesSharingAnIdAreNumberedWithoutATrap() {
+        let nodes = [node("a", x: 0, y: 0), node("dup", x: 100, y: 0), node("dup", x: 200, y: 0)]
+        let edges = [edge("a", "dup")]
+
+        let ordered = WorkflowTopology.orderedNodes(nodes: nodes, edges: edges)
+        let steps = WorkflowTopology.stepNumbers(nodes: nodes, edges: edges)
+        let positions = WorkflowTidyLayout.positions(nodes: nodes, edges: edges)
+
+        // Every node is still listed (visual order), and each id has one step.
+        XCTAssertEqual(ordered.map(\.id), ["a", "dup", "dup"])
+        XCTAssertEqual(steps, ["a": 1, "dup": 2])
+        XCTAssertEqual(Set(positions.keys), ["a", "dup"])
+    }
+
     // MARK: - Tidy layout
 
     func testTidyLaysChainOutLeftToRight() throws {

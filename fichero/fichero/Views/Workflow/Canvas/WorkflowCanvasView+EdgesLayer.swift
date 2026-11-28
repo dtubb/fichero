@@ -45,7 +45,7 @@ extension WorkflowCanvasView {
                 .contextMenu {
                     Button(role: .destructive) {
                         let previousWorkflow = workflow
-                        workflow.edges.removeAll { $0.id == edge.id }
+                        workflow.removeEdge(id: edge.id)
                         selectedEdgeId = nil
                         registerUndo(from: previousWorkflow, actionName: "Delete Connection")
                     } label: {

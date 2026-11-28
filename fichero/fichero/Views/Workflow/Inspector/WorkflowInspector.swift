@@ -175,7 +175,8 @@ struct WorkflowInspector: View {
     }
 
     /// Chain tab — the workflow's ordered steps. Each node is a tool (#2441);
-    /// this lists them in order (editing the node config stays in the editor).
+    /// this lists them in execution order, the order the canvas badges and the
+    /// editor's list number them in (editing the node config stays in the editor).
     @ViewBuilder
     private var chainContent: some View {
         if workflow.nodes.isEmpty {
@@ -186,7 +187,8 @@ struct WorkflowInspector: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(Array(workflow.nodes.enumerated()), id: \.element.id) { index, node in
+            let steps = WorkflowInspectorLists.chainSteps(of: workflow)
+            List(Array(steps.enumerated()), id: \.element.id) { index, node in
                 HStack(spacing: 8) {
                     Text("\(index + 1)")
                         .font(.caption.monospacedDigit())
@@ -214,7 +216,8 @@ struct WorkflowInspector: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(workflowRuns) { run in
+            List(workflowRuns) { row in
+                let run = row.run
                 HStack(spacing: 8) {
                     Image(systemName: run.isRunning ? "play.circle.fill" : "checkmark.circle")
                         .foregroundStyle(run.isRunning ? Color.accentColor : .secondary)
@@ -230,14 +233,13 @@ struct WorkflowInspector: View {
         }
     }
 
-    /// This workflow's executions from the shared observer, running first.
-    private var workflowRuns: [WorkflowExecution] {
+    /// This workflow's runs from the shared observer, newest first, one row
+    /// for each run.
+    private var workflowRuns: [WorkflowInspectorLists.RunRow] {
         let all = executionObserver.map {
             Array($0.activeExecutions.values) + Array($0.completedExecutions.values)
         } ?? []
-        return all
-            .filter { $0.id == workflow.id }
-            .sorted { $0.startTime > $1.startTime }
+        return WorkflowInspectorLists.runRows(of: workflow.id, among: all)
     }
 
     /// Shared bottom mini-toolbar (#3531) — a per-tab status line.

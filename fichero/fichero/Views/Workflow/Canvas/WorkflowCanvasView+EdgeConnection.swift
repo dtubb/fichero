@@ -68,11 +68,8 @@ extension WorkflowCanvasView {
         let sourceNodeId = edge.sourceNodeId
         let sourcePortId = edge.sourcePortId
 
-        // Remove the edge
-        workflow.edges.remove(at: edgeIndex)
-
-        // Remove the input mapping from the target node
-        removeInputMapping(targetNodeId: targetNodeId, targetPortId: port.id)
+        // Remove the edge and the mapping that read it
+        workflow.removeEdge(id: edge.id)
 
         // Find the source node and port to start a new drag
         guard let sourceNode = workflow.nodes.first(where: { $0.id == sourceNodeId }),
@@ -129,20 +126,13 @@ extension WorkflowCanvasView {
 
         // Complete connection if we found a compatible target
         if let targetNode = nearestNode, let targetPort = nearestPort {
-            let newEdge = WorkflowEdge(
+            // The edge and its input mapping; a second copy of an edge
+            // already drawn is refused.
+            workflow.connect(
                 sourceNodeId: edge.sourceNodeId,
-                targetNodeId: targetNode.id,
                 sourcePortId: edge.sourcePortId,
-                targetPortId: targetPort.id
-            )
-            workflow.edges.append(newEdge)
-
-            // Auto-create input mapping on target node
-            addInputMapping(
                 targetNodeId: targetNode.id,
-                targetPortId: targetPort.id,
-                sourceNodeId: edge.sourceNodeId,
-                sourcePortId: edge.sourcePortId
+                targetPortId: targetPort.id
             )
             registerUndo(from: previousWorkflow, actionName: "Add Connection")
         }
@@ -170,56 +160,14 @@ extension WorkflowCanvasView {
             return
         }
 
-        // Create the edge
-        let newEdge = WorkflowEdge(
+        workflow.connect(
             sourceNodeId: dragged.sourceNodeId,
-            targetNodeId: node.id,
             sourcePortId: dragged.sourcePortId,
+            targetNodeId: node.id,
             targetPortId: port.id
         )
 
-        workflow.edges.append(newEdge)
-
-        // Auto-create input mapping on target node
-        addInputMapping(
-            targetNodeId: node.id,
-            targetPortId: port.id,
-            sourceNodeId: dragged.sourceNodeId,
-            sourcePortId: dragged.sourcePortId
-        )
-
         endEdgeDrag()
-    }
-
-    /// Add an input mapping to a target node when an edge is connected
-    func addInputMapping(targetNodeId: String, targetPortId: String, sourceNodeId: String, sourcePortId: String) {
-        guard let nodeIndex = workflow.nodes.firstIndex(where: { $0.id == targetNodeId }) else { return }
-
-        let sourcePath = "$.nodes.\(sourceNodeId).\(sourcePortId)"
-
-        // Check if mapping already exists for this port
-        if let mappingIndex = workflow.nodes[nodeIndex].inputMappings.firstIndex(where: { $0.portId == targetPortId }) {
-            // Update existing mapping
-            workflow.nodes[nodeIndex].inputMappings[mappingIndex] = InputMapping(
-                portId: targetPortId,
-                sourcePath: sourcePath,
-                transform: nil
-            )
-        } else {
-            // Add new mapping
-            workflow.nodes[nodeIndex].inputMappings.append(InputMapping(
-                portId: targetPortId,
-                sourcePath: sourcePath,
-                transform: nil
-            ))
-        }
-    }
-
-    /// Remove an input mapping when an edge is disconnected
-    func removeInputMapping(targetNodeId: String, targetPortId: String) {
-        guard let nodeIndex = workflow.nodes.firstIndex(where: { $0.id == targetNodeId }) else { return }
-
-        workflow.nodes[nodeIndex].inputMappings.removeAll { $0.portId == targetPortId }
     }
 }
 

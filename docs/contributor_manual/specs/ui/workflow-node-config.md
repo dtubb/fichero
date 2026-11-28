@@ -56,6 +56,7 @@ Common chrome (every tool)
 - `nodeconfig.fields.enabled.toggle` — [PARTIAL] (implemented, unpinned; #4800) the header switch toggles `node.enabled`; a disabled node renders at 50% on the canvas.
 - `nodeconfig.fields.tool-name.advanced` — [PARTIAL] (implemented, unpinned; #4800) the Advanced disclosure names the tool id; input mappings appear there only behind the advanced-views flag.
 - `nodeconfig.fields.schema-driven.fallback` — [PARTIAL] (implemented, unpinned; #4800) a tool without a custom config view renders every `configSchema` field (string/enum/int/number/array/bool) via `DynamicConfigView`; unknown types say so in red rather than vanishing.
+- `nodeconfig.fields.schema-driven.number-range` — [OK] (#2443) a schema-driven number field is a slider over the range its tool declares (`minimum`/`maximum`, or the short `min`/`max`), with a step fine enough to reach the declared default; a field whose schema declares no valid range is a number field, never a slider over an invented range. (Pinned: `ConfigNumberBoundsTests`, fichero/Tests/Unit/general/Views/Workflow/ConfigNumberBoundsTests.swift.)
 - `nodeconfig.fields.only-honoured-keys` — **[GAP]** (#4800) every field shown maps to a key the server reads for that tool (no dead knobs); every key the server honours for a user-facing option is shown. (Audit line — see Findings F5/F16.)
 
 Transcribe (`transcribe`)
@@ -90,6 +91,7 @@ Sources: Files / Collection / Search
 - `nodeconfig.fields.files.selection-default` — [PARTIAL] (implemented, unpinned; #4800) with no pinned files the node states it uses the library selection at run time, with a "Pin specific files…" affordance.
 - `nodeconfig.fields.files.pin-picker` — [PARTIAL] (implemented, unpinned; #4800) the picker stages a selection (Cancel discards, Add commits); rows can be removed; drops of `doc:<id>` are accepted only for files.
 - `nodeconfig.fields.collection.folder-picker` — [PARTIAL] (implemented, unpinned; #4800) indented folder tree, Inbox first; a folder that disappears clears the selection rather than pointing at a ghost.
+- `nodeconfig.fields.folder-picker.one-row-per-folder` — [OK] (#115) the Collection node and the schema-driven Folder tool list the same folder tree (Inbox first, then by name, children indented), and a folder the store lists twice is one row. (Pinned: `WorkflowFolderOptionTests`, fichero/Tests/Unit/general/Views/Workflow/WorkflowFolderOptionTests.swift.)
 - `nodeconfig.fields.search.saved-search` — [PARTIAL] (implemented, unpinned; #4800) saved-search picker → `search_id` (+ `query` copied for display); empty state offers Reload.
 
 Zoom (`zoom`)

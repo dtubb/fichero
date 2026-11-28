@@ -75,9 +75,12 @@ extension WorkflowCanvasView {
     @ViewBuilder
     private func nodePopoverContent(node: WorkflowNode, index: Int) -> some View {
         NodePopover(
+            // By id, never by the index this body was built with: deleting the
+            // node from the popover leaves the popover reading for one more
+            // update, and that index then names the next node or none.
             node: Binding(
-                get: { workflow.nodes[index] },
-                set: { workflow.nodes[index] = $0 }
+                get: { workflow.node(withId: node.id) ?? node },
+                set: { workflow.replaceNode($0) }
             ),
             allNodes: workflow.nodes,
             workflowId: workflow.id,
@@ -129,11 +132,7 @@ extension WorkflowCanvasView {
         let previousWorkflow = workflow
         let nodeId = workflow.nodes[index].id
 
-        // Remove connected edges
-        workflow.edges.removeAll { $0.sourceNodeId == nodeId || $0.targetNodeId == nodeId }
-
-        // Remove node
-        workflow.nodes.remove(at: index)
+        workflow.removeNodes(ids: [nodeId])
         editingNodeId = nil
         selectedNodeIds.remove(nodeId)
         registerUndo(from: previousWorkflow, actionName: "Delete Node")

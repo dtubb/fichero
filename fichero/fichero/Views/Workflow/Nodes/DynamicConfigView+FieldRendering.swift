@@ -1,16 +1,5 @@
 import SwiftUI
 
-private struct DynamicFolderPickerOption: Identifiable {
-    let folder: Document
-    let depth: Int
-
-    var id: String { folder.id }
-
-    var indentedName: String {
-        String(repeating: "  ", count: depth) + folder.name
-    }
-}
-
 extension DynamicConfigView {
 
     // MARK: - Field Rendering
@@ -201,27 +190,29 @@ extension DynamicConfigView {
         ))
     }
 
+    /// A slider over the range the tool declares; a number field when it
+    /// declares none (`ConfigNumberBounds.range`).
+    @ViewBuilder
     func numberSlider(key: String, schema: [String: AnyCodableValue], description: String?) -> some View {
-        let minVal = getMin(from: schema) ?? 0
-        let maxVal = getMax(from: schema) ?? 1
-        let step = maxVal <= 2 ? 0.1 : 1.0
-
-        return HStack(spacing: 8) {
-            Slider(
-                value: Binding(
-                    get: { doubleValues[key] ?? getDefaultDouble(from: schema) },
-                    set: { newValue in
-                        doubleValues[key] = newValue
-                        updateConfig(key: key, value: .double(newValue))
-                    }
-                ),
-                in: minVal...maxVal,
-                step: step
-            )
-            Text(String(format: step < 1 ? "%.1f" : "%.0f", doubleValues[key] ?? getDefaultDouble(from: schema)))
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .frame(width: 30, alignment: .trailing)
+        let value = Binding(
+            get: { doubleValues[key] ?? getDefaultDouble(from: schema) },
+            set: { newValue in
+                doubleValues[key] = newValue
+                updateConfig(key: key, value: .double(newValue))
+            }
+        )
+        if let range = ConfigNumberBounds.range(schema: schema) {
+            let step = ConfigNumberBounds.step(for: range)
+            HStack(spacing: 8) {
+                Slider(value: value, in: range, step: step)
+                Text(ConfigNumberBounds.label(value.wrappedValue, step: step))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, alignment: .trailing)
+            }
+        } else {
+            TextField("Enter number", value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
         }
     }
 
@@ -265,7 +256,7 @@ extension DynamicConfigView {
 
     @ViewBuilder
     private func folderPickerField() -> some View {
-        let folderOptions = buildFolderOptions(from: documentStore.collections)
+        let folderOptions = WorkflowFolderOption.tree(from: documentStore.collections)
 
         Picker("Folder", selection: Binding(
             get: { stringValues["folder_id"] ?? "" },
@@ -293,52 +284,5 @@ extension DynamicConfigView {
                 .foregroundColor(.secondary)
                 .italic()
         }
-    }
-
-    private func buildFolderOptions(from documents: [Document]) -> [DynamicFolderPickerOption] {
-        let allFolders = documents
-            .filter { $0.docType == .folder }
-            .sorted { lhs, rhs in
-                lhs.name.finderOrder(rhs.name)
-            }
-
-        let validFolderIds = Set(allFolders.map(\.id))
-
-        var childrenMap: [String: [Document]] = [:]
-        for folder in allFolders {
-            guard let parentId = folder.parentId, validFolderIds.contains(parentId) else { continue }
-            childrenMap[parentId, default: []].append(folder)
-        }
-
-        for key in childrenMap.keys {
-            childrenMap[key]?.sort { lhs, rhs in
-                lhs.name.finderOrder(rhs.name)
-            }
-        }
-
-        let inboxRoots = allFolders.filter { $0.parentId == nil && $0.name == "Inbox" }
-        let otherRoots = allFolders
-            .filter { folder in
-                folder.parentId == nil && folder.name != "Inbox"
-            }
-            .sorted { lhs, rhs in
-                lhs.name.finderOrder(rhs.name)
-            }
-        let orderedRoots = inboxRoots + otherRoots
-
-        var options: [DynamicFolderPickerOption] = []
-
-        func traverse(_ folder: Document, depth: Int) {
-            options.append(DynamicFolderPickerOption(folder: folder, depth: depth))
-            for child in childrenMap[folder.id] ?? [] {
-                traverse(child, depth: depth + 1)
-            }
-        }
-
-        for root in orderedRoots {
-            traverse(root, depth: 0)
-        }
-
-        return options
     }
 }
