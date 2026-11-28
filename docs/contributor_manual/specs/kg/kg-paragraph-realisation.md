@@ -161,7 +161,7 @@ no words; only the last two read a language's table.
 | Stage | Takes | Gives | Today |
 |---|---|---|---|
 | 1 Select | the name, its statements | statements to say, each with its role; the mention list | role built; no filter |
-| 2 Unite | selected statements, `contradicts` links | units: same statement from several sources; one passage's two halves; a dispute | objects merged; nothing else |
+| 2 Unite | selected statements, `contradicts` links | units: same statement from several sources; one passage's two halves; a dispute | built |
 | 3 Order | units | units by time (or by source), undated last | built by time only |
 | 4 Group | ordered units | sentences: a run of one verb joins; everything else stands alone | merges across the whole list |
 | 5 Qualify | each unit | its date, place, state, doubt as values, with their basis | not built |
@@ -373,21 +373,30 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 
 ### F. Fewer, better sentences
 
-- `kg.para.same-statement-one-clause` — **[PARTIAL]** (#3808, → #6840) statements with the same
+- `kg.para.same-statement-one-clause` — **[OK]** (#3808, → #6840) statements with the same
   subject entity, verb, object, date and language are one unit and one clause naming all of
   them. Built: identical objects are listed once and every id kept
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_merge_keeps_every_source_claim_id_in_order`).
-  Not built: the date in the key (today two sources with different dates collapse into one
-  sentence that says neither). Test (to write):
-  `test_same_statement_different_date_is_two_units`.
-- `kg.para.one-passage-one-sentence` — **[GAP]** (#3808, → #6840) two statements with the same
+  Test (in `test_paragraph_units.py`): `test_same_statement_different_date_is_two_units`.
+  Built: the date as the language's table says it is in the key, so the same object with two
+  dates is two clauses, each with its own date, and the same object and date from two documents
+  is one clause naming both; a unit unsure on one source is a sentence of its own. Tests:
+  `fichero-server/tests/unit/knowledge/test_paragraph_units.py::test_an_unsure_statement_of_another_date_is_said_apart_from_the_plain_one`,
+  `test_two_dates_of_one_statement_are_two_clauses_on_the_route`.
+- `kg.para.one-passage-one-sentence` — **[OK]** (#3808, → #6840) two statements with the same
   subject entity and verb that rest on the SAME stretch of one page (the same character
   range), one with a plain object and one whose object opens with a preposition, are said as
   one clause pair, the plain object first, with no conjunction between them ("vendió una casa
   a …"). Anything less than the same stretch stays two sentences, as ruled for #4836. This
   narrows that ruling: the two halves of one act from the same passage may share one sentence
-  (owner ruling 2026-11-21, G2). Test (to write):
+  (owner ruling 2026-11-21, G2). Test (in `test_paragraph_units.py`):
   `test_two_halves_of_one_passage_are_one_sentence_and_never_coordinated`.
+  Built: exactly two statements with the same subject entity, verb, language, document, page
+  label and character range, one object plain and one prepositional, said with the same date,
+  place and doubt, are one sentence of two clauses; three statements on one stretch, or two
+  that differ in date, place or doubt, stay as they were. Tests:
+  `fichero-server/tests/unit/knowledge/test_paragraph_units.py::test_anything_less_than_the_same_stretch_stays_two_sentences`,
+  `test_two_halves_of_one_passage_are_one_sentence_on_the_route`.
 - `kg.para.run-is-neighbours` — **[BROKEN]** (#4648, → #6841) only units next to each other in
   the paragraph's order, with the same subject entity, verb, language and doubt, join into one
   sentence, four at most. Today `aggregate_claims` joins every same-verb statement of the
@@ -599,7 +608,7 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 #### Step 3.1 — Units: one statement from many sources; one passage, one sentence (#6840)
 - Behaviours: `kg.para.same-statement-one-clause`, `kg.para.one-passage-one-sentence`
-- Tests: to write: `test_paragraph_units.py` in fichero-server/tests/unit/knowledge/
+- Tests: `test_paragraph_units.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.2
 - Size: S
 
