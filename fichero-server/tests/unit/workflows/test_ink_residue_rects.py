@@ -5,7 +5,7 @@ the caller can crop and re-OCR at region scale. Pinned on synthetic pixels:
 it must see uncovered ink, ignore covered ink, ignore page furniture (ruled
 lines, dark backdrop), and stay bounded (rect cap, merge-span cap).
 
-Verified against real Marshall diary pages (text-ink coverage 0.26 -> 0.70 on
+Verified against real diary pages (text-ink coverage 0.26 -> 0.70 on
 dense small print; missed faint-pencil lines recovered).
 """
 

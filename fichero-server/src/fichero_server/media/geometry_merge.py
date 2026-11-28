@@ -47,7 +47,7 @@ MIN_LINE_SCORE = 0.30
 #: produces a wrong skeleton, and everything derived from it inherits the error
 #: silently.
 #:
-#: Directional on purpose (measured 2026-09-03 on six Marshall diary pages).
+#: Directional on purpose (measured 2026-09-03 on six diary pages).
 #: The two imbalances are not the same defect. Reviewed ≫ measured means Vision
 #: did not see most of the page, so the skeleton is missing — refuse. Measured
 #: ≫ reviewed means Vision saw MORE than the transcript covers, which is the
