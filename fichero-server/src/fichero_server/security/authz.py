@@ -22,6 +22,7 @@ from fichero_server.db.library_paths import nfc_path
 from fichero_server.models.canvas import CanvasItem, CanvasLayout
 from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import HandAttribution
+from fichero_server.models.kg_comments import KgComment
 from fichero_server.models.letterforms import LetterformDescription
 from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
 from fichero_server.models.hermeneutics import Interpretation
@@ -711,6 +712,10 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
         else _document_id_of_segment(db, row.target_id) if row.target_kind == "segment" else row.target_id),
     # Declared with #5178; including a document in the knowledge graph is a fact about that document.
     (KnowledgeGraphInclusion, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
+    # A comment (#4643) on a segment -> the segment's page; on a source -> that document; on a claim or an
+    # entity -> no document (library-level, like the node it is on).
+    (KgComment, lambda db, row: _document_id_of_segment(db, row.anchor_id) if row.anchor_kind == "segment"
+        else row.anchor_id if row.anchor_kind == "source" else NO_DOCUMENT),
 )
 
 #: A resolver's answer for a row that belongs to NO document (a library-level annotation or note,

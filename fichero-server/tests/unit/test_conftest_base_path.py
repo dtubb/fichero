@@ -158,11 +158,16 @@ def test_apple_marker_skips_when_capability_absent(monkeypatch) -> None:
         def add_marker(self, marker):
             self.markers.append(marker)
 
+        def get_closest_marker(self, name):
+            return None  # the stub carries no pytest marks: the Apple skips read its keywords
+
+    # the hook reads `-m` (the real_model deselection) and reports what it leaves out: a config that asks for no marker expression
+    config = SimpleNamespace(getoption=lambda name: "", hook=SimpleNamespace(pytest_deselected=lambda items: None))
     monkeypatch.setattr(conftest, "_APPLE_INTELLIGENCE_OK", False)
     monkeypatch.setattr(conftest, "_APPLE_VISION_OK", True)
     marked = _Item({"requires_apple_intelligence": True})
     unmarked = _Item({})
-    conftest.pytest_collection_modifyitems(config=None, items=[marked, unmarked])
+    conftest.pytest_collection_modifyitems(config=config, items=[marked, unmarked])
     assert any(m.name == "skip" for m in marked.markers), (
         "requires_apple_intelligence did not skip with the probe False — "
         "the marker mechanism is dead again"
@@ -171,7 +176,7 @@ def test_apple_marker_skips_when_capability_absent(monkeypatch) -> None:
 
     monkeypatch.setattr(conftest, "_APPLE_INTELLIGENCE_OK", True)
     available = _Item({"requires_apple_intelligence": True})
-    conftest.pytest_collection_modifyitems(config=None, items=[available])
+    conftest.pytest_collection_modifyitems(config=config, items=[available])
     assert not any(m.name == "skip" for m in available.markers), (
         "the marker skipped even though the capability is PRESENT — "
         "over-skipping hides a runnable test"

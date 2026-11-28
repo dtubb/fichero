@@ -1201,6 +1201,16 @@ class OwnDevicesResponse(BaseModel):
     enrollment_secret: str | None = Field(default=None, description="the new secret, shown once; none when turned off")
 
 
+def _require_owner_over_uds(request: Request, app_db: AppDatabase) -> AccountUser:
+    """The owner, asking over this Mac's own Unix socket; 403 for anyone else."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="only this Mac's own app can change sign-in options")
+    owner = _pairing_user(request, app_db)
+    if not owner.is_owner:
+        raise HTTPException(status_code=403, detail="only the owner can change sign-in options")
+    return owner
+
+
 @router.put("/own-devices", response_model=OwnDevicesResponse)
 def set_own_devices(
     request: Request,
@@ -1209,11 +1219,7 @@ def set_own_devices(
 ) -> OwnDevicesResponse:
     """`signin.own.*` (#6568): on mints a NEW 32-byte enrollment secret for the owner (stored only as a hash) and
     retires every earlier one; off retires them all. Only this Mac's own app, over its Unix socket, may."""
-    if request.scope.get("fichero.transport") != "uds":
-        raise HTTPException(status_code=403, detail="only this Mac's own app can change sign-in options")
-    owner = _pairing_user(request, app_db)
-    if not owner.is_owner:
-        raise HTTPException(status_code=403, detail="only the owner can change sign-in options")
+    owner = _require_owner_over_uds(request, app_db)
     _audit(request, app_db, "pair.own_devices", owner.id, enabled=body.enabled)
     app_db.revoke_enrollment_secrets()
     engine_id = _engine_id(app_db)
