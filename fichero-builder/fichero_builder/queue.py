@@ -2835,7 +2835,9 @@ def train_when_due(procs: Procs, chains: dict | None) -> None:
         try:
             res = procs.train_run(spec, tid, **({"base": cand} if base_tid else {}))
         except Exception as e:  # noqa: BLE001 - a train that cannot run is a row and an alert; its steps wait again
-            journal.append("train", id=tid, steps=[x["key"] for x in spec], result="error", detail=f"{type(e).__name__}: {e}"[:500])
+            # 2026-11-28: "PermissionError: [Errno 1] Operation not permitted" said neither where nor what: the row has both now
+            journal.append("train", id=tid, steps=[x["key"] for x in spec], result="error", detail=f"{type(e).__name__}: {e}"[:500],
+                           path=str(getattr(e, "filename", "") or ""), traceback=traceback.format_exc()[-3000:])
             alert("-", "train", f"the merge train {tid} could not run: {type(e).__name__}: {e}"[:300], str(journal.path()), [])
             res = train.Result(id=tid, steps=[x["key"] for x in spec], again=[x["key"] for x in spec], result="error")
         else:

@@ -115,3 +115,26 @@ def test_a_module_defined_in_both_gate_paths_is_a_stale_cache_and_the_verb_names
     why = check_tool.env_red_why({"stdout_tail": "** BUILD FAILED **\n" + DEFINED_IN_BOTH, "stderr_tail": ""})
     assert why.startswith("error: Clang dependency scanning failure: module 'Darwin' is defined in both"), why
     assert check_tool.env_red_why({"stderr_tail": "ssh: connect timed out\nbye"}) == "bye"
+
+
+def test_a_jailed_rung_past_its_deadline_is_stopped_by_the_jail_user_when_the_managers_killpg_is_refused(monkeypatch):
+    """2026-11-28 11:13: train-20261128-102821 ended "PermissionError: [Errno 1] Operation not permitted", with no path. A jailed
+    rung runs under root's sudo, which leads its process group, so the manager's killpg at the deadline was refused. Now the jailed
+    user kills the group's processes it owns; with no jail the refusal is raised, as before."""
+    import subprocess
+    import types
+    killed = []
+    jail = types.SimpleNamespace(sudo="sudo", user="fichero-worker", is_self=lambda: False)
+    monkeypatch.setattr(check_tool.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(PermissionError(1, "Operation not permitted")))
+    monkeypatch.setattr(check_tool.subprocess, "run", lambda argv, **k: killed.append(argv) or subprocess.CompletedProcess(argv, 0, "", ""))
+    p = types.SimpleNamespace(pid=4321)
+    check_tool._kill_group(p, jail)
+    assert killed == [["sudo", "-n", "-u", "fichero-worker", "/bin/kill", "-KILL", "--", "-4321"]]
+    with __import__("pytest").raises(PermissionError):
+        check_tool._kill_group(p, None)
+
+
+def test_run_command_stops_a_group_past_its_deadline(tmp_path):
+    import sys
+    r = check_tool.run_command("sleepy", [sys.executable, "-c", "import time; time.sleep(30)"], tmp_path, 0.5, as_jail=False)
+    assert r["timed_out"] and not r["ok"] and r["seconds"] < 20

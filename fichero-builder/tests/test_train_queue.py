@@ -514,3 +514,27 @@ def test_a_restart_mid_train_frees_its_steps_with_one_row_and_a_lane_with_no_pau
     assert all(x["paused"] is False for x in after)
     queue.tick(t.fake.procs, hs, workers_n=2, push=True, out=lambda s: None)
     assert not [r for r in journal.read() if r.get("state") == "lane-error"]
+
+
+def test_a_train_that_cannot_run_records_its_error_with_the_path_and_the_traceback(world):
+    """2026-11-28 11:13: train-20261128-102821 ended with only "PermissionError: [Errno 1] Operation not permitted": no path, no
+    traceback. Its row now has both."""
+    tmp, _clock = world
+    for lid, n in (("la", "1"),):
+        (tmp / f"b{n}").write_text("brief")
+        queue.add(lid, f"/w/{lid}", n, str(tmp / f"b{n}"), [int(n)])
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="train", head="h1", train_since=1.0)
+    queue.save(lanes)
+    fake = Fake()
+
+    def boom(spec, tid, **k):
+        raise PermissionError(1, "Operation not permitted", "/Users/Shared/fichero-pinned/pinned-abc/x")
+    fake.procs.train_run = boom
+    queue.TRAIN[0] = train.Cfg(min_steps=1)
+    queue.train_when_due(fake.procs, None)
+    for t in list(queue.BUILDS):
+        t.join(5)
+    (row,) = [r for r in journal.read() if r.get("event") == "train" and r.get("result") == "error"]
+    assert row["path"] == "/Users/Shared/fichero-pinned/pinned-abc/x"
+    assert "Traceback (most recent call last)" in row["traceback"] and "boom" in row["traceback"]

@@ -375,9 +375,24 @@ def _mkdtemp(prefix: str, readable: bool = False) -> str:
     return d
 
 
+def _kill_group(p, jailed) -> None:
+    """Stop a rung's process group at its deadline or cancel. A jailed rung's group leader is root's `sudo`, so the manager's
+    killpg is refused (2026-11-28 11:13, train-20261128-102821 ended "PermissionError: [Errno 1] Operation not permitted", no
+    path): the jailed user then kills the group's processes it owns, and sudo exits with its child."""
+    try:
+        os.killpg(p.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        if jailed is None:
+            raise
+        subprocess.run([jailed.sudo, "-n", "-u", jailed.user, "/bin/kill", "-KILL", "--", f"-{p.pid}"], capture_output=True, timeout=30)
+
+
 def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | None = None, as_jail: bool = True, log=None) -> dict:
     """Run argv (own process group, killed whole on timeout) and return the typed result. While a ladder runs under a
     jail, everything but the engine's own git steps runs as the jailed user."""
+    jailed = _JAIL if _JAIL is not None and as_jail and not _JAIL.is_self() else None  # sudo leads its group: see _kill_group
     if _JAIL is not None and as_jail:
         argv, env, cwd = _JAIL.argv(argv, cwd=cwd, env=env), {"PATH": os.environ.get("PATH", "")}, "/"
     t = time.time()
@@ -401,11 +416,11 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
                 if not cancelled and time.time() < deadline:
                     continue
                 timed_out = not cancelled
+                _kill_group(p, jailed)
                 try:
-                    os.killpg(p.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                out, err = p.communicate()
+                    out, err = p.communicate(timeout=60)
+                except subprocess.TimeoutExpired:  # it would not die: say so rather than wait for ever
+                    out, err = "", f"could not stop process group {p.pid} after its deadline or cancel\n"
                 if cancelled:
                     err = "cancelled: superseded by a newer head\n" + (err or "")
                 break
