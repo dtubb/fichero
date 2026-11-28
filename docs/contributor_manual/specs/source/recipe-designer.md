@@ -908,7 +908,7 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
   the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). Left: a run's own booked cost replacing the assumption for its remaining pages, mid-run.
 
-- `designer.budget.run-cap` [PARTIAL] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
+- `designer.budget.run-cap` [OK] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
   the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
   deciding, through the one spend hold (`llm/spend.py`); a run with no run cap is held by the project cap alone.
   The run cap is proposed at the estimate (the defaults table's cap column: the best estimate, assumed or
@@ -916,6 +916,16 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   (`designer.path.caps-proposed-not-written`). *Test:*
   `test_run_cap_holds_with_the_project_cap.py` (a run cap below the project's
   remaining refuses at the run cap; the project cap still refuses first when lower). Built (engine, 2026-11-04): `StartRequest.run_cap_usd` is kept on the run's row; the cap is held from the moment `_run` starts the run (not while it waits in the queue, so a run cancelled before it starts leaves none) and cleared at its end, or by Stop on its waiting row, unless it is deferred, which keeps the cap as changed and its baseline: `test_run_cap_is_held_from_the_run_start.py`, and that Start carries it from the request to the row: `test_start_carries_the_run_cap_6295.py`.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_a_run_cap_below_what_the_project_leaves_refuses_at_the_run_cap`,
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_the_project_cap_still_refuses_first_when_it_is_lower`,
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_no_run_cap_means_the_project_caps_alone_and_the_cap_goes_with_its_run`,
+  `fichero-server/tests/unit/recipes/test_start_carries_the_run_cap_6295.py::test_start_carries_the_run_cap_from_the_request_to_the_runs_row`,
+  `fichero-server/tests/unit/recipes/test_run_cap_is_held_from_the_run_start.py::test_the_run_holds_its_cap_while_it_runs_and_clears_it_at_the_end`,
+  `fichero-server/tests/unit/recipes/test_budget_in_the_plan.py::test_the_line_carries_both_caps_what_is_left_and_the_proposed_run_cap`,
+  `fichero/Tests/Unit/general/Models/BudgetBlockTests.swift::theFieldPromptIsTheEnginesProposalAndNoCapBelowZeroCanBeTyped`.
+  The proposal is the estimate itself (`cloud_cap.proposed_run_cap_usd`), not the defaults table's cap column, which
+  is `designer.defaults.caps-proposed-from-the-table`.
 - `designer.budget.refusal-offers-the-fix` [PARTIAL] (#6295) — a Start refused for the cap says, in plain words,
   which cap refused (the project cap or the monthly cap), what the estimate is, what that cap leaves, and which step costs most; and the refusal carries typed fixes
   the app shows as buttons in the Budget block, each one press, with **both** cap fields editable in place on the
