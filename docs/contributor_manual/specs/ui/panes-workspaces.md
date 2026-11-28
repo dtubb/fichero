@@ -1028,8 +1028,11 @@ the browse→read flow down the centre.
   `@SceneStorage` — the same capability #4732 already tracks here, not a second one.
 - `panes.reader.one-or-two-below-browser` — **[GAP]** (#4733) below the browser strip sit one or two
   readers (transcription / summary / metadata), driven by the browser selection.
-- `panes.source.full-height-right` — **[GAP]** (#4734) the source image occupies the full-height
+- `panes.source.full-height-right` — **[OK]** (#4734) the source image occupies the full-height
   right column by default.
+  *Built under `panes.layout.mail-default`:* the default workspace, Read, is the Items list over the Reader beside the
+  Source at the row's full height. *Test:*
+  `fichero/Tests/Unit/general/Views/Shell/BuiltInWorkspaceLayoutTests.swift::readIsLibraryOverReaderBesidePreview`.
 
 ### F. Maintainer test, 2026-09-19 morning
 
