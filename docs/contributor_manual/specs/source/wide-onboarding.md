@@ -672,7 +672,8 @@ branch held back.
 
 ### The pictures
 
-- `wide.picture.one-per-operation` — **[PARTIAL]** (behind `wideSetUp`: `StagePictures+Operations.swift`, `PrepareOperationPicture` per operation, the stage plays the four in turn; `PrepareOperationRowsView` shows each at its last frame beside its switch, with no Replay there; a `#Preview` per operation; written, not compiled or run by the worker that wrote the previews and the duration test) (#5668) each of the four operations has its own SwiftUI picture drawing one frame from a progress of 0 to 1 (split: the halves part at the gutter; straighten: the page turns upright and its lines settle; crop: a dashed box with corner handles draws around the paper and the table falls away; clarity: the page brightens and its ink darkens under the light sweep), 3.5 seconds, Replay, the last frame under Reduce Motion, each with its sentence for VoiceOver; the stage's own picture plays the four in turn. *Test:* `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift` (built; add the four: a frame at 0, 0.5 and 1 differs and the last frame is still), `fichero/Tests/Unit/general/Models/StageShowcaseTests.swift`. Manual: TBD.
+- `wide.picture.one-per-operation` — **[OK]** (behind `wideSetUp`: `StagePictures+Operations.swift`, `PrepareOperationPicture` per operation, the stage plays the four in turn; `PrepareOperationRowsView` shows each at its last frame beside its switch, with no Replay there; a `#Preview` per operation; written, not compiled or run by the worker that wrote the previews and the duration test) (#5668) each of the four operations has its own SwiftUI picture drawing one frame from a progress of 0 to 1 (split: the halves part at the gutter; straighten: the page turns upright and its lines settle; crop: a dashed box with corner handles draws around the paper and the table falls away; clarity: the page brightens and its ink darkens under the light sweep), 3.5 seconds, Replay, the last frame under Reduce Motion, each with its sentence for VoiceOver; the stage's own picture plays the four in turn. *Test:* `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift` (built; add the four: a frame at 0, 0.5 and 1 differs and the last frame is still), `fichero/Tests/Unit/general/Models/StageShowcaseTests.swift`. Manual: TBD. *Test, by name, 2026-11-27:* `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift::operationFramesMove`, `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift::prepareImagesPlaysEachOperationOnce`, `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift::theStagePlaysTheFourInTurn`, `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift::reduceMotionIsTheLastFrame`.
+- `wide.picture.operation-plays-and-replays` — **[GAP]** (#5668; app) split from `wide.picture.one-per-operation` (manager 2026-11-27 retag); what that line left: an operation's own picture playing for 3.5 seconds with Replay (each is drawn at its last frame beside its switch; only the stage's picture plays), and a test of Replay. Not built. Manual: TBD.
 
 ### The rendition chain
 
@@ -811,7 +812,7 @@ first and its tests run when a host is available. Engine before app throughout.
 - Swift; tests need the host.
 
 #### Step 3.2 — One picture per operation (#5668)
-- Behaviours: `wide.picture.one-per-operation`
+- Behaviours: `wide.picture.one-per-operation`, `wide.picture.operation-plays-and-replays`
 - Tests: fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift, fichero/Tests/Unit/general/Models/StageShowcaseTests.swift
 - Size: M
 - Swift only, pure views over `StagePageLayer`; a `#Preview` per picture; tests need the host.
