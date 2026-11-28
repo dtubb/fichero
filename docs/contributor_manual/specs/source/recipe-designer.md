@@ -293,13 +293,23 @@ questions, before the route cards and before Choose the Stages, so the defaults 
 person; the cards (below) become the engine's answer to them, not a choice made cold. What the person has is
 derived, never asked twice (`source.onboard.derives-not-asks` (P): `recipes/derived.py` already reports this
 Mac's chip and memory, the providers with a key and the places work can run).
-- `designer.how.where` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Where should the work run?": this Mac · another machine of mine
+- `designer.how.where` [OK] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Where should the work run?": this Mac · another machine of mine
   · a cluster · the cloud, each a tick with one sentence of consequence (pages stay here / leave to your own
   machine / to the cluster's administrators / to a company), limited to the places Set Up Fichero allows
   (`source.onboard.places-cap-projects` (P)); a place the app does not allow is shown greyed with the engine's
   reason and a link, never hidden. Saved as `answers.how.places` (a list). *Test:*
   `test_how_questions.py` (the offered places are the app's allowed ones; a
   disallowed place is listed with its reason, not dropped).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_a_place_the_app_does_not_allow_is_listed_greyed_with_its_reason_not_dropped`,
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_answers_are_kept_in_order_and_an_unknown_value_is_refused_in_words`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::decoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::flow`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::ticks`.
+- `designer.how.where-refused-place-has-a-link` [GAP] (#6052; app) — split from `designer.how.where` (manager
+  2026-11-27 retag); what that line left: a link beside a place the app does not allow (the reason is a sentence and
+  the app draws no link), and a Swift test of the greyed row. Not built.
 - `designer.how.model-kind` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Which kind of model?": small local models (Kraken, Apple's
   recognition, small MLX models: read only what is on the line, free, slower, may misread a word) · large
   vision-language models (Claude, Gemini, GPT, or a large local one: read fluently, cost per page, may invent or
@@ -1796,7 +1806,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: M
 
 #### Step 19.6 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.defaults.says-why-on-the-stage-pages`
+- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.5
 - Size: M
