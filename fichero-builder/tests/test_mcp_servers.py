@@ -124,3 +124,19 @@ def test_without_require_index_a_server_with_no_wrapper_is_left_out_and_journale
     servers, prompt = _prepare(world)
     assert list(servers) == ["jcodemunch"] and prompt.rstrip().endswith("MCP servers you have: jcodemunch.")
     assert [x["server"] for x in journal.read() if x["event"] == "mcp-missing"] == ["jdocmunch"]
+
+
+def test_index_builds_take_one_lock_so_only_one_runs_at_a_time(world, tmp_path, monkeypatch):
+    """2026-11-28: seven spec lanes' first index builds ran at once, 8+ min each at load 120; now they queue on one lock."""
+    import shutil
+    import time
+    if not shutil.which("lockf"):
+        pytest.skip("no lockf(1) here")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    holder = subprocess.Popen(["lockf", "-k", str(tmp_path / ".fichero-index.lock"), "sleep", "2"])
+    time.sleep(0.3)
+    t = time.time()
+    r = subprocess.run(["sh", "-c", codemap.index_prefix(world.root, world.wt) + "echo started"], capture_output=True, text=True)
+    holder.wait()
+    assert r.returncode == 0 and r.stdout.strip() == "started"
+    assert time.time() - t >= 1.4, "the build waited for the one holding the lock"

@@ -107,14 +107,18 @@ def index_prefix(root, worktree) -> str:
     # session start waited ~2 min. A build is skipped when the tree's HEAD and status match the last good build's, stamped in the
     # tree's own git dir (it goes with the tree). ponytail: an index deleted by hand under an unchanged tree is not rebuilt until it changes
     wt = shlex.quote(str(worktree))
-    out = ""
+    # 2026-11-28: seven spec lanes' first builds at once took 8+ min each at load 120, and the loop gave their starts up. One build
+    # at a time per worker user (one lock in its home); a start waiting here is still a live start to the loop (its process lives)
+    # (no lockf, or no writable home: no lock, never a failed build)
+    out = 'lk=; command -v lockf >/dev/null 2>&1 && [ -d "$HOME" ] && [ -w "$HOME" ] && lk="lockf -k $HOME/.fichero-index.lock"; '
+
     for server in INDEX_SERVERS:
         w = wrapper(root, server)
         if w:
             args = " ".join(shlex.quote(x) for x in index_args(root, server, worktree))
             stamp = f'"$(git -C {wt} rev-parse --absolute-git-dir)/{server}-index.stamp"'
             key = f'"$({{ git -C {wt} rev-parse HEAD; git -C {wt} status --porcelain; }} 2>/dev/null | shasum | cut -c1-40)"'
-            out += (f"k={key}; [ \"$(cat {stamp} 2>/dev/null)\" = \"$k\" ] || {{ {shlex.quote(w)} {args} >/dev/null 2>&1 && echo \"$k\" > {stamp} || "
+            out += (f"k={key}; [ \"$(cat {stamp} 2>/dev/null)\" = \"$k\" ] || {{ $lk {shlex.quote(w)} {args} >/dev/null 2>&1 && echo \"$k\" > {stamp} || "
                     f"{{ echo 'index build failed: {server}' >&2; exit {INDEX_FAILED}; }}; }}; ")
     return out
 
