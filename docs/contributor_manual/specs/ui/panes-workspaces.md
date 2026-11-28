@@ -764,10 +764,15 @@ the browse→read flow down the centre.
   (`.inspector`, `.chat`) stay out of the list until they are real leaves (#4705, increments 6–7);
   the chat head gains the selector when chat becomes a pane. *Test:* a source guardrail that every
   pane head mounts `PaneKindSelector`, plus a pure test of `selectableKinds`.
-- `panes.split.independent-mode-per-pane` — **[BROKEN]** (#4720) each pane holds its own view mode;
+- `panes.split.independent-mode-per-pane` — **[OK]** (#4720) each pane holds its own view mode;
   changing one pane to Entities or Claims does not clear or convert the others. Today
   switching a pane's node-type to entity/claim in the entities view removes them from the
   other panes.
+  *Built under `kg.tables.pane-kind-mismatch` (`../kg/kg-tables.md`):* a pane's own kind, kept in its `PaneConfig`,
+  wins over the window's sidebar collection (`LibraryView.effectiveKind`), so one pane set to Entities or Claims
+  leaves the others as they are. *Test:*
+  `fichero/Tests/Unit/general/Views/Library/LibraryEffectiveContentKindTests.swift::explicitPaneKindWinsOverWindow`,
+  `::paneKindTakesPrecedenceOverLocalOverride`.
 - `panes.open-view-arbitrarily` — **[GAP]** (#4722) any pane can be set to any view mode (source /
   words / entities / claims / graph / inspector) directly, without routing through a
   document selection. Today there is no way to open an entity or claim view arbitrarily in
