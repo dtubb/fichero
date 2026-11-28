@@ -205,10 +205,15 @@ the Mail default. The Mail layout is just one composition the reliable system ca
 Findings from the creative director running the chat-in-sidebar build. Chat-in-sidebar
 itself works (committed c4a22c2b5). The rest are the workspace/pane defects to pin+fix.
 
-- `panes.chat.toggle-in-sidebar-top` — **[GAP]** (#4970) (→ #4705 increment 6; the side is superseded by
+- `panes.chat.toggle-in-sidebar-top` — **[OK]** (#4970) (→ #4705 increment 6; the side is superseded by
   #5292, `panes.sidebar.title-bar-holds-sidebar-chat-and-add`: Chat sits to the RIGHT) the chat show/hide toggle
   should sit at the TOP of the sidebar, beside the sidebar (panel) button — not the
   sparkles button in the main toolbar.
+  *Built under `shell.toolbar.ipad-matches-the-mac` and `panes.toolbar.sidebar-pair-once`:* the Chat button is one of
+  the Sidebar/Chat pair, drawn in the sidebar column's own bar while the column is up (`SidebarPairHome`,
+  `ContentView+SidebarButtons.swift`); the window toolbar has no Chat button except on an iPhone. *Test:*
+  `fichero/Tests/Unit/general/Models/SidebarColumnStateTests.swift::pairInSidebarWhileShown`,
+  `::macDeclaresPairOnlyInItsHome`.
 - `panes.sidebar-button.in-sidebar-section` — **[GAP]** (#4735) the sidebar toggle button belongs IN
   the sidebar's own top-left section (Xcode-style), not floating in the main window toolbar's
   left group.
