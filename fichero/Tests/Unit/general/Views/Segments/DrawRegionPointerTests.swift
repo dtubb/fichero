@@ -58,10 +58,11 @@ final class DrawRegionPointerTests: XCTestCase {
     }
 
     /// `segment-editor.draw-a-line` (#7083): the Line tool (the polygon tool at the Line level) draws a line box or a
-    /// polygon. The steps are fed to a layer whose tool draws polygons; what comes back is the boxes handed to the host,
-    /// the polygons committed, and the points still being drawn.
+    /// polygon. The steps are fed to a layer whose tool draws polygons at `level` (the Makes picker's choice; nil
+    /// follows the selection); what comes back is the boxes handed to the host, the polygons committed, and the points
+    /// still being drawn.
     private func feedPolygonTool(
-        _ steps: [(PreviewPointerPhase, CGPoint)]
+        _ steps: [(PreviewPointerPhase, CGPoint)], level: SegmentShapes.DrawnLevel? = .line
     ) async throws -> (calls: Calls, points: [[Double]]) {
         let calls = Calls()
         let feed = PreviewPointerFeed()
@@ -78,6 +79,7 @@ final class DrawRegionPointerTests: XCTestCase {
         let state = WindowState(libraryId: UUID())
         state.isEditingSegments = true
         state.shapeKind = .polygon
+        state.drawnLevel = level
         let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: 100, y: 100), size: size),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         let host = NSHostingView(rootView: layer.environment(state).frame(width: size.width, height: size.height))
@@ -121,11 +123,29 @@ final class DrawRegionPointerTests: XCTestCase {
         XCTAssertEqual(made.calls.polygons, 0)
     }
 
-    func testOnlyAPolygonsFirstPointWhereBoxesAreSavedBeginsABox() {
-        XCTAssertTrue(SegmentShapes.firstPointStartsBox(kind: .polygon, placed: 0, savesBoxes: true))
-        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .polygon, placed: 1, savesBoxes: true))
-        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .baseline, placed: 0, savesBoxes: true))
-        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .polygon, placed: 0, savesBoxes: false))
+    /// `source.editor.draw-shapes`: away from the Line level the Polygon tool is clicks only, so a drag from its first
+    /// point makes no box and the press stays the polygon's first point.
+    func testADragWithThePolygonToolAwayFromTheLineLevelMakesNoBoxAndKeepsThePoint() async throws {
+        for level in [SegmentShapes.DrawnLevel.region, .word, nil] {
+            let made = try await feedPolygonTool([
+                (.pressed, CGPoint(x: 0.1, y: 0.2)), (.dragged, CGPoint(x: 0.3, y: 0.4)),
+                (.dragged, CGPoint(x: 0.5, y: 0.6)), (.released, CGPoint(x: 0.5, y: 0.6))
+            ], level: level)
+            let name = level?.rawValue ?? "follow selection"
+            XCTAssertEqual(made.calls.drawn.count, 0, "\(name): only the Line level drags a box")
+            XCTAssertEqual(made.points.count, 1, "\(name): the press placed the first point")
+            XCTAssertEqual(made.calls.polygons, 0)
+        }
+    }
+
+    func testOnlyAPolygonsFirstPointAtTheLineLevelWhereBoxesAreSavedBeginsABox() {
+        XCTAssertTrue(SegmentShapes.firstPointStartsBox(kind: .polygon, level: .line, placed: 0, savesBoxes: true))
+        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .polygon, level: .region, placed: 0, savesBoxes: true))
+        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .polygon, level: .word, placed: 0, savesBoxes: true))
+        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .polygon, level: nil, placed: 0, savesBoxes: true))
+        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .polygon, level: .line, placed: 1, savesBoxes: true))
+        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .baseline, level: .line, placed: 0, savesBoxes: true))
+        XCTAssertFalse(SegmentShapes.firstPointStartsBox(kind: .polygon, level: .line, placed: 0, savesBoxes: false))
     }
 }
 #endif
