@@ -310,12 +310,19 @@ Mac's chip and memory, the providers with a key and the places work can run).
 - `designer.how.where-refused-place-has-a-link` [GAP] (#6052; app) — split from `designer.how.where` (manager
   2026-11-27 retag); what that line left: a link beside a place the app does not allow (the reason is a sentence and
   the app draws no link), and a Swift test of the greyed row. Not built.
-- `designer.how.model-kind` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Which kind of model?": small local models (Kraken, Apple's
+- `designer.how.model-kind` [OK] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Which kind of model?": small local models (Kraken, Apple's
   recognition, small MLX models: read only what is on the line, free, slower, may misread a word) · large
   vision-language models (Claude, Gemini, GPT, or a large local one: read fluently, cost per page, may invent or
   regularise text) · let Fichero compare and choose (the default: the compare of section 8 decides on the
   person's pages). Saved as `answers.how.model_kind`. *Test:* same file (the three options, the default, and
   that the large-model option is greyed with its reason when the cloud is not allowed and this Mac cannot run one).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_the_three_model_kinds_default_to_compare_and_large_is_greyed_only_with_no_cloud_and_a_small_mac`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::decoding`.
+- `designer.how.model-kind-decides-the-compare` [GAP] (#6052) — split from `designer.how.model-kind` (manager
+  2026-11-27 retag); what that line left: the default, let Fichero compare and choose, deciding through the compare of
+  section 8 (nothing in the engine reads `answers.how.model_kind` to run or skip a compare). Not built.
 - `designer.how.cloud-asked-before-any-default` [GAP] (#6489, owner 2026-11-10: the cloud choice came late in the flow; the owner had not chosen cloud, so the PP-OCR default was right for cloud off) —
   whether pages may leave this Mac is asked BEFORE any model is proposed: in the How step's "Where" question (built behind
   `wideSetUp`, not yet in the flow the owner sees; the shown flow asks it late), above "What matters most?", so no default is made
@@ -1814,7 +1821,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: M
 
 #### Step 19.6 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`, `designer.how.what-matters-breaks-ties`
+- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`, `designer.how.what-matters-breaks-ties`, `designer.how.model-kind-decides-the-compare`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.5
 - Size: M
