@@ -343,12 +343,20 @@ Mac's chip and memory, the providers with a key and the places work can run).
   (`designer.how.person-chosen-is-kept`); the next pages show it as chosen. Changing Where or What matters recomputes only the rows
   not picked by hand. Mac and iOS use the same rows (a Menu on touch). *Test:* `test_how_defaults.py` (a picked default is saved and
   survives a recompute; an unpicked row follows the answers; a refused card is not offered), `RecipeHowDefaultsTests`; not yet written.
-- `designer.how.what-matters` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build; extends `designer.path.what-matters-most`) — "What matters
+- `designer.how.what-matters` [OK] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build; extends `designer.path.what-matters-most`) — "What matters
   most?": speed · cost · quality · privacy, one choice, pre-filled from the places answer (privacy when only
   this Mac is ticked). Privacy means nothing leaves this Mac and the cloud question of
   `designer.path.cloud-question-on-the-page` stays unanswered; the other three break ties inside the noise band
   as section 7 says (`designer.path.what-matters-most` keeps predictability as the compare's label). Saved as
   `answers.how.matters`. *Test:* same file (privacy never writes `cloud_allowed`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_how_questions.py::test_privacy_is_prefilled_when_only_this_mac_is_ticked_and_never_writes_cloud_allowed`,
+  `fichero-server/tests/unit/recipes/test_how_answers_pick_the_card.py::test_the_route_prefills_privacy_only_when_this_mac_alone_is_sent`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::encoding`,
+  `fichero/Tests/Unit/general/Models/RecipeHowTests.swift::decoding`.
+- `designer.how.what-matters-breaks-ties` [GAP] (#6052) — split from `designer.how.what-matters` (manager 2026-11-27
+  retag); what that line left: speed, cost and quality breaking ties inside the noise band (no rank or recommendation
+  reads `answers.how.matters`; inside the band the cheapest wins). Not built.
 - `designer.how.access-derived-and-confirmed` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "What you have" is shown, not asked: this
   Mac's memory in one sentence (the route's own), the providers with a key saved, the Hugging Face token, each
   cluster signed in, each from `recipes/derived.py` and the places route, with Add a Key…, Add a Token…, Sign
@@ -1806,7 +1814,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: M
 
 #### Step 19.6 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`
+- Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`, `designer.how.what-matters-breaks-ties`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.5
 - Size: M
