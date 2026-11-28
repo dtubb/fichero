@@ -1,0 +1,214 @@
+# The roadmap's open questions for the owner (master plan 2026-11-28, section 13).
+# Answer by setting `answer:` (yes, no, or text). An unanswered question has `answer: null`; nothing changes until it is answered.
+# Read by the builder: `builder roadmap questions` (to be built, roadmap step 2).
+questions:
+  - id: 1
+    group: "Vocabulary"
+    question: "Is a Tool allowed to be made of Tools (a compound tool), with a Step using exactly one Tool?"
+    recommended: "Yes (3.3)."
+    specs: "ui/windows-models-recipes-training.md, ui/recipes-window.md"
+    milestone: "recipes-window"
+    answer: null
+  - id: 2
+    group: "Vocabulary"
+    question: "On screen, do we say \"compound tool\", or only \"Tool\" with \"made of 3 tools\" under it?"
+    recommended: "Only \"Tool\"."
+    specs: "ui/windows-models-recipes-training.md"
+    milestone: "recipes-window"
+    answer: null
+  - id: 3
+    group: "Vocabulary"
+    question: "The bar that runs several things over a selection: what is its unsaved chain called?"
+    recommended: "\"Run steps…\", and saving it makes a Recipe."
+    specs: "ui/workflows.md"
+    milestone: "workflows"
+    answer: null
+  - id: 4
+    group: "Vocabulary"
+    question: "Does Set Up keep \"Stage\" for a page that groups steps?"
+    recommended: "Yes, in Set Up only (the windows spec's question 3)."
+    specs: "ui/windows-models-recipes-training.md, source/recipe-designer.md"
+    milestone: "recipe-designer"
+    answer: null
+  - id: 5
+    group: "Trainable everything"
+    question: "Is \"every unit that runs a model is trainable\" a 1.0 promise, or a rule each step meets when its trainer exists?"
+    recommended: "The second: 1.0 trains Read a Line and Find Regions; every other step says \"cannot be taught yet\" with its reason, as `DISTIL` already does."
+    specs: "compute/distillation.md"
+    milestone: "read-any-hand"
+    answer: null
+  - id: 6
+    group: "Trainable everything"
+    question: "Must every model-running step have an error measure in 1.0, even untrainable ones?"
+    recommended: "Yes for reading and finding steps; names, statements and catalogue get precision and recall after 1.0 (#5545)."
+    specs: "compute/distillation.md, source/readers.md"
+    milestone: "readers-measured"
+    answer: null
+  - id: 7
+    group: "Trainable everything"
+    question: "Without corrected lines, may Compare show \"agreement between readers\"?"
+    recommended: "Yes, labelled \"agreement, not accuracy\", with a prompt to correct 20 lines for a first measure (lower the 100-line floor to a stated small-sample range)."
+    specs: "source/recipe-designer.md"
+    milestone: "recipe-designer"
+    answer: null
+  - id: 8
+    group: "Release and channels"
+    question: "Is 1.0 as defined in section 1, with teaching as badged Beta inside it?"
+    recommended: "Yes."
+    specs: "harness/release-channels-and-feature-tiers.md"
+    milestone: "release-channels"
+    answer: null
+  - id: 9
+    group: "Release and channels"
+    question: "A public beta at Beta 1 (17 January)?"
+    recommended: "Yes, announced on the site only; no wider notice until Beta 2."
+    specs: "harness/release-channels-and-feature-tiers.md"
+    milestone: "release-channels"
+    answer: null
+  - id: 10
+    group: "Release and channels"
+    question: "What does the public download default to from Alpha 1?"
+    recommended: "Alpha until Beta 1, then Beta, then Release at 1.0."
+    specs: "harness/release-channels-and-feature-tiers.md"
+    milestone: "release-channels"
+    answer: null
+  - id: 11
+    group: "Release and channels"
+    question: "Nightly builds: do they keep publishing publicly?"
+    recommended: "Nightlies go to the Dev channel only; Alpha and Beta are promoted by hand from a nightly the owner tested (this reverses the 2026-11-18 \"every nightly is published with `--public`\")."
+    specs: "harness/release-and-versioning.md"
+    milestone: "release-and-versioning"
+    answer: null
+  - id: 12
+    group: "Release and channels"
+    question: "Apply the 2026-10-04 tier moves and add the missing areas to `features.yaml` now?"
+    recommended: "Yes, in Phase 1."
+    specs: "harness/release-channels-and-feature-tiers.md"
+    milestone: "release-channels"
+    answer: null
+  - id: 13
+    group: "Release and channels"
+    question: "Do recipe steps and tools carry tiers, with `check_recipe` reporting and Start skipping a hidden step?"
+    recommended: "Yes (2.2)."
+    specs: "harness/release-channels-and-feature-tiers.md, source/recipe-designer.md"
+    milestone: "release-channels"
+    answer: null
+  - id: 14
+    group: "Backlog"
+    question: "May a `needs-your-test` issue close by itself after 14 days in a Beta build with no reopen?"
+    recommended: "Yes, with a comment; the owner's tick closes it sooner."
+    specs: "harness/issues-and-labels.md"
+    milestone: "Builder"
+    answer: null
+  - id: 15
+    group: "Backlog"
+    question: "May the builder close \"already fixed\", \"duplicate\" and \"obsolete\" issues in bulk, each with a reason row and a 10 per cent review?"
+    recommended: "Yes."
+    specs: "harness/issues-and-labels.md"
+    milestone: "Builder"
+    answer: null
+  - id: 16
+    group: "Backlog"
+    question: "Merge to 13 milestones (11.2), in two stages?"
+    recommended: "Yes."
+    specs: "specs/build-order.md"
+    milestone: "Builder"
+    answer: null
+  - id: 17
+    group: "Backlog"
+    question: "Stop filing a spec's steps as issues until its phase starts?"
+    recommended: "Yes."
+    specs: "specs/build-order.md"
+    milestone: "Builder"
+    answer: null
+  - id: 18
+    group: "Focus"
+    question: "Six writing lanes and one spec lane, on one phase, until Alpha 1?"
+    recommended: "Yes; review the number on 20 December against the ETA view."
+    specs: "harness/builder.md"
+    milestone: "Builder"
+    answer: null
+  - id: 19
+    group: "Focus"
+    question: "Pause the knowledge-graph, read-any-hand product steps, canvas organise and the code audit now (section 8)?"
+    recommended: "Yes."
+    specs: "specs/build-order.md"
+    milestone: "Builder"
+    answer: null
+  - id: 20
+    group: "Focus"
+    question: "Of the six Fable spec lanes: run `spec-seg-metadata` now, let the three already sent finish, hold `spec-research` and `spec-affordances`?"
+    recommended: "Yes; `spec-affordances` and `spec-view-choosers` report to the owner-polish session and file no build steps."
+    specs: "specs/build-order.md"
+    milestone: "Builder"
+    answer: null
+  - id: 21
+    group: "Focus"
+    question: "Drop the Pro as a check runner?"
+    recommended: "Yes."
+    specs: "harness/builder.md"
+    milestone: "Builder"
+    answer: null
+  - id: 22
+    group: "Focus"
+    question: "Is the pane head wholly the owner's, with no builder lane on those files until the owner says?"
+    recommended: "Yes."
+    specs: "ui/panes-workspaces.md"
+    milestone: "panes-workspaces"
+    answer: null
+  - id: 23
+    group: "Scope"
+    question: "Find Words in 1.0 as Beta; characters Alpha; strokes after 1.0?"
+    recommended: "Yes."
+    specs: "source/segment-editor.md"
+    milestone: "source-model"
+    answer: null
+  - id: 24
+    group: "Scope"
+    question: "Does the Models window search every step's models, or only reading, for 1.0?"
+    recommended: "Reading, Find Regions and Find Lines; other steps list installed and provider models without an online search."
+    specs: "ui/models-and-compute-window.md"
+    milestone: "ai-settings"
+    answer: null
+  - id: 25
+    group: "Scope"
+    question: "Training on a cluster or Hugging Face Jobs in 1.0?"
+    recommended: "No: this Mac only; Hugging Face Jobs stays Alpha."
+    specs: "compute/jobs-and-fine-tuning.md"
+    milestone: "remote-compute"
+    answer: null
+  - id: 26
+    group: "Scope"
+    question: "The macOS floor: stay on 26 for 1.0?"
+    recommended: "Decide from the `platform-floor` spec in Phase 5; assume 26."
+    specs: "harness/platform-floor.md (being written)"
+    milestone: "release-and-versioning"
+    answer: null
+  - id: 27
+    group: "Scope"
+    question: "Sharing between two Macs: out of 1.0?"
+    recommended: "Out; Beta after."
+    specs: "transport/multiuser-always-on.md"
+    milestone: "Sharing & Pairing"
+    answer: null
+  - id: 28
+    group: "Scope"
+    question: "Research as its own window (2026-11-28): its spec lane waits until after 1.0?"
+    recommended: "Yes."
+    specs: "research (spec being written)"
+    milestone: "research"
+    answer: null
+  - id: 29
+    group: "Scope"
+    question: "Split `activity-pane.md` and `models-chains-and-projects.md`, and merge the segment and training specs (6)?"
+    recommended: "Yes, in Phase 1 and 2, one spec lane."
+    specs: "ui/activity-pane.md, source/models-chains-and-projects.md, source/segment-editor.md, compute/distillation.md"
+    milestone: "Builder"
+    answer: null
+  - id: 30
+    group: "Scope"
+    question: "The public roadmap on the site: themes and quarters, no dates?"
+    recommended: "Yes. Questions already open in specs that this plan depends on: the eleven in `ui/windows-models-recipes-training.md` (1 and 2 answered 2026-11-28; 4 to 11 open, each with a recommendation there); the open questions in `ui/canvas-organize.md` (paused); the layout question the `spec-app-search` brief was told to pose. ---"
+    specs: "harness/release-channels-and-feature-tiers.md"
+    milestone: "release-channels"
+    answer: null

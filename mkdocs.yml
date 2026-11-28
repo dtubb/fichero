@@ -393,6 +393,7 @@ nav:
           - Open Questions Digest: contributor_manual/specs/OPEN-QUESTIONS.md
           - Spec Template: contributor_manual/specs/_TEMPLATE.md
           - Build Order: contributor_manual/specs/build-order.md
+          - Roadmap to 1.0 (2026-11-28): contributor_manual/roadmap/master-plan-2026-11-28.md
           - Milestone template: contributor_manual/specs/_MILESTONE_TEMPLATE.md
           - AI:
               - Settings, AI (providers, keys, runtimes, targets, downloads): contributor_manual/specs/ai/ai-settings.md
