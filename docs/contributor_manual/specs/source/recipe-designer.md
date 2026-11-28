@@ -775,8 +775,14 @@ the Try is pressed (`source.try.any-time` (G), `source.find.try-before-default` 
 (`training.errors.failure-modes` (G)). Nothing measured ships with the app.
 
 **Improves — measuring.**
-- `designer.measure.on-your-pages-first` [PARTIAL] (#6052) — a measurement on the person's pages
+- `designer.measure.on-your-pages-first` [OK] (#6052) — a measurement on the person's pages
   (imported truth or checked lines) is slot 1 of the rank, labelled with its page count.
+  *Test:*
+  `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py::test_a_project_that_measured_its_noise_band_ties_measured_readers_inside_it`,
+  `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift::chosenAndMeasuredOverrideTheTier`.
+- `designer.measure.on-your-pages-says-its-page-count` [GAP] (#6052) — split from
+  `designer.measure.on-your-pages-first` (manager 2026-11-27 retag); what that line left: the measurement's label
+  saying its page count (the words are "CER x% on your pages", with no count). Not built.
 - `designer.measure.noise-band` [PARTIAL] (#6052) — the project's band is 0.5 CER points per model
   kind, said so, until measured; candidates inside the band are "as good as each other", and what
   matters most decides, in words. (The bake-off's one-point constant is the defect the training spec
@@ -1844,7 +1850,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: M
 
 #### Step 19.7 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.rank.fix-buttons-collapse-into-the-finder`
+- Behaviours: `designer.rank.fix-buttons-collapse-into-the-finder`, `designer.measure.on-your-pages-says-its-page-count`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.6
 - Size: M
