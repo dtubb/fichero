@@ -1007,6 +1007,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         row = procs.row(lane)
         if row is None:
             live = procs.session_live(lane)  # True, False, or None when the window list could not be read: unknown counts nothing
+            starting = (hh := handles.get(lane["id"])) is not None and getattr(hh, "poll", lambda: 0)() is None
+            if live is False and starting and _now() - s.get("entered_at", 0) < START_SLOW_S:
+                # 2026-11-28 spec-view-choosers: its start runs the code index before `builder run`, which took over 8 min at load 120;
+                # the 300 s grace stopped it as "no session" three times, and each restart added an indexer. While the start's own
+                # process lives, no window yet is a slow start, up to START_SLOW_S
+                return True
             if live is False and _now() - s.get("entered_at", 0) < START_GRACE_S and not _refusal(procs.last_output(lane)):
                 # 2026-11-27 spec-retag: its `builder run` took ~2 min to open the window (sent 14:39:06, window 14:41:23); two misses
                 # had already stopped it (14:41:00), so the run opened the window and ended it at once as lane-done, six times. A run that
@@ -2255,6 +2261,7 @@ def uv_prune_when_due(procs: Procs, chains: dict | None) -> None:
 
 WORKER_CLI_S = 3600
 WORKER_CLI_HELD_S = 300
+START_SLOW_S = 2700  # a start whose own process still lives (the index build before `builder run`) has this long to open its window
 START_GRACE_S = 300  # a sent step's session this young may have no window, process id or watcher yet: a restarted loop waits for it
 QUICK_GONE_S = 60  # a session that ends 'gone' this soon is probed for a revoked sign-in at the next tick
 WORKER_CLI_AT = [0.0]  # in memory: so the first tick after a start checks

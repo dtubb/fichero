@@ -2624,3 +2624,20 @@ def test_a_retry_with_text_puts_the_text_in_the_next_brief_and_a_retry_without_t
     b = queue.alert("m1", "1.1", "another red", "ev", ["retry"])
     before = steps()["1.1"].get("resume_brief")
     assert queue.answer(b, "retry")[0] == 0 and steps()["1.1"].get("resume_brief") == before, "no text: the brief is not touched"
+
+
+def test_a_sent_step_whose_start_is_still_building_its_index_is_never_stopped_until_the_slow_cap(state, monkeypatch):
+    """2026-11-28 spec-view-choosers: the start runs the code index before `builder run`, which took over 8 min at load 120. The
+    300 s grace stopped it as "no session" three times, and each restart added another indexer. While the start's own process
+    lives, no window yet is a slow start, up to START_SLOW_S; then a missing window is no session again."""
+    fake, handles = _quiet_sent(state, lambda lane: False, monkeypatch)
+    alive = [None]
+    handles["m1"] = type("P", (), {"poll": lambda self: alive[0]})()
+    for _ in range(4):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "sent" and not fake.stops, "past the 300 s grace, but its start still runs"
+    later = queue._now() + queue.START_SLOW_S
+    monkeypatch.setattr(queue, "_now", lambda: later)
+    for _ in range(2):
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "queued" and "m1" in fake.stops, "past the slow cap a window that never came is no session"
