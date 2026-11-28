@@ -699,14 +699,11 @@ def retired_word_readings_of_lines(
     if missing := [row.id for row in everything if row.id not in held]:
         for rep_row in db.query_in(ContentRepresentation, "segment_id", missing):
             held.setdefault(rep_row.segment_id, []).append(rep_row)
-    readings: dict[str, list[ReadingRead]] = {}
-    by_document: dict[str, list[Segment]] = {}
-    for row in everything:
-        by_document.setdefault(row.document_id, []).append(row)
-    for document_id, rows in by_document.items():
-        readings.update(_readings_for_live_rows(
-            db, rows, document_id, {}, readings=[rep_row for row in rows for rep_row in held.get(row.id, [])],
-        ))
+    # `document_id` is not read when `readings=` is given, so one call serves every document's rows.
+    readings = _readings_for_live_rows(
+        db, everything, lines[0].document_id, {},
+        readings=[rep_row for row in everything for rep_row in held.get(row.id, [])],
+    )
     choices: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in everything]):
         if choice.kind == kind:
