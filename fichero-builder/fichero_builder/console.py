@@ -531,7 +531,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
                     for r in rows if r.get("event") in ("queue", "alert", "alert-answer", "loop", "landed", "console")
                     and not (r.get("event") == "loop" and r.get("state") == "tick") and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-15:]  # #6467, #6504: the last journal events, ticks and timer refreshes left out
     by_id = {x["id"]: x for x in lanes}
-    acted = {(r.get("args") or {}).get("lane"): r for r in rows if r.get("event") == "console"}  # one pass: each lane's newest console row (the later row wins)
+    # one pass: each lane's newest console row (the later row wins). argv_for takes a list for any argument: such a row is no lane's
+    acted = {r["args"]["lane"]: r for r in rows if r.get("event") == "console" and isinstance((r.get("args") or {}).get("lane"), str)}
     live = live_lines(ROOT) if ROOT else {}
     for row in st["lanes"]:
         x = by_id[row["lane"]]

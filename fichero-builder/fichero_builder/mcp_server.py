@@ -51,7 +51,7 @@ TOOLS = {
 
 
 def call(name, args) -> dict:
-    """One tools/call result. An unknown tool, a missing argument, a refusal or a verb that failed is `isError`, with why."""
+    """One tools/call result. An unknown tool, a missing argument, an argument that is not a string, a refusal or a verb that failed is `isError`, with why."""
     def result(text: str, error: bool) -> dict:
         return {"content": [{"type": "text", "text": text}], "isError": error}
     if name not in TOOLS:
@@ -61,6 +61,8 @@ def call(name, args) -> dict:
         return result(f"{name}: arguments must be an object", True)
     if missing := [k for k in schema["required"] if args.get(k) in (None, "")]:
         return result(f"{name} needs {', '.join(missing)}", True)
+    if wrong := [k for k in schema["properties"] if args.get(k) is not None and not isinstance(args[k], str)]:
+        return result(f"{name}: {', '.join(wrong)} must be a string", True)
     try:
         out = fn(args)
     except (ValueError, OSError) as e:

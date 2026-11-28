@@ -132,9 +132,10 @@ def test_the_status_api_computes_status_once_and_reads_the_journal_for_last_acti
     monkeypatch.setattr(console, "status", lambda *a, **k: calls.append(1) or real(*a, **k))
     rows = [{"ts": "2026-11-27T10:00:00", "event": "console", "who": "owner", "verb": "pause", "state": "ended", "ok": True, "rc": 0, "detail": "old", "args": {"lane": "a"}},
             {"ts": "2026-11-27T10:01:00", "event": "console", "who": "owner", "verb": "resume", "state": "ended", "ok": True, "rc": 0, "detail": "new", "args": {"lane": "a"}}]
+    rows.append({"ts": "2026-11-27T10:02:00", "event": "console", "who": "mcp", "verb": "pause", "state": "started", "args": {"lane": ["a"]}})  # argv_for takes a list
     one = console.api_status(Rows(rows), [_lane("a", [("s1", "queued")])])
     assert len(calls) == 1, "alerts_view takes the status api_status already holds"
-    assert one["lanes"][0]["last_action"]["verb"] == "resume", "the newest row of the lane"
+    assert one["lanes"][0]["last_action"]["verb"] == "resume", "the newest row of the lane; a row whose lane is a list is no lane's, and no crash"
     n1, Rows.scans = Rows.scans, 0
     three = console.api_status(Rows(rows), [_lane(i, [("s", "queued")]) for i in "abc"])
     assert Rows.scans == n1, "the journal scans do not grow with the lanes"

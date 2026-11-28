@@ -85,6 +85,8 @@ def test_an_unknown_tool_a_missing_argument_and_a_refused_control_are_error_resu
     assert _call("rm_rf")[0] is True and "no tool" in _call("rm_rf")[1]
     assert _call("lane_pause")[0] is True and "lane" in _call("lane_pause")[1]
     assert _call("lane_pause", {"lane": "--root"})[0] is True, "a flag as a value is refused by the console's own check"
+    assert _call("lane_pause", {"lane": ["a"]}) == (True, "lane_pause: lane must be a string"), "the schema's type is checked: a list never reaches the verb or the journal"
+    assert _call("review_verdict", {"id": "c", "note": 3})[0] is True and "note must be a string" in _call("review_verdict", {"id": "c", "note": 3})[1]
     assert _call("review_verdict", {"id": "zz", "status": "works"})[0] is True
     assert _call("message_manager", {"text": "  "})[0] is True
     assert state == [], "nothing ran"
