@@ -915,7 +915,7 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   field of the served estimate (`measured` · `assumed` · `unpriced`), never worked out in the app. *Test:*
   `test_estimate_basis_per_step.py`. Built 2026-11-02 (engine): each `StartEstimateRun` carries `basis_kind` (measured · assumed · free · unpriced), `basis_words`, `cost_per_page_usd` and `measured_pages` (`start._basis_words`; `test_estimate_basis_per_step.py`); the app words nothing. Built (app, 2026-11-04, Swift not compiled here): the per-step basis rows are in the Budget block (`CloudCapFix.basisLines`, shown by `RecipeCloudCapRow`).
 
-- `designer.budget.estimate-from-booked-usage` [PARTIAL] (#6294) — once the project has booked calls for the same
+- `designer.budget.estimate-from-booked-usage` [OK] (#6294) — once the project has booked calls for the same
   model and job (the usage rows `_record_usage` keeps, with their `place`), the per-page figure is the median
   booked cost a page over those calls, labelled measured with the page count; until then the token assumption,
   labelled assumed. A run's own booked cost replaces the assumption for its remaining pages, so a cap set at
@@ -924,7 +924,15 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   basis beside it, and the booked costs are how it improves.
   *Test:* `test_estimate_learns_from_booked_usage_6294.py` (fake usage rows
   at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
-  the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). Left: a run's own booked cost replacing the assumption for its remaining pages, mid-run.
+  the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). *Left, now `designer.budget.running-run-reads-its-booked-cost`:* a run's own booked cost replacing the assumption for its remaining pages, mid-run.
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py::test_with_nothing_booked_the_figure_is_assumed`,
+  `fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py::test_booked_pages_replace_the_assumption_with_their_median_and_say_how_many`,
+  `fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py::test_a_page_with_several_rows_counts_once_and_another_model_is_not_mixed_in`.
+- `designer.budget.running-run-reads-its-booked-cost` [GAP] (#6294) — split from
+  `designer.budget.estimate-from-booked-usage` (manager 2026-11-27 retag); what that line left: a run's own booked
+  cost replacing the assumption for its remaining pages, mid-run, so that a cap set at the estimate lets the run
+  finish; no test asserts that a cap set at the new estimate is not refused. Not built.
 
 - `designer.budget.run-cap` [OK] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
   the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
@@ -1753,7 +1761,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: S
 
 #### Step 19.5 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`
+- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`, `designer.budget.running-run-reads-its-booked-cost`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.4
 - Size: M
