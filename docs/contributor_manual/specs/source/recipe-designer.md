@@ -724,9 +724,16 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
   above the cloud tier, not on every card (appendix, fact 7).
 - `designer.rank.nothing-found-from-the-engine` [PARTIAL] (#6052) — the nothing-found sentence comes
   from the engine for every job, never hard-coded in the app (appendix, fact 8).
-- `designer.rank.finder-for-every-model-step` [PARTIAL] (#6052) — "Choose a model…" opens the finder
+- `designer.rank.finder-for-every-model-step` [OK] (#6052) — "Choose a model…" opens the finder
   for any step whose job needs a model, not only the reading jobs; the download / choose-cloud /
   choose-model fix buttons collapse into that one press (appendix, facts 1, 4, 5).
+  *Test:*
+  `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py::test_every_model_step_says_it_needs_a_model_and_the_finder_lists_more_than_one`,
+  `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift::testEveryModelStepsRowOffersTheFinder_byTheRegistry`.
+- `designer.rank.fix-buttons-collapse-into-the-finder` [GAP] (#6052; app) — split from
+  `designer.rank.finder-for-every-model-step` (manager 2026-11-27 retag); what that line left: the download,
+  choose-cloud and choose-model fix buttons collapsing into the one press (`RecipeStepsView.fixTitle` still offers the
+  three). Not built.
 - `designer.rank.searches-on-open` [PARTIAL] (#6052) — the finder searches online by itself when it
   opens for a step that has a search (as integration builds it, 1c008843d, d9a1cd231) and says what it
   found; the press is "Search again"; a job with no search disables the press with the reason.
@@ -1834,4 +1841,10 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Behaviours: `designer.defaults.says-why-on-the-stage-pages`, `designer.how.where-refused-place-has-a-link`, `designer.how.what-matters-breaks-ties`, `designer.how.model-kind-decides-the-compare`, `designer.compare.use-this-one-in-the-compare-window-is-tested`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.5
+- Size: M
+
+#### Step 19.7 — owed behaviours split off by the retag of 2026-11-27
+- Behaviours: `designer.rank.fix-buttons-collapse-into-the-finder`
+- Tests: none yet; each behaviour above says what is not built
+- Depends on: 19.6
 - Size: M
