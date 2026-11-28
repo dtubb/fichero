@@ -6,22 +6,12 @@ import XCTest
 /// view and the seeded harness engine. WRITTEN, NOT RUN: no simulator on the Pro while the owner works.
 final class IOSItemPagesUITests: XCTestCase {
     private func openSeededImage() throws -> XCUIApplication {
-        let env = ProcessInfo.processInfo.environment
-        let socket = try XCTUnwrap(env["FICHERO_FORCE_UDS_PATH"], "run through scripts/run_ios_ui_sim.sh: no engine socket")
-        let library = try XCTUnwrap(env["FICHERO_UITEST_LIBRARY"], "run through scripts/run_ios_ui_sim.sh: no seeded project")
-        let app = XCUIApplication()
-        app.launchArguments = ["--uitesting", "-fichero.remote_access.paired_library_path", library]
-        app.launchEnvironment["FICHERO_FORCE_UDS_PATH"] = socket
-        app.launch()
+        let app = try launchSeededApp()
         XCTAssertTrue(app.otherElements["library.content.ready"].waitForExistence(timeout: 60), "the library never showed")
-        func row(_ name: String) -> XCUIElement {
-            app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'libraryRow.' AND label CONTAINS %@", name)).firstMatch
-        }
-        XCTAssertTrue(row("Test Archive").waitForExistence(timeout: 20), "no folder row")
-        row("Test Archive").tap()
-        XCTAssertTrue(row("sample.jpg").waitForExistence(timeout: 20), "the folder lists no image")
-        row("sample.jpg").tap()
+        XCTAssertTrue(row(app, containing: "Test Archive").waitForExistence(timeout: 20), "no folder row")
+        row(app, containing: "Test Archive").tap()
+        XCTAssertTrue(row(app, containing: "sample.jpg").waitForExistence(timeout: 20), "the folder lists no image")
+        row(app, containing: "sample.jpg").tap()
         XCTAssertTrue(app.images.firstMatch.waitForExistence(timeout: 20), "the item's image is not shown")
         return app
     }
