@@ -786,19 +786,31 @@ def _sources(claims: list[KnowledgeClaim]) -> int:
     return len({d for c in claims for d in (c.source_document_id, *c.source_ids) if d})
 
 
+def _units(group_claims: list[KnowledgeClaim], language: str | None) -> list[tuple[str, list[KnowledgeClaim]]]:
+    """The units of one group as (object, statements), first seen first: statements with the same object
+    and the same date as `language`'s table says it are one unit. A statement with no object joins the first."""
+    units: dict[tuple[str, str | None], list[KnowledgeClaim]] = {}
+    for claim in group_claims:
+        obj = _claim_object(claim)
+        if obj:
+            units.setdefault((obj, (_claim_date(claim, language) or {}).get("text")), []).append(claim)
+    result = [(obj, members) for (obj, _), members in units.items()]
+    if result:
+        result[0][1].extend(c for c in group_claims if not _claim_object(c))
+    return result
+
+
 def _merged_pieces(
     agg: "Aggregation", group_claims: list[KnowledgeClaim]
 ) -> tuple[list[tuple[str, str, list[str]]], list[tuple[int, list[KnowledgeClaim], int]]] | None:
     """The pieces of a merged sentence as `_render_group_sentence` joins them, and (index of the object
-    piece, claims, index of the last piece of the object) per distinct object, whose date, when it has
+    piece, claims, index of the last piece of the object) per unit (`_units`), whose date, when it has
     one, follows it in brackets; None when the group has no complete statement. A place every statement
     has is said once at the end; otherwise each object's own places follow it, before its date."""
     ids = list(agg.claim_ids)
     first = group_claims[0]
     lang = agg.language if agg.language in _TABLES else "en"
-    objects = [(obj, [c for c in group_claims if _claim_object(c) == obj]) for obj in agg.objects]
-    if objects:
-        objects[0][1].extend(c for c in group_claims if not _claim_object(c))
+    objects = _units(group_claims, lang)
     head = [
         (agg.subject, f"claim:{first.id}:{_role_field(first, 'subject')}", ids) if agg.subject else None,
         (agg.verb, f"claim:{first.id}:{_role_field(first, 'verb')}", ids) if agg.verb else None,
@@ -864,7 +876,7 @@ def _trace_group_sentence(
     """The sentence of `_render_group_sentence`, with its clauses and segments (offsets within the sentence).
 
     A single claim, or a group with no complete statement, is one clause with all the group's claim ids.
-    A merged group has one clause per distinct object phrase; a claim with no object joins the first.
+    A merged group has one clause per unit (`_units`).
     """
     ids = list(agg.claim_ids)
     merged = _merged_pieces(agg, group_claims) if agg.count > 1 else None
@@ -983,13 +995,13 @@ def _dispute_sentence(
 
 
 def _apart_unsure(agg: "Aggregation", group_claims: list[KnowledgeClaim]) -> list[list[KnowledgeClaim]]:
-    """The statements of one group as the sentences that say them: the statements of an object that is
+    """The statements of one group as the sentences that say them: the statements of a unit (`_units`) that is
     `one_source_unsure` are a sentence of their own, after the rest, so a hedge never lands on a plain object."""
     if agg.count == 1:
         return [group_claims]
-    apart = [members for obj in agg.objects
-             if _doubt(members := [c for c in group_claims if _claim_object(c) == obj]) == "one_source_unsure"]
-    if not apart or len(apart) == len(agg.objects):
+    units = [members for _, members in _units(group_claims, agg.language)]
+    apart = [members for members in units if _doubt(members) == "one_source_unsure"]
+    if not apart or len(apart) == len(units):
         return [group_claims]
     moved = {c.id for members in apart for c in members}
     return [[c for c in group_claims if c.id not in moved], *apart]
