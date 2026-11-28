@@ -605,6 +605,7 @@ nav:
           - Fichero UI Reform — Master Plan (2026-06-15): contributor_manual/architecture/fichero/reform_masterplan_2026-06.md
           - Frontend Dev Workflow Checklist: contributor_manual/architecture/fichero/workflow_checklist.md
       - Design:
+          - Findings Carried From Deleted Working Notes: contributor_manual/design/carried-from-working-notes.md
           - Embedded Local Models Plan: contributor_manual/design/embedded-local-models-plan.md
           - iOS / iPad Engine Embedding Feasibility: contributor_manual/design/ios-ipad-embedding-plan.md
           - SwiftUI App Structure & Naming (Reorg Plan): contributor_manual/design/swiftui-app-reorg.md
