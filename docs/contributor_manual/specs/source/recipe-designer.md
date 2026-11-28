@@ -959,13 +959,22 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   its figure; the refusal names which cap refused; raising to N clears the refusal; the fewer-pages count fits what is left,
   and the Start it makes names the first N pages in Finder order as `documents`, nothing more),
   `BudgetRefusalFixTests.swift` (the three buttons from a served refusal). Built (engine, 2026-11-04): the refusal carries typed `fixes[]` (`CapFix`: kind, step, `raise_to_usd`, `pages_that_fit`) and the dearest step: `test_cap_refusal_offers_the_fix_6295.py`. Found partly built 2026-11-02 (#6295): the cap line serves `needed_cap_usd`, `needed_project_cap_usd`, `fewer_pages` and the refusal's own sentence naming which cap refused. Built since (engine, 2026-11-04): the typed `refusal.fixes[]` and the dearest step. Built (app, 2026-11-04, Swift not compiled here): the raise amounts and the first pages that fit are read from `fixes[]` (an engine that serves none is read from the line's figures), and "Change the model for <step>" opens that step's model finder (`CloudCapOffers`, `BudgetRefusalFixTests.swift`).
-- `designer.budget.change-is-audited-and-undoable` [PARTIAL] (#6295) — raising or lowering either cap, from the
+- `designer.budget.change-is-audited-and-undoable` [OK] (#6295) — raising or lowering either cap, from the
   field or from a fix button, is one audited action, `project.set_budget` (project, which cap, from, to, who,
   when), undoable through Edit › Undo, the same write permission as any change to the project; it reuses
   `project.save_setup`'s audit and invert, so a cap change never writes any other answer. A cap raised during a
   paused run (`designer.budget.fix-during-the-run`) is the same action. *Test:*
   `test_set_budget_is_audited_and_undoable.py` (the audit row names the cap and
-  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen). Found built 2026-11-02 (#6295): `PUT /api/recipes/project/cloud-cap` is one `project.save_setup` writing only the caps, audited, one Undo puts both back (`test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`; the app: `RecipeSetupStore+CloudCaps.changeCloudCaps`). Left: an action of its own named `project.set_budget` (the audit row names `project.save_setup`), and the run cap.
+  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen). Found built 2026-11-02 (#6295): `PUT /api/recipes/project/cloud-cap` is one `project.save_setup` writing only the caps, audited, one Undo puts both back (`test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`; the app: `RecipeSetupStore+CloudCaps.changeCloudCaps`). *Built since:* the run cap is changed through the same audited, undoable route. *Left, now `designer.budget.set-budget-is-its-own-action`:* an action of its own named `project.set_budget` (the audit row names `project.save_setup`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`,
+  `fichero-server/tests/unit/recipes/test_raise_the_cap_in_place_6295.py::test_the_first_cap_change_of_a_project_with_no_set_up_writes_only_the_cap`,
+  `fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py::test_the_cap_route_changes_the_run_cap_through_an_audited_undoable_action`,
+  `fichero/Tests/Unit/general/Models/CloudCapFixTests.swift::oneEditIsOneChangeNotTwo`.
+- `designer.budget.set-budget-is-its-own-action` [GAP] (#6295) — split from
+  `designer.budget.change-is-audited-and-undoable` (manager 2026-11-27 retag); what that line left: an audited action
+  of its own named `project.set_budget` (project, which cap, from, to, who, when), reached by MCP and the command line
+  through the regen; the audit row names `project.save_setup` today. Not built.
 - `designer.budget.fix-during-the-run` [PARTIAL] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
   paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
   fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
@@ -1744,7 +1753,7 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Size: S
 
 #### Step 19.5 — owed behaviours split off by the retag of 2026-11-27
-- Behaviours: `designer.budget.hugging-face-cap-line`
+- Behaviours: `designer.budget.hugging-face-cap-line`, `designer.budget.set-budget-is-its-own-action`
 - Tests: none yet; each behaviour above says what is not built
 - Depends on: 19.4
 - Size: M
