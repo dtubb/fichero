@@ -17,23 +17,29 @@ final class SelectPointerTests: XCTestCase {
     ]
 
     private func event(_ phase: PreviewPointerPhase, _ across: Double, _ down: Double,
-                       shift: Bool = false, command: Bool = false) -> PreviewPointerEvent {
+                       shift: Bool = false, command: Bool = false, option: Bool = false, control: Bool = false) -> PreviewPointerEvent {
         var event = PreviewPointerEvent(phase: phase, point: CGPoint(x: across, y: down), shift: shift, clickCount: 1)
         event.command = command
+        event.option = option
+        event.control = control
         return event
     }
 
     /// Host a layer over `lines` (all shown) and play `script` through the feed; returns the selection.
-    private func play(_ script: [PreviewPointerEvent]) async throws -> RegionSelection {
+    private func play(_ script: [PreviewPointerEvent], onDrawBox: (([Double]) -> Void)? = nil) async throws -> RegionSelection {
         let selection = RegionSelection()
         let feed = PreviewPointerFeed()
-        let layer = RegionInteractionLayer(
+        var layer = RegionInteractionLayer(
             boxes: lines.enumerated().map { (index: $0.offset, box: $0.element) }, allBoxes: lines,
             visible: CGRect(x: 0, y: 0, width: 1, height: 1), artifactId: "art",
             documentId: "page", marquees: nil, imagePixelSize: nil, isAddingRegion: false,
             drawsSelection: false, pointer: feed,
             onMoveCommit: { _, _ in }, onPromote: { _, _ in }, onOpenRegion: { _ in }, selection: selection
         )
+        if let onDrawBox {
+            layer.drawsSegments = true
+            layer.onDrawBox = onDrawBox
+        }
         let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: 100, y: 100), size: size),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         let host = NSHostingView(
@@ -87,6 +93,30 @@ final class SelectPointerTests: XCTestCase {
         XCTAssertEqual(Set(added.indices), [0, 1], "⌘-click adds an unselected box")
         let removed = try await play(click(0.2, 0.15) + click(0.2, 0.45, command: true) + click(0.2, 0.45, command: true))
         XCTAssertEqual(removed.indices, [0], "⌘-click on a selected box takes it out")
+    }
+
+    /// A loop round line c (0.6-0.9 across, 0.7-0.8 down), pressed on empty page. The lasso releases on its last corner;
+    /// the box draw releases away from the press on both axes, because a box with no width is no box.
+    private func loopRoundC(option: Bool, control: Bool, release: (Double, Double)) -> [PreviewPointerEvent] {
+        let corners = [(0.55, 0.65), (0.95, 0.65), (0.95, 0.85), (0.55, 0.85)]
+        var steps = [event(.pressed, 0.55, 0.65, option: option, control: control)]
+        for corner in corners.dropFirst() { steps.append(event(.dragged, corner.0, corner.1, option: option, control: control)) }
+        steps.append(event(.released, release.0, release.1, option: option, control: control))
+        return steps
+    }
+
+    /// Owner ruling 2026-11-26: the lasso is ⌃-drag.
+    func testControlDragIsTheLasso() async throws {
+        let selection = try await play(loopRoundC(option: false, control: true, release: (0.55, 0.85)))
+        XCTAssertEqual(selection.indices, [2], "the loop held line c")
+    }
+
+    /// Owner ruling 2026-11-26: ⌥-drag in Select draws a new box, it does not lasso.
+    func testOptionDragDrawsABoxAndSelectsNothing() async throws {
+        var drawn: [[Double]] = []
+        let selection = try await play(loopRoundC(option: true, control: false, release: (0.95, 0.85)), onDrawBox: { drawn.append($0) })
+        XCTAssertEqual(drawn.count, 1, "one box is drawn")
+        XCTAssertTrue(selection.indices.isEmpty, "and nothing is lassoed")
     }
 }
 #endif

@@ -123,7 +123,7 @@ struct RegionInteractionLayer: View {
     @State var bandCurrent: CGPoint?
     /// ⌘ held as the band or lasso began: it selects regions (`segment-editor.select-marquee-lasso`).
     @State var bandCommand = false
-    /// A live lasso (⌥-drag on empty page in Select): the loop so far, in the page's fractions.
+    /// A live lasso (⌃-drag on empty page in Select): the loop so far, in the page's fractions.
     @State var lasso: [[Double]] = []
     /// ⌥ held as a Brush stroke began: the stroke takes segments out of the selection (`segment-editor.select-brush`).
     @State var brushSubtracts = false
@@ -383,7 +383,7 @@ extension RegionInteractionLayer {
         handleOrderClick(event, at: point, in: size)
             || handleKnife(event) || handleMarker(event, in: size) || handlePaint(event, in: size)
             || handleBrush(event, in: size) || handleDrawShape(event, in: size) || handleCutMark(event, in: size)
-            || handleReshape(event, in: size) || handleLasso(event, at: point, in: size)
+            || handleReshape(event, in: size) || handleBoxDraw(event, at: point, in: size) || handleLasso(event, at: point, in: size)
     }
 
     /// Mouse-down decides the verb: double-click enters, the check tool
