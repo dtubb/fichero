@@ -214,9 +214,13 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `ContentView+SidebarButtons.swift`); the window toolbar has no Chat button except on an iPhone. *Test:*
   `fichero/Tests/Unit/general/Models/SidebarColumnStateTests.swift::pairInSidebarWhileShown`,
   `::macDeclaresPairOnlyInItsHome`.
-- `panes.sidebar-button.in-sidebar-section` — **[GAP]** (#4735) the sidebar toggle button belongs IN
+- `panes.sidebar-button.in-sidebar-section` — **[OK]** (#4735) the sidebar toggle button belongs IN
   the sidebar's own top-left section (Xcode-style), not floating in the main window toolbar's
   left group.
+  *Built under `panes.toolbar.sidebar-pair-once`:* the sidebar button is declared in the sidebar column's own toolbar
+  section while the column is up (`SidebarPairHome.declaredInColumn`, `ContentView.sidebarToolbarContent`). *Test:*
+  `fichero/Tests/Unit/general/Models/SidebarColumnStateTests.swift::macDeclaresPairOnlyInItsHome`,
+  `::pairInSidebarWhileShown`.
 - `panes.split.asymmetric` — **[GAP/BROKEN]** (#4669, #4737) splitting a preview vertically then horizontally
   makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
   one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
