@@ -377,11 +377,11 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   subject entity, verb, object, date and language are one unit and one clause naming all of
   them. Built: identical objects are listed once and every id kept
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_merge_keeps_every_source_claim_id_in_order`).
+  Test (in `test_paragraph_units.py`): `test_same_statement_different_date_is_two_units`.
   Built: the date as the language's table says it is in the key, so the same object with two
   dates is two clauses, each with its own date, and the same object and date from two documents
   is one clause naming both; a unit unsure on one source is a sentence of its own. Tests:
-  `fichero-server/tests/unit/knowledge/test_paragraph_units.py::test_same_statement_different_date_is_two_units`,
-  `test_an_unsure_statement_of_another_date_is_said_apart_from_the_plain_one`,
+  `fichero-server/tests/unit/knowledge/test_paragraph_units.py::test_an_unsure_statement_of_another_date_is_said_apart_from_the_plain_one`,
   `test_two_dates_of_one_statement_are_two_clauses_on_the_route`.
 - `kg.para.one-passage-one-sentence` — **[OK]** (#3808, → #6840) two statements with the same
   subject entity and verb that rest on the SAME stretch of one page (the same character
@@ -389,13 +389,13 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   one clause pair, the plain object first, with no conjunction between them ("vendió una casa
   a …"). Anything less than the same stretch stays two sentences, as ruled for #4836. This
   narrows that ruling: the two halves of one act from the same passage may share one sentence
-  (owner ruling 2026-11-21, G2).
+  (owner ruling 2026-11-21, G2). Test (in `test_paragraph_units.py`):
+  `test_two_halves_of_one_passage_are_one_sentence_and_never_coordinated`.
   Built: exactly two statements with the same subject entity, verb, language, document, page
   label and character range, one object plain and one prepositional, said with the same date,
   place and doubt, are one sentence of two clauses; three statements on one stretch, or two
   that differ in date, place or doubt, stay as they were. Tests:
-  `fichero-server/tests/unit/knowledge/test_paragraph_units.py::test_two_halves_of_one_passage_are_one_sentence_and_never_coordinated`,
-  `test_anything_less_than_the_same_stretch_stays_two_sentences`,
+  `fichero-server/tests/unit/knowledge/test_paragraph_units.py::test_anything_less_than_the_same_stretch_stays_two_sentences`,
   `test_two_halves_of_one_passage_are_one_sentence_on_the_route`.
 - `kg.para.run-is-neighbours` — **[BROKEN]** (#4648, → #6841) only units next to each other in
   the paragraph's order, with the same subject entity, verb, language and doubt, join into one
