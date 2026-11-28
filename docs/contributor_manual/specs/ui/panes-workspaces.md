@@ -391,15 +391,18 @@ starting a new one.
   status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not checked:* a look on screen. *Tests:*
   `Views/Inspector/InspectorBottomBarStatusTests.swift`.
   *Test:* `fichero/Tests/Unit/general/Views/Inspector/InspectorBottomBarStatusTests.swift::emptyStatusIsNotDrawn`.
-- `panes.chrome.command-scroll-zooms` — **[PARTIAL]** (owner 2026-11-13; #6672) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
+- `panes.chrome.command-scroll-zooms` — **[OK]** (owner 2026-11-13; #6672) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
   zooms the view under the pointer wherever the view zooms by pinch: the Canvas already did (`CanvasScrollPan`, into the
   cursor), and now the Items' Icon grid (one 0.1 step per scroll, in the pinch's range) and, owner 2026-11-17 ("not just
   in canvas, but also in source reader/image/preview, icons"), the Source's page image, a PDF page and the Reader, by
   5% per scroll event in each one's own zoom range (`CommandScrollZoom.scaled`; small, because a Magic Mouse sends many
   events for one swipe). *Correction 2026-11-17:* this bullet said the page image already zoomed (`ScrollWheelZoom`);
   that view was never mounted, and the image did not zoom. Without ⌘ a scroll is a scroll. One modifier,
-  `View.commandScrollZoom` (`CommandScrollZoom`), for any view that joins. *Not built:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
-  the owner saw on the Canvas. *Tests:* `Views/Components/CommandScrollZoomTests.swift`.
+  `View.commandScrollZoom` (`CommandScrollZoom`), for any view that joins. *Left, now `panes.chrome.command-scroll-zooms-rows-and-folder-views`:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
+  the owner saw on the Canvas. *Tests:* `fichero/Tests/Unit/general/Views/Components/CommandScrollZoomTests.swift`.
+- `panes.chrome.command-scroll-zooms-rows-and-folder-views` — **[GAP]** (#6672; app) split from
+  `panes.chrome.command-scroll-zooms` (manager 2026-11-27 retag); what that line left: List and Table row size on a ⌘
+  scroll, the Source pane's folder views' zoom button (#26), the pinch lag the owner saw on the Canvas. Not built.
 - `panes.chrome.one-filter-pattern` — **[GAP]** (#4374) (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
   prompt's items 13 and 14) every list of items has ONE bottom bar, the same five controls in the same order:
   **+ · 🗑 · Metadata · Sort · Filter**. That is the sidebar, the Items pane in every view (List, Table, Icons,
