@@ -4,6 +4,4 @@ import Foundation
 enum CompactStep: Hashable {
     case folder(String)
     case item(String)
-    case reader
-    case info
 }

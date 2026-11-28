@@ -174,6 +174,8 @@ struct ContentView: View {
     @Environment(EntityStore.self) var entityStore
     @Environment(ClaimStore.self) var claimStore
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    /// The iPhone's item pager changes page without a slide when this is on (`compactItemPageBinding`).
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     /// True when THIS leaf is a duplicate same-kind pane in the applied
     /// `PaneList` (`PaneList.secondaryLeafIDs()`, injected per-leaf by
     /// `PaneSpec.paneNodeView`). `widescreenCanvasPaneContent` reads this to

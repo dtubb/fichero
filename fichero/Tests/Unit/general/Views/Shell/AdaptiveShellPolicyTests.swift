@@ -295,7 +295,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift"),
         ].joined(separator: "\n"))
         let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
@@ -387,7 +387,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift"),
         ].joined(separator: "\n"))
 
         // `contentPaneToolbarContent` is declared in the toolbar file and
@@ -415,7 +415,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift"),
         ].joined(separator: "\n"))
 
         XCTAssertTrue(buildersSource.contains("PDFReadingView("))
@@ -429,7 +429,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift"),
             // The library pane construction moved into the PaneSpec table
             // (pane-system build) — same invariant, new home.
             Self.appSource("Views/Shell/ContentView/Layout/PaneSpec.swift"),
@@ -454,7 +454,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/Compact/ContentView+CompactReader.swift"),
         ].joined(separator: "\n"))
 
         // The sidebar column carries NO background override (Daniel,

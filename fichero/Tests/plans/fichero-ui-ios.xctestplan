@@ -15,6 +15,7 @@
     {
       "selectedTests" : [
         "IOSDrillDownUITests",
+        "IOSItemPagesUITests",
         "IOSLaunchSmokeTests",
         "IOSSimSameSocketTests",
         "IOSUITargetCanaryTests"

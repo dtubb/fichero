@@ -148,38 +148,12 @@ extension ContentView {
         }
     }
 
-    /// The bar buttons that push the steps `from` offers (#6566).
-    @ToolbarContentBuilder
-    func compactDocumentStepToolbar(from step: CompactDocumentStep) -> some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            ForEach(step.next, id: \.self) { target in
-                Button(target.title) {
-                    switch target {
-                    case .reader: windowState.compactPath.push(.reader)
-                    case .info: windowState.compactPath.push(.info)
-                    case .source: break
-                    }
-                }
-            }
-        }
-    }
-
     /// The screen a path step shows. A folder step shows the shared list, re-rooted on that folder
     /// (`ios.nav.folders-push`, #6945).
     @ViewBuilder
     private func compactScreen(_ step: CompactStep) -> some View {
         switch step {
-        case .item:
-            previewView
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // `doc.name` for a page is the upload temp filename (#4416).
-                .navigationTitle(pushedReaderDocument.map { DocumentTitle.displayName(for: $0) } ?? "")
-                #if !os(macOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar { compactDocumentStepToolbar(from: .source) }
-        case .reader: compactStepScreen(.reader)
-        case .info: compactStepScreen(.info)
+        case .item: compactItemPages
         case .folder:
             AnyView(contentWithOptionalModeRail)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -188,24 +162,6 @@ extension ContentView {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
         }
-    }
-
-    /// The Reader and Info screens pushed from the file: the shell's own reading pane and inspector.
-    @ViewBuilder
-    private func compactStepScreen(_ step: CompactDocumentStep) -> some View {
-        Group {
-            switch step {
-            case .reader: AnyView(widescreenReadingPane())
-            case .info: AnyView(inspectorView)
-            case .source: EmptyView()
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle(step.title)
-        #if !os(macOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .toolbar { compactDocumentStepToolbar(from: step) }
     }
 
     /// Compact (iPhone) list→detail stack for the inner-sidebar modes

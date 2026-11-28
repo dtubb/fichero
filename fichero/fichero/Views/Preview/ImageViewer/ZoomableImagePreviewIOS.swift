@@ -47,6 +47,7 @@ struct ZoomableImagePreview: View {
     @Environment(DocumentStore.self) var documentStore
     @Environment(StorageService.self) var storageService
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(WindowState.self) var windowState: WindowState?
 
     @State var scale: CGFloat = 1.0
     @State var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
@@ -117,6 +118,18 @@ struct ZoomableImagePreview: View {
     }
 
     var body: some View {
+        body0
+            // The iPhone's item pages stop paging while the picture is zoomed (`ios.item.zoom-wins-over-paging`).
+            // `initial`: the page is lazy, so it can come back still zoomed with `scale` unchanged.
+            .onChange(of: scale, initial: true) {
+                // Written only when it changes: a pinch changes `scale` every frame.
+                let zoomed = PageSwipe.isZoomedIn(scale: scale, fitScale: imageCoordinator?.calculateFitScale())
+                if windowState?.compactImageZoomed != zoomed { windowState?.compactImageZoomed = zoomed }
+            }
+            .onDisappear { windowState?.compactImageZoomed = false }
+    }
+
+    private var body0: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottom) {
                 Group {
@@ -135,7 +148,8 @@ struct ZoomableImagePreview: View {
                             loupeMagnification: $loupeMagnification,
                             loupeSize: $loupeSize,
                             coordinator: $imageCoordinator,
-                            onPageStep: turnPage
+                            // Nil inside the iPhone's item pages: the recogniser never begins there.
+                            onPageStep: isCompact ? nil : turnPage
                         )
                     } else {
                         ContentUnavailableView(
@@ -155,7 +169,7 @@ struct ZoomableImagePreview: View {
                         showingFullScreen = true
                     }
                 }
-                // A horizontal swipe on a fitted page turns to the previous or next image in the folder, as in Photos
+                // At regular width a horizontal swipe on a fitted page turns to the previous or next image
                 // (#6559, `onPageStep` above, read on the image's own scroll view); it replaced the blue prev/next
                 // buttons (#2420). VoiceOver's way to the same steps, now that the buttons are gone.
                 .accessibilityAction(named: "Previous image") { previousAction?() }
