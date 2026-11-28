@@ -8,7 +8,7 @@
 >
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code makes them pass.
 > **Status: DRAFT — ruled 2026-10-29, ready to build; the APPROVED tag waits on the manual section and the first pinning test** (drafted 2026-10-26; trimmed 2026-10-29 to its own line,
-> see the review `agent-work/status/briefs/imgprep-review-2026-10-29.md`; the owner's ruling of 2026-10-29
+> see the image-preparation review of 2026-10-29 (a working note, since deleted); the owner's ruling of 2026-10-29
 > that the FULL OpenCV suite comes over, as automatic steps and as editor options, folded in the same day:
 > see "The suite, step by step"). **This spec owns the pixel steps that write renditions** (contrast,
 > yellowing, sharpen, stains, ruling, show-through, binarise, denoise, the show-through-only verso, the

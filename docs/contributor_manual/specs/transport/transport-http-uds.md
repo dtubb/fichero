@@ -4,7 +4,7 @@
 > Manual: docs/contributor_manual/guide/16-the-embedded-engine.md
 
 > Design-led (Testing Constitution). **Status: APPROVED — 2026-09-09.** Rewritten into
-> template format from `agent-work/status/2026-08-04-uds-harness-4437.md` and the code contract
+> template format from the UDS harness note of 2026-08-04 (#4437; a working note, since deleted) and the code contract
 > in `Services/EngineConfig+Launch.swift`. Tags: [OK] built · [PARTIAL] built/unproven · [GAP] not built.
 
 ## Intent (the design)

@@ -715,13 +715,13 @@ misplaced — no exceptions.
 
 | What you are writing | Where |
 |---|---|
-| Status / handoff / session notes | `agent-work/status/` (e.g. `agent-work/status/SIDEBAR_STATUS.md`) |
+| Status / handoff / session notes | `agent-work/status/` |
 | Plans, sequencing, dispatch batches | `agent-work/plans/` |
 | Specs and design explorations | `agent-work/specs/` |
 | Reviews, audits, QA logs, validation reports | `agent-work/reviews/` |
 
-The four `*_STATUS.md` files already live in `agent-work/status/` — follow that
-convention; a new `FOO_STATUS.md` at the root is wrong by construction.
+A `FOO_STATUS.md` belongs in `agent-work/status/`; one at the root is wrong by
+construction.
 
 `agent-work/` is listed in `.gitignore`, so a note that is worth keeping must be
 added deliberately: `git add -f agent-work/status/<file>.md`. Scratch you do not

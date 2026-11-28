@@ -232,7 +232,7 @@ class TestGroupADeterministicPresetsAreTested:
     These are the only presets that are free to validate under ANY
     configuration. Every other preset leaves provider/model unset on its
     model-using nodes, so what it costs depends on the user's app defaults —
-    see agent-work/status/2026-08-03-preset-triage.md.
+    see docs/contributor_manual/design/carried-from-working-notes.md.
     """
 
     GROUP_A = {

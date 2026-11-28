@@ -5,9 +5,7 @@ import Testing
 /// The inspector's own Lists (#4502).
 ///
 /// Daniel asked whether the inspector's SwiftUI Lists had been reviewed for drag
-/// and drop, keyboard, multi-select and iPad. They had not. The inventory at
-/// `agent-work/status/2026-08-03-inspector-list-inventory.md` is the full
-/// answer; these are the parts that can fail.
+/// and drop, keyboard, multi-select and iPad. They had not; these are the parts that can fail.
 struct InspectorListContractTests {
 
     // MARK: - A List inside a ScrollView renders at zero height

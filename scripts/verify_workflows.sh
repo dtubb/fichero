@@ -15,7 +15,7 @@
 #     workflow and exits 0 only when 0 failed. Workflows needing a
 #     capability the host lacks report SKIP loudly, never silently pass.
 #
-# SCHEDULING (manager notes — also in agent-work/status/e2e-lane-notes.md):
+# SCHEDULING (manager notes):
 #   - First run: post-release, in DAYLIGHT, on an idle machine (real model
 #     calls; Apple Vision needs a GUI session — do not run headless/ssh).
 #   - Serialize with xcodebuild and full pytest runs (one heavy job at a time).

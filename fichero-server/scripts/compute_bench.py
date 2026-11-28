@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""How to use a Mac's compute, per engine: threads x inner threads in one process against N spawned processes (2026-10-27,
-agent-work/status/briefs/compute-measurements-2026-10-27.md). A MEASUREMENT, not a test. Standalone: it never imports
-the engine, so it never opens an app library; run it with FICHERO_BASE_PATH=$(mktemp -d) anyway.
+"""How to use a Mac's compute, per engine: threads x inner threads in one process against N spawned processes
+(2026-10-27; its figures that no spec holds are in docs/contributor_manual/design/carried-from-working-notes.md). A
+MEASUREMENT, not a test. Standalone: it never imports the engine, so it never opens an app library; run it with
+FICHERO_BASE_PATH=$(mktemp -d) anyway.
 
   seg    Kraken blla segmentation. Threads share one model (as the engine does); `--inner` = torch threads.
   prep   segment the pages once and pickle the result (--cache), for `rec`.

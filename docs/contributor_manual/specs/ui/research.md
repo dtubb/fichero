@@ -571,21 +571,21 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
 
 ## Sources folded in
 
-Design content carried into this spec; files kept, listed here per program instruction
-(report only — not moved or deleted):
+Design content carried into this spec. The tracked working notes named here were read
+again and deleted in November 2026:
 
 - The agentic-surface consolidation review (July 2026; a working note, deleted in November
   2026) — origin of "one surface, named Research", the node-kind-not-sidebar-mode ruling, and
   the trust-boundary framing for the embedded browser. Superseded by this spec. Its
   backend ordering no longer stands apart from this spec: the chat tool loop it sequenced
   second is built (`research.agent-audited-tools`).
-- `agent-work/status/agent-chat-survey.md` — corrected this spec's understanding that the
+- The agent-chat survey (a working note, since deleted) — corrected this spec's understanding that the
   chat-tools loop is wired and default-ON (not "planned", as the older
   `agent_chat_as_user.md` states) — verified directly against current
   `chat.py:561-588` rather than trusted as-is.
 - `agent-work/design/in-app-agent-parity-plan.md` — origin of the read-parity +
   allowlisted-write shape (`CHAT_WRITE_ALLOWLIST`) now folded into `research.agent-audited-tools`.
-- `agent-work/status/RESEARCH_STATUS.md` — status log for the Swift-parallel-safe subset
+- The Research lane's status log (a working note, since deleted) — status log for the Swift-parallel-safe subset
   (`ToolCall`/`ToolCallCard`, `SourceLedgerEntry`, the Plan tab) that is now simply "what
   exists today" above; folded in as historical provenance, not re-described as a plan.
 
