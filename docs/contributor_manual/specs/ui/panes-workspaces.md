@@ -1107,9 +1107,13 @@ math, not a mounted pane" lesson.
   `fichero/Tests/Unit/general/Models/PaneListIdentityTests.swift::changingTheDuplicatesKindAfterASecondSplitIsIsolated`,
   `fichero/Tests/Unit/general/Views/Shell/BuiltInWorkspaceLayoutTests.swift::changingLeafKindIsPerPane`. The tests
   read the pane list, not a rendered column; the stacked footers are not tested.
-- `panes.library.narrow-pushes-content-off-edge` — **[BROKEN]** (#4966, #4879) narrowing the left
+- `panes.library.narrow-pushes-content-off-edge` — **[OK]** (#4966, #4879) narrowing the left
   Library pane pushes its content off the left edge of the window instead of reflowing/
   shrinking it to the new width (screenshot 9.11.46). Seen on screen this morning.
+  *Built since:* the Icon grid's slot is clamped to the pane's width
+  (`LibraryView.iconGridItemBounds(scale:paneWidth:)`, `iconColumnCount`). *Test:*
+  `fichero/Tests/Unit/general/Views/Library/IconGridNarrowPaneTests.swift::testANarrowPaneShrinksTheSlotRatherThanOverflowing`,
+  `::testClampedBoundsNeverExceedThePaneWidth`.
 - `panes.chrome.head-and-footer-not-shared` — **[BROKEN]** (#4880) pane head bars and pane
   footer bars do not share one component: the Library's head/footer are slightly taller than
   Preview's and Reader's, and the Library's kind chooser has no down arrow while Preview's and
