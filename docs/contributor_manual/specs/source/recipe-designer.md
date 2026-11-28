@@ -892,14 +892,23 @@ There is **no margin multiplier**: the estimate says what Fichero thinks the run
 its basis, and it learns from the project's booked costs (`designer.budget.estimate-from-booked-usage`).
 
 **Improves.**
-- `designer.budget.beside-the-estimate` [PARTIAL] (#6295) — Ready has one Budget block, above Start: the estimate
+- `designer.budget.beside-the-estimate` [OK] (#6295) — Ready has one Budget block, above Start: the estimate
   for this run (`estimate.total_cost_usd`), Fichero's best estimate, with its basis, the project's cap for the month with what is spent
   and what is left (the `CloudCapLine` figures), and two editable fields, both changeable in place, so that
   whichever cap would block Start can be updated from the block: **this run, at most** and **this
   project a month, at most**. The Hugging Face cap joins the block as a third line when a Hugging Face place is
   in the plan. One block, not a field under a question. *Test:* `BudgetBlockTests.swift`
   (pure: the block's lines from a served plan; the fields hold the served caps; a cap below 0 cannot be typed),
-  `test_budget_in_the_plan.py` (the plan carries both caps and the basis). Found partly built 2026-11-02 (#6295): the plan's `cloud_cap` line carries the monthly cap, spent, remaining, the project cap and its remaining, and the caps are changeable in place (`CloudCapLine`, `changeCloudCaps`). Built 2026-11-02 (engine): the cloud line also serves `proposed_run_cap_usd` (the estimate, no margin) beside `StartRequest.run_cap_usd` (`test_budget_in_the_plan.py`). Built 2026-11-02 (app, uncompiled): the cap row on Ready carries "This run, at most" (`RecipeRunCapField`, `RecipeSetupStore.runCapUsd` sent with Start, the engine's proposal as the prompt with "Use $N") and names the dearest step beside the refusal (`BudgetBlock`; `BudgetBlockTests.swift`). Built (app, 2026-11-04, Swift not compiled here): the block is one view above Start (`RecipeCloudCapRow`): both cap fields, "This run, at most", the words for what the caps leave, the basis rows, the fixes and "Change the model for <step>". Left: the Hugging Face line (the plan carries no Hugging Face cap yet; its field sits beside it in `RecipeMoneyAndPlaceFields`).
+  `test_budget_in_the_plan.py` (the plan carries both caps and the basis). Found partly built 2026-11-02 (#6295): the plan's `cloud_cap` line carries the monthly cap, spent, remaining, the project cap and its remaining, and the caps are changeable in place (`CloudCapLine`, `changeCloudCaps`). Built 2026-11-02 (engine): the cloud line also serves `proposed_run_cap_usd` (the estimate, no margin) beside `StartRequest.run_cap_usd` (`test_budget_in_the_plan.py`). Built 2026-11-02 (app, uncompiled): the cap row on Ready carries "This run, at most" (`RecipeRunCapField`, `RecipeSetupStore.runCapUsd` sent with Start, the engine's proposal as the prompt with "Use $N") and names the dearest step beside the refusal (`BudgetBlock`; `BudgetBlockTests.swift`). Built (app, 2026-11-04, Swift not compiled here): the block is one view above Start (`RecipeCloudCapRow`): both cap fields, "This run, at most", the words for what the caps leave, the basis rows, the fixes and "Change the model for <step>". *Left, now `designer.budget.hugging-face-cap-line`:* the Hugging Face line (the plan carries no Hugging Face cap yet; its field sits beside it in `RecipeMoneyAndPlaceFields`).
+  *Test, by path, 2026-11-27:*
+  `fichero-server/tests/unit/recipes/test_budget_in_the_plan.py::test_the_line_carries_both_caps_what_is_left_and_the_proposed_run_cap`,
+  `fichero-server/tests/unit/recipes/test_budget_in_the_plan.py::test_an_unknown_or_free_estimate_proposes_no_run_cap`,
+  `fichero/Tests/Unit/general/Models/BudgetBlockTests.swift::theBlockReadsTheProposedRunCapTheDearestStepAndTheModelToChange`,
+  `fichero/Tests/Unit/general/Models/BudgetBlockTests.swift::theFieldPromptIsTheEnginesProposalAndNoCapBelowZeroCanBeTyped`.
+- `designer.budget.hugging-face-cap-line` [GAP] (#6295; app) — split from `designer.budget.beside-the-estimate`
+  (manager 2026-11-27 retag); what that line left: the Hugging Face cap as a third line of the Budget block when a
+  Hugging Face place is in the plan (the plan carries no Hugging Face cap; its field sits beside the block in
+  `RecipeMoneyAndPlaceFields`). Not built.
 - `designer.budget.basis-per-step` [PARTIAL] (#6295) — the estimate is shown per step and per page, each with its
   basis in words: "Read: 16 pages × $0.021 a page, measured on 9 pages of this project" or "… assumed: one call
   a page of about 16 line pictures at Claude's listed rate"; the sum is the run's estimate. The basis is a
@@ -1733,3 +1742,9 @@ The gate step measures CER and WER on the held-out checked pages (the measure of
 - Tests: the Test line of each behaviour above
 - Depends on: 19.3
 - Size: S
+
+#### Step 19.5 — owed behaviours split off by the retag of 2026-11-27
+- Behaviours: `designer.budget.hugging-face-cap-line`
+- Tests: none yet; each behaviour above says what is not built
+- Depends on: 19.4
+- Size: M
