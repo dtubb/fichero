@@ -376,6 +376,9 @@ async def pause_live_runs_for_shutdown() -> int:
     import asyncio  # noqa: PLC0415
     import time  # noqa: PLC0415
 
+    if not _running_workflows:
+        return 0  # no run is tracked: the checkpointer import below loads langgraph, seconds of a quit (#7105)
+
     from fichero_server.execution.cancellation import pause_requested, request_pause  # noqa: PLC0415
     from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
 

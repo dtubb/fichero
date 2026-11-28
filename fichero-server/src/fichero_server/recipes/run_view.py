@@ -17,7 +17,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-import statistics
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -171,6 +170,8 @@ def step_timing(started: Optional[datetime], ended: Optional[datetime], work: li
     seconds: the time its page jobs ran; a step with no page jobs (names), its row's span."""
     from fichero_server.core.timeutil import ensure_utc
 
+    import statistics  # here, not at module level: this module loads at every app import (#7105)
+
     spans = _spans(work, now)
     if not spans and started is not None:
         spans = [(ensure_utc(started), ensure_utc(ended or now))]
@@ -185,6 +186,8 @@ def _kept_timing(kept: list[list[Any]]) -> tuple[StepTiming, list[tuple[datetime
     """A step with no job (Leave Out) timed from the runs it kept on the step (`spans`: [started, ended, pages]); each
     run's time is shared over its pages."""
     from fichero_server.core.timeutil import ensure_utc
+
+    import statistics  # here, not at module level: this module loads at every app import (#7105)
 
     spans = [(ensure_utc(datetime.fromisoformat(a)), ensure_utc(datetime.fromisoformat(b))) for a, b, _n in kept]
     pages = [(b - a).total_seconds() / n for (a, b), (_a, _b, n) in zip(spans, kept) for _ in range(n)]
