@@ -44,6 +44,14 @@ extension SegmentShapes {
         isEditing && kind != .box
     }
 
+    /// True when the press that places a polygon's first point may also begin a dragged box (#7083: the Line tool draws
+    /// a line box or a polygon): the Makes picker's choice is Line (what the New Line tool arms), nothing is placed yet
+    /// and the host saves boxes. A click leaves the point; a drag makes the box. At any other choice, Follow Selection
+    /// (`nil`) included, the Polygon tool is clicks only (`source.editor.draw-shapes`).
+    static func firstPointStartsBox(kind: DrawKind, level: DrawnLevel?, placed: Int, savesBoxes: Bool) -> Bool {
+        kind == .polygon && level == .line && placed == 0 && savesBoxes
+    }
+
     /// A click on the FIRST point of a polygon with enough points closes it.
     static func closes(_ points: [[Double]], at point: [Double], tolerance: [Double]) -> Bool {
         guard points.count >= DrawKind.polygon.minimumPoints, let first = points.first,

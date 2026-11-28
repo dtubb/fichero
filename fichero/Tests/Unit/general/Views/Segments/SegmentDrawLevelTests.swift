@@ -100,4 +100,20 @@ struct SegmentDrawLevelTests {
         #expect(SegmentShapes.changedKind(of: segment("l", kind: "line", rect: [0, 0, 1, 1])) == "region")
         #expect(SegmentShapes.changedKind(of: segment("w", kind: "word", rect: [0, 0, 1, 1])) == nil)
     }
+
+    @Test("Change Kind is offered for regions and lines only: not for a word, a selection holding one, or none")
+    func changeKindOffered() {
+        let region = segment("r", kind: "region", rect: [0, 0, 1, 1])
+        let line = segment("l", kind: "line", rect: [0, 0, 1, 0.1])
+        let word = segment("w", kind: "word", rect: [0, 0, 0.1, 0.1])
+        #expect(SegmentShapes.offersChangeKind([region]))
+        #expect(SegmentShapes.offersChangeKind([region, line]))
+        #expect(!SegmentShapes.offersChangeKind([word]))
+        #expect(!SegmentShapes.offersChangeKind([line, word]))
+        #expect(!SegmentShapes.offersChangeKind([]))
+        #expect(!SegmentMenuTarget(
+            isEditing: true, selectionCount: 1, toggleEditing: {}, canSelectAll: true, selectAll: {}, delete: {}, join: {},
+            selectionHasBaselines: false, redraw: {}, apply: { _ in }
+        ).canChangeKind)
+    }
 }

@@ -21,7 +21,7 @@ struct InspectorDrawVerbsView: View {
                 .font(.caption)
                 .help("Draw a \(level.rawValue) inside the selected \(selected.first?.kind.lowercased() ?? "segment")")
         }
-        if !selected.isEmpty, selected.allSatisfy({ SegmentShapes.changedKind(of: $0) != nil }) {
+        if SegmentShapes.offersChangeKind(selected) {
             Menu("Change Kind") {
                 Button("Region") { change(to: "region") }
                 Button("Line") { change(to: "line") }

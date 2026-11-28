@@ -970,9 +970,11 @@ See section 7.2 below for what exists. The design:
 ## Keyboard and gesture map
 
 - `segment-editor.draw-a-line` — **[OK]** (→ #7083; app) the tool row has a New Line tool (⌘⌥⇧L): click the corners of a line, click the
-  first point or double-click to close it. The new segment is a line, in the region that holds most of it; outside every region it
+  first point or double-click to close it, or drag a box from the first point. The new segment is a line, in the region that holds most of it; outside every region it
   is a line with no region and the page says "This line is in no region". The new segment is selected, and ⌘Z removes it.
-  *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`polygonAtALevel`, `parents`, `noRegionNotice`). Needs an on-screen check.
+  *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`polygonAtALevel`, `parents`, `noRegionNotice`);
+  `fichero/Tests/Unit/general/Views/Segments/DrawRegionPointerTests.swift` (the drag hands one box to the host and leaves no point; clicks
+  still place points; at the Region or Word level, or under Follow Selection, the Polygon tool's drag makes no box). Needs an on-screen check.
 - `segment-editor.draw-kind-picker` — **[OK]** (→ #7083; app) beside the tools a Makes picker says what the polygon and rectangle tools
   draw: Region, Line or Word, kept for the window; Follow Selection (the default, until one is chosen) draws a line when a region is
   selected and a word when a line is selected, else a region. A word goes into the line that holds most of it. Before this every
@@ -984,7 +986,7 @@ See section 7.2 below for what exists. The design:
   *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`addVerbs`, `parents`). Needs an on-screen check.
 - `segment-editor.change-kind` — **[OK]** (→ #7083; app) Change Kind (Edit › Segments ▸, the Preview's context menu and the
   Inspector's head) makes the selected regions lines or the selected lines regions: one `segment.convert_level`, one ⌘Z. It is
-  not offered for words. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`changeKind`); the call is `SegmentEdit.convertLevel`
+  not offered for words. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SegmentDrawLevelTests.swift` (`changeKind`, `changeKindOffered`); the call is `SegmentEdit.convertLevel`
   (`fichero/Tests/Unit/general/Views/Preview/SegmentConvertLevelTests.swift`). Needs an on-screen check.
 
 Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across the app):

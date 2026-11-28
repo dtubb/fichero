@@ -24,8 +24,8 @@ extension PreviewMarkupToolsRow {
         }
     }
 
-    /// The Line tool (#7083, ⌘⌥⇧L): draws a line as a polygon (click points) in the region that holds it; with a drag it is the
-    /// rectangle tool at the Line level.
+    /// The Line tool (#7083, ⌘⌥⇧L): draws a line as a polygon (click points) or as a box (drag from the first point,
+    /// `SegmentShapes.firstPointStartsBox`) in the region that holds it.
     private var lineShapeButton: some View {
         let armed = windowState?.activeMarkupTool == .drawRegion && windowState?.drawnLevel == .line
         return labeled("New Line") {
@@ -38,7 +38,7 @@ extension PreviewMarkupToolsRow {
             .buttonStyle(.borderless)
             .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
             .keyboardShortcut("l", modifiers: [.command, .option, .shift])
-            .help("New Line — click the corners of a line of writing; it goes into the region that holds it (⌘⌥⇧L)")
+            .help("New Line — click the corners of a line of writing, or drag a box; it goes into the region that holds it (⌘⌥⇧L)")
             .accessibilityLabel("New Line")
             .accessibilityIdentifier("segmentEditor.tool.newLine")
         }

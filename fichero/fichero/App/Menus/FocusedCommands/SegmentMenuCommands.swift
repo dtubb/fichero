@@ -32,6 +32,8 @@ struct SegmentMenuTarget {
     /// Add Line (one selected region) or Add Word (one selected line): the polygon tool armed at that level (#7083).
     var addVerb: SegmentShapes.DrawnLevel?
     var addDrawn: () -> Void = {}
+    /// Whether Change Kind acts: every selected segment is a region or a line (`SegmentShapes.offersChangeKind`).
+    var canChangeKind = false
     /// Make Region from Lines (⌘G) and Ungroup Region (no chord: ⇧⌘G shows or hides Items).
     var makeRegion: () -> Void = {}
     var ungroupRegion: () -> Void = {}
@@ -109,7 +111,7 @@ struct SegmentMenuContent: View {
             Button("Region") { target?.convertToRegion() }
             Button("Line") { target?.convertToLine() }
         }
-        .disabled(count == 0)
+        .disabled(target?.canChangeKind != true)
         Button("Convert to Line") { target?.convertToLine() }
             .disabled(count == 0)
         Button("Convert to Region") { target?.convertToRegion() }
