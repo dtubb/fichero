@@ -149,7 +149,7 @@ struct ZoomableImagePreview: View {
                             loupeSize: $loupeSize,
                             coordinator: $imageCoordinator,
                             // Nil inside the iPhone's item pages: the recogniser never begins there.
-                            onPageStep: PageSwipe.turnsImage(compactWidth: isCompact) ? turnPage : nil
+                            onPageStep: isCompact ? nil : turnPage
                         )
                     } else {
                         ContentUnavailableView(
