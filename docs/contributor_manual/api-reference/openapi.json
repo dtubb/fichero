@@ -78250,6 +78250,16 @@
             "nullable": true,
             "title": "Display Name"
           },
+          "file_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Id"
+          },
+          "file_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Name"
+          },
           "model": {
             "type": "string",
             "nullable": true,
@@ -104969,6 +104979,12 @@
             "format": "date-time",
             "nullable": true,
             "title": "Started At"
+          },
+          "folder": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder",
+            "description": "a held synced folder read: the folder's name, never its path"
           }
         },
         "type": "object",

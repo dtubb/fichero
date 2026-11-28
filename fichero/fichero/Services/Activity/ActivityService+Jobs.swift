@@ -268,6 +268,8 @@ extension ActivityService {
         let id: String
         let kind: String
         let name: String
+        /// A held synced folder read: the folder's name, never its path.
+        var folder: String?
     }
 
     /// What the open paused because the quit stopped it: nothing of it runs until `continueAfterQuit`.
@@ -275,7 +277,7 @@ extension ActivityService {
         let response = try await client.api.listStoppedAtQuitApiActivityStoppedAtQuitGet()
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json.items.map { StoppedRow(id: $0.id, kind: $0.kind, name: $0.name) }
+            return try okResponse.body.json.items.map { StoppedRow(id: $0.id, kind: $0.kind, name: $0.name, folder: $0.folder) }
         case .undocumented(let statusCode, let payload):
             throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }

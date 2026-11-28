@@ -23,13 +23,15 @@ final class StoppedAtQuitAlert {
         let name: String
         /// The engine's kind of work: the automatic kinds roll into one line, a synced folder's read into another.
         var kind: String = ""
+        /// A held synced folder read: the folder's name (never its path); nil for every other row and for a folder since untied.
+        var folder: String?
         var id: String { "\(libraryId.uuidString)|\(jobId)" }
     }
 
     /// The kinds the import queues by itself (thumbnails, search, names): one rolled-up line in the alert, not a row each
     /// (the review's answer 3: "… and background work: 412 thumbnails, 80 embeds").
     static let automaticKinds: Set<String> = ["thumbnail", "embedding", "embed", "nlp-draft", "nlp"]
-    /// A synced folder's read the open held (`jobs.NEW_MATERIAL_REASON`): "New files in a synced folder".
+    /// A synced folder's read the open held (`jobs.NEW_MATERIAL_REASON`): "New files in inbox", by the folder's name.
     static let newMaterialKind = "read-from-folder"
 
     /// The alert's four answers, in the order shown; Leave Paused is the default (Return).
@@ -63,11 +65,12 @@ final class StoppedAtQuitAlert {
     }
 
     /// The alert's message: the runs' names, at most five, then "and N more"; the automatic work rolled into one line
-    /// ("and background work: 412 thumbnails, 80 embeds"); a synced folder's held read as "New files in a synced folder";
-    /// and the one sentence that says nothing runs.
+    /// ("and background work: 412 thumbnails, 80 embeds"); a synced folder's held read as "New files in inbox", one line per
+    /// folder named in `folders` (a held read whose folder has no name: "New files in a synced folder"); and the one sentence
+    /// that says nothing runs.
     static func message(names: [String]) -> String { message(items: names.map { ($0, "") }) }
 
-    static func message(items: [(name: String, kind: String)]) -> String {
+    static func message(items: [(name: String, kind: String)], folders: [String] = []) -> String {
         let runs = items.filter { !automaticKinds.contains($0.kind) && $0.kind != newMaterialKind }
         var lines = Array(runs.map(\.name).prefix(5))
         if runs.count > 5 { lines.append("and \(runs.count - 5) more") }
@@ -78,8 +81,9 @@ final class StoppedAtQuitAlert {
             }
             lines.append((runs.isEmpty ? "Background work: " : "and background work: ") + counts.sorted().joined(separator: ", "))
         }
-        let folders = items.filter { $0.kind == newMaterialKind }.count
-        if folders > 0 { lines.append(folders == 1 ? "New files in a synced folder" : "New files in \(folders) synced folders") }
+        lines += folders.map { "New files in \($0)" }
+        let unnamed = items.filter { $0.kind == newMaterialKind }.count - folders.count
+        if unnamed > 0 { lines.append(unnamed == 1 ? "New files in a synced folder" : "New files in \(unnamed) synced folders") }
         lines.append("Nothing runs until you choose. Leave Paused keeps them in Activity with Continue.")
         return lines.joined(separator: "\n")
     }
@@ -99,7 +103,7 @@ final class StoppedAtQuitAlert {
         Self.title(count: items.filter { !Self.automaticKinds.contains($0.kind) && $0.kind != Self.newMaterialKind }.count,
                    background: items.contains { Self.automaticKinds.contains($0.kind) })
     }
-    var message: String { Self.message(items: items.map { ($0.name, $0.kind) }) }
+    var message: String { Self.message(items: items.map { ($0.name, $0.kind) }, folders: items.compactMap(\.folder)) }
 
     /// Ask each newly opened project what the quit stopped; present when anything was.
     func check(libraries: [LibraryManager.LibraryReference]) async {
@@ -107,7 +111,7 @@ final class StoppedAtQuitAlert {
             asked.insert(library.id)
             do {
                 let stopped = try await library.activityService.stoppedAtQuit()
-                items += stopped.map { Item(libraryId: library.id, jobId: $0.id, name: $0.name, kind: $0.kind) }
+                items += stopped.map { Item(libraryId: library.id, jobId: $0.id, name: $0.name, kind: $0.kind, folder: $0.folder) }
             } catch {
                 log.error("stopped-at-quit read failed: \(error.localizedDescription, privacy: .public)")
             }

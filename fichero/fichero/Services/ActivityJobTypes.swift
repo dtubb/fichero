@@ -18,6 +18,10 @@ struct ActivityJobNode: Identifiable, Equatable {
     let displayName: String?
     /// The page's document, to open it (#5561); `nil` for runs and steps.
     let documentId: String?
+    /// The multi-page file a page is a page of, and its name (the engine's `file_id`, `file_name`, #6441); `nil` for a
+    /// run, a step, and a page whose document is a file of its own.
+    var fileId: String?
+    var fileName: String?
     let model: String?
     var state: String
     let reason: String?
@@ -53,6 +57,8 @@ struct ActivityJobNode: Identifiable, Equatable {
         subject = tree.subject
         displayName = tree.displayName
         documentId = tree.documentId
+        fileId = tree.fileId
+        fileName = tree.fileName
         model = tree.model
         state = tree.state
         reason = tree.reason

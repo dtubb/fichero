@@ -10,7 +10,7 @@ import Foundation
 
 struct ActivityPaneFilter: Equatable {
     enum Key: String, CaseIterable {
-        case recipe, step, model, state, date, file
+        case recipe, step, model, state, date, file, kind
         case startedBy = "started by"
     }
 
@@ -96,7 +96,12 @@ struct ActivityPaneFilter: Equatable {
         case .model: return has(row.model)
         case .state: return has(ActivityPane.glyph(row).word) || has(row.phase.word) || has(row.stateText)
         case .file: return has(row.name) || ActivityPane.leaves(of: row).contains { has($0.name) } || has(row.ranOnText)
-        case .startedBy: return has(row.source.word) || has(row.startedBy)
+        // The kind glyph's word ("Thumbnails", "Reading"), or the engine's own kind (`activity.pane.icons-say-source-and-kind`).
+        case .kind: return has(row.kindGlyph?.word) || has(row.engineKind)
+        // "automatic" is everything nobody at the Mac started: the engine's own starters and a schedule or trigger
+        // (`activity.pane.automatic-runs-easy-to-delete`).
+        case .startedBy:
+            return has(row.source.word) || has(row.startedBy) || (row.source == .schedule && has(ActivityMonitorRow.Source.automatic.word))
         case .date: return dateMatches(value, row.started ?? row.ended, now: now, calendar: calendar)
         }
     }

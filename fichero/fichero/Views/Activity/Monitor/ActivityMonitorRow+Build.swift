@@ -148,6 +148,8 @@ extension ActivityMonitorRow {
             transientState: Phase.transientWord(node.state)
         )
         row.documentId = node.documentId
+        row.fileId = node.fileId
+        row.fileName = node.fileName
         row.started = node.startedAt
         row.ended = node.finishedAt
         return row

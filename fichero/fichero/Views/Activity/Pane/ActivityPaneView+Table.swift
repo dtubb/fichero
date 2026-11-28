@@ -86,7 +86,16 @@ extension ActivityPaneView {
             ForEach(shown) { row in
                 if let children = row.children, !children.isEmpty {
                     DisclosureTableRow(row, isExpanded: expanded(row.id)) {
-                        ForEach(children) { TableRow($0) }
+                        ForEach(children) { child in
+                            // A multi-page file opens to its pages: the one further level (`activity.pane.one-outline-table`).
+                            if let pages = child.children, !pages.isEmpty {
+                                DisclosureTableRow(child, isExpanded: expanded(child.id)) {
+                                    ForEach(pages) { TableRow($0) }
+                                }
+                            } else {
+                                TableRow(child)
+                            }
+                        }
                     }
                 } else {
                     TableRow(row)
@@ -275,19 +284,9 @@ extension ActivityPaneView {
     }
 
     func find(_ id: ActivityMonitorRow.ID, in shown: [ActivityMonitorRow]? = nil) -> ActivityMonitorRow? {
-        func search(_ rows: [ActivityMonitorRow]) -> ActivityMonitorRow? {
-            for row in rows {
-                if row.id == id { return row }
-                if let found = search(row.children ?? []) { return found }
-            }
-            return nil
-        }
-        return search(shown ?? shownRows)
+        ActivityPane.row(id, in: shown ?? shownRows)
     }
 
     /// The one selected row's details and its steps' versions; nil with none or several selected.
-    var selectedPick: ActivityPaneSelection? {
-        guard selection.count == 1, let id = selection.first, let row = find(id), let picked = row.selection else { return nil }
-        return ActivityPaneSelection(selection: picked, versions: ActivityPane.versions(for: row, in: allRows))
-    }
+    var selectedPick: ActivityPaneSelection? { ActivityPane.pick(selection, shown: shownRows, all: allRows) }
 }

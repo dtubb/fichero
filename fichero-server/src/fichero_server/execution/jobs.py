@@ -1077,10 +1077,26 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         if leaf_subjects
         else {}
     )
+    # A page of a multi-page file names that file (`activity.pane.one-outline-table`, #6441): the pane lists a register as
+    # one file row over its pages, not a row per page. A document that is not a `page` is its own file: null.
+    files: dict[str, tuple[str, str]] = (
+        {
+            page: (file_id, file_name)
+            for page, file_id, file_name in db.execute_fetchall(
+                "SELECT p.id, f.id, f.name FROM documents p JOIN documents f ON f.id = p.parent_id "
+                f"WHERE p.doc_type = 'page' AND p.id IN ({', '.join('?' for _ in names)})",
+                list(names),
+                committed=True,
+            )
+        }
+        if names
+        else {}
+    )
     for node in nodes.values():
         subject = node["subject"] or ""
         is_page = node["kind"] not in RUN_KINDS
         node["document_id"] = subject if is_page and subject in names else None
+        node["file_id"], node["file_name"] = files.get(subject, (None, None)) if is_page else (None, None)
         node["display_name"] = (
             names.get(subject) or (Path(subject).name if "/" in subject else None)
             if is_page
