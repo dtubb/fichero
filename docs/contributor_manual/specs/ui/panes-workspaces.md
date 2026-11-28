@@ -366,12 +366,16 @@ starting a new one.
   toolbar; "open in a new window" should be one general capability reachable for any node
   (doc/page/artifact/attribute), consistent with the reader/inspector mini-toolbars. Not
   verified as built.
-- `panes.chrome.shared-surfacechrome-component` — **[GAP]** (#3530) the Reader/Inspector tab
+- `panes.chrome.shared-surfacechrome-component` — **[OK]** (#3530) the Reader/Inspector tab
   bar + bottom mini-toolbar + sub-tab pattern should be extracted into one reusable
   `SurfaceChrome` component set so Workflow/Chat/Agent/Research/Search can adopt the same
   chrome without re-deriving it. Verified at HEAD: no `SurfaceChrome`-named type exists
   anywhere under `fichero/fichero/` — `MiniToolbar`/`PaneFilterBar` are shared, but the tab-bar
   half of the pattern is not yet extracted.
+  *Built since that check:* the tab-bar half is `SurfaceTab` and `SurfaceTabBar` (`Views/Shell/SurfaceTabBar.swift`),
+  mounted by the Reader, the Inspector, the Workflow inspector, the batch run view and the research chat. *Test:*
+  `fichero/Tests/Unit/general/Views/Inspector/InspectorLayoutTests.swift` (`SurfaceChromeTests`:
+  `defaultAccessibilityID`, `readerTabConformsToSurfaceTab`).
 - `panes.toolbar.sidebar-pair-once` — **[PARTIAL]** (owner 2026-11-13, a screenshot of two pairs) the Sidebar/Chat
   pair (☰ ✦) is in the window toolbar ONCE: while the sidebar is up, in the sidebar column's own toolbar section
   beside the window controls; while it is hidden, as its own island beside Back/Forward. Seen 2026-11-13: with the
